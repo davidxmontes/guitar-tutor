@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 import os
+import re
 
 from app.routers import fretboard, tunings, scales, chords, agent
 
@@ -20,7 +23,50 @@ else:
     # sensible default for local dev
     allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-# CORS middleware
+# Regex patterns for dynamic origins (like Vercel preview deployments)
+# Matches: https://guitar-tutor-*.vercel.app and https://*-david-montes-de-ocas-projects.vercel.app
+origin_patterns = [
+    re.compile(r'^https://guitar-tutor-.*\.vercel\.app$'),
+    re.compile(r'^https://.*-david-montes-de-ocas-projects\.vercel\.app$'),
+]
+
+def is_origin_allowed(origin: str) -> bool:
+    """Check if origin is in allowed list or matches a pattern."""
+    if origin in allowed_origins:
+        return True
+    for pattern in origin_patterns:
+        if pattern.match(origin):
+            return True
+    return False
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    """Custom CORS middleware that supports regex patterns for origins."""
+    
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        
+        # Handle preflight requests
+        if request.method == "OPTIONS":
+            response = await call_next(request)
+            if origin and is_origin_allowed(origin):
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = "*"
+                response.headers["Access-Control-Allow-Headers"] = "*"
+            return response
+        
+        response = await call_next(request)
+        
+        if origin and is_origin_allowed(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
+
+# Use custom CORS middleware for dynamic origin matching
+app.add_middleware(DynamicCORSMiddleware)
+
+# Also add standard CORS middleware for static origins (as fallback)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
