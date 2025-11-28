@@ -99,7 +99,7 @@ Question: {user_question}
 class GuitarTutorAgent:
     """Guitar Tutor Agent using LangGraph."""
     
-    def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0):
+    def __init__(self, model_name: str = "gpt-5-mini", temperature: float = 0):
         """Initialize the agent with the specified model."""
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
