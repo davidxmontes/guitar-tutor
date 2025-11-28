@@ -1,6 +1,7 @@
 import type { NotePosition, ScaleNotePosition, CagedShape, CagedShapeName } from '../../types';
 import { FretboardHeader, FretMarkersRow } from './FretboardHeader';
 import { StringRow } from './StringRow';
+import { CAGED_COLORS } from '../../constants/colors';
 
 // String names from high to low (string 1 to string 6)
 const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
@@ -48,23 +49,23 @@ export function Fretboard({
                 <span className="text-gray-500 text-xs">Root</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-orange-500" />
+                <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.C.bg}`} />
                 <span className="text-gray-500 text-xs">C</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-yellow-500" />
+                <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.A.bg}`} />
                 <span className="text-gray-500 text-xs">A</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-green-500" />
+                <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.G.bg}`} />
                 <span className="text-gray-500 text-xs">G</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-blue-500" />
+                <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.E.bg}`} />
                 <span className="text-gray-500 text-xs">E</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-purple-500" />
+                <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.D.bg}`} />
                 <span className="text-gray-500 text-xs">D</span>
               </div>
             </>

@@ -1,29 +1,5 @@
 import type { CagedShape, CagedShapeName } from '../../types';
-
-// CAGED shape color mapping
-const SHAPE_COLORS: Record<CagedShapeName, string> = {
-  C: 'bg-orange-500',
-  A: 'bg-yellow-500',
-  G: 'bg-green-500',
-  E: 'bg-blue-500',
-  D: 'bg-purple-500',
-};
-
-const SHAPE_HOVER_COLORS: Record<CagedShapeName, string> = {
-  C: 'hover:bg-orange-100',
-  A: 'hover:bg-yellow-100',
-  G: 'hover:bg-green-100',
-  E: 'hover:bg-blue-100',
-  D: 'hover:bg-purple-100',
-};
-
-const SHAPE_TEXT_COLORS: Record<CagedShapeName, string> = {
-  C: 'text-orange-600',
-  A: 'text-yellow-600',
-  G: 'text-green-600',
-  E: 'text-blue-600',
-  D: 'text-purple-600',
-};
+import { CAGED_COLORS } from '../../constants/colors';
 
 interface CagedShapeFilterProps {
   shapes: CagedShape[];
@@ -56,8 +32,8 @@ export function CagedShapeFilter({
                 flex items-center justify-center shadow-sm
                 hover:shadow-md hover:scale-105
                 ${isActive 
-                  ? `${SHAPE_COLORS[shape.shape]} text-white` 
-                  : `bg-gray-100 ${SHAPE_TEXT_COLORS[shape.shape]} ${SHAPE_HOVER_COLORS[shape.shape]} border border-gray-200`
+                  ? `${CAGED_COLORS[shape.shape].bg} text-white` 
+                  : `bg-gray-100 ${CAGED_COLORS[shape.shape].text} ${CAGED_COLORS[shape.shape].bgHover} border border-gray-200`
                 }
               `}
               title={`${shape.shape} Shape (Frets ${shape.min_fret}-${shape.max_fret})`}

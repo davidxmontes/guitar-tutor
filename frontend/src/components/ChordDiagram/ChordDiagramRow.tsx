@@ -2,15 +2,7 @@ import type { CagedShape, CagedShapeName } from '../../types'
 import { ChordDiagram } from './ChordDiagram'
 import { PlayButton } from '../PlayButton'
 import { playChord, playArpeggio, getChordDuration } from '../../utils/audio'
-
-// CAGED shape colors
-const SHAPE_COLORS: Record<CagedShapeName, string> = {
-  C: 'bg-orange-500',
-  A: 'bg-yellow-500',
-  G: 'bg-green-500',
-  E: 'bg-blue-500',
-  D: 'bg-purple-500',
-}
+import { CAGED_COLORS } from '../../constants/colors'
 
 interface ChordDiagramRowProps {
   shapes: CagedShape[]
@@ -56,7 +48,7 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                   onClick={() => onToggleShape(shape.shape)}
                   className={`w-7 h-7 rounded-md text-xs font-bold transition-all flex items-center justify-center ${
                     isActive
-                      ? `${SHAPE_COLORS[shape.shape]} text-white shadow-sm`
+                      ? `${CAGED_COLORS[shape.shape].bg} text-white shadow-sm`
                       : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
                   }`}
                 >
@@ -100,7 +92,7 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                   onClick={() => onToggleShape(shape.shape)}
                   className={`w-7 h-7 rounded-md text-xs font-bold transition-all flex items-center justify-center ${
                     isActive
-                      ? `${SHAPE_COLORS[shape.shape]} text-white shadow-sm`
+                      ? `${CAGED_COLORS[shape.shape].bg} text-white shadow-sm`
                       : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
                   }`}
                 >

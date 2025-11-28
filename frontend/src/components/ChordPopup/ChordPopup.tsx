@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { ChordResponse } from '../../types'
 import { ChordDiagram } from '../ChordDiagram/ChordDiagram'
 import { playChord, playArpeggio } from '../../utils/audio'
+import { CAGED_COLORS } from '../../constants/colors'
 
 interface ChordPopupProps {
   chordData: ChordResponse
@@ -154,8 +155,8 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
             <span 
               className="text-sm font-medium px-2 py-1 rounded"
               style={{ 
-                backgroundColor: currentShape.color + '20',
-                color: currentShape.color,
+                backgroundColor: CAGED_COLORS[currentShape.shape].hex + '20',
+                color: CAGED_COLORS[currentShape.shape].hex,
               }}
             >
               {currentShape.shape} Shape

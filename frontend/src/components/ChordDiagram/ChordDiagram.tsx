@@ -1,19 +1,11 @@
 import React from 'react'
-import type { CagedShape, CagedShapeName } from '../../types'
+import type { CagedShape } from '../../types'
+import { CAGED_COLORS } from '../../constants/colors'
 
 interface ChordDiagramProps {
   shape: CagedShape
   isActive: boolean
   onClick?: () => void
-}
-
-// CAGED shape colors for the badge
-const SHAPE_COLORS: Record<CagedShapeName, string> = {
-  C: 'bg-orange-500',
-  A: 'bg-yellow-500',
-  G: 'bg-green-500',
-  E: 'bg-blue-500',
-  D: 'bg-purple-500',
 }
 
 const STRING_SPACING = 24
@@ -83,7 +75,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
         }
       `}
       style={{
-        '--tw-ring-color': isActive ? shape.color : 'transparent',
+        '--tw-ring-color': isActive ? CAGED_COLORS[shape.shape].hex : 'transparent',
         height: CARD_HEIGHT,
       } as React.CSSProperties}
       onClick={onClick}
@@ -91,7 +83,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
       {/* Header with shape name and badge */}
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-xs font-bold text-slate-800">{shape.shape}-Shape</h3>
-        <span className={`w-5 h-5 rounded-full ${SHAPE_COLORS[shape.shape]} text-white text-[10px] font-bold flex items-center justify-center`}>
+        <span className={`w-5 h-5 rounded-full ${CAGED_COLORS[shape.shape].bg} text-white text-[10px] font-bold flex items-center justify-center`}>
           {shape.shape}
         </span>
       </div>
@@ -178,7 +170,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
               width={getStringX(barreInfo.minString) - getStringX(barreInfo.maxString) + DOT_RADIUS * 2}
               height={12}
               rx={6}
-              fill={shape.color}
+              fill={CAGED_COLORS[shape.shape].hex}
               opacity={0.4}
             />
           )}
@@ -200,7 +192,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
                     cx={x}
                     cy={y}
                     r={DOT_RADIUS}
-                    fill={shape.color}
+                    fill={CAGED_COLORS[shape.shape].hex}
                     className="drop-shadow-sm"
                   />
                   <text

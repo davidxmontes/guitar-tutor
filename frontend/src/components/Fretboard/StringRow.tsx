@@ -14,8 +14,8 @@ const STRING_THICKNESS: Record<number, string> = {
   2: 'h-px',      // B
   3: 'h-0.5',     // G
   4: 'h-0.5',     // D
-  5: 'h-[3px]',   // A
-  6: 'h-1',       // Low E - thickest
+  5: 'h-0.5',     // A
+  6: 'h-[3px]',   // Low E - thickest
 };
 
 interface StringRowProps {

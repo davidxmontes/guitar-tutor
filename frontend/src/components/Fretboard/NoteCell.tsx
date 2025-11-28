@@ -1,13 +1,5 @@
 import type { CagedShapeName } from '../../types';
-
-// CAGED shape color classes
-const CAGED_BG_COLORS: Record<CagedShapeName, string> = {
-  C: 'bg-orange-500',
-  A: 'bg-yellow-500',
-  G: 'bg-green-500',
-  E: 'bg-blue-500',
-  D: 'bg-purple-500',
-};
+import { CAGED_COLORS } from '../../constants/colors';
 
 interface NoteCellProps {
   note: string;
@@ -45,7 +37,7 @@ export function NoteCell({
       if (isChordRoot) {
         return 'bg-gray-900 text-white ring-2 ring-blue-400';
       }
-      return `${CAGED_BG_COLORS[cagedShape]} text-white`;
+      return `${CAGED_COLORS[cagedShape].bg} text-white`;
     }
     
     // Scale mode
