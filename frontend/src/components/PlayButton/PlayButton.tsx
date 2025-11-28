@@ -41,10 +41,15 @@ export function PlayButton({
     lg: 'w-10 h-10 text-base',
   }
   
+  const getVariantStyle = () => {
+    if (variant === 'primary') {
+      return { backgroundColor: isPlaying ? 'var(--accent-600)' : 'var(--accent-500)', color: 'white' }
+    }
+    return {}
+  }
+  
   const variantClasses = {
-    primary: isPlaying 
-      ? 'bg-blue-600 text-white' 
-      : 'bg-blue-500 hover:bg-blue-600 text-white',
+    primary: 'text-white',
     secondary: isPlaying 
       ? 'bg-gray-300 text-gray-700' 
       : 'bg-gray-200 hover:bg-gray-300 text-gray-700',
@@ -67,6 +72,7 @@ export function PlayButton({
         ${isPlaying ? 'animate-pulse' : ''}
         ${className}
       `}
+      style={getVariantStyle()}
       title={label || 'Play'}
     >
       {isPlaying ? (
@@ -135,13 +141,13 @@ export function PlayTextButton({
         text-sm font-medium
         rounded-lg
         transition-all
-        ${isPlaying 
-          ? 'bg-blue-100 text-blue-700' 
-          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-        }
         disabled:cursor-not-allowed
         ${className}
       `}
+      style={isPlaying 
+        ? { backgroundColor: 'var(--accent-100)', color: 'var(--accent-700)' }
+        : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }
+      }
     >
       {isPlaying ? (
         <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
