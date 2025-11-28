@@ -23,6 +23,15 @@ interface PopupState {
 
 function App() {
   const [appMode, setAppMode] = useState<AppMode>('scale')
+  const [darkMode, setDarkMode] = useState(() => {
+    // Check localStorage or system preference
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('darkMode')
+      if (saved !== null) return saved === 'true'
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+    return false
+  })
   const [chatWidth, setChatWidth] = useState(320) // Default w-80 = 320px
   const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null)
   const [scaleData, setScaleData] = useState<ScaleResponse | null>(null)
@@ -42,6 +51,20 @@ function App() {
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatLoading, setChatLoading] = useState(false)
+
+  // Apply dark mode class to html element
+  useEffect(() => {
+    const html = document.documentElement
+    if (darkMode) {
+      html.classList.add('dark')
+    } else {
+      html.classList.remove('dark')
+    }
+    localStorage.setItem('darkMode', String(darkMode))
+  }, [darkMode])
+
+  // Toggle dark mode
+  const toggleDarkMode = () => setDarkMode(prev => !prev)
 
   // Fetch fretboard data
   useEffect(() => {
@@ -345,9 +368,9 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       {/* Header */}
-      <header className="h-16 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm z-20">
+      <header className="h-16 flex-shrink-0 z-20 border-b" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-sm)' }}>
         <div className="h-full max-w-full mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-8">
             {/* Branded Logo */}
@@ -357,18 +380,23 @@ function App() {
                   <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.658.122z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900">Guitar Tutor</h1>
+              <h1 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>Guitar Tutor</h1>
             </div>
             
             {/* Mode Toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
+            <div className="flex rounded-lg p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
               <button
                 onClick={() => handleModeSwitch('scale')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                   appMode === 'scale' 
-                    ? 'bg-white text-blue-700 shadow-sm border border-gray-200 font-bold' 
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                    ? 'shadow-sm border font-bold' 
+                    : ''
                 }`}
+                style={{ 
+                  backgroundColor: appMode === 'scale' ? 'var(--card-bg)' : 'transparent',
+                  borderColor: appMode === 'scale' ? 'var(--border-primary)' : 'transparent',
+                  color: appMode === 'scale' ? '#2563eb' : 'var(--text-tertiary)'
+                }}
               >
                 Scale Mode
               </button>
@@ -376,9 +404,14 @@ function App() {
                 onClick={() => handleModeSwitch('chord')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                   appMode === 'chord' 
-                    ? 'bg-white text-blue-700 shadow-sm border border-gray-200 font-bold' 
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                    ? 'shadow-sm border font-bold' 
+                    : ''
                 }`}
+                style={{ 
+                  backgroundColor: appMode === 'chord' ? 'var(--card-bg)' : 'transparent',
+                  borderColor: appMode === 'chord' ? 'var(--border-primary)' : 'transparent',
+                  color: appMode === 'chord' ? '#2563eb' : 'var(--text-tertiary)'
+                }}
               >
                 Chord Mode
               </button>
@@ -389,15 +422,20 @@ function App() {
           <div className="flex items-center gap-4">
             {/* Display Mode Toggle */}
             {(scaleData || chordData) && (
-              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-200">
-                <span className="text-xs font-semibold text-gray-500 px-2 uppercase tracking-wide">Display:</span>
+              <div className="flex items-center gap-2 rounded-lg p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+                <span className="text-xs font-semibold px-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Display:</span>
                 <button
                   onClick={() => setDisplayMode('notes')}
                   className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     displayMode === 'notes' 
-                      ? 'bg-white text-slate-800 shadow-sm border border-gray-200 font-bold' 
-                      : 'text-slate-600 hover:text-gray-900 hover:bg-gray-200'
+                      ? 'shadow-sm border font-bold' 
+                      : ''
                   }`}
+                  style={{ 
+                    backgroundColor: displayMode === 'notes' ? 'var(--card-bg)' : 'transparent',
+                    borderColor: displayMode === 'notes' ? 'var(--border-primary)' : 'transparent',
+                    color: displayMode === 'notes' ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                  }}
                 >
                   Notes
                 </button>
@@ -405,14 +443,40 @@ function App() {
                   onClick={() => setDisplayMode('intervals')}
                   className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     displayMode === 'intervals' 
-                      ? 'bg-white text-slate-800 shadow-sm border border-gray-200 font-bold' 
-                      : 'text-slate-600 hover:text-gray-900 hover:bg-gray-200'
+                      ? 'shadow-sm border font-bold' 
+                      : ''
                   }`}
+                  style={{ 
+                    backgroundColor: displayMode === 'intervals' ? 'var(--card-bg)' : 'transparent',
+                    borderColor: displayMode === 'intervals' ? 'var(--border-primary)' : 'transparent',
+                    color: displayMode === 'intervals' ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                  }}
                 >
                   Intervals
                 </button>
               </div>
             )}
+            
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 rounded-lg transition-all hover:scale-105"
+              style={{ 
+                backgroundColor: 'var(--bg-tertiary)',
+                color: 'var(--text-secondary)'
+              }}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                  <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                  <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -431,6 +495,7 @@ function App() {
             onChordClick={handleChatChordClick}
             onScaleClick={handleChatScaleClick}
             onReset={handleChatReset}
+            darkMode={darkMode}
           />
           {/* Resize Handle */}
           <div
@@ -455,15 +520,15 @@ function App() {
               document.addEventListener('mouseup', onMouseUp);
             }}
           >
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-8 bg-slate-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--border-secondary)' }} />
           </div>
         </aside>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--main-content-bg)' }}>
           {/* Control Bar */}
-          <section className="bg-white px-8 py-4 border-b border-gray-200 shadow-sm z-10 flex-shrink-0">
-            <div className="flex items-center justify-between">
+          <section className="px-6 pt-6 pb-2 z-10 flex-shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 rounded-xl border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-md)' }}>
               <div className="flex items-center gap-6">
                 {/* Scale Mode Controls */}
                 {appMode === 'scale' && (
@@ -472,16 +537,18 @@ function App() {
                       selectedRoot={selectedRoot}
                       selectedMode={selectedMode}
                       onSelect={handleScaleSelect}
+                      darkMode={darkMode}
                     />
                     
                     {/* Diatonic Chords - inline in control bar */}
                     {scaleData && (
                       <>
-                        <div className="h-10 w-px bg-gray-200"></div>
+                        <div className="h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
                         <DiatonicChordsRow
                           chords={scaleData.diatonic_chords}
                           onChordClick={handleChordClick}
                           selectedChord={selectedDiatonicChord}
+                          darkMode={darkMode}
                         />
                       </>
                     )}
@@ -495,6 +562,7 @@ function App() {
                       selectedRoot={selectedChordRoot}
                       selectedQuality={selectedChordQuality}
                       onSelect={handleDirectChordSelect}
+                      darkMode={darkMode}
                     />
                   </>
                 )}
@@ -523,7 +591,12 @@ function App() {
                 {(scaleData || chordData) && (
                   <button
                     onClick={handleClearAll}
-                    className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-slate-700 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all border"
+                    style={{ 
+                      backgroundColor: 'var(--card-bg)', 
+                      borderColor: 'var(--border-primary)',
+                      color: 'var(--text-secondary)'
+                    }}
                   >
                     Clear
                   </button>
@@ -533,7 +606,7 @@ function App() {
           </section>
 
           {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto p-6 space-y-4">
+          <main className="flex-1 overflow-y-auto p-6 space-y-4" style={{ backgroundColor: 'var(--main-content-bg)' }}>
             {/* Chord Diagrams */}
             {chordData && (
               <ChordDiagramRow
@@ -542,19 +615,20 @@ function App() {
                 onToggleShape={handleToggleShape}
                 isExpanded={diagramsExpanded}
                 onToggleExpanded={() => setDiagramsExpanded(!diagramsExpanded)}
+                darkMode={darkMode}
               />
             )}
 
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="text-gray-500">Loading fretboard...</div>
+              <div style={{ color: 'var(--text-muted)' }}>Loading fretboard...</div>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <p className="text-red-700">{error}</p>
-              <p className="text-red-500 text-sm mt-1">
+            <div className="rounded-lg p-4 mb-4 border" style={{ backgroundColor: darkMode ? '#450a0a' : '#fef2f2', borderColor: darkMode ? '#7f1d1d' : '#fecaca' }}>
+              <p style={{ color: darkMode ? '#fca5a5' : '#b91c1c' }}>{error}</p>
+              <p className="text-sm mt-1" style={{ color: darkMode ? '#f87171' : '#dc2626' }}>
                 {/** Show the actual API base the app will call (build-time Vite var or fallback) */}
                 Make sure the backend is running and reachable. This app calls the API at{' '}
                 <strong>{(import.meta.env as any).VITE_API_BASE_URL ?? '/api'}</strong>
@@ -574,12 +648,13 @@ function App() {
               displayMode={displayMode}
               onScaleNoteClick={handleScaleNoteClick}
               clickableScaleNotes={clickableScaleNotes}
+              darkMode={darkMode}
             />
           )}
 
           {/* Scale mode hint */}
           {appMode === 'scale' && scaleData && !chordData && (
-            <div className="text-center text-sm text-gray-500">
+            <div className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>
               💡 Click on any scale note to see the chord built on that degree
             </div>
           )}

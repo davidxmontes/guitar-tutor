@@ -1,6 +1,7 @@
 interface QuickActionsProps {
   onAction: (prompt: string) => void;
   disabled?: boolean;
+  darkMode?: boolean;
 }
 
 const QUICK_ACTIONS = [
@@ -10,12 +11,43 @@ const QUICK_ACTIONS = [
   { label: "Beginner chords", prompt: "What are the easiest chords for beginners?", icon: "✨", type: "chord" },
 ];
 
-export function QuickActions({ onAction, disabled = false }: QuickActionsProps) {
+export function QuickActions({ onAction, disabled = false, darkMode: _darkMode = false }: QuickActionsProps) {
+  // Check if we're in dark mode by looking at the document class
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  
+  const getButtonStyles = (type: string) => {
+    if (type === 'scale') {
+      return {
+        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)',
+        border: `1px solid ${isDark ? 'rgba(52, 211, 153, 0.4)' : 'rgba(16, 185, 129, 0.3)'}`,
+        color: isDark ? '#6ee7b7' : '#059669'
+      };
+    } else if (type === 'progression') {
+      return {
+        backgroundColor: isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)',
+        border: `1px solid ${isDark ? 'rgba(167, 139, 250, 0.4)' : 'rgba(139, 92, 246, 0.3)'}`,
+        color: isDark ? '#c4b5fd' : '#7c3aed'
+      };
+    } else {
+      return {
+        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+        border: `1px solid ${isDark ? 'rgba(96, 165, 250, 0.4)' : 'rgba(59, 130, 246, 0.3)'}`,
+        color: isDark ? '#93c5fd' : '#2563eb'
+      };
+    }
+  };
+  
   return (
-    <div className="p-4 bg-white border-b border-slate-100">
+    <div 
+      className="p-4 border-b"
+      style={{ 
+        backgroundColor: 'var(--card-bg)',
+        borderColor: 'var(--border-primary)'
+      }}
+    >
       <div className="text-center mb-4">
-        <p className="text-sm text-slate-600 font-medium">How can I help?</p>
-        <p className="text-xs text-slate-400 mt-0.5">Ask about scales, chords, or progressions</p>
+        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>How can I help?</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Ask about scales, chords, or progressions</p>
       </div>
       <div className="flex flex-wrap gap-2 justify-center">
         {QUICK_ACTIONS.map((action, idx) => (
@@ -23,16 +55,10 @@ export function QuickActions({ onAction, disabled = false }: QuickActionsProps) 
             key={idx}
             onClick={() => onAction(action.prompt)}
             disabled={disabled}
-            className={`px-3 py-2 text-xs rounded-lg border shadow-sm
+            className={`px-3 py-2 text-xs rounded-lg shadow-sm
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]
-                       ${
-                         action.type === 'scale'
-                           ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300'
-                           : action.type === 'progression'
-                           ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300'
-                           : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
-                       }`}
+                       transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]`}
+            style={getButtonStyles(action.type)}
           >
             <span className="mr-1.5">{action.icon}</span>
             {action.label}

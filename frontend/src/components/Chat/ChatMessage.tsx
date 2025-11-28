@@ -4,9 +4,10 @@ interface ChatMessageProps {
   message: ChatMessageType;
   onChordClick?: (chord: string, apiRequest?: { root: string; quality: string }) => void;
   onScaleClick?: (scale: string, apiRequest?: { root: string; mode: string }) => void;
+  darkMode?: boolean;
 }
 
-export function ChatMessage({ message, onChordClick, onScaleClick }: ChatMessageProps) {
+export function ChatMessage({ message, onChordClick, onScaleClick, darkMode: _darkMode = false }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
   // Find the API request for a chord by index
@@ -23,24 +24,35 @@ export function ChatMessage({ message, onChordClick, onScaleClick }: ChatMessage
         className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm ${
           isUser
             ? 'bg-blue-600 text-white rounded-br-sm'
-            : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm'
+            : 'rounded-bl-sm border'
         }`}
+        style={!isUser ? {
+          backgroundColor: 'var(--card-bg)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)'
+        } : undefined}
       >
         {/* Message content */}
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
 
         {/* Show chord choices as clickable pills (assistant only) */}
         {!isUser && message.chordChoices && message.chordChoices.length > 0 && (
-          <div className="mt-3 pt-2.5 border-t border-slate-100">
-            <p className="text-xs text-slate-500 mb-2 font-medium">Suggested chords:</p>
+          <div className="mt-3 pt-2.5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+            <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Suggested chords:</p>
             <div className="flex flex-wrap gap-1.5">
               {message.chordChoices.map((chord, idx) => (
                 <button
                   key={idx}
                   onClick={() => onChordClick?.(chord, getChordApiRequest(idx))}
-                  className="px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-full 
+                  className="px-2.5 py-1 text-xs rounded-full border
                              hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 
-                             transition-all duration-150 font-medium text-slate-700"
+                             dark:hover:bg-blue-900/30 dark:hover:border-blue-600 dark:hover:text-blue-400
+                             transition-all duration-150 font-medium"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-secondary)'
+                  }}
                 >
                   {chord}
                 </button>
@@ -51,13 +63,14 @@ export function ChatMessage({ message, onChordClick, onScaleClick }: ChatMessage
 
         {/* Show scale as clickable pill (assistant only) */}
         {!isUser && message.scale && (
-          <div className="mt-3 pt-2.5 border-t border-slate-100">
-            <p className="text-xs text-slate-500 mb-2 font-medium">Recommended scale:</p>
+          <div className="mt-3 pt-2.5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+            <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Recommended scale:</p>
             <button
               onClick={() => onScaleClick?.(message.scale!, message.apiRequests?.scale || undefined)}
               className="px-2.5 py-1 text-xs bg-emerald-50 border border-emerald-200 rounded-full 
                          hover:bg-emerald-100 hover:border-emerald-300 transition-all duration-150 
-                         text-emerald-700 font-medium"
+                         text-emerald-700 font-medium
+                         dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
             >
               {message.scale}
             </button>
@@ -65,7 +78,10 @@ export function ChatMessage({ message, onChordClick, onScaleClick }: ChatMessage
         )}
 
         {/* Timestamp */}
-        <p className={`text-[11px] mt-2 ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
+        <p 
+          className="text-[11px] mt-2"
+          style={{ color: isUser ? 'rgb(191 219 254)' : 'var(--text-muted)' }}
+        >
           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>

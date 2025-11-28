@@ -6,6 +6,7 @@ interface ChordDiagramProps {
   shape: CagedShape
   isActive: boolean
   onClick?: () => void
+  darkMode?: boolean
 }
 
 const STRING_SPACING = 24
@@ -18,7 +19,7 @@ const DOT_RADIUS = 9
 // Fixed height for uniform cards
 const CARD_HEIGHT = 180
 
-export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
+export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = false }: ChordDiagramProps) {
   // Calculate the fret range to display
   const frets = shape.positions.map(p => p.fret)
   const minFret = Math.min(...frets)

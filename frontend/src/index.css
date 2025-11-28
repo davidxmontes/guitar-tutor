@@ -3,16 +3,94 @@
 
 @import "tailwindcss";
 
-/* Base styles */
+/* ===== Theme Colors using CSS Custom Properties ===== */
 :root {
+  /* Font */
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* Background colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --bg-input: #f9fafb;
+  
+  /* Text colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-muted: #94a3b8;
+  
+  /* Border colors */
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+  
+  /* Component-specific - with more contrast */
+  --header-bg: #e2e8f0;
+  --card-bg: #ffffff;
+  --chat-bg: #f1f5f9;
+  --chat-header-bg: #ffffff;
+  --fretboard-bg: #ffffff;
+  --control-bg: #ffffff;
+  --main-content-bg: #f8fafc;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  
+  /* Scrollbar */
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  
+  /* Selection */
+  --selection-bg: #dbeafe;
+  --selection-text: #1e3a8a;
 }
 
+/* Dark mode */
+.dark {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-hover: #475569;
+  --bg-input: #1e293b;
+  
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --border-primary: #334155;
+  --border-secondary: #475569;
+  
+  /* Component-specific - with more contrast */
+  --header-bg: #0f172a;
+  --card-bg: #1e293b;
+  --chat-bg: #0f172a;
+  --chat-header-bg: #1e293b;
+  --fretboard-bg: #1e293b;
+  --control-bg: #1e293b;
+  --main-content-bg: #1e293b;
+  
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  
+  --scrollbar-thumb: #475569;
+  --scrollbar-thumb-hover: #64748b;
+  
+  --selection-bg: #1e3a8a;
+  --selection-text: #dbeafe;
+}
+
+/* ===== Base Styles ===== */
 body {
   margin: 0;
   min-height: 100vh;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Custom scrollbar styles */
@@ -26,23 +104,35 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Text selection colors */
 ::selection {
-  background-color: #dbeafe;
-  color: #1e3a8a;
+  background-color: var(--selection-bg);
+  color: var(--selection-text);
 }
 
 /* Smooth transitions for interactive elements */
-button, select, input {
+button, select, input, textarea {
   transition: all 0.15s ease;
+}
+
+/* Placeholder text color */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 /* Focus styles for accessibility */
@@ -52,6 +142,23 @@ input:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
+
+/* ===== Theme utility classes ===== */
+.theme-bg-primary { background-color: var(--bg-primary); }
+.theme-bg-secondary { background-color: var(--bg-secondary); }
+.theme-bg-tertiary { background-color: var(--bg-tertiary); }
+.theme-bg-card { background-color: var(--card-bg); }
+.theme-bg-header { background-color: var(--header-bg); }
+.theme-bg-chat { background-color: var(--chat-bg); }
+.theme-bg-control { background-color: var(--control-bg); }
+
+.theme-text-primary { color: var(--text-primary); }
+.theme-text-secondary { color: var(--text-secondary); }
+.theme-text-tertiary { color: var(--text-tertiary); }
+.theme-text-muted { color: var(--text-muted); }
+
+.theme-border { border-color: var(--border-primary); }
+.theme-border-secondary { border-color: var(--border-secondary); }
 
 /* CAGED color utilities - for use in dynamic styling */
 .caged-c { --caged-color: #f97316; }

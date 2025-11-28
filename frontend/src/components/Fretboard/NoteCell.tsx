@@ -14,6 +14,7 @@ interface NoteCellProps {
   isChordRoot?: boolean;
   onClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   isClickable?: boolean;
+  darkMode?: boolean;
 }
 
 export function NoteCell({ 
@@ -29,25 +30,30 @@ export function NoteCell({
   isChordRoot = false,
   onClick,
   isClickable = false,
+  darkMode = false,
 }: NoteCellProps) {
   // Determine styling based on context
   const getColorClasses = () => {
     // Chord mode - CAGED shape coloring takes priority
     if (cagedShape) {
       if (isChordRoot) {
-        return 'bg-gray-900 text-white ring-2 ring-blue-400';
+        return darkMode 
+          ? 'bg-gray-100 text-gray-900 ring-2 ring-blue-400'
+          : 'bg-gray-900 text-white ring-2 ring-blue-400';
       }
       return `${CAGED_COLORS[cagedShape].bg} text-white`;
     }
     
     // Scale mode
     if (isRoot) {
-      return 'bg-gray-900 text-white';
+      return darkMode 
+        ? 'bg-gray-100 text-gray-900'
+        : 'bg-gray-900 text-white';
     }
     if (isInScale) {
       return 'bg-blue-500 text-white';
     }
-    return 'bg-gray-200 text-gray-400';
+    return '';  // Will use inline styles for dimmed notes
   };
 
   // Determine what to display in the circle
@@ -68,8 +74,15 @@ export function NoteCell({
       className={`
         relative flex items-center justify-center
         w-11 h-[38px]
-        ${isOpenString ? 'border-r-[6px] border-gray-300 bg-gray-50' : 'border-r-2 border-gray-200'}
       `}
+      style={{
+        borderRight: isOpenString 
+          ? `6px solid ${darkMode ? '#475569' : '#d1d5db'}` 
+          : `2px solid ${darkMode ? '#334155' : '#e5e7eb'}`,
+        backgroundColor: isOpenString 
+          ? (darkMode ? 'rgba(71, 85, 105, 0.3)' : '#f9fafb') 
+          : 'transparent'
+      }}
     >
       {/* Note circle */}
       <button
@@ -82,6 +95,10 @@ export function NoteCell({
           ${getColorClasses()}
           ${isDimmed ? 'opacity-40' : ''}
         `}
+        style={isDimmed ? {
+          backgroundColor: darkMode ? '#475569' : '#e5e7eb',
+          color: darkMode ? '#94a3b8' : '#9ca3af'
+        } : undefined}
         title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isClickable ? ' (click for chord)' : ''}`}
       >
         {displayText}

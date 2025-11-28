@@ -16,6 +16,7 @@ interface FretboardProps {
   displayMode?: 'notes' | 'intervals';
   onScaleNoteClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   clickableScaleNotes?: Set<string>;
+  darkMode?: boolean;
 }
 
 export function Fretboard({ 
@@ -28,16 +29,24 @@ export function Fretboard({
   displayMode = 'notes',
   onScaleNoteClick,
   clickableScaleNotes,
+  darkMode = false,
 }: FretboardProps) {
   const hasScale = scalePositions.length > 0;
   const hasChords = chordShapes.length > 0;
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
+    <div 
+      className="rounded-xl p-6 border"
+      style={{ 
+        backgroundColor: 'var(--card-bg)',
+        borderColor: 'var(--border-primary)',
+        boxShadow: 'var(--shadow-md)'
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-gray-800">Fretboard</h2>
+          <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Fretboard</h2>
         </div>
         
         {/* Legend */}
@@ -45,49 +54,62 @@ export function Fretboard({
           {hasChords ? (
             <>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-gray-900 ring-2 ring-blue-400" />
-                <span className="text-gray-500 text-xs">Root</span>
+                <div 
+                  className="w-4 h-4 rounded-full ring-2 ring-blue-400" 
+                  style={{ backgroundColor: darkMode ? '#f1f5f9' : '#111827' }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Root</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.C.bg}`} />
-                <span className="text-gray-500 text-xs">C</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>C</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.A.bg}`} />
-                <span className="text-gray-500 text-xs">A</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>A</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.G.bg}`} />
-                <span className="text-gray-500 text-xs">G</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>G</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.E.bg}`} />
-                <span className="text-gray-500 text-xs">E</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>E</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className={`w-4 h-4 rounded-full ${CAGED_COLORS.D.bg}`} />
-                <span className="text-gray-500 text-xs">D</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>D</span>
               </div>
             </>
           ) : hasScale ? (
             <>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-gray-900" />
-                <span className="text-gray-500 text-xs">Root</span>
+                <div 
+                  className="w-4 h-4 rounded-full" 
+                  style={{ backgroundColor: darkMode ? '#f1f5f9' : '#111827' }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Root</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-blue-500" />
-                <span className="text-gray-500 text-xs">Scale Note</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Scale Note</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-gray-200 opacity-40" />
-                <span className="text-gray-500 text-xs">Other</span>
+                <div 
+                  className="w-4 h-4 rounded-full border" 
+                  style={{ 
+                    backgroundColor: darkMode ? '#475569' : '#e5e7eb',
+                    borderColor: darkMode ? '#64748b' : '#d1d5db',
+                    opacity: 0.6
+                  }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Other</span>
               </div>
             </>
           ) : (
             <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded-full bg-gray-200 border border-gray-300" />
-              <span className="text-gray-500 text-xs">All Notes</span>
+              <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: 'var(--bg-hover)', borderColor: 'var(--border-secondary)' }} />
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>All Notes</span>
             </div>
           )}
         </div>
@@ -97,10 +119,10 @@ export function Fretboard({
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
           {/* Fret numbers */}
-          <FretboardHeader fretCount={fretCount} />
+          <FretboardHeader fretCount={fretCount} darkMode={darkMode} />
           
           {/* Strings */}
-          <div className="border-t border-b border-gray-100">
+          <div className="border-t border-b" style={{ borderColor: 'var(--border-primary)' }}>
             {strings.map((stringNotes, idx) => (
               <StringRow
                 key={idx}
@@ -113,6 +135,7 @@ export function Fretboard({
                 displayMode={displayMode}
                 onNoteClick={onScaleNoteClick}
                 clickableNotes={clickableScaleNotes}
+                darkMode={darkMode}
               />
             ))}
           </div>
@@ -123,7 +146,7 @@ export function Fretboard({
       </div>
       
       {/* Tuning info */}
-      <div className="mt-4 text-xs text-gray-400">
+      <div className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
         Tuning: {tuningNotes.join(' • ')}
       </div>
     </div>

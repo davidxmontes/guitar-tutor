@@ -4,16 +4,17 @@ interface DiatonicChordsRowProps {
   chords: DiatonicChord[];
   onChordClick?: (chord: DiatonicChord) => void;
   selectedChord?: DiatonicChord | null;
+  darkMode?: boolean;
 }
 
-export function DiatonicChordsRow({ chords, onChordClick, selectedChord }: DiatonicChordsRowProps) {
+export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMode: _darkMode = false }: DiatonicChordsRowProps) {
   if (chords.length === 0) {
     return null;
   }
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Diatonic</span>
+      <span className="text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Diatonic</span>
       <div className="flex gap-1">
         {chords.map((chord, index) => {
           const isSelected = selectedChord?.numeral === chord.numeral;
@@ -26,11 +27,18 @@ export function DiatonicChordsRow({ chords, onChordClick, selectedChord }: Diato
                 hover:scale-105
                 ${isSelected 
                   ? 'bg-blue-600 text-white shadow-sm' 
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  : ''
                 }
               `}
+              style={!isSelected ? {
+                backgroundColor: 'var(--bg-tertiary)',
+                color: 'var(--text-secondary)'
+              } : undefined}
             >
-              <span className={`text-[10px] leading-tight ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}>
+              <span 
+                className="text-[10px] leading-tight"
+                style={{ color: isSelected ? 'rgb(191 219 254)' : 'var(--text-muted)' }}
+              >
                 {chord.numeral}
               </span>
               <span className="font-bold text-xs">{chord.display}</span>

@@ -32,9 +32,10 @@ interface ChordSelectorProps {
   selectedRoot: string | null;
   selectedQuality: string | null;
   onSelect: (root: string, quality: string) => void;
+  darkMode?: boolean;
 }
 
-export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: ChordSelectorProps) {
+export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMode = false }: ChordSelectorProps) {
   const [root, setRoot] = useState<string>(selectedRoot || 'C');
   const [quality, setQuality] = useState<string>(selectedQuality || 'major');
 
@@ -65,11 +66,16 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: Chord
     <div className="flex items-center gap-6">
       {/* Root selector */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Root Note</label>
+        <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Root Note</label>
         <select
           value={root}
           onChange={(e) => handleRootChange(e.target.value)}
-          className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
+          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+          style={{
+            backgroundColor: 'var(--bg-input)',
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-primary)'
+          }}
         >
           {ROOTS.map((r) => (
             <option key={r} value={r}>{r}</option>
@@ -79,11 +85,16 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: Chord
 
       {/* Quality selector with categories */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chord Type</label>
+        <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Chord Type</label>
         <select
           value={quality}
           onChange={(e) => handleQualityChange(e.target.value)}
-          className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
+          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+          style={{
+            backgroundColor: 'var(--bg-input)',
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-primary)'
+          }}
         >
           {categories.map((category) => (
             <optgroup key={category} label={category}>
@@ -95,11 +106,22 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: Chord
         </select>
       </div>
 
-      <div className="h-10 w-px bg-gray-200"></div>
+      <div className="h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
 
       {/* Current chord display */}
-      <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-        <span className="text-lg font-bold text-blue-800">{chordName}</span>
+      <div 
+        className="px-4 py-2 rounded-lg border"
+        style={{
+          backgroundColor: darkMode ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+          borderColor: darkMode ? 'rgba(59, 130, 246, 0.4)' : '#bfdbfe'
+        }}
+      >
+        <span 
+          className="text-lg font-bold"
+          style={{ color: darkMode ? '#93c5fd' : '#1e40af' }}
+        >
+          {chordName}
+        </span>
       </div>
     </div>
   );

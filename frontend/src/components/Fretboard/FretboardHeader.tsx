@@ -4,9 +4,10 @@ const DOUBLE_MARKERS = [12]; // Double dot at 12th fret
 
 interface FretboardHeaderProps {
   fretCount: number;
+  darkMode?: boolean;
 }
 
-export function FretboardHeader({ fretCount }: FretboardHeaderProps) {
+export function FretboardHeader({ fretCount, darkMode: _darkMode = false }: FretboardHeaderProps) {
   const frets = Array.from({ length: fretCount + 1 }, (_, i) => i);
   
   return (
@@ -19,7 +20,8 @@ export function FretboardHeader({ fretCount }: FretboardHeaderProps) {
         {frets.map((fret) => (
           <div
             key={fret}
-            className="w-11 text-center text-xs font-medium text-gray-400"
+            className="w-11 text-center text-xs font-medium"
+            style={{ color: 'var(--text-muted)' }}
           >
             {fret === 0 ? '' : fret}
           </div>
@@ -54,9 +56,9 @@ export function FretMarkersRow({ fretCount }: FretMarkersRowProps) {
             >
               {hasMarker && (
                 <div className={`flex ${isDouble ? 'gap-1' : ''}`}>
-                  <div className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: 'var(--bg-hover)' }} />
                   {isDouble && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-gray-200" />
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: 'var(--bg-hover)' }} />
                   )}
                 </div>
               )}

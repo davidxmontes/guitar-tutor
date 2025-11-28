@@ -4,9 +4,10 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  darkMode?: boolean;
 }
 
-export function ChatInput({ onSend, disabled = false, placeholder = "Ask about chords, scales..." }: ChatInputProps) {
+export function ChatInput({ onSend, disabled = false, placeholder = "Ask about chords, scales...", darkMode: _darkMode = false }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -37,7 +38,14 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask about c
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-slate-200 p-4 bg-white">
+    <form 
+      onSubmit={handleSubmit} 
+      className="border-t p-4"
+      style={{ 
+        backgroundColor: 'var(--card-bg)',
+        borderColor: 'var(--border-primary)'
+      }}
+    >
       <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
@@ -49,17 +57,25 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask about c
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm
-                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white
-                     disabled:bg-slate-100 disabled:text-slate-400
-                     placeholder:text-slate-400 transition-colors"
+          className="flex-1 resize-none rounded-lg border px-3 py-2.5 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                     disabled:opacity-50 transition-colors"
+          style={{ 
+            backgroundColor: 'var(--bg-input)',
+            borderColor: 'var(--border-secondary)',
+            color: 'var(--text-primary)'
+          }}
         />
         <button
           type="submit"
           disabled={disabled || !message.trim()}
           className="p-2.5 rounded-lg bg-blue-600 text-white shadow-sm
-                     hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed
-                     transition-all duration-150 active:scale-95"
+                     hover:bg-blue-700 transition-all duration-150 active:scale-95
+                     disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: (disabled || !message.trim()) ? 'var(--bg-hover)' : undefined,
+            color: (disabled || !message.trim()) ? 'var(--text-muted)' : undefined
+          }}
           aria-label="Send message"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -68,7 +84,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask about c
         </button>
       </div>
       {isFocused && (
-        <p className="text-[11px] text-slate-400 mt-2 px-1 animate-in fade-in duration-200">
+        <p className="text-[11px] mt-2 px-1 animate-in fade-in duration-200" style={{ color: 'var(--text-muted)' }}>
           Press Enter to send, Shift+Enter for new line
         </p>
       )}

@@ -8,9 +8,10 @@ interface ScaleSelectorProps {
   selectedRoot: string;
   selectedMode: string;
   onSelect: (root: string, mode: string) => void;
+  darkMode?: boolean;
 }
 
-export function ScaleSelector({ selectedRoot, selectedMode, onSelect }: ScaleSelectorProps) {
+export function ScaleSelector({ selectedRoot, selectedMode, onSelect, darkMode = false }: ScaleSelectorProps) {
   const [scaleCategories, setScaleCategories] = useState<ScaleCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,18 +31,23 @@ export function ScaleSelector({ selectedRoot, selectedMode, onSelect }: ScaleSel
   };
 
   if (loading) {
-    return <div className="text-gray-400">Loading scales...</div>;
+    return <div style={{ color: 'var(--text-muted)' }}>Loading scales...</div>;
   }
 
   return (
     <div className="flex items-center gap-6">
       {/* Root Note Selector */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Root Note</label>
+        <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Root Note</label>
         <select
           value={selectedRoot}
           onChange={(e) => handleRootChange(e.target.value)}
-          className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
+          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+          style={{
+            backgroundColor: 'var(--bg-input)',
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-primary)'
+          }}
         >
           {ROOT_NOTES.map((note) => (
             <option key={note} value={note}>
@@ -53,11 +59,16 @@ export function ScaleSelector({ selectedRoot, selectedMode, onSelect }: ScaleSel
 
       {/* Mode Selector */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Scale Type</label>
+        <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Scale Type</label>
         <select
           value={selectedMode}
           onChange={(e) => handleModeChange(e.target.value)}
-          className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100 min-w-[180px]"
+          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer min-w-[180px]"
+          style={{
+            backgroundColor: 'var(--bg-input)',
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-primary)'
+          }}
         >
           {scaleCategories.map((category) => (
             <optgroup key={category.category} label={category.category}>
@@ -72,9 +83,18 @@ export function ScaleSelector({ selectedRoot, selectedMode, onSelect }: ScaleSel
       </div>
 
       {/* Current Selection Display */}
-      <div className="h-10 w-px bg-gray-200"></div>
-      <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-        <span className="text-lg font-bold text-blue-800">
+      <div className="h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
+      <div 
+        className="px-4 py-2 rounded-lg border"
+        style={{
+          backgroundColor: darkMode ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+          borderColor: darkMode ? 'rgba(59, 130, 246, 0.4)' : '#bfdbfe'
+        }}
+      >
+        <span 
+          className="text-lg font-bold"
+          style={{ color: darkMode ? '#93c5fd' : '#1e40af' }}
+        >
           {selectedRoot} {selectedMode.replace(/_/g, ' ')}
         </span>
       </div>

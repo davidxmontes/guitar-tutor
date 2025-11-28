@@ -10,9 +10,10 @@ interface ChordDiagramRowProps {
   onToggleShape: (shape: CagedShapeName) => void
   isExpanded: boolean
   onToggleExpanded: () => void
+  darkMode?: boolean
 }
 
-export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpanded, onToggleExpanded }: ChordDiagramRowProps) {
+export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpanded, onToggleExpanded, darkMode = false }: ChordDiagramRowProps) {
   const handlePlayChord = (shape: CagedShape, e: React.MouseEvent) => {
     e.stopPropagation()
     const positions = shape.positions.map(p => ({ string: p.string, fret: p.fret }))
@@ -36,9 +37,12 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
   // Minimized view - compact bar with shape buttons
   if (!isExpanded) {
     return (
-      <div className="bg-slate-50 rounded-xl px-4 py-2 flex items-center justify-between">
+      <div 
+        className="rounded-xl px-4 py-2 flex items-center justify-between"
+        style={{ backgroundColor: 'var(--bg-tertiary)' }}
+      >
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">CAGED Chord Shapes</span>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>CAGED Chord Shapes</span>
           <div className="flex gap-1">
             {shapes.map(shape => {
               const isActive = activeShapes.includes(shape.shape)
@@ -49,8 +53,13 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                   className={`w-7 h-7 rounded-md text-xs font-bold transition-all flex items-center justify-center ${
                     isActive
                       ? `${CAGED_COLORS[shape.shape].bg} text-white shadow-sm`
-                      : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
+                      : 'border'
                   }`}
+                  style={!isActive ? {
+                    backgroundColor: 'var(--card-bg)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-secondary)'
+                  } : undefined}
                 >
                   {shape.shape}
                 </button>
@@ -59,14 +68,15 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
           </div>
           <button
             onClick={handleShowAll}
-            className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+            className="text-xs px-2 py-1 rounded transition-colors"
+            style={{ color: 'var(--text-tertiary)' }}
           >
             All
           </button>
         </div>
         <button
           onClick={onToggleExpanded}
-          className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1 transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
@@ -79,10 +89,13 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
 
   // Expanded view - full diagrams
   return (
-    <div className="bg-slate-50 rounded-xl p-3">
+    <div 
+      className="rounded-xl p-3"
+      style={{ backgroundColor: 'var(--bg-tertiary)' }}
+    >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">CAGED Chord Shapes</span>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>CAGED Chord Shapes</span>
           <div className="flex gap-1">
             {shapes.map(shape => {
               const isActive = activeShapes.includes(shape.shape)
@@ -93,8 +106,13 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                   className={`w-7 h-7 rounded-md text-xs font-bold transition-all flex items-center justify-center ${
                     isActive
                       ? `${CAGED_COLORS[shape.shape].bg} text-white shadow-sm`
-                      : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
+                      : 'border'
                   }`}
+                  style={!isActive ? {
+                    backgroundColor: 'var(--card-bg)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-secondary)'
+                  } : undefined}
                 >
                   {shape.shape}
                 </button>
@@ -103,14 +121,16 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
           </div>
           <button
             onClick={handleShowAll}
-            className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+            className="text-xs px-2 py-1 rounded transition-colors"
+            style={{ color: 'var(--text-tertiary)' }}
           >
             All
           </button>
         </div>
         <button
           onClick={onToggleExpanded}
-          className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 transition-colors"
+          className="text-xs flex items-center gap-1 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path fillRule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clipRule="evenodd" />
@@ -131,6 +151,7 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                 shape={shape}
                 isActive={isActive}
                 onClick={() => onToggleShape(shape.shape)}
+                darkMode={darkMode}
               />
               {/* Play buttons */}
               <div className="flex gap-1">
