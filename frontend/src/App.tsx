@@ -23,6 +23,7 @@ interface PopupState {
 
 function App() {
   const [appMode, setAppMode] = useState<AppMode>('scale')
+  const [chatWidth, setChatWidth] = useState(320) // Default w-80 = 320px
   const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null)
   const [scaleData, setScaleData] = useState<ScaleResponse | null>(null)
   const [chordData, setChordData] = useState<ChordResponse | null>(null)
@@ -418,8 +419,11 @@ function App() {
 
       {/* Main Layout: Chat Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat Sidebar */}
-        <aside className="w-80 flex-shrink-0">
+        {/* Chat Sidebar - Resizable */}
+        <aside 
+          className="flex-shrink-0 relative"
+          style={{ width: chatWidth }}
+        >
           <ChatPanel
             messages={chatMessages}
             isLoading={chatLoading}
@@ -428,6 +432,31 @@ function App() {
             onScaleClick={handleChatScaleClick}
             onReset={handleChatReset}
           />
+          {/* Resize Handle */}
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 transition-colors group"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = chatWidth;
+              
+              const onMouseMove = (moveEvent: MouseEvent) => {
+                const delta = moveEvent.clientX - startX;
+                const newWidth = Math.min(Math.max(startWidth + delta, 280), 500); // Min 280px, Max 500px
+                setChatWidth(newWidth);
+              };
+              
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+              };
+              
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+          >
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-8 bg-slate-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
         </aside>
 
         {/* Main Content Area */}
