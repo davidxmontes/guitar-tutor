@@ -3,7 +3,6 @@ import { Fretboard } from './components/Fretboard'
 import { ScaleSelector } from './components/ScaleSelector/ScaleSelector'
 import { ChordSelector } from './components/ChordSelector/ChordSelector'
 import { DiatonicChordsRow } from './components/DiatonicChordsRow/DiatonicChordsRow'
-import { CagedShapeFilter } from './components/CagedShapeFilter/CagedShapeFilter'
 import { ChordDiagramRow } from './components/ChordDiagram'
 import { ChordPopup } from './components/ChordPopup'
 import { PlayTextButton } from './components/PlayButton'
@@ -34,6 +33,7 @@ function App() {
   const [selectedDiatonicChord, setSelectedDiatonicChord] = useState<DiatonicChord | null>(null)
   const [activeChordShapes, setActiveChordShapes] = useState<CagedShapeName[]>([])
   const [displayMode, setDisplayMode] = useState<DisplayMode>('notes')
+  const [diagramsExpanded, setDiagramsExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [popupState, setPopupState] = useState<PopupState | null>(null)
@@ -169,13 +169,6 @@ function App() {
     } else {
       // Add the shape to active shapes
       setActiveChordShapes(prev => [...prev, shape])
-    }
-  }
-
-  // Show all shapes
-  const handleShowAllShapes = () => {
-    if (chordData) {
-      setActiveChordShapes(chordData.caged_shapes.map(s => s.shape))
     }
   }
 
@@ -445,11 +438,25 @@ function App() {
               <div className="flex items-center gap-6">
                 {/* Scale Mode Controls */}
                 {appMode === 'scale' && (
-                  <ScaleSelector
-                    selectedRoot={selectedRoot}
-                    selectedMode={selectedMode}
-                    onSelect={handleScaleSelect}
-                  />
+                  <>
+                    <ScaleSelector
+                      selectedRoot={selectedRoot}
+                      selectedMode={selectedMode}
+                      onSelect={handleScaleSelect}
+                    />
+                    
+                    {/* Diatonic Chords - inline in control bar */}
+                    {scaleData && (
+                      <>
+                        <div className="h-10 w-px bg-gray-200"></div>
+                        <DiatonicChordsRow
+                          chords={scaleData.diatonic_chords}
+                          onChordClick={handleChordClick}
+                          selectedChord={selectedDiatonicChord}
+                        />
+                      </>
+                    )}
+                  </>
                 )}
 
                 {/* Chord Mode Controls */}
@@ -460,20 +467,6 @@ function App() {
                       selectedQuality={selectedChordQuality}
                       onSelect={handleDirectChordSelect}
                     />
-                    
-                    {chordData && (
-                      <>
-                        <div className="h-10 w-px bg-gray-200"></div>
-                        
-                        {/* CAGED Shape Filter - Inline */}
-                        <CagedShapeFilter
-                          shapes={chordData.caged_shapes}
-                          activeShapes={activeChordShapes}
-                          onToggleShape={handleToggleShape}
-                          onShowAll={handleShowAllShapes}
-                        />
-                      </>
-                    )}
                   </>
                 )}
               </div>
@@ -512,21 +505,14 @@ function App() {
 
           {/* Scrollable Content */}
           <main className="flex-1 overflow-y-auto p-6 space-y-4">
-            {/* Diatonic Chords Row (Scale Mode only) */}
-            {appMode === 'scale' && scaleData && (
-              <DiatonicChordsRow
-                chords={scaleData.diatonic_chords}
-                onChordClick={handleChordClick}
-                selectedChord={selectedDiatonicChord}
-              />
-            )}
-
             {/* Chord Diagrams */}
             {chordData && (
               <ChordDiagramRow
                 shapes={chordData.caged_shapes}
                 activeShapes={activeChordShapes}
                 onToggleShape={handleToggleShape}
+                isExpanded={diagramsExpanded}
+                onToggleExpanded={() => setDiagramsExpanded(!diagramsExpanded)}
               />
             )}
 
