@@ -23,9 +23,12 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape }: ChordDi
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">Chord Diagrams</h3>
-      <div className="flex gap-4 overflow-x-auto pb-2">
+    <div className="bg-slate-50 rounded-xl p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-bold text-slate-800">CAGED Chord Shapes</h3>
+        <span className="text-xs text-slate-500">{shapes.length} shapes</span>
+      </div>
+      <div className="flex gap-6">
         {shapes.map(shape => {
           const isActive = activeShapes.includes(shape.shape)
           const positions = shape.positions
@@ -33,14 +36,14 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape }: ChordDi
           const arpeggioDuration = positions.length * 0.15 + 0.4
           
           return (
-            <div key={shape.shape} className="flex flex-col items-center gap-2">
+            <div key={shape.shape} className="flex flex-col items-center gap-1">
               <ChordDiagram
                 shape={shape}
                 isActive={isActive}
                 onClick={() => onToggleShape(shape.shape)}
               />
               {/* Play buttons */}
-              <div className="flex gap-1.5 mt-1">
+              <div className="flex gap-1">
                 <PlayButton
                   onClick={(e: React.MouseEvent) => handlePlayChord(shape, e)}
                   duration={chordDuration * 1000}

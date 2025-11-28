@@ -7,4 +7,13 @@ import path from 'path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   root: path.resolve(__dirname),
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://backend:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
 })

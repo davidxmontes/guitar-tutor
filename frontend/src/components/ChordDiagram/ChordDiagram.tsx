@@ -1,5 +1,5 @@
 import React from 'react'
-import type { CagedShape } from '../../types'
+import type { CagedShape, CagedShapeName } from '../../types'
 
 interface ChordDiagramProps {
   shape: CagedShape
@@ -7,24 +7,36 @@ interface ChordDiagramProps {
   onClick?: () => void
 }
 
-const STRING_SPACING = 20
+// CAGED shape colors for the badge
+const SHAPE_COLORS: Record<CagedShapeName, string> = {
+  C: 'bg-orange-500',
+  A: 'bg-yellow-500',
+  G: 'bg-green-500',
+  E: 'bg-blue-500',
+  D: 'bg-purple-500',
+}
+
+const STRING_SPACING = 24
 const FRET_SPACING = 24
-const DIAGRAM_WIDTH = STRING_SPACING * 5 + 20  // 5 gaps + padding
-const VISIBLE_FRETS = 5
-const DOT_RADIUS = 7
-const OPEN_RADIUS = 5
+const NUM_STRINGS = 6
+const DIAGRAM_WIDTH = STRING_SPACING * (NUM_STRINGS - 1) + 2  // gaps between 6 strings + border
+const VISIBLE_FRETS = 4
+const DOT_RADIUS = 9
+
+// Fixed height for uniform cards
+const CARD_HEIGHT = 180
 
 export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
   // Calculate the fret range to display
   const frets = shape.positions.map(p => p.fret)
   const minFret = Math.min(...frets)
   
-  // Start fret: 0 if open strings, otherwise min_fret - 1 (with minimum of 1)
+  // Start fret: 0 if open strings, otherwise min_fret
   const hasOpenStrings = minFret === 0
   const startFret = hasOpenStrings ? 0 : Math.max(1, minFret)
   
   // Calculate diagram height
-  const diagramHeight = FRET_SPACING * VISIBLE_FRETS + 40
+  const diagramHeight = FRET_SPACING * VISIBLE_FRETS + 2
   
   // Positions indexed by string (1-6)
   const positionsByString = new Map<number, typeof shape.positions[0]>()
@@ -34,221 +46,189 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
   
   // Get X position for a string (1 = rightmost/high E, 6 = leftmost/low E)
   const getStringX = (stringNum: number) => {
-    return 10 + (6 - stringNum) * STRING_SPACING
+    return 1 + (6 - stringNum) * STRING_SPACING
   }
   
-  // Get Y position for a fret
+  // Get Y position for a fret (center of fret space)
   const getFretY = (fret: number) => {
     const relativeFret = fret - startFret
-    return 30 + relativeFret * FRET_SPACING
+    return 1 + relativeFret * FRET_SPACING + FRET_SPACING / 2
   }
   
   // Determine which strings are muted (not played)
   const mutedStrings = new Set<number>()
+  const openStrings = new Set<number>()
   for (let s = 1; s <= 6; s++) {
-    if (!positionsByString.has(s)) {
+    const pos = positionsByString.get(s)
+    if (!pos) {
       mutedStrings.add(s)
+    } else if (pos.fret === 0) {
+      openStrings.add(s)
     }
   }
+
+  // Check for barre
+  const barreInfo = detectBarre(shape, startFret)
+
+  // Get fret label
+  const fretLabel = getFretLabel(shape, barreInfo)
 
   return (
     <div 
       className={`
-        flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all
+        bg-white rounded p-1.5 border cursor-pointer transition-all flex flex-col
         ${isActive 
-          ? 'bg-gray-100 ring-2 ring-offset-1' 
-          : 'hover:bg-gray-50'
+          ? 'border-gray-300 shadow-md ring-2 ring-offset-1' 
+          : 'border-gray-200 hover:shadow-sm hover:border-gray-300'
         }
       `}
       style={{
         '--tw-ring-color': isActive ? shape.color : 'transparent',
+        height: CARD_HEIGHT,
       } as React.CSSProperties}
       onClick={onClick}
     >
-      {/* Shape name */}
-      <div className="text-xs font-medium text-gray-600 mb-1">
-        {shape.shape} Shape
+      {/* Header with shape name and badge */}
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-xs font-bold text-slate-800">{shape.shape}-Shape</h3>
+        <span className={`w-5 h-5 rounded-full ${SHAPE_COLORS[shape.shape]} text-white text-[10px] font-bold flex items-center justify-center`}>
+          {shape.shape}
+        </span>
       </div>
       
-      <svg 
-        width={DIAGRAM_WIDTH} 
-        height={diagramHeight}
-        className="overflow-visible"
-      >
-        {/* Fret position indicator */}
-        {startFret > 0 && (
-          <text
-            x={0}
-            y={getFretY(startFret) + FRET_SPACING / 2 + 4}
-            fontSize="10"
-            fill="#666"
-            textAnchor="middle"
-          >
-            {startFret}fr
-          </text>
-        )}
+      {/* Chord diagram */}
+      <div className="flex">
+        {/* Fret number indicator */}
+        <div className="w-4 flex items-start pt-6 text-[10px] font-semibold text-gray-400">
+          {startFret}
+        </div>
         
-        {/* Nut (thick line at top for open position) */}
-        {hasOpenStrings && (
+        <div>
+          {/* Top markers (X for muted, O for open) */}
+          <div className="flex mb-1">
+            {[6, 5, 4, 3, 2, 1].map(stringNum => (
+              <div 
+                key={stringNum} 
+                className="flex items-center justify-center text-[11px] font-bold text-gray-500"
+                style={{ width: STRING_SPACING }}
+              >
+                {mutedStrings.has(stringNum) ? 'X' : openStrings.has(stringNum) ? 'O' : ''}
+              </div>
+            ))}
+          </div>
+        
+        <svg 
+          width={DIAGRAM_WIDTH} 
+          height={diagramHeight}
+          className="overflow-visible"
+        >
+          {/* Background */}
           <rect
-            x={10}
-            y={28}
-            width={STRING_SPACING * 5}
-            height={4}
-            fill="#333"
-          />
-        )}
-        
-        {/* Fret lines */}
-        {Array.from({ length: VISIBLE_FRETS + 1 }).map((_, i) => (
-          <line
-            key={`fret-${i}`}
-            x1={10}
-            y1={30 + i * FRET_SPACING}
-            x2={10 + STRING_SPACING * 5}
-            y2={30 + i * FRET_SPACING}
-            stroke="#999"
+            x={0}
+            y={0}
+            width={DIAGRAM_WIDTH}
+            height={diagramHeight}
+            fill="white"
+            stroke="#94a3b8"
             strokeWidth={1}
           />
-        ))}
-        
-        {/* String lines */}
-        {Array.from({ length: 6 }).map((_, i) => (
-          <line
-            key={`string-${i}`}
-            x1={10 + i * STRING_SPACING}
-            y1={30}
-            x2={10 + i * STRING_SPACING}
-            y2={30 + VISIBLE_FRETS * FRET_SPACING}
-            stroke="#666"
-            strokeWidth={i < 3 ? 1 : 1.5 + (i - 2) * 0.3}
-          />
-        ))}
-        
-        {/* Muted string X marks */}
-        {Array.from(mutedStrings).map(stringNum => (
-          <g key={`mute-${stringNum}`}>
+          
+          {/* Nut (thick line at top for open position) */}
+          {hasOpenStrings && (
+            <rect
+              x={0}
+              y={0}
+              width={DIAGRAM_WIDTH}
+              height={3}
+              fill="#374151"
+            />
+          )}
+          
+          {/* Fret lines (horizontal) */}
+          {Array.from({ length: VISIBLE_FRETS - 1 }).map((_, i) => (
             <line
-              x1={getStringX(stringNum) - 4}
-              y1={18}
-              x2={getStringX(stringNum) + 4}
-              y2={26}
-              stroke="#666"
-              strokeWidth={2}
+              key={`fret-${i}`}
+              x1={0}
+              y1={(i + 1) * FRET_SPACING + 1}
+              x2={DIAGRAM_WIDTH}
+              y2={(i + 1) * FRET_SPACING + 1}
+              stroke="#cbd5e1"
+              strokeWidth={1}
             />
+          ))}
+          
+          {/* String lines (vertical) */}
+          {Array.from({ length: 6 }).map((_, i) => (
             <line
-              x1={getStringX(stringNum) + 4}
-              y1={18}
-              x2={getStringX(stringNum) - 4}
-              y2={26}
-              stroke="#666"
-              strokeWidth={2}
+              key={`string-${i}`}
+              x1={getStringX(6 - i)}
+              y1={1}
+              x2={getStringX(6 - i)}
+              y2={diagramHeight - 1}
+              stroke="#94a3b8"
+              strokeWidth={1}
             />
-          </g>
-        ))}
-        
-        {/* Open string circles */}
-        {shape.positions
-          .filter(pos => pos.fret === 0)
-          .map(pos => (
-            <circle
-              key={`open-${pos.string}`}
-              cx={getStringX(pos.string)}
-              cy={22}
-              r={OPEN_RADIUS}
-              fill="none"
-              stroke={pos.is_root ? shape.color : '#666'}
-              strokeWidth={pos.is_root ? 2 : 1.5}
+          ))}
+          
+          {/* Barre indicator */}
+          {barreInfo && (
+            <rect
+              x={getStringX(barreInfo.maxString) - DOT_RADIUS}
+              y={getFretY(barreInfo.fret) - 6}
+              width={getStringX(barreInfo.minString) - getStringX(barreInfo.maxString) + DOT_RADIUS * 2}
+              height={12}
+              rx={6}
+              fill={shape.color}
+              opacity={0.4}
             />
-          ))
-        }
-        
-        {/* Finger positions (dots) */}
-        {shape.positions
-          .filter(pos => pos.fret > 0)
-          .map(pos => {
-            // Check if this fret is within our visible range
-            const relativeFret = pos.fret - startFret
-            if (relativeFret < 0 || relativeFret > VISIBLE_FRETS) return null
-            
-            const x = getStringX(pos.string)
-            const y = getFretY(pos.fret) - FRET_SPACING / 2
-            
-            return (
-              <g key={`pos-${pos.string}-${pos.fret}`}>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={DOT_RADIUS}
-                  fill={pos.is_root ? shape.color : '#333'}
-                />
-                <text
-                  x={x}
-                  y={y + 3}
-                  fontSize="9"
-                  fill="white"
-                  textAnchor="middle"
-                  fontWeight="bold"
-                >
-                  {pos.interval}
-                </text>
-              </g>
-            )
-          })
-        }
-        
-        {/* Barre indicator (if multiple notes on same fret) */}
-        {renderBarre(shape, startFret, getStringX, getFretY)}
-      </svg>
-      
-      {/* Fret range info - show both octaves if present */}
-      <div className="text-xs text-gray-400 mt-1">
-        {getFretRangeLabel(shape)}
+          )}
+          
+          {/* Finger positions (dots) */}
+          {shape.positions
+            .filter(pos => pos.fret > 0)
+            .map(pos => {
+              // Check if this fret is within our visible range
+              const relativeFret = pos.fret - startFret
+              if (relativeFret < 0 || relativeFret >= VISIBLE_FRETS) return null
+              
+              const x = getStringX(pos.string)
+              const y = getFretY(pos.fret)
+              
+              return (
+                <g key={`pos-${pos.string}-${pos.fret}`}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={DOT_RADIUS}
+                    fill={shape.color}
+                    className="drop-shadow-sm"
+                  />
+                  <text
+                    x={x}
+                    y={y + 3.5}
+                    fontSize="9"
+                    fill="white"
+                    textAnchor="middle"
+                    fontWeight="800"
+                  >
+                    {pos.interval}
+                  </text>
+                </g>
+              )
+            })
+          }
+        </svg>
+        </div>
       </div>
+      
+      {/* Fret range info - pinned to bottom */}
+      <p className="text-[10px] text-gray-500 mt-auto">{fretLabel}</p>
     </div>
   )
 }
 
-// Helper to get fret range label, showing both octaves if present
-function getFretRangeLabel(shape: CagedShape): string {
-  const frets = shape.positions.map(p => p.fret)
-  const uniqueFrets = [...new Set(frets)].sort((a, b) => a - b)
-  
-  // Group frets into ranges (positions within 6 frets of each other are one group)
-  const ranges: { min: number; max: number }[] = []
-  let currentRange: { min: number; max: number } | null = null
-  
-  for (const fret of uniqueFrets) {
-    if (!currentRange) {
-      currentRange = { min: fret, max: fret }
-    } else if (fret - currentRange.max <= 6) {
-      currentRange.max = fret
-    } else {
-      ranges.push(currentRange)
-      currentRange = { min: fret, max: fret }
-    }
-  }
-  if (currentRange) {
-    ranges.push(currentRange)
-  }
-  
-  // Format the ranges
-  if (ranges.length === 1) {
-    return `Frets ${ranges[0].min}-${ranges[0].max}`
-  } else if (ranges.length === 2) {
-    return `Frets ${ranges[0].min}-${ranges[0].max} & ${ranges[1].min}-${ranges[1].max}`
-  } else {
-    return `Frets ${shape.min_fret}-${shape.max_fret}`
-  }
-}
-
-// Helper to render barre chord indicator
-function renderBarre(
-  shape: CagedShape,
-  _startFret: number,
-  getStringX: (s: number) => number,
-  getFretY: (f: number) => number
-) {
+// Detect if there's a barre chord
+function detectBarre(shape: CagedShape, startFret: number): { fret: number; minString: number; maxString: number } | null {
   // Group positions by fret
   const fretGroups = new Map<number, typeof shape.positions>()
   shape.positions.forEach(pos => {
@@ -259,36 +239,48 @@ function renderBarre(
     }
   })
   
-  // Check for barres (3+ notes on the same fret spanning multiple strings)
-  const barres: React.ReactNode[] = []
-  
-  fretGroups.forEach((positions, fret) => {
-    if (positions.length >= 3) {
+  // Find the first barre (3+ notes on the same fret)
+  for (const [fret, positions] of fretGroups) {
+    if (positions.length >= 3 && fret === startFret) {
       const strings = positions.map(p => p.string).sort((a, b) => a - b)
       const minString = Math.min(...strings)
       const maxString = Math.max(...strings)
       
-      // Only show barre if it spans at least 3 strings and positions are consecutive
       if (maxString - minString >= 2) {
-        const y = getFretY(fret) - FRET_SPACING / 2
-        const x1 = getStringX(maxString) - 3
-        const x2 = getStringX(minString) + 3
-        
-        barres.push(
-          <rect
-            key={`barre-${fret}`}
-            x={x1}
-            y={y - DOT_RADIUS}
-            width={x2 - x1}
-            height={DOT_RADIUS * 2}
-            rx={DOT_RADIUS}
-            fill="#333"
-            opacity={0.3}
-          />
-        )
+        return { fret, minString, maxString }
       }
     }
-  })
+  }
   
-  return barres
+  return null
+}
+
+// Get fret range label - show separate windows if positions span multiple octaves
+function getFretLabel(shape: CagedShape, barreInfo: { fret: number; minString: number; maxString: number } | null): string {
+  const frets = shape.positions.map(p => p.fret).sort((a, b) => a - b)
+  const uniqueFrets = [...new Set(frets)]
+  
+  // Group frets into windows (positions within 4 frets are one window)
+  const windows: { min: number; max: number }[] = []
+  let currentWindow: { min: number; max: number } | null = null
+  
+  for (const fret of uniqueFrets) {
+    if (!currentWindow) {
+      currentWindow = { min: fret, max: fret }
+    } else if (fret - currentWindow.max <= 4) {
+      currentWindow.max = fret
+    } else {
+      windows.push(currentWindow)
+      currentWindow = { min: fret, max: fret }
+    }
+  }
+  if (currentWindow) {
+    windows.push(currentWindow)
+  }
+  
+  // Format each window
+  const windowLabels = windows.map(w => `Fret ${w.min}-${w.max}`)
+  const label = windowLabels.join(', ')
+  
+  return barreInfo ? `${label} (Barre)` : label
 }

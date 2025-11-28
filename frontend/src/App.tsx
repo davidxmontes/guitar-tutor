@@ -27,8 +27,8 @@ function App() {
   const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null)
   const [scaleData, setScaleData] = useState<ScaleResponse | null>(null)
   const [chordData, setChordData] = useState<ChordResponse | null>(null)
-  const [selectedRoot, setSelectedRoot] = useState<string | null>(null)
-  const [selectedMode, setSelectedMode] = useState<string | null>(null)
+  const [selectedRoot, setSelectedRoot] = useState<string>('C')
+  const [selectedMode, setSelectedMode] = useState<string>('major')
   const [selectedChordRoot, setSelectedChordRoot] = useState<string | null>(null)
   const [selectedChordQuality, setSelectedChordQuality] = useState<string | null>(null)
   const [selectedDiatonicChord, setSelectedDiatonicChord] = useState<DiatonicChord | null>(null)
@@ -61,21 +61,31 @@ function App() {
     fetchFretboard()
   }, [])
 
-  // Handle scale selection
-  const handleScaleSelect = async (root: string, mode: string) => {
-    try {
-      const data = await apiClient.getScale(root, mode)
-      setScaleData(data)
-      setSelectedRoot(root)
-      setSelectedMode(mode)
-      // Clear chord data when changing scale
-      setChordData(null)
-      setSelectedDiatonicChord(null)
-      setActiveChordShapes([])
-    } catch (err) {
-      console.error('Failed to fetch scale:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load scale')
+  // Auto-fetch scale when root or mode changes (scale mode only)
+  useEffect(() => {
+    if (appMode !== 'scale') return
+    
+    async function fetchScale() {
+      try {
+        const data = await apiClient.getScale(selectedRoot, selectedMode)
+        setScaleData(data)
+        // Clear chord data when changing scale
+        setChordData(null)
+        setSelectedDiatonicChord(null)
+        setActiveChordShapes([])
+      } catch (err) {
+        console.error('Failed to fetch scale:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load scale')
+      }
     }
+    
+    fetchScale()
+  }, [appMode, selectedRoot, selectedMode])
+
+  // Handle scale selection - just update state, useEffect will fetch
+  const handleScaleSelect = (root: string, mode: string) => {
+    setSelectedRoot(root)
+    setSelectedMode(mode)
   }
 
   // Handle diatonic chord click
@@ -121,8 +131,8 @@ function App() {
     // Clear data when switching modes
     setScaleData(null)
     setChordData(null)
-    setSelectedRoot(null)
-    setSelectedMode(null)
+    setSelectedRoot('C')
+    setSelectedMode('major')
     setSelectedChordRoot(null)
     setSelectedChordQuality(null)
     setSelectedDiatonicChord(null)
@@ -139,6 +149,14 @@ function App() {
         setActiveChordShapes([])
       } catch (err) {
         console.error('Failed to fetch default chord:', err)
+      }
+    } else {
+      // Auto-load C major scale when switching to scale mode
+      try {
+        const data = await apiClient.getScale('C', 'major')
+        setScaleData(data)
+      } catch (err) {
+        console.error('Failed to fetch default scale:', err)
       }
     }
   }
@@ -165,8 +183,8 @@ function App() {
   const handleClearAll = () => {
     setScaleData(null)
     setChordData(null)
-    setSelectedRoot(null)
-    setSelectedMode(null)
+    setSelectedRoot('C')
+    setSelectedMode('major')
     setSelectedChordRoot(null)
     setSelectedChordQuality(null)
     setSelectedDiatonicChord(null)
