@@ -9,6 +9,7 @@ import { PlayTextButton } from './components/PlayButton'
 import { ChatPanel } from './components/Chat'
 import { playChord, getChordDuration } from './utils/audio'
 import { apiClient } from './api/client'
+import headstockSrc from './assets/white_headstock.png'
 import type { FretboardResponse, ScaleResponse, ChordResponse, DiatonicChord, DisplayMode, CagedShapeName } from './types'
 import type { ChatMessage } from './types/chat'
 
@@ -376,9 +377,8 @@ function App() {
             {/* Branded Logo */}
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white shadow-lg" style={{ background: 'linear-gradient(to bottom right, var(--accent-600), var(--accent-700))', boxShadow: '0 10px 15px -3px var(--accent-glow)' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                  <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.658.122z" clipRule="evenodd" />
-                </svg>
+                {/* App icon (served from src/assets/headstock.png) - smaller in header */}
+                <img src={headstockSrc} alt="Guitar Tutor" className="w-9 h-9 rounded-lg object-cover" />
               </div>
               <h1 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>Guitar Tutor</h1>
             </div>
