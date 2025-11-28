@@ -8,6 +8,7 @@ interface ChatInputProps {
 
 export function ChatInput({ onSend, disabled = false, placeholder = "Ask about chords, scales..." }: ChatInputProps) {
   const [message, setMessage] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -36,27 +37,29 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask about c
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 p-3 bg-white">
+    <form onSubmit={handleSubmit} className="border-t border-slate-200 p-4 bg-white">
       <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2 text-sm
-                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                     disabled:bg-gray-100 disabled:text-gray-500
-                     placeholder:text-gray-400"
+          className="flex-1 resize-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm
+                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white
+                     disabled:bg-slate-100 disabled:text-slate-400
+                     placeholder:text-slate-400 transition-colors"
         />
         <button
           type="submit"
           disabled={disabled || !message.trim()}
-          className="p-2 rounded-full bg-blue-500 text-white 
-                     hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed
-                     transition-colors"
+          className="p-2.5 rounded-lg bg-blue-600 text-white shadow-sm
+                     hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed
+                     transition-all duration-150 active:scale-95"
           aria-label="Send message"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -64,9 +67,11 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask about c
           </svg>
         </button>
       </div>
-      <p className="text-xs text-gray-400 mt-1.5 px-1">
-        Press Enter to send, Shift+Enter for new line
-      </p>
+      {isFocused && (
+        <p className="text-[11px] text-slate-400 mt-2 px-1 animate-in fade-in duration-200">
+          Press Enter to send, Shift+Enter for new line
+        </p>
+      )}
     </form>
   );
 }
