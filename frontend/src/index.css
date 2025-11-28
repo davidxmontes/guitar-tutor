@@ -10,6 +10,19 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   
+  /* ===== ACCENT COLOR - Change these to update the entire app's accent ===== */
+  --accent-50: #ecfdf5;
+  --accent-100: #d1fae5;
+  --accent-200: #a7f3d0;
+  --accent-300: #6ee7b7;
+  --accent-400: #34d399;
+  --accent-500: #10b981;
+  --accent-600: #059669;
+  --accent-700: #047857;
+  --accent-800: #065f46;
+  --accent-900: #064e3b;
+  --accent-glow: rgba(5, 150, 105, 0.2);
+  
   /* Background colors */
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
@@ -45,43 +58,56 @@
   --scrollbar-thumb-hover: #94a3b8;
   
   /* Selection */
-  --selection-bg: #dbeafe;
-  --selection-text: #1e3a8a;
+  --selection-bg: var(--accent-100);
+  --selection-text: var(--accent-900);
 }
 
 /* Dark mode */
 .dark {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --bg-hover: #475569;
-  --bg-input: #1e293b;
+  /* ===== ACCENT COLOR - Dark mode variants ===== */
+  --accent-50: #ecfdf5;
+  --accent-100: #d1fae5;
+  --accent-200: #a7f3d0;
+  --accent-300: #6ee7b7;
+  --accent-400: #34d399;
+  --accent-500: #10b981;
+  --accent-600: #059669;
+  --accent-700: #047857;
+  --accent-800: #065f46;
+  --accent-900: #064e3b;
+  --accent-glow: rgba(5, 150, 105, 0.3);
+
+  --bg-primary: #121212;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #2a2a2a;
+  --bg-hover: #3a3a3a;
+  --bg-input: #1a1a1a;
   
-  --text-primary: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-tertiary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #f5f5f5;
+  --text-secondary: #d4d4d4;
+  --text-tertiary: #a3a3a3;
+  --text-muted: #737373;
   
-  --border-primary: #334155;
-  --border-secondary: #475569;
+  --border-primary: #2a2a2a;
+  --border-secondary: #3a3a3a;
   
   /* Component-specific - with more contrast */
-  --header-bg: #0f172a;
-  --card-bg: #1e293b;
-  --chat-bg: #0f172a;
-  --chat-header-bg: #1e293b;
-  --fretboard-bg: #1e293b;
-  --control-bg: #1e293b;
-  --main-content-bg: #1e293b;
+  --header-bg: #121212;
+  --card-bg: #1a1a1a;
+  --chat-bg: #121212;
+  --chat-header-bg: #1a1a1a;
+  --fretboard-bg: #1a1a1a;
+  --control-bg: #1a1a1a;
+  --main-content-bg: #1a1a1a;
   
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
   
-  --scrollbar-thumb: #475569;
-  --scrollbar-thumb-hover: #64748b;
+  --scrollbar-thumb: #3a3a3a;
+  --scrollbar-thumb-hover: #525252;
   
-  --selection-bg: #1e3a8a;
-  --selection-text: #dbeafe;
+  --selection-bg: var(--accent-800);
+  --selection-text: var(--accent-100);
 }
 
 /* ===== Base Styles ===== */
@@ -139,7 +165,7 @@ textarea::placeholder {
 button:focus-visible,
 select:focus-visible,
 input:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--accent-500);
   outline-offset: 2px;
 }
 

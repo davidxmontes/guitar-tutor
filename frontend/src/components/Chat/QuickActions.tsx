@@ -29,6 +29,7 @@ export function QuickActions({ onAction, disabled = false, darkMode: _darkMode =
         color: isDark ? '#c4b5fd' : '#7c3aed'
       };
     } else {
+      // Chord type - uses accent color (pink/rose)
       return {
         backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
         border: `1px solid ${isDark ? 'rgba(96, 165, 250, 0.4)' : 'rgba(59, 130, 246, 0.3)'}`,

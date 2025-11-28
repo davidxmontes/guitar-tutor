@@ -42,12 +42,13 @@ export function ScaleSelector({ selectedRoot, selectedMode, onSelect, darkMode =
         <select
           value={selectedRoot}
           onChange={(e) => handleRootChange(e.target.value)}
-          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer"
           style={{
             backgroundColor: 'var(--bg-input)',
             borderColor: 'var(--border-primary)',
-            color: 'var(--text-primary)'
-          }}
+            color: 'var(--text-primary)',
+            '--tw-ring-color': 'var(--accent-500)'
+          } as React.CSSProperties}
         >
           {ROOT_NOTES.map((note) => (
             <option key={note} value={note}>
@@ -63,12 +64,13 @@ export function ScaleSelector({ selectedRoot, selectedMode, onSelect, darkMode =
         <select
           value={selectedMode}
           onChange={(e) => handleModeChange(e.target.value)}
-          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer min-w-[180px]"
+          className="px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer min-w-[180px]"
           style={{
             backgroundColor: 'var(--bg-input)',
             borderColor: 'var(--border-primary)',
-            color: 'var(--text-primary)'
-          }}
+            color: 'var(--text-primary)',
+            '--tw-ring-color': 'var(--accent-500)'
+          } as React.CSSProperties}
         >
           {scaleCategories.map((category) => (
             <optgroup key={category.category} label={category.category}>
@@ -87,13 +89,13 @@ export function ScaleSelector({ selectedRoot, selectedMode, onSelect, darkMode =
       <div 
         className="px-4 py-2 rounded-lg border"
         style={{
-          backgroundColor: darkMode ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
-          borderColor: darkMode ? 'rgba(59, 130, 246, 0.4)' : '#bfdbfe'
+          backgroundColor: darkMode ? 'var(--accent-900)' : 'var(--accent-50)',
+          borderColor: darkMode ? 'var(--accent-700)' : 'var(--accent-200)'
         }}
       >
         <span 
           className="text-lg font-bold"
-          style={{ color: darkMode ? '#93c5fd' : '#1e40af' }}
+          style={{ color: darkMode ? 'var(--accent-300)' : 'var(--accent-700)' }}
         >
           {selectedRoot} {selectedMode.replace(/_/g, ' ')}
         </span>

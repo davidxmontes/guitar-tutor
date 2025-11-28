@@ -55,8 +55,8 @@ export function Fretboard({
             <>
               <div className="flex items-center gap-1.5">
                 <div 
-                  className="w-4 h-4 rounded-full ring-2 ring-blue-400" 
-                  style={{ backgroundColor: darkMode ? '#f1f5f9' : '#111827' }}
+                  className="w-4 h-4 rounded-full ring-2" 
+                  style={{ backgroundColor: darkMode ? '#f1f5f9' : '#111827', '--tw-ring-color': 'var(--accent-400)' } as React.CSSProperties}
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Root</span>
               </div>
@@ -91,7 +91,7 @@ export function Fretboard({
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Root</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-blue-500" />
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: 'var(--accent-500)' }} />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Scale Note</span>
               </div>
               <div className="flex items-center gap-1.5">

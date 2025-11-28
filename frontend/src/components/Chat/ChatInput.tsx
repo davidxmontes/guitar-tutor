@@ -58,23 +58,34 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask about c
           disabled={disabled}
           rows={1}
           className="flex-1 resize-none rounded-lg border px-3 py-2.5 text-sm
-                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                     focus:outline-none focus:ring-2 focus:border-transparent
                      disabled:opacity-50 transition-colors"
           style={{ 
             backgroundColor: 'var(--bg-input)',
             borderColor: 'var(--border-secondary)',
-            color: 'var(--text-primary)'
-          }}
+            color: 'var(--text-primary)',
+            '--tw-ring-color': 'var(--accent-500)'
+          } as React.CSSProperties}
         />
         <button
           type="submit"
           disabled={disabled || !message.trim()}
-          className="p-2.5 rounded-lg bg-blue-600 text-white shadow-sm
-                     hover:bg-blue-700 transition-all duration-150 active:scale-95
+          className="p-2.5 rounded-lg text-white shadow-sm
+                     transition-all duration-150 active:scale-95
                      disabled:cursor-not-allowed"
           style={{
-            backgroundColor: (disabled || !message.trim()) ? 'var(--bg-hover)' : undefined,
-            color: (disabled || !message.trim()) ? 'var(--text-muted)' : undefined
+            backgroundColor: (disabled || !message.trim()) ? 'var(--bg-hover)' : 'var(--accent-600)',
+            color: (disabled || !message.trim()) ? 'var(--text-muted)' : 'white'
+          }}
+          onMouseEnter={(e) => {
+            if (!disabled && message.trim()) {
+              e.currentTarget.style.backgroundColor = 'var(--accent-700)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!disabled && message.trim()) {
+              e.currentTarget.style.backgroundColor = 'var(--accent-600)';
+            }
           }}
           aria-label="Send message"
         >

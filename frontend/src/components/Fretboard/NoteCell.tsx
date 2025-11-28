@@ -38,8 +38,8 @@ export function NoteCell({
     if (cagedShape) {
       if (isChordRoot) {
         return darkMode 
-          ? 'bg-gray-100 text-gray-900 ring-2 ring-blue-400'
-          : 'bg-gray-900 text-white ring-2 ring-blue-400';
+          ? 'bg-gray-100 text-gray-900 ring-2'
+          : 'bg-gray-900 text-white ring-2';
       }
       return `${CAGED_COLORS[cagedShape].bg} text-white`;
     }
@@ -51,9 +51,25 @@ export function NoteCell({
         : 'bg-gray-900 text-white';
     }
     if (isInScale) {
-      return 'bg-blue-500 text-white';
+      return 'text-white';  // Background applied via inline style
     }
     return '';  // Will use inline styles for dimmed notes
+  };
+  
+  // Get ring color for chord root
+  const getRingStyle = (): React.CSSProperties => {
+    if (cagedShape && isChordRoot) {
+      return { '--tw-ring-color': 'var(--accent-400)' } as React.CSSProperties;
+    }
+    return {};
+  };
+  
+  // Get background for scale notes
+  const getScaleNoteStyle = (): React.CSSProperties => {
+    if (isInScale && !isRoot && !cagedShape) {
+      return { backgroundColor: 'var(--accent-500)' };
+    }
+    return {};
   };
 
   // Determine what to display in the circle
@@ -95,10 +111,14 @@ export function NoteCell({
           ${getColorClasses()}
           ${isDimmed ? 'opacity-40' : ''}
         `}
-        style={isDimmed ? {
-          backgroundColor: darkMode ? '#475569' : '#e5e7eb',
-          color: darkMode ? '#94a3b8' : '#9ca3af'
-        } : undefined}
+        style={{
+          ...getRingStyle(),
+          ...getScaleNoteStyle(),
+          ...(isDimmed ? {
+            backgroundColor: darkMode ? '#475569' : '#e5e7eb',
+            color: darkMode ? '#94a3b8' : '#9ca3af'
+          } : {})
+        }}
         title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isClickable ? ' (click for chord)' : ''}`}
       >
         {displayText}

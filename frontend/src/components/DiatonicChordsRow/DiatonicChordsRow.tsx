@@ -26,18 +26,21 @@ export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMod
                 flex flex-col items-center px-2 py-1 rounded-md transition-all
                 hover:scale-105
                 ${isSelected 
-                  ? 'bg-blue-600 text-white shadow-sm' 
+                  ? 'text-white shadow-sm' 
                   : ''
                 }
               `}
-              style={!isSelected ? {
+              style={isSelected ? {
+                backgroundColor: 'var(--accent-600)'
+              } : {
                 backgroundColor: 'var(--bg-tertiary)',
                 color: 'var(--text-secondary)'
-              } : undefined}
+              }}
+
             >
               <span 
                 className="text-[10px] leading-tight"
-                style={{ color: isSelected ? 'rgb(191 219 254)' : 'var(--text-muted)' }}
+                style={{ color: isSelected ? 'var(--accent-200)' : 'var(--text-muted)' }}
               >
                 {chord.numeral}
               </span>

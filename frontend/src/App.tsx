@@ -375,7 +375,7 @@ function App() {
           <div className="flex items-center gap-8">
             {/* Branded Logo */}
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white shadow-lg" style={{ background: 'linear-gradient(to bottom right, var(--accent-600), var(--accent-700))', boxShadow: '0 10px 15px -3px var(--accent-glow)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                   <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.658.122z" clipRule="evenodd" />
                 </svg>
@@ -395,7 +395,7 @@ function App() {
                 style={{ 
                   backgroundColor: appMode === 'scale' ? 'var(--card-bg)' : 'transparent',
                   borderColor: appMode === 'scale' ? 'var(--border-primary)' : 'transparent',
-                  color: appMode === 'scale' ? '#2563eb' : 'var(--text-tertiary)'
+                  color: appMode === 'scale' ? 'var(--accent-600)' : 'var(--text-tertiary)'
                 }}
               >
                 Scale Mode
@@ -410,7 +410,7 @@ function App() {
                 style={{ 
                   backgroundColor: appMode === 'chord' ? 'var(--card-bg)' : 'transparent',
                   borderColor: appMode === 'chord' ? 'var(--border-primary)' : 'transparent',
-                  color: appMode === 'chord' ? '#2563eb' : 'var(--text-tertiary)'
+                  color: appMode === 'chord' ? 'var(--accent-600)' : 'var(--text-tertiary)'
                 }}
               >
                 Chord Mode
@@ -499,7 +499,10 @@ function App() {
           />
           {/* Resize Handle */}
           <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 transition-colors group"
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors group"
+            style={{ '--hover-color': 'var(--accent-400)' } as React.CSSProperties}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-400)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             onMouseDown={(e) => {
               e.preventDefault();
               const startX = e.clientX;

@@ -7,7 +7,7 @@ interface ChatMessageProps {
   darkMode?: boolean;
 }
 
-export function ChatMessage({ message, onChordClick, onScaleClick, darkMode: _darkMode = false }: ChatMessageProps) {
+export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = false }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
   // Find the API request for a chord by index
@@ -67,10 +67,12 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode: _da
             <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Recommended scale:</p>
             <button
               onClick={() => onScaleClick?.(message.scale!, message.apiRequests?.scale || undefined)}
-              className="px-2.5 py-1 text-xs bg-emerald-50 border border-emerald-200 rounded-full 
-                         hover:bg-emerald-100 hover:border-emerald-300 transition-all duration-150 
-                         text-emerald-700 font-medium
-                         dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+              className="px-2.5 py-1 text-xs rounded-full border transition-all duration-150 font-medium"
+              style={{
+                backgroundColor: darkMode ? 'var(--accent-900)' : 'var(--accent-50)',
+                borderColor: darkMode ? 'var(--accent-700)' : 'var(--accent-300)',
+                color: darkMode ? 'var(--accent-300)' : 'var(--accent-700)'
+              }}
             >
               {message.scale}
             </button>
