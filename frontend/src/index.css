@@ -1,11 +1,61 @@
 @import "tailwindcss";
 
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 /* Base styles */
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
 }
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Text selection colors */
+::selection {
+  background-color: #dbeafe;
+  color: #1e3a8a;
+}
+
+/* Smooth transitions for interactive elements */
+button, select, input {
+  transition: all 0.15s ease;
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* CAGED color utilities - for use in dynamic styling */
+.caged-c { --caged-color: #f97316; }
+.caged-a { --caged-color: #eab308; }
+.caged-g { --caged-color: #22c55e; }
+.caged-e { --caged-color: #3b82f6; }
+.caged-d { --caged-color: #a855f7; }

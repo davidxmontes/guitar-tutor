@@ -43,7 +43,7 @@ export function NoteCell({
     // Chord mode - CAGED shape coloring takes priority
     if (cagedShape) {
       if (isChordRoot) {
-        return 'bg-gray-900 text-white';
+        return 'bg-gray-900 text-white ring-2 ring-blue-400';
       }
       return `${CAGED_BG_COLORS[cagedShape]} text-white`;
     }
@@ -72,15 +72,22 @@ export function NoteCell({
   };
 
   return (
-    <div className="flex items-center justify-center p-0.5">
+    <div 
+      className={`
+        relative flex items-center justify-center
+        w-11 h-[38px]
+        ${isOpenString ? 'border-r-[6px] border-gray-300 bg-gray-50' : 'border-r-2 border-gray-200'}
+      `}
+    >
+      {/* Note circle */}
       <button
         onClick={handleClick}
         className={`
-          w-9 h-9 rounded-full flex items-center justify-center
-          text-xs font-medium transition-all
-          ${isClickable ? 'cursor-pointer hover:scale-110 hover:shadow-md hover:ring-2 hover:ring-offset-1 hover:ring-blue-400' : 'cursor-default'}
+          w-[26px] h-[26px] rounded-full flex items-center justify-center
+          text-[11px] font-bold transition-all z-10
+          shadow-sm
+          ${isClickable ? 'cursor-pointer hover:scale-[1.15] hover:shadow-md hover:z-20' : 'cursor-default'}
           ${getColorClasses()}
-          ${isOpenString ? 'ring-2 ring-gray-400' : ''}
           ${isDimmed ? 'opacity-40' : ''}
         `}
         title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isClickable ? ' (click for chord)' : ''}`}

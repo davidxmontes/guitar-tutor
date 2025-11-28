@@ -10,18 +10,18 @@ export function FretboardHeader({ fretCount }: FretboardHeaderProps) {
   const frets = Array.from({ length: fretCount + 1 }, (_, i) => i);
   
   return (
-    <div className="flex items-center mb-1">
+    <div className="flex items-center mb-0">
       {/* Spacer for string labels */}
-      <div className="w-8" />
+      <div className="w-10" />
       
       {/* Fret numbers */}
       <div className="flex">
         {frets.map((fret) => (
           <div
             key={fret}
-            className="w-10 text-center text-xs text-gray-400"
+            className="w-11 text-center text-xs font-medium text-gray-400"
           >
-            {fret === 0 ? 'O' : fret}
+            {fret === 0 ? '' : fret}
           </div>
         ))}
       </div>
@@ -37,9 +37,9 @@ export function FretMarkersRow({ fretCount }: FretMarkersRowProps) {
   const frets = Array.from({ length: fretCount + 1 }, (_, i) => i);
   
   return (
-    <div className="flex items-center mt-1">
+    <div className="flex items-center mt-0">
       {/* Spacer for string labels */}
-      <div className="w-8" />
+      <div className="w-10" />
       
       {/* Fret markers */}
       <div className="flex">
@@ -50,13 +50,13 @@ export function FretMarkersRow({ fretCount }: FretMarkersRowProps) {
           return (
             <div
               key={fret}
-              className="w-10 flex items-center justify-center"
+              className="w-11 h-4 flex items-center justify-center"
             >
               {hasMarker && (
-                <div className="flex gap-0.5">
-                  <div className="w-2 h-2 rounded-full bg-gray-300" />
+                <div className={`flex ${isDouble ? 'gap-1' : ''}`}>
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-200" />
                   {isDouble && (
-                    <div className="w-2 h-2 rounded-full bg-gray-300" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-gray-200" />
                   )}
                 </div>
               )}

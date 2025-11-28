@@ -32,61 +32,61 @@ export function Fretboard({
   const hasChords = chordShapes.length > 0;
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm">
+    <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-gray-800">Interactive Fretboard</h2>
+          <h2 className="font-semibold text-gray-800">Fretboard</h2>
         </div>
         
         {/* Legend */}
         <div className="flex items-center gap-4 text-sm">
           {hasChords ? (
             <>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 rounded-full bg-gray-900" />
-                <span className="text-gray-500">Root</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded-full bg-gray-900 ring-2 ring-blue-400" />
+                <span className="text-gray-500 text-xs">Root</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-orange-500" />
-                <span className="text-gray-500">C</span>
+                <span className="text-gray-500 text-xs">C</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-yellow-500" />
-                <span className="text-gray-500">A</span>
+                <span className="text-gray-500 text-xs">A</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-green-500" />
-                <span className="text-gray-500">G</span>
+                <span className="text-gray-500 text-xs">G</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-blue-500" />
-                <span className="text-gray-500">E</span>
+                <span className="text-gray-500 text-xs">E</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-purple-500" />
-                <span className="text-gray-500">D</span>
+                <span className="text-gray-500 text-xs">D</span>
               </div>
             </>
           ) : hasScale ? (
             <>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-gray-900" />
-                <span className="text-gray-500">Root</span>
+                <span className="text-gray-500 text-xs">Root</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-blue-500" />
-                <span className="text-gray-500">Scale Note</span>
+                <span className="text-gray-500 text-xs">Scale Note</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-gray-200 opacity-40" />
-                <span className="text-gray-500">Other</span>
+                <span className="text-gray-500 text-xs">Other</span>
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded-full bg-gray-200 border border-gray-300" />
-              <span className="text-gray-500">All Notes</span>
+              <span className="text-gray-500 text-xs">All Notes</span>
             </div>
           )}
         </div>
@@ -94,12 +94,12 @@ export function Fretboard({
       
       {/* Fretboard Grid */}
       <div className="overflow-x-auto">
-        <div className="min-w-[900px]">
+        <div className="min-w-[1000px]">
           {/* Fret numbers */}
           <FretboardHeader fretCount={fretCount} />
           
           {/* Strings */}
-          <div>
+          <div className="border-t border-b border-gray-100">
             {strings.map((stringNotes, idx) => (
               <StringRow
                 key={idx}
@@ -122,8 +122,8 @@ export function Fretboard({
       </div>
       
       {/* Tuning info */}
-      <div className="mt-4 text-sm text-gray-500">
-        Tuning: {tuningNotes.join(' - ')}
+      <div className="mt-4 text-xs text-gray-400">
+        Tuning: {tuningNotes.join(' • ')}
       </div>
     </div>
   );

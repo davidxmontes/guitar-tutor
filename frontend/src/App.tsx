@@ -333,33 +333,39 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
-      <header className="bg-white shadow-sm flex-shrink-0">
-        <div className="max-w-full mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              Guitar Tutor
-            </h1>
+      <header className="h-16 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm z-20">
+        <div className="h-full max-w-full mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            {/* Branded Logo */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                  <path fillRule="evenodd" d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.658.122z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h1 className="text-lg font-bold tracking-tight text-slate-900">Guitar Tutor</h1>
+            </div>
             
             {/* Mode Toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
               <button
                 onClick={() => handleModeSwitch('scale')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                   appMode === 'scale' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-700 shadow-sm border border-gray-200 font-bold' 
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 Scale Mode
               </button>
               <button
                 onClick={() => handleModeSwitch('chord')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                   appMode === 'chord' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-700 shadow-sm border border-gray-200 font-bold' 
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 Chord Mode
@@ -367,34 +373,35 @@ function App() {
             </div>
           </div>
           
-          {/* Display Mode Toggle */}
-          {(scaleData || chordData) && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Display:</span>
-              <div className="flex bg-gray-200 rounded-lg p-1">
+          {/* Right side controls */}
+          <div className="flex items-center gap-4">
+            {/* Display Mode Toggle */}
+            {(scaleData || chordData) && (
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-200">
+                <span className="text-xs font-semibold text-gray-500 px-2 uppercase tracking-wide">Display:</span>
                 <button
                   onClick={() => setDisplayMode('notes')}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     displayMode === 'notes' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-white text-slate-800 shadow-sm border border-gray-200 font-bold' 
+                      : 'text-slate-600 hover:text-gray-900 hover:bg-gray-200'
                   }`}
                 >
                   Notes
                 </button>
                 <button
                   onClick={() => setDisplayMode('intervals')}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     displayMode === 'intervals' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-white text-slate-800 shadow-sm border border-gray-200 font-bold' 
+                      : 'text-slate-600 hover:text-gray-900 hover:bg-gray-200'
                   }`}
                 >
                   Intervals
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 
@@ -412,94 +419,98 @@ function App() {
           />
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-          {/* Scale Mode Controls */}
-          {appMode === 'scale' && (
-            <>
-              <div className="flex items-center gap-4">
-                <ScaleSelector
-                  selectedRoot={selectedRoot}
-                  selectedMode={selectedMode}
-                  onSelect={handleScaleSelect}
-                />
-                {(scaleData || chordData) && (
-                  <button
-                    onClick={handleClearAll}
-                    className="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm"
-                  >
-                    Clear All
-                  </button>
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Control Bar */}
+          <section className="bg-white px-8 py-4 border-b border-gray-200 shadow-sm z-10 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                {/* Scale Mode Controls */}
+                {appMode === 'scale' && (
+                  <ScaleSelector
+                    selectedRoot={selectedRoot}
+                    selectedMode={selectedMode}
+                    onSelect={handleScaleSelect}
+                  />
+                )}
+
+                {/* Chord Mode Controls */}
+                {appMode === 'chord' && (
+                  <>
+                    <ChordSelector
+                      selectedRoot={selectedChordRoot}
+                      selectedQuality={selectedChordQuality}
+                      onSelect={handleDirectChordSelect}
+                    />
+                    
+                    {chordData && (
+                      <>
+                        <div className="h-10 w-px bg-gray-200"></div>
+                        
+                        {/* CAGED Shape Filter - Inline */}
+                        <CagedShapeFilter
+                          shapes={chordData.caged_shapes}
+                          activeShapes={activeChordShapes}
+                          onToggleShape={handleToggleShape}
+                          onShowAll={handleShowAllShapes}
+                        />
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 
-              {/* Diatonic Chords Row */}
-              {scaleData && (
-                <DiatonicChordsRow
-                  chords={scaleData.diatonic_chords}
-                  onChordClick={handleChordClick}
-                  selectedChord={selectedDiatonicChord}
-                />
-              )}
-            </>
-          )}
-
-          {/* Chord Mode Controls */}
-          {appMode === 'chord' && (
-            <div className="flex items-center gap-4">
-              <ChordSelector
-                selectedRoot={selectedChordRoot}
-                selectedQuality={selectedChordQuality}
-                onSelect={handleDirectChordSelect}
-              />
-              {chordData && activeChordShapes.length > 0 && (
-                <PlayTextButton
-                  onClick={() => {
-                    // Play the first active shape
-                    const activeShape = chordData.caged_shapes.find(s => 
-                      activeChordShapes.includes(s.shape)
-                    )
-                    if (activeShape) {
-                      const positions = activeShape.positions.map(p => ({ 
-                        string: p.string, 
-                        fret: p.fret 
-                      }))
-                      playChord(positions)
-                    }
-                  }}
-                  duration={getChordDuration(5) * 1000}
-                  label="Play Chord"
-                />
-              )}
-              {chordData && (
-                <button
-                  onClick={handleClearAll}
-                  className="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm"
-                >
-                  Clear
-                </button>
-              )}
+              {/* Right side actions */}
+              <div className="flex items-center gap-3">
+                {appMode === 'chord' && chordData && activeChordShapes.length > 0 && (
+                  <PlayTextButton
+                    onClick={() => {
+                      const activeShape = chordData.caged_shapes.find(s => 
+                        activeChordShapes.includes(s.shape)
+                      )
+                      if (activeShape) {
+                        const positions = activeShape.positions.map(p => ({ 
+                          string: p.string, 
+                          fret: p.fret 
+                        }))
+                        playChord(positions)
+                      }
+                    }}
+                    duration={getChordDuration(5) * 1000}
+                    label="Play Chord"
+                  />
+                )}
+                {(scaleData || chordData) && (
+                  <button
+                    onClick={handleClearAll}
+                    className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-slate-700 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-          )}
+          </section>
 
-          {/* CAGED Shape Filter */}
-          {chordData && (
-            <CagedShapeFilter
-              shapes={chordData.caged_shapes}
-              activeShapes={activeChordShapes}
-              onToggleShape={handleToggleShape}
-              onShowAll={handleShowAllShapes}
-            />
-          )}
+          {/* Scrollable Content */}
+          <main className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* Diatonic Chords Row (Scale Mode only) */}
+            {appMode === 'scale' && scaleData && (
+              <DiatonicChordsRow
+                chords={scaleData.diatonic_chords}
+                onChordClick={handleChordClick}
+                selectedChord={selectedDiatonicChord}
+              />
+            )}
 
-          {/* Chord Diagrams */}
-          {chordData && (
-            <ChordDiagramRow
-              shapes={chordData.caged_shapes}
-              activeShapes={activeChordShapes}
-              onToggleShape={handleToggleShape}
-            />
-          )}
+            {/* Chord Diagrams */}
+            {chordData && (
+              <ChordDiagramRow
+                shapes={chordData.caged_shapes}
+                activeShapes={activeChordShapes}
+                onToggleShape={handleToggleShape}
+              />
+            )}
 
           {loading && (
             <div className="flex items-center justify-center py-12">
@@ -539,7 +550,8 @@ function App() {
               💡 Click on any scale note to see the chord built on that degree
             </div>
           )}
-        </main>
+          </main>
+        </div>
       </div>
 
       {/* Chord Popup */}

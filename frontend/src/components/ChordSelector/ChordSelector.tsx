@@ -62,14 +62,14 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: Chord
   const categories = ['Triads', 'Suspended', '7th', '6th', 'Extended'];
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-6">
       {/* Root selector */}
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">Root:</label>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Root Note</label>
         <select
           value={root}
           onChange={(e) => handleRootChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
         >
           {ROOTS.map((r) => (
             <option key={r} value={r}>{r}</option>
@@ -78,12 +78,12 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: Chord
       </div>
 
       {/* Quality selector with categories */}
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">Type:</label>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chord Type</label>
         <select
           value={quality}
           onChange={(e) => handleQualityChange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer hover:bg-gray-100"
         >
           {categories.map((category) => (
             <optgroup key={category} label={category}>
@@ -95,8 +95,10 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect }: Chord
         </select>
       </div>
 
+      <div className="h-10 w-px bg-gray-200"></div>
+
       {/* Current chord display */}
-      <div className="ml-2 px-4 py-2 bg-blue-100 rounded-lg">
+      <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
         <span className="text-lg font-bold text-blue-800">{chordName}</span>
       </div>
     </div>

@@ -8,6 +8,16 @@ interface ChordPositionInfo {
   isRoot: boolean;
 }
 
+// String thickness classes (from high E to low E)
+const STRING_THICKNESS: Record<number, string> = {
+  1: 'h-px',      // High E - thinnest
+  2: 'h-px',      // B
+  3: 'h-0.5',     // G
+  4: 'h-0.5',     // D
+  5: 'h-[3px]',   // A
+  6: 'h-1',       // Low E - thickest
+};
+
 interface StringRowProps {
   stringNumber: number;
   stringName: string;
@@ -58,14 +68,21 @@ export function StringRow({
     });
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center relative">
       {/* String label */}
-      <div className="w-8 text-center text-sm font-medium text-gray-600">
+      <div className="w-10 text-center text-xs font-bold text-gray-500">
         {stringName}
       </div>
       
-      {/* Notes */}
-      <div className="flex">
+      {/* String container with line */}
+      <div className="flex relative">
+        {/* String line running through all frets */}
+        <div 
+          className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-gray-400 ${STRING_THICKNESS[stringNumber]} z-0`}
+          style={{ boxShadow: '0 1px 1px rgba(0,0,0,0.1)' }}
+        />
+        
+        {/* Notes */}
         {notes.map((notePos) => {
           const scalePos = scaleMap.get(notePos.fret);
           const chordPos = chordMap.get(notePos.fret);
