@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.routers import fretboard, tunings, scales, chords, agent
 
@@ -9,10 +10,20 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS for local development
+# Configure CORS origins via environment variable so hosted frontends can be allowed.
+# Set ALLOWED_ORIGINS as a comma-separated list, e.g.:
+#   ALLOWED_ORIGINS=https://your-frontend.vercel.app,http://localhost:5173
+allowed_origins_env = os.getenv('ALLOWED_ORIGINS')
+if allowed_origins_env:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(',') if o.strip()]
+else:
+    # sensible default for local dev
+    allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

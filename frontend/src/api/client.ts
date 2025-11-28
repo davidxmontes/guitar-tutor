@@ -1,7 +1,10 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage } from '../types/chat';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+// Read base URL from Vite env at build-time (VITE_API_BASE_URL).
+// Use a relative URL by default so the browser calls the same origin (/api) and
+// nginx can proxy requests to the backend service in docker-compose.
+const API_BASE_URL = (import.meta.env as any).VITE_API_BASE_URL ?? '/api';
 
 class ApiClient {
   private baseUrl: string;

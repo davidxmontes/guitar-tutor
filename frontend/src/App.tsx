@@ -511,7 +511,10 @@ function App() {
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <p className="text-red-700">{error}</p>
               <p className="text-red-500 text-sm mt-1">
-                Make sure the backend is running on http://localhost:8000
+                {/** Show the actual API base the app will call (build-time Vite var or fallback) */}
+                Make sure the backend is running and reachable. This app calls the API at{' '}
+                <strong>{(import.meta.env as any).VITE_API_BASE_URL ?? '/api'}</strong>
+                {'.'} If you're running locally, the backend also listens on <strong>http://localhost:8000</strong>.
               </p>
             </div>
           )}
