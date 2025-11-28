@@ -18,20 +18,15 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
     return undefined;
   };
 
+  const bubbleClassName = `chat-bubble ${isUser ? 'user' : 'assistant'}`;
+
+  const timestampColor = isUser
+    ? 'rgba(255,255,255,0.9)'
+    : 'var(--text-muted)';
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
-      <div
-        className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm ${
-          isUser
-            ? 'bg-blue-600 text-white rounded-br-sm'
-            : 'rounded-bl-sm border'
-        }`}
-        style={!isUser ? {
-          backgroundColor: 'var(--card-bg)',
-          borderColor: 'var(--border-primary)',
-          color: 'var(--text-primary)'
-        } : undefined}
-      >
+      <div className={bubbleClassName}>
         {/* Message content */}
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
 
@@ -80,10 +75,7 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
         )}
 
         {/* Timestamp */}
-        <p 
-          className="text-[11px] mt-2"
-          style={{ color: isUser ? 'rgb(191 219 254)' : 'var(--text-muted)' }}
-        >
+        <p className="text-[11px] mt-2" style={{ color: timestampColor }}>
           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
