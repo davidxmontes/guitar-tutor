@@ -141,7 +141,7 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
         </button>
       </div>
       {/* Horizontally scrollable diagrams container */}
-      <div className="overflow-x-auto -mx-3 px-3">
+      <div className="overflow-x-auto -mx-3 px-3 pt-1">
         <div className="flex gap-4 md:gap-6 pb-2">
           {shapes.map(shape => {
             const isActive = activeShapes.includes(shape.shape)
