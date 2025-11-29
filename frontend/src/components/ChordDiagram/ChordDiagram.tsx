@@ -107,13 +107,13 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
           </div>
         
         <svg 
-          width={DIAGRAM_WIDTH} 
+          width={DIAGRAM_WIDTH + 20} 
           height={diagramHeight}
           className="overflow-visible"
         >
           {/* Fret number indicator */}
           <text
-            x="-10"
+            x="-12"
             y={FRET_SPACING / 2 + 1}
             fontSize="10"
             fontWeight="600"
@@ -123,6 +123,33 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
           >
             {startFret}
           </text>
+
+          {/* Side Fret Markers (3, 5, 7, 9, 12, etc.) */}
+          {Array.from({ length: VISIBLE_FRETS }).map((_, i) => {
+            const fretNum = startFret + i
+            const isSingleMarker = [3, 5, 7, 9, 15, 17, 19, 21].includes(fretNum)
+            const isDoubleMarker = [12, 24].includes(fretNum)
+            
+            if (!isSingleMarker && !isDoubleMarker) return null
+            
+            const y = 1 + i * FRET_SPACING + FRET_SPACING / 2
+            const x = DIAGRAM_WIDTH + 16 // Position to the right of the diagram
+            
+            return (
+              <g key={`marker-${fretNum}`}>
+                {isSingleMarker && (
+                  <circle cx={x} cy={y} r={3} fill="var(--text-muted)" opacity={0.5} />
+                )}
+                {isDoubleMarker && (
+                  <>
+                    <circle cx={x} cy={y - 4} r={3} fill="var(--text-muted)" opacity={0.5} />
+                    <circle cx={x} cy={y + 4} r={3} fill="var(--text-muted)" opacity={0.5} />
+                  </>
+                )}
+              </g>
+            )
+          })}
+
           {/* Background */}
           <rect
             x={0}
