@@ -18,6 +18,7 @@ interface ChatPanelProps {
   selectedChordQuality?: string | null;
   selectedScaleRoot?: string | null;
   selectedScaleMode?: string | null;
+  isMobile?: boolean;
 }
 
 export function ChatPanel({
@@ -34,6 +35,7 @@ export function ChatPanel({
   selectedChordQuality = null,
   selectedScaleRoot = null,
   selectedScaleMode = null,
+  isMobile = false,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -135,7 +137,7 @@ export function ChatPanel({
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 {/* larger chevron for open panel to match visual weight of collapsed chevron */}
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6" style={{ transform: 'rotate(180deg)' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6" style={{ transform: `rotate(${isMobile ? 90 : 180}deg)` }}>
                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                   </svg>
               </button>

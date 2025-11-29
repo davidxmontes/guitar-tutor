@@ -738,6 +738,7 @@ function App() {
             selectedChordQuality={selectedChordQuality}
             selectedScaleRoot={selectedRoot}
             selectedScaleMode={selectedMode}
+            isMobile={true}
           />
         </div>
       </div>
