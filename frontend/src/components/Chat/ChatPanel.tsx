@@ -12,6 +12,8 @@ interface ChatPanelProps {
   onScaleClick?: (scale: string, apiRequest?: { root: string; mode: string }) => void;
   onReset?: () => void;
   darkMode?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 export function ChatPanel({
@@ -22,6 +24,8 @@ export function ChatPanel({
   onScaleClick,
   onReset,
   darkMode = false,
+  isCollapsed = false,
+  onToggleCollapsed,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +33,31 @@ export function ChatPanel({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Collapsed / minimized UI variant
+  if (isCollapsed) {
+    return (
+      <div
+        className="flex flex-col h-full font-sans border-r items-center justify-start py-2"
+        style={{
+          backgroundColor: 'var(--chat-bg)',
+          borderColor: 'var(--border-primary)'
+        }}
+      >
+        <button
+          onClick={onToggleCollapsed}
+          aria-label="Open chat"
+          title="Open chat"
+          className="p-2 rounded-md transition-transform hover:scale-105"
+          style={{ color: 'var(--text-secondary)', backgroundColor: 'transparent' }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6" style={{ transform: 'rotate(0deg)' }}>
+            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div 
@@ -54,23 +83,56 @@ export function ChatPanel({
             </svg>
             <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>AI Guitar Tutor</h2>
           </div>
-          {messages.length > 0 && onReset && (
-            <button
-              onClick={onReset}
-              disabled={isLoading}
-              className="text-xs px-2 py-1 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ 
-                color: 'var(--text-tertiary)',
-                backgroundColor: 'transparent'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              title="Reset chat"
-              aria-label="Reset chat"
-            >
-              Reset
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {messages.length > 0 && onReset && (
+              <button
+                onClick={onReset}
+                disabled={isLoading}
+                className="p-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                style={{
+                  color: 'var(--text-tertiary)',
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                title="Reset chat"
+                aria-label="Reset chat"
+              >
+                {/* Inline the project's stroke-based reload.svg so it matches header icons */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                  aria-hidden
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+              </button>
+            )}
+
+            {onToggleCollapsed && (
+              <button
+                onClick={onToggleCollapsed}
+                aria-label="Collapse chat"
+                title="Collapse chat"
+                className="text-xs px-2 py-1 rounded-md transition-all hover:scale-105"
+                style={{
+                  color: 'var(--text-tertiary)',
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                {/* larger chevron for open panel to match visual weight of collapsed chevron */}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6" style={{ transform: 'rotate(180deg)' }}>
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

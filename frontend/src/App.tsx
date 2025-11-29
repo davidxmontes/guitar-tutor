@@ -34,6 +34,13 @@ function App() {
     return false
   })
   const [chatWidth, setChatWidth] = useState(320) // Default w-80 = 320px
+  const [chatCollapsed, setChatCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chatCollapsed')
+      return saved === 'true'
+    }
+    return false
+  })
   const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null)
   const [scaleData, setScaleData] = useState<ScaleResponse | null>(null)
   const [chordData, setChordData] = useState<ChordResponse | null>(null)
@@ -486,7 +493,7 @@ function App() {
         {/* Chat Sidebar - Resizable */}
         <aside 
           className="flex-shrink-0 relative"
-          style={{ width: chatWidth }}
+          style={{ width: chatCollapsed ? 56 : chatWidth }}
         >
           <ChatPanel
             messages={chatMessages}
@@ -495,10 +502,19 @@ function App() {
             onChordClick={handleChatChordClick}
             onScaleClick={handleChatScaleClick}
             onReset={handleChatReset}
+            isCollapsed={chatCollapsed}
+            onToggleCollapsed={() => {
+              setChatCollapsed((prev) => {
+                const next = !prev
+                localStorage.setItem('chatCollapsed', String(next))
+                return next
+              })
+            }}
             darkMode={darkMode}
           />
           {/* Resize Handle */}
-          <div
+          {!chatCollapsed && (
+            <div
             className="absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors group"
             style={{ '--hover-color': 'var(--accent-400)' } as React.CSSProperties}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-400)'}
@@ -524,7 +540,8 @@ function App() {
             }}
           >
             <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--border-secondary)' }} />
-          </div>
+            </div>
+          )}
         </aside>
 
         {/* Main Content Area */}

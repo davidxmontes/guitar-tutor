@@ -186,6 +186,41 @@ input:focus-visible {
 .theme-border { border-color: var(--border-primary); }
 .theme-border-secondary { border-color: var(--border-secondary); }
 
+/* ===== Chat bubble styles (centralized) ===== */
+.chat-bubble {
+  max-width: 80%;
+  border-radius: 1rem; /* base rounding */
+  padding: 0.625rem 1rem; /* matches px-4 py-2.5 */
+  box-shadow: var(--shadow-sm);
+  display: block;
+}
+
+/* assistant (AI) bubble: neutral card background with border and readable text */
+.chat-bubble.assistant {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  border-bottom-left-radius: 0.25rem; /* rounded-bl-sm */
+}
+
+/* user bubble: accent color (green) for light, darker accent for dark mode */
+.chat-bubble.user {
+  background-color: var(--accent-600);
+  color: white;
+  border-bottom-right-radius: 0.25rem; /* rounded-br-sm */
+}
+
+/* Dark mode overrides — keep user accent darker and assistant card darker */
+.dark .chat-bubble.user {
+  background-color: var(--accent-900);
+}
+
+.dark .chat-bubble.assistant {
+  background-color: var(--card-bg);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+}
+
 /* CAGED color utilities - for use in dynamic styling */
 .caged-c { --caged-color: #f97316; }
 .caged-a { --caged-color: #eab308; }

@@ -1,3 +1,4 @@
+import { ChatPill } from './ChatPill'
 import type { ChatMessage as ChatMessageType } from '../../types/chat';
 
 interface ChatMessageProps {
@@ -36,21 +37,12 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
             <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Suggested chords:</p>
             <div className="flex flex-wrap gap-1.5">
               {message.chordChoices.map((chord, idx) => (
-                <button
+                <ChatPill
                   key={idx}
-                  onClick={() => onChordClick?.(chord, getChordApiRequest(idx))}
-                  className="px-2.5 py-1 text-xs rounded-full border
-                             hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 
-                             dark:hover:bg-blue-900/30 dark:hover:border-blue-600 dark:hover:text-blue-400
-                             transition-all duration-150 font-medium"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-primary)',
-                    color: 'var(--text-secondary)'
-                  }}
-                >
-                  {chord}
-                </button>
+                  label={chord}
+                  onActivate={() => onChordClick?.(chord, getChordApiRequest(idx))}
+                  darkMode={darkMode}
+                />
               ))}
             </div>
           </div>
@@ -60,17 +52,12 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
         {!isUser && message.scale && (
           <div className="mt-3 pt-2.5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
             <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Recommended scale:</p>
-            <button
-              onClick={() => onScaleClick?.(message.scale!, message.apiRequests?.scale || undefined)}
-              className="px-2.5 py-1 text-xs rounded-full border transition-all duration-150 font-medium"
-              style={{
-                backgroundColor: darkMode ? 'var(--accent-900)' : 'var(--accent-50)',
-                borderColor: darkMode ? 'var(--accent-700)' : 'var(--accent-300)',
-                color: darkMode ? 'var(--accent-300)' : 'var(--accent-700)'
-              }}
-            >
-              {message.scale}
-            </button>
+            <ChatPill
+              label={message.scale!}
+              onActivate={() => onScaleClick?.(message.scale!, message.apiRequests?.scale || undefined)}
+              darkMode={darkMode}
+              variant="accent"
+            />
           </div>
         )}
 
