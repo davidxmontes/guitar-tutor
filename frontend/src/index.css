@@ -227,3 +227,106 @@ input:focus-visible {
 .caged-g { --caged-color: #22c55e; }
 .caged-e { --caged-color: #3b82f6; }
 .caged-d { --caged-color: #a855f7; }
+
+/* ===== Responsive / Mobile-first utilities ===== */
+
+/* Touch-friendly minimum tap target (44px as per WCAG guidelines) */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Mobile bottom sheet overlay */
+.mobile-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-sheet-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile bottom sheet panel */
+.mobile-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 85vh;
+  background-color: var(--chat-bg);
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  z-index: 50;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-sheet.open {
+  transform: translateY(0);
+}
+
+/* Sheet drag handle */
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background-color: var(--border-secondary);
+  border-radius: 2px;
+  margin: 8px auto 4px;
+}
+
+/* Floating action button for mobile chat */
+.fab-chat {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(to bottom right, var(--accent-500), var(--accent-600));
+  color: white;
+  box-shadow: 0 4px 12px var(--accent-glow), 0 4px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.fab-chat:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px var(--accent-glow), 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+
+.fab-chat:active {
+  transform: scale(0.95);
+}
+
+/* Hide elements on mobile */
+@media (max-width: 767px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Hide elements on desktop */
+@media (min-width: 768px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+/* Safe area padding for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

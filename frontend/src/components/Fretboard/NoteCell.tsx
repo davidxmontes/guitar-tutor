@@ -87,19 +87,23 @@ export function NoteCell({
 
   return (
     <div 
-      className={`
-        relative flex items-center justify-center
-        w-11 h-[38px]
-      `}
+      className="relative flex items-center justify-center flex-shrink-0 w-11 h-[38px]"
       style={{
-        borderRight: isOpenString 
-          ? `6px solid ${darkMode ? '#475569' : '#d1d5db'}` 
-          : `2px solid ${darkMode ? '#334155' : '#e5e7eb'}`,
         backgroundColor: isOpenString 
           ? (darkMode ? 'rgba(71, 85, 105, 0.3)' : '#f9fafb') 
           : 'transparent'
       }}
     >
+      {/* Fret line - positioned at the right edge of the cell */}
+      <div 
+        className="absolute right-0 top-0 bottom-0"
+        style={{
+          width: isOpenString ? '6px' : '2px',
+          backgroundColor: isOpenString 
+            ? (darkMode ? '#475569' : '#d1d5db')
+            : (darkMode ? '#334155' : '#e5e7eb')
+        }}
+      />
       {/* Note circle */}
       <button
         onClick={handleClick}

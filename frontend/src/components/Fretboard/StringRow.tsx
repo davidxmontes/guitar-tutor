@@ -70,18 +70,20 @@ export function StringRow({
     });
 
   return (
-    <div className="flex items-center relative">
+    <div className="flex items-stretch">
       {/* String label */}
-      <div className="w-10 text-center text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
+      <div className="w-10 flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
         {stringName}
       </div>
       
       {/* String container with line */}
-      <div className="flex relative">
-        {/* String line running through all frets */}
+      <div className="flex items-stretch relative">
+        {/* String line running through all frets - using inset for precise positioning */}
         <div 
-          className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 ${STRING_THICKNESS[stringNumber]} z-0`}
+          className={`absolute inset-x-0 ${STRING_THICKNESS[stringNumber]} z-0`}
           style={{ 
+            top: '50%',
+            transform: 'translateY(-50%)',
             backgroundColor: darkMode ? '#64748b' : '#9ca3af',
             boxShadow: '0 1px 1px rgba(0,0,0,0.1)' 
           }}

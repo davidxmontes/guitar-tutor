@@ -20,7 +20,7 @@ export function FretboardHeader({ fretCount, darkMode: _darkMode = false }: Fret
         {frets.map((fret) => (
           <div
             key={fret}
-            className="w-11 text-center text-xs font-medium"
+            className="w-11 flex-shrink-0 text-center text-xs font-medium"
             style={{ color: 'var(--text-muted)' }}
           >
             {fret === 0 ? '' : fret}
@@ -52,7 +52,7 @@ export function FretMarkersRow({ fretCount }: FretMarkersRowProps) {
           return (
             <div
               key={fret}
-              className="w-11 h-4 flex items-center justify-center"
+              className="w-11 h-4 flex-shrink-0 flex items-center justify-center"
             >
               {hasMarker && (
                 <div className={`flex ${isDouble ? 'gap-1' : ''}`}>

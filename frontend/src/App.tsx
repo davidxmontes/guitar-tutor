@@ -41,6 +41,7 @@ function App() {
     }
     return false
   })
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null)
   const [scaleData, setScaleData] = useState<ScaleResponse | null>(null)
   const [chordData, setChordData] = useState<ChordResponse | null>(null)
@@ -378,23 +379,24 @@ function App() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       {/* Header */}
-      <header className="h-16 flex-shrink-0 z-20 border-b" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-sm)' }}>
-        <div className="h-full max-w-full mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            {/* Branded Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white shadow-lg" style={{ background: 'linear-gradient(to bottom right, var(--accent-600), var(--accent-700))', boxShadow: '0 10px 15px -3px var(--accent-glow)' }}>
-                {/* App icon (served from src/assets/headstock.png) - smaller in header */}
-                <img src={headstockSrc} alt="Guitar Tutor" className="w-9 h-9 rounded-lg object-cover" />
-              </div>
-              <h1 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>Guitar Tutor</h1>
+      <header className="h-14 md:h-16 flex-shrink-0 z-20 border-b" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-sm)' }}>
+        <div className="h-full max-w-full mx-auto px-3 md:px-6 flex items-center justify-between">
+          {/* Left side - Logo only */}
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-white shadow-lg" style={{ background: 'linear-gradient(to bottom right, var(--accent-600), var(--accent-700))', boxShadow: '0 10px 15px -3px var(--accent-glow)' }}>
+              {/* App icon (served from src/assets/headstock.png) - smaller in header */}
+              <img src={headstockSrc} alt="Guitar Tutor" className="w-8 h-8 md:w-9 md:h-9 rounded-lg object-cover" />
             </div>
-            
-            {/* Mode Toggle */}
-            <div className="flex rounded-lg p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <h1 className="text-base md:text-lg font-bold tracking-tight hidden sm:block" style={{ color: 'var(--text-primary)' }}>Guitar Tutor</h1>
+          </div>
+          
+          {/* Right side controls */}
+          <div className="flex items-center gap-2 md:gap-4">
+            {/* Mode Toggle (Scale/Chord) */}
+            <div className="flex rounded-lg p-0.5 md:p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
               <button
                 onClick={() => handleModeSwitch('scale')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all touch-target ${
                   appMode === 'scale' 
                     ? 'shadow-sm border font-bold' 
                     : ''
@@ -405,11 +407,12 @@ function App() {
                   color: appMode === 'scale' ? 'var(--accent-600)' : 'var(--text-tertiary)'
                 }}
               >
-                Scale Mode
+                <span className="hidden sm:inline">Scale Mode</span>
+                <span className="sm:hidden">Scale</span>
               </button>
               <button
                 onClick={() => handleModeSwitch('chord')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all touch-target ${
                   appMode === 'chord' 
                     ? 'shadow-sm border font-bold' 
                     : ''
@@ -420,20 +423,18 @@ function App() {
                   color: appMode === 'chord' ? 'var(--accent-600)' : 'var(--text-tertiary)'
                 }}
               >
-                Chord Mode
+                <span className="hidden sm:inline">Chord Mode</span>
+                <span className="sm:hidden">Chord</span>
               </button>
             </div>
-          </div>
-          
-          {/* Right side controls */}
-          <div className="flex items-center gap-4">
-            {/* Display Mode Toggle */}
+
+            {/* Display Mode Toggle - hide label on mobile */}
             {(scaleData || chordData) && (
-              <div className="flex items-center gap-2 rounded-lg p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-                <span className="text-xs font-semibold px-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Display:</span>
+              <div className="flex items-center gap-1 md:gap-2 rounded-lg p-0.5 md:p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+                <span className="text-xs font-semibold px-1 md:px-2 uppercase tracking-wide hidden md:inline" style={{ color: 'var(--text-muted)' }}>Display:</span>
                 <button
                   onClick={() => setDisplayMode('notes')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-2 md:px-3 py-1 rounded text-xs font-medium transition-all touch-target ${
                     displayMode === 'notes' 
                       ? 'shadow-sm border font-bold' 
                       : ''
@@ -441,14 +442,14 @@ function App() {
                   style={{ 
                     backgroundColor: displayMode === 'notes' ? 'var(--card-bg)' : 'transparent',
                     borderColor: displayMode === 'notes' ? 'var(--border-primary)' : 'transparent',
-                    color: displayMode === 'notes' ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                    color: displayMode === 'notes' ? 'var(--accent-600)' : 'var(--text-tertiary)'
                   }}
                 >
                   Notes
                 </button>
                 <button
                   onClick={() => setDisplayMode('intervals')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-2 md:px-3 py-1 rounded text-xs font-medium transition-all touch-target ${
                     displayMode === 'intervals' 
                       ? 'shadow-sm border font-bold' 
                       : ''
@@ -456,10 +457,11 @@ function App() {
                   style={{ 
                     backgroundColor: displayMode === 'intervals' ? 'var(--card-bg)' : 'transparent',
                     borderColor: displayMode === 'intervals' ? 'var(--border-primary)' : 'transparent',
-                    color: displayMode === 'intervals' ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                    color: displayMode === 'intervals' ? 'var(--accent-600)' : 'var(--text-tertiary)'
                   }}
                 >
-                  Intervals
+                  <span className="hidden sm:inline">Intervals</span>
+                  <span className="sm:hidden">Int</span>
                 </button>
               </div>
             )}
@@ -467,7 +469,7 @@ function App() {
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-lg transition-all hover:scale-105"
+              className="p-2 rounded-lg transition-all hover:scale-105 touch-target"
               style={{ 
                 backgroundColor: 'var(--bg-tertiary)',
                 color: 'var(--text-secondary)'
@@ -490,9 +492,9 @@ function App() {
 
       {/* Main Layout: Chat Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat Sidebar - Resizable */}
+        {/* Chat Sidebar - Resizable (Desktop only) */}
         <aside 
-          className="flex-shrink-0 relative"
+          className="flex-shrink-0 relative hidden md:block"
           style={{ width: chatCollapsed ? 56 : chatWidth }}
         >
           <ChatPanel
@@ -551,9 +553,9 @@ function App() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--main-content-bg)' }}>
           {/* Control Bar */}
-          <section className="px-6 pt-6 pb-2 z-10 flex-shrink-0">
-            <div className="flex items-center justify-between px-6 py-4 rounded-xl border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-md)' }}>
-              <div className="flex items-center gap-6">
+          <section className="px-3 md:px-6 pt-3 md:pt-6 pb-2 z-10 flex-shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0 px-3 md:px-6 py-3 md:py-4 rounded-xl border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-md)' }}>
+              <div className="flex flex-wrap items-center gap-3 md:gap-6">
                 {/* Scale Mode Controls */}
                 {appMode === 'scale' && (
                   <>
@@ -564,16 +566,18 @@ function App() {
                       darkMode={darkMode}
                     />
                     
-                    {/* Diatonic Chords - inline in control bar */}
+                    {/* Diatonic Chords - inline in control bar, scrollable on mobile */}
                     {scaleData && (
                       <>
-                        <div className="h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
-                        <DiatonicChordsRow
-                          chords={scaleData.diatonic_chords}
-                          onChordClick={handleChordClick}
-                          selectedChord={selectedDiatonicChord}
-                          darkMode={darkMode}
-                        />
+                        <div className="hidden md:block h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
+                        <div className="w-full md:w-auto overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
+                          <DiatonicChordsRow
+                            chords={scaleData.diatonic_chords}
+                            onChordClick={handleChordClick}
+                            selectedChord={selectedDiatonicChord}
+                            darkMode={darkMode}
+                          />
+                        </div>
                       </>
                     )}
                   </>
@@ -593,7 +597,7 @@ function App() {
               </div>
 
               {/* Right side actions */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
                 {appMode === 'chord' && chordData && activeChordShapes.length > 0 && (
                   <PlayTextButton
                     onClick={() => {
@@ -615,7 +619,7 @@ function App() {
                 {(scaleData || chordData) && (
                   <button
                     onClick={handleClearAll}
-                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all border"
+                    className="px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all border touch-target"
                     style={{ 
                       backgroundColor: 'var(--card-bg)', 
                       borderColor: 'var(--border-primary)',
@@ -630,7 +634,7 @@ function App() {
           </section>
 
           {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto p-6 space-y-4" style={{ backgroundColor: 'var(--main-content-bg)' }}>
+          <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 pb-20 md:pb-6" style={{ backgroundColor: 'var(--main-content-bg)' }}>
             {/* Chord Diagrams */}
             {chordData && (
               <ChordDiagramRow
@@ -695,6 +699,49 @@ function App() {
           onClose={handleClosePopup}
         />
       )}
+
+      {/* Mobile Chat - Floating Action Button */}
+      <button
+        className="fab-chat md:hidden"
+        onClick={() => setMobileSheetOpen(true)}
+        aria-label="Open chat"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+          <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 006 21.75a6.721 6.721 0 003.583-1.029c.774.182 1.584.279 2.417.279 5.322 0 9.75-3.97 9.75-9 0-5.03-4.428-9-9.75-9s-9.75 3.97-9.75 9c0 2.409 1.025 4.587 2.674 6.192.232.226.277.428.254.543a3.73 3.73 0 01-.814 1.686.75.75 0 00.44 1.223zM8.25 10.875a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25zM10.875 12a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0zm4.875-1.125a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25z" clipRule="evenodd" />
+        </svg>
+      </button>
+
+      {/* Mobile Chat - Bottom Sheet */}
+      <div 
+        className={`mobile-sheet-backdrop md:hidden ${mobileSheetOpen ? 'open' : ''}`}
+        onClick={() => setMobileSheetOpen(false)}
+      />
+      <div className={`mobile-sheet md:hidden ${mobileSheetOpen ? 'open' : ''} safe-area-bottom`}>
+        <div className="sheet-handle" />
+        <div className="h-[80vh] flex flex-col">
+          <ChatPanel
+            messages={chatMessages}
+            isLoading={chatLoading}
+            onSendMessage={handleChatSend}
+            onChordClick={(chord, apiRequest) => {
+              handleChatChordClick(chord, apiRequest)
+              setMobileSheetOpen(false)
+            }}
+            onScaleClick={(scale, apiRequest) => {
+              handleChatScaleClick(scale, apiRequest)
+              setMobileSheetOpen(false)
+            }}
+            onReset={handleChatReset}
+            isCollapsed={false}
+            onToggleCollapsed={() => setMobileSheetOpen(false)}
+            darkMode={darkMode}
+            selectedChordRoot={selectedChordRoot}
+            selectedChordQuality={selectedChordQuality}
+            selectedScaleRoot={selectedRoot}
+            selectedScaleMode={selectedMode}
+          />
+        </div>
+      </div>
     </div>
   )
 }

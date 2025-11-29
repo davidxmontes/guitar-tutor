@@ -13,8 +13,8 @@ export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMod
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Diatonic</span>
+    <div className="flex items-center gap-2 md:gap-3">
+      <span className="text-[10px] md:text-xs font-semibold uppercase tracking-wide whitespace-nowrap hidden sm:inline" style={{ color: 'var(--text-muted)' }}>Diatonic</span>
       <div className="flex gap-1">
         {chords.map((chord, index) => {
           const isSelected = selectedChord?.numeral === chord.numeral;
@@ -23,8 +23,8 @@ export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMod
               key={index}
               onClick={() => onChordClick?.(chord)}
               className={`
-                flex flex-col items-center px-2 py-1 rounded-md transition-all
-                hover:scale-105
+                flex flex-col items-center px-2 py-1.5 md:py-1 rounded-md transition-all
+                hover:scale-105 touch-target
                 ${isSelected 
                   ? 'text-white shadow-sm' 
                   : ''
@@ -39,12 +39,12 @@ export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMod
 
             >
               <span 
-                className="text-[10px] leading-tight"
+                className="text-[9px] md:text-[10px] leading-tight"
                 style={{ color: isSelected ? 'var(--accent-200)' : 'var(--text-muted)' }}
               >
                 {chord.numeral}
               </span>
-              <span className="font-bold text-xs">{chord.display}</span>
+              <span className="font-bold text-[11px] md:text-xs">{chord.display}</span>
             </button>
           );
         })}
