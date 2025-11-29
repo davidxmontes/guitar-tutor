@@ -141,41 +141,44 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
           Minimize
         </button>
       </div>
-      <div className="flex gap-6">
-        {shapes.map(shape => {
-          const isActive = activeShapes.includes(shape.shape)
-          const positions = shape.positions
-          const chordDuration = getChordDuration(positions.length)
-          const arpeggioDuration = positions.length * 0.15 + 0.4
-          
-          return (
-            <div key={shape.shape} className="flex flex-col items-center gap-1">
-              <ChordDiagram
-                shape={shape}
-                isActive={isActive}
-                onClick={() => onToggleShape(shape.shape)}
-                darkMode={darkMode}
-              />
-              {/* Play buttons */}
-              <div className="flex gap-1">
-                <PlayButton
-                  onClick={(e: React.MouseEvent) => handlePlayChord(shape, e)}
-                  duration={chordDuration * 1000}
-                  size="sm"
-                  variant="ghost"
-                  label="Strum"
+      {/* Horizontally scrollable diagrams container */}
+      <div className="overflow-x-auto -mx-3 px-3">
+        <div className="flex gap-4 md:gap-6 pb-2">
+          {shapes.map(shape => {
+            const isActive = activeShapes.includes(shape.shape)
+            const positions = shape.positions
+            const chordDuration = getChordDuration(positions.length)
+            const arpeggioDuration = positions.length * 0.15 + 0.4
+            
+            return (
+              <div key={shape.shape} className="flex flex-col items-center gap-1 flex-shrink-0">
+                <ChordDiagram
+                  shape={shape}
+                  isActive={isActive}
+                  onClick={() => onToggleShape(shape.shape)}
+                  darkMode={darkMode}
                 />
-                <PlayButton
-                  onClick={(e: React.MouseEvent) => handlePlayArpeggio(shape, e)}
-                  duration={arpeggioDuration * 1000}
-                  size="sm"
-                  variant="ghost"
-                  label="Arpeggio"
-                />
+                {/* Play buttons */}
+                <div className="flex gap-1">
+                  <PlayButton
+                    onClick={(e: React.MouseEvent) => handlePlayChord(shape, e)}
+                    duration={chordDuration * 1000}
+                    size="sm"
+                    variant="ghost"
+                    label="Strum"
+                  />
+                  <PlayButton
+                    onClick={(e: React.MouseEvent) => handlePlayArpeggio(shape, e)}
+                    duration={arpeggioDuration * 1000}
+                    size="sm"
+                    variant="ghost"
+                    label="Arpeggio"
+                  />
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
