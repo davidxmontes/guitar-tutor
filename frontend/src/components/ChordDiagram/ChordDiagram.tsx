@@ -6,7 +6,6 @@ interface ChordDiagramProps {
   shape: CagedShape
   isActive: boolean
   onClick?: () => void
-  darkMode?: boolean
 }
 
 const STRING_SPACING = 24
@@ -19,7 +18,7 @@ const DOT_RADIUS = 9
 // Fixed height for uniform cards
 const CARD_HEIGHT = 180
 
-export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = false }: ChordDiagramProps) {
+export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
   // Calculate the fret range to display
   const frets = shape.positions.map(p => p.fret)
   const minFret = Math.min(...frets)
@@ -69,40 +68,37 @@ export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = f
   return (
     <div 
       className={`
-        bg-white rounded p-1.5 border cursor-pointer transition-all flex flex-col
+        rounded p-1.5 border cursor-pointer transition-all flex flex-col
+        bg-[var(--card-bg)] border-[var(--border-primary)]
         ${isActive 
-          ? 'border-gray-300 shadow-md ring-2 ring-offset-1' 
-          : 'border-gray-200 hover:shadow-sm hover:border-gray-300'
+          ? 'shadow-md ring-2 ring-offset-1 border-[var(--border-secondary)]' 
+          : 'hover:shadow-sm'
         }
       `}
       style={{
         '--tw-ring-color': isActive ? CAGED_COLORS[shape.shape].hex : 'transparent',
+        '--tw-ring-offset-color': 'var(--card-bg)',
         height: CARD_HEIGHT,
       } as React.CSSProperties}
       onClick={onClick}
     >
       {/* Header with shape name and badge */}
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-xs font-bold text-slate-800">{shape.shape}-Shape</h3>
+        <h3 className="text-xs font-bold text-[var(--text-primary)]">{shape.shape}-Shape</h3>
         <span className={`w-5 h-5 rounded-full ${CAGED_COLORS[shape.shape].bg} text-white text-[10px] font-bold flex items-center justify-center`}>
           {shape.shape}
         </span>
       </div>
       
       {/* Chord diagram */}
-      <div className="flex">
-        {/* Fret number indicator */}
-        <div className="w-4 flex items-start pt-6 text-[10px] font-semibold text-gray-400">
-          {startFret}
-        </div>
-        
+      <div className="pl-5">
         <div>
           {/* Top markers (X for muted, O for open) */}
-          <div className="flex mb-1">
+          <div className="flex mb-1 h-5">
             {[6, 5, 4, 3, 2, 1].map(stringNum => (
               <div 
                 key={stringNum} 
-                className="flex items-center justify-center text-[11px] font-bold text-gray-500"
+                className="flex items-center justify-center text-[11px] font-bold text-[var(--text-secondary)]"
                 style={{ width: STRING_SPACING }}
               >
                 {mutedStrings.has(stringNum) ? 'X' : openStrings.has(stringNum) ? 'O' : ''}
@@ -115,14 +111,25 @@ export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = f
           height={diagramHeight}
           className="overflow-visible"
         >
+          {/* Fret number indicator */}
+          <text
+            x="-10"
+            y={FRET_SPACING / 2 + 1}
+            fontSize="10"
+            fontWeight="600"
+            fill="var(--text-muted)"
+            textAnchor="end"
+            dominantBaseline="middle"
+          >
+            {startFret}
+          </text>
           {/* Background */}
           <rect
             x={0}
             y={0}
             width={DIAGRAM_WIDTH}
             height={diagramHeight}
-            fill="white"
-            stroke="#94a3b8"
+            className="fill-[var(--bg-tertiary)] stroke-[var(--border-secondary)]"
             strokeWidth={1}
           />
           
@@ -133,7 +140,7 @@ export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = f
               y={0}
               width={DIAGRAM_WIDTH}
               height={3}
-              fill="#374151"
+              className="fill-[var(--text-primary)]"
             />
           )}
           
@@ -145,7 +152,7 @@ export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = f
               y1={(i + 1) * FRET_SPACING + 1}
               x2={DIAGRAM_WIDTH}
               y2={(i + 1) * FRET_SPACING + 1}
-              stroke="#cbd5e1"
+              className="stroke-[var(--border-secondary)]"
               strokeWidth={1}
             />
           ))}
@@ -158,7 +165,7 @@ export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = f
               y1={1}
               x2={getStringX(6 - i)}
               y2={diagramHeight - 1}
-              stroke="#94a3b8"
+              className="stroke-[var(--border-secondary)]"
               strokeWidth={1}
             />
           ))}
@@ -215,7 +222,7 @@ export function ChordDiagram({ shape, isActive, onClick, darkMode: _darkMode = f
       </div>
       
       {/* Fret range info - pinned to bottom */}
-      <p className="text-[10px] text-gray-500 mt-auto">{fretLabel}</p>
+      <p className="text-[10px] mt-auto text-[var(--text-muted)]">{fretLabel}</p>
     </div>
   )
 }

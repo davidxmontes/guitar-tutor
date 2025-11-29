@@ -46,11 +46,11 @@ export function Fretboard({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-sm md:text-base" style={{ color: 'var(--text-primary)' }}>Fretboard</h2>
+          <h2 className="font-semibold text-sm md:text-base" style={{ color: 'var(--text-primary)' }}>Interactive Fretboard</h2>
         </div>
         
         {/* Legend - scrollable on mobile */}
-        <div className="flex items-center gap-2 md:gap-4 text-sm overflow-x-auto pb-1 -mb-1">
+        <div className="flex items-center gap-2 md:gap-4 text-sm overflow-x-auto pb-1 -mb-1 pl-1 pt-1">
           {hasChords ? (
             <>
               <div className="flex items-center gap-1 md:gap-1.5 flex-shrink-0">

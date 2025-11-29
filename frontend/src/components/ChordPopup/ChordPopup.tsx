@@ -117,17 +117,17 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
     >
       <div 
         style={popupStyle}
-        className="bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-64 animate-in fade-in zoom-in-95 duration-150"
+        className="bg-[var(--card-bg)] border-[var(--border-primary)] rounded-xl shadow-2xl border p-4 w-64 animate-in fade-in zoom-in-95 duration-150"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold text-gray-900">
+          <h3 className="text-lg font-bold text-[var(--text-primary)]">
             {chordData.display_name}
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1"
+            className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -136,7 +136,7 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
         </div>
 
         {/* Chord notes */}
-        <div className="text-sm text-gray-500 mb-3">
+        <div className="text-sm text-[var(--text-secondary)] mb-3">
           Notes: {chordData.chord_notes.join(' - ')}
         </div>
 
@@ -144,7 +144,7 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={prevShape}
-            className="p-1 rounded-full hover:bg-gray-100 text-gray-600"
+            className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -161,14 +161,14 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
             >
               {currentShape.shape} Shape
             </span>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-[var(--text-muted)]">
               {currentShapeIndex + 1} / {shapes.length}
             </span>
           </div>
           
           <button
             onClick={nextShape}
-            className="p-1 rounded-full hover:bg-gray-100 text-gray-600"
+            className="p-1 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -188,7 +188,7 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
         <div className="flex justify-center gap-2">
           <button
             onClick={handlePlayChord}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-[var(--accent-600)] hover:bg-[var(--accent-700)] text-white rounded-lg text-sm font-medium transition-colors"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
@@ -197,7 +197,7 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
           </button>
           <button
             onClick={handlePlayArpeggio}
-            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] rounded-lg text-sm font-medium transition-colors"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
@@ -207,7 +207,7 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
         </div>
 
         {/* Keyboard hint */}
-        <div className="mt-3 text-xs text-center text-gray-400">
+        <div className="mt-3 text-xs text-center text-[var(--text-muted)]">
           ← → to change shape • Esc to close
         </div>
       </div>

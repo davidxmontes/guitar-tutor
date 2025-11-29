@@ -10,10 +10,9 @@ interface ChordDiagramRowProps {
   onToggleShape: (shape: CagedShapeName) => void
   isExpanded: boolean
   onToggleExpanded: () => void
-  darkMode?: boolean
 }
 
-export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpanded, onToggleExpanded, darkMode = false }: ChordDiagramRowProps) {
+export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpanded, onToggleExpanded }: ChordDiagramRowProps) {
   const handlePlayChord = (shape: CagedShape, e: React.MouseEvent) => {
     e.stopPropagation()
     const positions = shape.positions.map(p => ({ string: p.string, fret: p.fret }))
@@ -156,7 +155,6 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                   shape={shape}
                   isActive={isActive}
                   onClick={() => onToggleShape(shape.shape)}
-                  darkMode={darkMode}
                 />
                 {/* Play buttons */}
                 <div className="flex gap-1">

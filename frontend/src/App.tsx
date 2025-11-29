@@ -643,7 +643,6 @@ function App() {
                 onToggleShape={handleToggleShape}
                 isExpanded={diagramsExpanded}
                 onToggleExpanded={() => setDiagramsExpanded(!diagramsExpanded)}
-                darkMode={darkMode}
               />
             )}
 
