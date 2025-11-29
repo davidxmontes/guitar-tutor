@@ -13,7 +13,7 @@ export function FretboardHeader({ fretCount, darkMode: _darkMode = false }: Fret
   return (
     <div className="flex items-center mb-0">
       {/* Spacer for string labels */}
-      <div className="w-10" />
+      <div className="w-10 flex-shrink-0" />
       
       {/* Fret numbers */}
       <div className="flex">
@@ -41,7 +41,7 @@ export function FretMarkersRow({ fretCount }: FretMarkersRowProps) {
   return (
     <div className="flex items-center mt-0">
       {/* Spacer for string labels */}
-      <div className="w-10" />
+      <div className="w-10 flex-shrink-0" />
       
       {/* Fret markers */}
       <div className="flex">
