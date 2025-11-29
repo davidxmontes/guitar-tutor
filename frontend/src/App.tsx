@@ -511,6 +511,10 @@ function App() {
               })
             }}
             darkMode={darkMode}
+            selectedChordRoot={selectedChordRoot}
+            selectedChordQuality={selectedChordQuality}
+            selectedScaleRoot={selectedRoot}
+            selectedScaleMode={selectedMode}
           />
           {/* Resize Handle */}
           {!chatCollapsed && (

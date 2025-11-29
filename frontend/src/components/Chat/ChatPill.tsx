@@ -5,9 +5,10 @@ interface ChatPillProps {
   onActivate?: () => void;
   darkMode?: boolean;
   variant?: 'default' | 'accent';
+  selected?: boolean;
 }
 
-export function ChatPill({ label, onActivate, darkMode = false, variant = 'default' }: ChatPillProps) {
+export function ChatPill({ label, onActivate, darkMode = false, variant = 'default', selected = false }: ChatPillProps) {
   const [pressed, setPressed] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
@@ -55,14 +56,25 @@ export function ChatPill({ label, onActivate, darkMode = false, variant = 'defau
     backgroundColor: 'var(--bg-hover)'
   };
 
+  // Selected visual override (persisted selected state)
+  const selectedStyle: React.CSSProperties = variant === 'accent' ? {
+    backgroundColor: darkMode ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16,185,129,0.14)',
+    borderColor: 'var(--accent-500)',
+    color: darkMode ? 'var(--accent-100)' : 'var(--accent-700)'
+  } : {
+    backgroundColor: 'var(--accent-50)',
+    borderColor: 'var(--accent-300)',
+    color: 'var(--accent-700)'
+  };
+
   return (
     <button
       type="button"
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      aria-pressed={pressed}
-      className={`${baseClasses} ${pressed ? pressedClasses : ''} hover:scale-[1.02] active:scale-[0.98]`}
-      style={{ ...(variant === 'accent' ? accentStyle : defaultStyle), ...(pressed ? pressedOverride : {}) }}
+      aria-pressed={pressed || selected}
+      className={`${baseClasses} ${pressed ? pressedClasses : ''} hover:scale-[1.02] active:scale-[0.98] ${selected ? 'shadow-sm' : ''}`}
+      style={{ ...(variant === 'accent' ? accentStyle : defaultStyle), ...(selected ? selectedStyle : {}), ...(pressed ? pressedOverride : {}) }}
     >
       {label}
     </button>

@@ -14,6 +14,10 @@ interface ChatPanelProps {
   darkMode?: boolean;
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
+  selectedChordRoot?: string | null;
+  selectedChordQuality?: string | null;
+  selectedScaleRoot?: string | null;
+  selectedScaleMode?: string | null;
 }
 
 export function ChatPanel({
@@ -26,6 +30,10 @@ export function ChatPanel({
   darkMode = false,
   isCollapsed = false,
   onToggleCollapsed,
+  selectedChordRoot = null,
+  selectedChordQuality = null,
+  selectedScaleRoot = null,
+  selectedScaleMode = null,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +175,10 @@ export function ChatPanel({
                 onChordClick={onChordClick}
                 onScaleClick={onScaleClick}
                 darkMode={darkMode}
+                selectedChordRoot={selectedChordRoot}
+                selectedChordQuality={selectedChordQuality}
+                selectedScaleRoot={selectedScaleRoot}
+                selectedScaleMode={selectedScaleMode}
               />
             ))}
 

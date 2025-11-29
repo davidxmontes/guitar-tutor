@@ -6,9 +6,14 @@ interface ChatMessageProps {
   onChordClick?: (chord: string, apiRequest?: { root: string; quality: string }) => void;
   onScaleClick?: (scale: string, apiRequest?: { root: string; mode: string }) => void;
   darkMode?: boolean;
+  // Current app selection state (passed from App)
+  selectedChordRoot?: string | null;
+  selectedChordQuality?: string | null;
+  selectedScaleRoot?: string | null;
+  selectedScaleMode?: string | null;
 }
 
-export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = false }: ChatMessageProps) {
+export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = false, selectedChordRoot = null, selectedChordQuality = null, selectedScaleRoot = null, selectedScaleMode = null }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
   // Find the API request for a chord by index
@@ -36,14 +41,22 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
           <div className="mt-3 pt-2.5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
             <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Suggested chords:</p>
             <div className="flex flex-wrap gap-1.5">
-              {message.chordChoices.map((chord, idx) => (
-                <ChatPill
-                  key={idx}
-                  label={chord}
-                  onActivate={() => onChordClick?.(chord, getChordApiRequest(idx))}
-                  darkMode={darkMode}
-                />
-              ))}
+              {message.chordChoices.map((chord, idx) => {
+                const apiReq = getChordApiRequest(idx);
+                const selected = apiReq && selectedChordRoot && selectedChordQuality
+                  ? apiReq.root === selectedChordRoot && apiReq.quality === selectedChordQuality
+                  : false;
+
+                return (
+                  <ChatPill
+                    key={idx}
+                    label={chord}
+                    onActivate={() => onChordClick?.(chord, apiReq)}
+                    darkMode={darkMode}
+                    selected={selected}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
@@ -57,6 +70,11 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
               onActivate={() => onScaleClick?.(message.scale!, message.apiRequests?.scale || undefined)}
               darkMode={darkMode}
               variant="accent"
+              selected={
+                message.apiRequests?.scale && selectedScaleRoot && selectedScaleMode
+                  ? message.apiRequests!.scale.root === selectedScaleRoot && message.apiRequests!.scale.mode === selectedScaleMode
+                  : false
+              }
             />
           </div>
         )}
