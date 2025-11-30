@@ -310,6 +310,13 @@ input:focus-visible {
   transform: scale(0.95);
 }
 
+/* Hide FAB on desktop (md breakpoint and up) */
+@media (min-width: 768px) {
+  .fab-chat {
+    display: none !important;
+  }
+}
+
 /* Hide elements on mobile */
 @media (max-width: 767px) {
   .hide-mobile {

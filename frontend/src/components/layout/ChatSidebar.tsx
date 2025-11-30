@@ -125,12 +125,13 @@ export function MobileChatSheet({
 
   return (
     <>
-      {/* Floating Action Button */}
-      <button
-        className="fab-chat md:hidden"
-        onClick={() => setMobileSheetOpen(!mobileSheetOpen)}
-        aria-label="Open chat"
-      >
+      {/* Floating Action Button - hidden when sheet is open */}
+      {!mobileSheetOpen && (
+        <button
+          className="fab-chat md:hidden"
+          onClick={() => setMobileSheetOpen(true)}
+          aria-label="Open chat"
+        >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -144,6 +145,7 @@ export function MobileChatSheet({
           />
         </svg>
       </button>
+      )}
 
       {/* Backdrop */}
       <div
