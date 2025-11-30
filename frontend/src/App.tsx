@@ -1,690 +1,308 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Fretboard } from './components/Fretboard'
-import { ScaleSelector } from './components/ScaleSelector/ScaleSelector'
-import { ChordSelector } from './components/ChordSelector/ChordSelector'
-import { DiatonicChordsRow } from './components/DiatonicChordsRow/DiatonicChordsRow'
-import { ChordDiagramRow } from './components/ChordDiagram'
-import { ChordPopup } from './components/ChordPopup'
-import { PlayTextButton } from './components/PlayButton'
-import { ChatPanel } from './components/Chat'
-import { playChord, getChordDuration } from './utils/audio'
-import { apiClient } from './api/client'
-import headstockSrc from './assets/white_headstock.png'
-import type { FretboardResponse, ScaleResponse, ChordResponse, DiatonicChord, DisplayMode, CagedShapeName } from './types'
-import type { ChatMessage } from './types/chat'
-
-type AppMode = 'scale' | 'chord';
-
-// Popup state type
-interface PopupState {
-  chordData: ChordResponse
-  position: { x: number; y: number }
-  clickedFret: number
-}
+import { useEffect, useMemo, useCallback } from 'react';
+import { Fretboard } from './components/Fretboard';
+import { ChordDiagramRow } from './components/ChordDiagram';
+import { ChordPopup } from './components/ChordPopup';
+import { Header, ChatSidebar, MobileChatSheet, ControlBar } from './components/layout';
+import { useFretboard } from './hooks';
+import { useAppStore } from './stores';
+import { apiClient } from './api/client';
+import type { DiatonicChord } from './types';
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('scale')
-  const [darkMode, setDarkMode] = useState(() => {
-    // Check localStorage or system preference
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('darkMode')
-      if (saved !== null) return saved === 'true'
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
-    }
-    return false
-  })
-  const [chatWidth, setChatWidth] = useState(320) // Default w-80 = 320px
-  const [chatCollapsed, setChatCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('chatCollapsed')
-      return saved === 'true'
-    }
-    return false
-  })
-  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
-  const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null)
-  const [scaleData, setScaleData] = useState<ScaleResponse | null>(null)
-  const [chordData, setChordData] = useState<ChordResponse | null>(null)
-  const [selectedRoot, setSelectedRoot] = useState<string>('C')
-  const [selectedMode, setSelectedMode] = useState<string>('major')
-  const [selectedChordRoot, setSelectedChordRoot] = useState<string | null>(null)
-  const [selectedChordQuality, setSelectedChordQuality] = useState<string | null>(null)
-  const [selectedDiatonicChord, setSelectedDiatonicChord] = useState<DiatonicChord | null>(null)
-  const [activeChordShapes, setActiveChordShapes] = useState<CagedShapeName[]>([])
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('notes')
-  const [diagramsExpanded, setDiagramsExpanded] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [popupState, setPopupState] = useState<PopupState | null>(null)
-  
-  // Chat state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [chatLoading, setChatLoading] = useState(false)
+  // ============================================================================
+  // Zustand Store - only what App.tsx needs directly
+  // ============================================================================
+  const {
+    darkMode,
+    appMode,
+    setAppMode,
+    displayMode,
+    diagramsExpanded,
+    setDiagramsExpanded,
+    popupState,
+    setPopupState,
+    scaleData,
+    selectedRoot,
+    selectedMode,
+    selectedDiatonicChord,
+    setSelectedDiatonicChord,
+    fetchScale,
+    clearScale,
+    resetScale,
+    chordData,
+    activeChordShapes,
+    setActiveChordShapes,
+    toggleChordShape,
+    fetchChord,
+    clearChord,
+    resetChord,
+    setChordData,
+    sendMessage,
+  } = useAppStore();
 
-  // Apply dark mode class to html element
+  // ============================================================================
+  // Fretboard data (still uses hook for API fetch with loading/error)
+  // ============================================================================
+  const { fretboardData, loading, error } = useFretboard();
+
+  // ============================================================================
+  // Apply dark mode class on mount and sync with localStorage
+  // ============================================================================
   useEffect(() => {
-    const html = document.documentElement
+    const html = document.documentElement;
     if (darkMode) {
-      html.classList.add('dark')
+      html.classList.add('dark');
     } else {
-      html.classList.remove('dark')
+      html.classList.remove('dark');
     }
-    localStorage.setItem('darkMode', String(darkMode))
-  }, [darkMode])
+  }, [darkMode]);
 
-  // Toggle dark mode
-  const toggleDarkMode = () => setDarkMode(prev => !prev)
-
-  // Fetch fretboard data
+  // ============================================================================
+  // Auto-fetch scale when in scale mode
+  // ============================================================================
   useEffect(() => {
-    async function fetchFretboard() {
-      try {
-        setLoading(true)
-        const data = await apiClient.getFretboard('standard')
-        setFretboardData(data)
-        setError(null)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load fretboard')
-        console.error('Failed to fetch fretboard:', err)
-      } finally {
-        setLoading(false)
-      }
+    if (appMode === 'scale') {
+      fetchScale(selectedRoot, selectedMode);
     }
+  }, [appMode, selectedRoot, selectedMode, fetchScale]);
 
-    fetchFretboard()
-  }, [])
-
-  // Auto-fetch scale when root or mode changes (scale mode only)
-  useEffect(() => {
-    if (appMode !== 'scale') return
-    
-    async function fetchScale() {
-      try {
-        const data = await apiClient.getScale(selectedRoot, selectedMode)
-        setScaleData(data)
-        // Clear chord data when changing scale
-        setChordData(null)
-        setSelectedDiatonicChord(null)
-        setActiveChordShapes([])
-      } catch (err) {
-        console.error('Failed to fetch scale:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load scale')
-      }
-    }
-    
-    fetchScale()
-  }, [appMode, selectedRoot, selectedMode])
-
-  // Handle scale selection - just update state, useEffect will fetch
-  const handleScaleSelect = (root: string, mode: string) => {
-    setSelectedRoot(root)
-    setSelectedMode(mode)
-  }
-
-  // Handle diatonic chord click
-  const handleChordClick = async (chord: DiatonicChord) => {
-    // If clicking the same chord, deselect it
-    if (selectedDiatonicChord?.numeral === chord.numeral) {
-      setSelectedDiatonicChord(null)
-      setChordData(null)
-      setActiveChordShapes([])
-      return
-    }
-
-    try {
-      const data = await apiClient.getChord(chord.root, chord.quality)
-      setChordData(data)
-      setSelectedDiatonicChord(chord)
-      // Start with no shapes selected - user can click to select
-      setActiveChordShapes([])
-    } catch (err) {
-      console.error('Failed to fetch chord:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load chord')
-    }
-  }
-
-  // Handle direct chord selection (Chord Mode)
-  const handleDirectChordSelect = async (root: string, quality: string) => {
-    try {
-      const data = await apiClient.getChord(root, quality)
-      setChordData(data)
-      setSelectedChordRoot(root)
-      setSelectedChordQuality(quality)
-      // Start with no shapes selected - user can click to select
-      setActiveChordShapes([])
-    } catch (err) {
-      console.error('Failed to fetch chord:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load chord')
-    }
-  }
-
-  // Switch app mode
-  const handleModeSwitch = async (mode: AppMode) => {
-    setAppMode(mode)
-    // Clear data when switching modes
-    setScaleData(null)
-    setChordData(null)
-    setSelectedRoot('C')
-    setSelectedMode('major')
-    setSelectedChordRoot(null)
-    setSelectedChordQuality(null)
-    setSelectedDiatonicChord(null)
-    setActiveChordShapes([])
-    
-    // Auto-load C major chord when switching to chord mode
-    if (mode === 'chord') {
-      try {
-        const data = await apiClient.getChord('C', 'major')
-        setChordData(data)
-        setSelectedChordRoot('C')
-        setSelectedChordQuality('major')
-        // Start with no shapes selected - user can click to select
-        setActiveChordShapes([])
-      } catch (err) {
-        console.error('Failed to fetch default chord:', err)
-      }
-    } else {
-      // Auto-load C major scale when switching to scale mode
-      try {
-        const data = await apiClient.getScale('C', 'major')
-        setScaleData(data)
-      } catch (err) {
-        console.error('Failed to fetch default scale:', err)
-      }
-    }
-  }
-
-  // Toggle individual CAGED shape
-  const handleToggleShape = (shape: CagedShapeName) => {
-    if (activeChordShapes.includes(shape)) {
-      // Allow deselecting even the last shape
-      setActiveChordShapes(prev => prev.filter(s => s !== shape))
-    } else {
-      // Add the shape to active shapes
-      setActiveChordShapes(prev => [...prev, shape])
-    }
-  }
-
-  // Clear all selections
-  const handleClearAll = () => {
-    setScaleData(null)
-    setChordData(null)
-    setSelectedRoot('C')
-    setSelectedMode('major')
-    setSelectedChordRoot(null)
-    setSelectedChordQuality(null)
-    setSelectedDiatonicChord(null)
-    setActiveChordShapes([])
-  }
+  // ============================================================================
+  // Computed Values
+  // ============================================================================
+  
+  // Map scale notes to their diatonic chords
+  const noteToChordMap = useMemo(() => {
+    if (!scaleData) return new Map<string, DiatonicChord>();
+    const map = new Map<string, DiatonicChord>();
+    scaleData.diatonic_chords.forEach((chord) => {
+      map.set(chord.root, chord);
+    });
+    return map;
+  }, [scaleData]);
 
   // Compute clickable notes (all scale notes in scale mode)
   const clickableScaleNotes = useMemo(() => {
-    if (appMode !== 'scale' || !scaleData) return undefined
-    // All notes in the scale are clickable
-    return new Set(scaleData.scale_notes)
-  }, [appMode, scaleData])
+    if (appMode !== 'scale' || !scaleData) return undefined;
+    return new Set(scaleData.scale_notes);
+  }, [appMode, scaleData]);
 
-  // Map scale notes to their diatonic chords
-  const noteToChordMap = useMemo(() => {
-    if (!scaleData) return new Map<string, DiatonicChord>()
-    const map = new Map<string, DiatonicChord>()
-    scaleData.diatonic_chords.forEach(chord => {
-      map.set(chord.root, chord)
-    })
-    return map
-  }, [scaleData])
+  // Determine which chord data to show on fretboard
+  const fretboardChordData = chordData;
 
-  // Handle click on any scale note
-  const handleScaleNoteClick = async (e: React.MouseEvent, note: string, _string: number, fret: number) => {
-    if (appMode !== 'scale' || !scaleData) return
-    
-    // Find the diatonic chord for this note
-    const chord = noteToChordMap.get(note)
-    if (!chord) return
-    
+  // ============================================================================
+  // Event Handlers
+  // ============================================================================
+
+  // Handle scale selection
+  const handleScaleSelect = useCallback((root: string, mode: string) => {
+    fetchScale(root, mode);
+  }, [fetchScale]);
+
+  // Handle diatonic chord click
+  const handleDiatonicChordClick = useCallback(async (diatonicChord: DiatonicChord) => {
+    // Check if we're clicking the same chord to deselect
+    if (selectedDiatonicChord?.numeral === diatonicChord.numeral) {
+      setSelectedDiatonicChord(null);
+      setChordData(null);
+      setActiveChordShapes([]);
+      return;
+    }
+
+    // Selecting new chord
+    setSelectedDiatonicChord(diatonicChord);
+    const data = await fetchChord(diatonicChord.root, diatonicChord.quality);
+    if (data) {
+      setActiveChordShapes([]);
+    }
+  }, [selectedDiatonicChord, setSelectedDiatonicChord, fetchChord, setChordData, setActiveChordShapes]);
+
+  // Handle direct chord select (chord mode)
+  const handleDirectChordSelect = useCallback(async (root: string, quality: string) => {
+    await fetchChord(root, quality);
+  }, [fetchChord]);
+
+  // Handle click on any scale note (opens popup)
+  // Note: We use apiClient directly here to avoid updating the global chordData store
+  // The fretboard should continue showing the scale, not switch to the chord
+  const handleScaleNoteClick = useCallback(async (
+    e: React.MouseEvent,
+    note: string,
+    _string: number,
+    fret: number
+  ) => {
+    if (appMode !== 'scale' || !scaleData) return;
+
+    const diatonicChord = noteToChordMap.get(note);
+    if (!diatonicChord) return;
+
     try {
-      const data = await apiClient.getChord(chord.root, chord.quality)
+      // Fetch chord data directly without updating the store
+      const data = await apiClient.getChord(diatonicChord.root, diatonicChord.quality);
       setPopupState({
         chordData: data,
         position: { x: e.clientX, y: e.clientY },
-        clickedFret: fret
-      })
+        clickedFret: fret,
+      });
     } catch (err) {
-      console.error('Failed to fetch chord for popup:', err)
+      console.error('Failed to fetch chord for popup:', err);
     }
-  }
+  }, [appMode, scaleData, noteToChordMap, setPopupState]);
 
   // Close popup
-  const handleClosePopup = () => {
-    setPopupState(null)
-  }
+  const handleClosePopup = useCallback(() => {
+    setPopupState(null);
+  }, [setPopupState]);
 
-  // Generate unique ID for chat messages
-  const generateMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  // Clear all selections
+  const handleClearAll = useCallback(() => {
+    clearScale();
+    clearChord();
+    resetScale();
+    resetChord();
+  }, [clearScale, clearChord, resetScale, resetChord]);
 
-  // Handle sending chat message
+  // Handle chat chord click
+  const handleChatChordClick = useCallback(async (
+    chordName: string,
+    apiRequest?: { root: string; quality: string }
+  ) => {
+    let root: string;
+    let quality: string;
+
+    if (apiRequest) {
+      root = apiRequest.root;
+      quality = apiRequest.quality;
+    } else {
+      const parts = chordName.trim().split(/\s+/);
+      if (parts.length < 2) return;
+      root = parts[0];
+      quality = parts.slice(1).join('_').toLowerCase();
+    }
+
+    setAppMode('chord');
+    await fetchChord(root, quality);
+  }, [setAppMode, fetchChord]);
+
+  // Handle chat scale click
+  const handleChatScaleClick = useCallback(async (
+    scaleName: string,
+    apiRequest?: { root: string; mode: string }
+  ) => {
+    let root: string;
+    let mode: string;
+
+    if (apiRequest) {
+      root = apiRequest.root;
+      mode = apiRequest.mode;
+    } else {
+      const parts = scaleName.trim().split(/\s+/);
+      if (parts.length < 2) return;
+      root = parts[0];
+      mode = parts.slice(1).join('_').toLowerCase();
+    }
+
+    setAppMode('scale');
+    fetchScale(root, mode);
+  }, [setAppMode, fetchScale]);
+
+  // Handle chat send with visualization
   const handleChatSend = useCallback(async (message: string) => {
-    // Add user message to chat
-    const userMessage: ChatMessage = {
-      id: generateMessageId(),
-      role: 'user',
-      content: message,
-      timestamp: new Date(),
-    }
-    setChatMessages(prev => [...prev, userMessage])
-    setChatLoading(true)
-
-    try {
-      // Send to API (exclude the message we just added from history)
-      const response = await apiClient.chat(message, chatMessages)
-
-      // Add assistant response with parsed API requests
-      const assistantMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: response.answer,
-        timestamp: new Date(),
-        scale: response.scale,
-        chordChoices: response.chord_choices,
-        visualizations: response.visualizations,
-        outOfScope: response.out_of_scope,
-        apiRequests: response.api_requests,
+    const response = await sendMessage(message);
+    
+    // If visualizations requested and we have parsed chord requests, show the first one
+    if (response?.visualizations && response.apiRequests?.chords?.length) {
+      const firstChordRequest = response.apiRequests.chords[0];
+      if (response.chordChoices?.[0]) {
+        await handleChatChordClick(response.chordChoices[0], firstChordRequest);
       }
-      setChatMessages(prev => [...prev, assistantMessage])
-
-      // If visualizations requested and we have parsed chord requests, show the first one
-      if (response.visualizations && response.api_requests?.chords?.length) {
-        const firstChordRequest = response.api_requests.chords[0]
-        await handleChatChordClick(response.chord_choices[0], firstChordRequest)
-      }
-    } catch (err) {
-      console.error('Chat error:', err)
-      // Add error message
-      const errorMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please make sure the backend is running.',
-        timestamp: new Date(),
-      }
-      setChatMessages(prev => [...prev, errorMessage])
-    } finally {
-      setChatLoading(false)
     }
-  }, [chatMessages])
-
-  // Handle clicking a chord from chat response
-  const handleChatChordClick = async (chordName: string, apiRequest?: { root: string; quality: string }) => {
-    let root: string
-    let quality: string
-
-    if (apiRequest) {
-      // Use pre-parsed API request from backend
-      root = apiRequest.root
-      quality = apiRequest.quality
-    } else {
-      // Fallback: Parse chord name (e.g., "C major" -> root="C", quality="major")
-      const parts = chordName.trim().split(/\s+/)
-      if (parts.length < 2) return
-
-      root = parts[0]
-      quality = parts.slice(1).join('_').toLowerCase()
-    }
-
-    try {
-      // Switch to chord mode and load the chord
-      setAppMode('chord')
-      const data = await apiClient.getChord(root, quality)
-      setChordData(data)
-      setSelectedChordRoot(root)
-      setSelectedChordQuality(quality)
-      // Start with no shapes selected - user can click to select
-      setActiveChordShapes([])
-    } catch (err) {
-      console.error('Failed to load chord from chat:', err)
-    }
-  }
-
-  // Handle clicking a scale from chat response
-  const handleChatScaleClick = async (scaleName: string, apiRequest?: { root: string; mode: string }) => {
-    let root: string
-    let mode: string
-
-    if (apiRequest) {
-      // Use pre-parsed API request from backend
-      root = apiRequest.root
-      mode = apiRequest.mode
-    } else {
-      // Fallback: Parse scale name (e.g., "A minor pentatonic" -> root="A", mode="minor_pentatonic")
-      const parts = scaleName.trim().split(/\s+/)
-      if (parts.length < 2) return
-
-      root = parts[0]
-      mode = parts.slice(1).join('_').toLowerCase()
-    }
-
-    try {
-      // Switch to scale mode and load the scale
-      setAppMode('scale')
-      await handleScaleSelect(root, mode)
-    } catch (err) {
-      console.error('Failed to load scale from chat:', err)
-    }
-  }
-
-  // Reset chat to initial state
-  const handleChatReset = () => {
-    setChatMessages([])
-  }
+  }, [sendMessage, handleChatChordClick]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-      {/* Header */}
-      <header className="h-14 md:h-16 flex-shrink-0 z-20 border-b" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-sm)' }}>
-        <div className="h-full max-w-full mx-auto px-3 md:px-6 flex items-center justify-between">
-          {/* Left side - Logo only */}
-          <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-white shadow-lg" style={{ background: 'linear-gradient(to bottom right, var(--accent-600), var(--accent-700))', boxShadow: '0 10px 15px -3px var(--accent-glow)' }}>
-              {/* App icon (served from src/assets/headstock.png) - smaller in header */}
-              <img src={headstockSrc} alt="Guitar Tutor" className="w-8 h-8 md:w-9 md:h-9 rounded-lg object-cover" />
-            </div>
-            <h1 className="text-base md:text-lg font-bold tracking-tight hidden sm:block" style={{ color: 'var(--text-primary)' }}>Guitar Tutor</h1>
-          </div>
-          
-          {/* Right side controls */}
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* Mode Toggle (Scale/Chord) */}
-            <div className="flex rounded-lg p-0.5 md:p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-              <button
-                onClick={() => handleModeSwitch('scale')}
-                className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all touch-target ${
-                  appMode === 'scale' 
-                    ? 'shadow-sm border font-bold' 
-                    : ''
-                }`}
-                style={{ 
-                  backgroundColor: appMode === 'scale' ? 'var(--card-bg)' : 'transparent',
-                  borderColor: appMode === 'scale' ? 'var(--border-primary)' : 'transparent',
-                  color: appMode === 'scale' ? 'var(--accent-600)' : 'var(--text-tertiary)'
-                }}
-              >
-                <span className="hidden sm:inline">Scale Mode</span>
-                <span className="sm:hidden">Scale</span>
-              </button>
-              <button
-                onClick={() => handleModeSwitch('chord')}
-                className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all touch-target ${
-                  appMode === 'chord' 
-                    ? 'shadow-sm border font-bold' 
-                    : ''
-                }`}
-                style={{ 
-                  backgroundColor: appMode === 'chord' ? 'var(--card-bg)' : 'transparent',
-                  borderColor: appMode === 'chord' ? 'var(--border-primary)' : 'transparent',
-                  color: appMode === 'chord' ? 'var(--accent-600)' : 'var(--text-tertiary)'
-                }}
-              >
-                <span className="hidden sm:inline">Chord Mode</span>
-                <span className="sm:hidden">Chord</span>
-              </button>
-            </div>
-
-            {/* Display Mode Toggle - hide label on mobile */}
-            {(scaleData || chordData) && (
-              <div className="flex items-center gap-1 md:gap-2 rounded-lg p-0.5 md:p-1 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-                <span className="text-xs font-semibold px-1 md:px-2 uppercase tracking-wide hidden md:inline" style={{ color: 'var(--text-muted)' }}>Display:</span>
-                <button
-                  onClick={() => setDisplayMode('notes')}
-                  className={`px-2 md:px-3 py-1 rounded text-xs font-medium transition-all touch-target ${
-                    displayMode === 'notes' 
-                      ? 'shadow-sm border font-bold' 
-                      : ''
-                  }`}
-                  style={{ 
-                    backgroundColor: displayMode === 'notes' ? 'var(--card-bg)' : 'transparent',
-                    borderColor: displayMode === 'notes' ? 'var(--border-primary)' : 'transparent',
-                    color: displayMode === 'notes' ? 'var(--accent-600)' : 'var(--text-tertiary)'
-                  }}
-                >
-                  Notes
-                </button>
-                <button
-                  onClick={() => setDisplayMode('intervals')}
-                  className={`px-2 md:px-3 py-1 rounded text-xs font-medium transition-all touch-target ${
-                    displayMode === 'intervals' 
-                      ? 'shadow-sm border font-bold' 
-                      : ''
-                  }`}
-                  style={{ 
-                    backgroundColor: displayMode === 'intervals' ? 'var(--card-bg)' : 'transparent',
-                    borderColor: displayMode === 'intervals' ? 'var(--border-primary)' : 'transparent',
-                    color: displayMode === 'intervals' ? 'var(--accent-600)' : 'var(--text-tertiary)'
-                  }}
-                >
-                  <span className="hidden sm:inline">Intervals</span>
-                  <span className="sm:hidden">Int</span>
-                </button>
-              </div>
-            )}
-            
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={toggleDarkMode}
-              className="p-2 rounded-lg transition-all hover:scale-105 touch-target"
-              style={{ 
-                backgroundColor: 'var(--bg-tertiary)',
-                color: 'var(--text-secondary)'
-              }}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {darkMode ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                  <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                  <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" />
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Header - now uses Zustand directly, no props needed */}
+      <Header />
 
       {/* Main Layout: Chat Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat Sidebar - Resizable (Desktop only) */}
-        <aside 
-          className="flex-shrink-0 relative hidden md:block"
-          style={{ width: chatCollapsed ? 56 : chatWidth }}
-        >
-          <ChatPanel
-            messages={chatMessages}
-            isLoading={chatLoading}
-            onSendMessage={handleChatSend}
-            onChordClick={handleChatChordClick}
-            onScaleClick={handleChatScaleClick}
-            onReset={handleChatReset}
-            isCollapsed={chatCollapsed}
-            onToggleCollapsed={() => {
-              setChatCollapsed((prev) => {
-                const next = !prev
-                localStorage.setItem('chatCollapsed', String(next))
-                return next
-              })
-            }}
-            darkMode={darkMode}
-            selectedChordRoot={selectedChordRoot}
-            selectedChordQuality={selectedChordQuality}
-            selectedScaleRoot={selectedRoot}
-            selectedScaleMode={selectedMode}
-          />
-          {/* Resize Handle */}
-          {!chatCollapsed && (
-            <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors group"
-            style={{ '--hover-color': 'var(--accent-400)' } as React.CSSProperties}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-400)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const startX = e.clientX;
-              const startWidth = chatWidth;
-              
-              const onMouseMove = (moveEvent: MouseEvent) => {
-                const delta = moveEvent.clientX - startX;
-                const newWidth = Math.min(Math.max(startWidth + delta, 280), 500); // Min 280px, Max 500px
-                setChatWidth(newWidth);
-              };
-              
-              const onMouseUp = () => {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('mouseup', onMouseUp);
-              };
-              
-              document.addEventListener('mousemove', onMouseMove);
-              document.addEventListener('mouseup', onMouseUp);
-            }}
-          >
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: 'var(--border-secondary)' }} />
-            </div>
-          )}
-        </aside>
+        {/* Chat Sidebar (Desktop) - uses Zustand for state, only needs action handlers */}
+        <ChatSidebar
+          onSendMessage={handleChatSend}
+          onChordClick={handleChatChordClick}
+          onScaleClick={handleChatScaleClick}
+        />
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--main-content-bg)' }}>
-          {/* Control Bar */}
-          <section className="px-3 md:px-6 pt-3 md:pt-6 pb-2 z-10 flex-shrink-0">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-0 px-3 md:px-6 py-3 md:py-4 rounded-xl border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow-md)' }}>
-              <div className="flex flex-wrap items-center gap-3 md:gap-6">
-                {/* Scale Mode Controls */}
-                {appMode === 'scale' && (
-                  <>
-                    <ScaleSelector
-                      selectedRoot={selectedRoot}
-                      selectedMode={selectedMode}
-                      onSelect={handleScaleSelect}
-                      darkMode={darkMode}
-                    />
-                    
-                    {/* Diatonic Chords - inline in control bar, scrollable on mobile */}
-                    {scaleData && (
-                      <>
-                        <div className="hidden md:block h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
-                        <div className="w-full md:w-auto overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
-                          <DiatonicChordsRow
-                            chords={scaleData.diatonic_chords}
-                            onChordClick={handleChordClick}
-                            selectedChord={selectedDiatonicChord}
-                            darkMode={darkMode}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-
-                {/* Chord Mode Controls */}
-                {appMode === 'chord' && (
-                  <>
-                    <ChordSelector
-                      selectedRoot={selectedChordRoot}
-                      selectedQuality={selectedChordQuality}
-                      onSelect={handleDirectChordSelect}
-                      darkMode={darkMode}
-                    />
-                  </>
-                )}
-              </div>
-
-              {/* Right side actions */}
-              <div className="flex items-center gap-2 md:gap-3">
-                {appMode === 'chord' && chordData && activeChordShapes.length > 0 && (
-                  <PlayTextButton
-                    onClick={() => {
-                      const activeShape = chordData.caged_shapes.find(s => 
-                        activeChordShapes.includes(s.shape)
-                      )
-                      if (activeShape) {
-                        const positions = activeShape.positions.map(p => ({ 
-                          string: p.string, 
-                          fret: p.fret 
-                        }))
-                        playChord(positions)
-                      }
-                    }}
-                    duration={getChordDuration(5) * 1000}
-                    label="Play Chord"
-                  />
-                )}
-                {(scaleData || chordData) && (
-                  <button
-                    onClick={handleClearAll}
-                    className="px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all border touch-target"
-                    style={{ 
-                      backgroundColor: 'var(--card-bg)', 
-                      borderColor: 'var(--border-primary)',
-                      color: 'var(--text-secondary)'
-                    }}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-          </section>
+          {/* Control Bar - uses Zustand for state, only needs action handlers */}
+          <ControlBar
+            onScaleSelect={handleScaleSelect}
+            onDiatonicChordClick={handleDiatonicChordClick}
+            onDirectChordSelect={handleDirectChordSelect}
+            onClearAll={handleClearAll}
+          />
 
           {/* Scrollable Content */}
           <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 pb-20 md:pb-6" style={{ backgroundColor: 'var(--main-content-bg)' }}>
             {/* Chord Diagrams */}
-            {chordData && (
+            {fretboardChordData && (
               <ChordDiagramRow
-                shapes={chordData.caged_shapes}
+                shapes={fretboardChordData.caged_shapes}
                 activeShapes={activeChordShapes}
-                onToggleShape={handleToggleShape}
+                onToggleShape={toggleChordShape}
                 isExpanded={diagramsExpanded}
                 onToggleExpanded={() => setDiagramsExpanded(!diagramsExpanded)}
               />
             )}
 
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <div style={{ color: 'var(--text-muted)' }}>Loading fretboard...</div>
-            </div>
-          )}
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <div style={{ color: 'var(--text-muted)' }}>Loading fretboard...</div>
+              </div>
+            )}
 
-          {error && (
-            <div className="rounded-lg p-4 mb-4 border" style={{ backgroundColor: darkMode ? '#450a0a' : '#fef2f2', borderColor: darkMode ? '#7f1d1d' : '#fecaca' }}>
-              <p style={{ color: darkMode ? '#fca5a5' : '#b91c1c' }}>{error}</p>
-              <p className="text-sm mt-1" style={{ color: darkMode ? '#f87171' : '#dc2626' }}>
-                {/** Show the actual API base the app will call (build-time Vite var or fallback) */}
-                Make sure the backend is running and reachable. This app calls the API at{' '}
-                <strong>{(import.meta.env as any).VITE_API_BASE_URL ?? '/api'}</strong>
-                {'.'} If you're running locally, the backend also listens on <strong>http://localhost:8000</strong>.
-              </p>
-            </div>
-          )}
+            {/* Error State */}
+            {error && (
+              <div
+                className="rounded-lg p-4 mb-4 border"
+                style={{
+                  backgroundColor: darkMode ? '#450a0a' : '#fef2f2',
+                  borderColor: darkMode ? '#7f1d1d' : '#fecaca',
+                }}
+              >
+                <p style={{ color: darkMode ? '#fca5a5' : '#b91c1c' }}>{error}</p>
+                <p className="text-sm mt-1" style={{ color: darkMode ? '#f87171' : '#dc2626' }}>
+                  Make sure the backend is running and reachable. This app calls the API at{' '}
+                  <strong>{(import.meta.env as any).VITE_API_BASE_URL ?? '/api'}</strong>
+                  {'. '}If you're running locally, the backend also listens on{' '}
+                  <strong>http://localhost:8000</strong>.
+                </p>
+              </div>
+            )}
 
-          {fretboardData && (
-            <Fretboard
-              strings={fretboardData.strings}
-              fretCount={fretboardData.fret_count}
-              tuningNotes={fretboardData.tuning_notes}
-              scalePositions={chordData ? [] : scaleData?.positions}
-              chordShapes={chordData?.caged_shapes}
-              activeChordShapes={activeChordShapes}
-              displayMode={displayMode}
-              onScaleNoteClick={handleScaleNoteClick}
-              clickableScaleNotes={clickableScaleNotes}
-              darkMode={darkMode}
-            />
-          )}
+            {/* Fretboard */}
+            {fretboardData && (
+              <Fretboard
+                strings={fretboardData.strings}
+                fretCount={fretboardData.fret_count}
+                tuningNotes={fretboardData.tuning_notes}
+                scalePositions={fretboardChordData ? [] : scaleData?.positions}
+                chordShapes={fretboardChordData?.caged_shapes}
+                activeChordShapes={activeChordShapes}
+                displayMode={displayMode}
+                onScaleNoteClick={handleScaleNoteClick}
+                clickableScaleNotes={clickableScaleNotes}
+                darkMode={darkMode}
+              />
+            )}
 
-          {/* Scale mode hint */}
-          {appMode === 'scale' && scaleData && !chordData && (
-            <div className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-              💡 Click on any scale note to see the chord built on that degree
-            </div>
-          )}
+            {/* Scale mode hint */}
+            {appMode === 'scale' && scaleData && !fretboardChordData && (
+              <div className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                💡 Click on any scale note to see the chord built on that degree
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -699,51 +317,14 @@ function App() {
         />
       )}
 
-      {/* Mobile Chat - Floating Action Button */}
-      <button
-        className="fab-chat md:hidden"
-        onClick={() => setMobileSheetOpen(true)}
-        aria-label="Open chat"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-          <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 006 21.75a6.721 6.721 0 003.583-1.029c.774.182 1.584.279 2.417.279 5.322 0 9.75-3.97 9.75-9 0-5.03-4.428-9-9.75-9s-9.75 3.97-9.75 9c0 2.409 1.025 4.587 2.674 6.192.232.226.277.428.254.543a3.73 3.73 0 01-.814 1.686.75.75 0 00.44 1.223zM8.25 10.875a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25zM10.875 12a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0zm4.875-1.125a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25z" clipRule="evenodd" />
-        </svg>
-      </button>
-
-      {/* Mobile Chat - Bottom Sheet */}
-      <div 
-        className={`mobile-sheet-backdrop md:hidden ${mobileSheetOpen ? 'open' : ''}`}
-        onClick={() => setMobileSheetOpen(false)}
+      {/* Mobile Chat - uses Zustand for state, only needs action handlers */}
+      <MobileChatSheet
+        onSendMessage={handleChatSend}
+        onChordClick={handleChatChordClick}
+        onScaleClick={handleChatScaleClick}
       />
-      <div className={`mobile-sheet md:hidden ${mobileSheetOpen ? 'open' : ''} safe-area-bottom`}>
-        <div className="sheet-handle" />
-        <div className="h-[80vh] flex flex-col">
-          <ChatPanel
-            messages={chatMessages}
-            isLoading={chatLoading}
-            onSendMessage={handleChatSend}
-            onChordClick={(chord, apiRequest) => {
-              handleChatChordClick(chord, apiRequest)
-              setMobileSheetOpen(false)
-            }}
-            onScaleClick={(scale, apiRequest) => {
-              handleChatScaleClick(scale, apiRequest)
-              setMobileSheetOpen(false)
-            }}
-            onReset={handleChatReset}
-            isCollapsed={false}
-            onToggleCollapsed={() => setMobileSheetOpen(false)}
-            darkMode={darkMode}
-            selectedChordRoot={selectedChordRoot}
-            selectedChordQuality={selectedChordQuality}
-            selectedScaleRoot={selectedRoot}
-            selectedScaleMode={selectedMode}
-            isMobile={true}
-          />
-        </div>
-      </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

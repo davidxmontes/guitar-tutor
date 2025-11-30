@@ -25,22 +25,17 @@ export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMod
               className={`
                 flex flex-col items-center px-2 py-1.5 md:py-1 rounded-md transition-all
                 hover:scale-105 touch-target
-                ${isSelected 
-                  ? 'text-white shadow-sm' 
-                  : ''
-                }
               `}
-              style={isSelected ? {
-                backgroundColor: 'var(--accent-600)'
-              } : {
-                backgroundColor: 'var(--bg-tertiary)',
-                color: 'var(--text-secondary)'
+              style={{
+                backgroundColor: isSelected ? 'var(--accent-600)' : 'var(--bg-tertiary)',
+                color: isSelected ? 'white' : 'var(--text-secondary)',
+                boxShadow: isSelected ? '0 2px 8px var(--accent-glow)' : 'none',
+                border: isSelected ? '2px solid var(--accent-400)' : '2px solid transparent',
               }}
-
             >
               <span 
                 className="text-[9px] md:text-[10px] leading-tight"
-                style={{ color: isSelected ? 'var(--accent-200)' : 'var(--text-muted)' }}
+                style={{ color: isSelected ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}
               >
                 {chord.numeral}
               </span>
