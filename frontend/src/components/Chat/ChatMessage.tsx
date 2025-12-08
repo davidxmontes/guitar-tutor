@@ -37,7 +37,7 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
 
         {/* Show chord choices as clickable pills (assistant only) */}
-        {!isUser && message.chordChoices && message.chordChoices.length > 0 && (
+        {!isUser && !message.interrupted && message.chordChoices && message.chordChoices.length > 0 && (
           <div className="mt-3 pt-2.5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
             <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Suggested chords:</p>
             <div className="flex flex-wrap gap-1.5">
@@ -62,7 +62,7 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
         )}
 
         {/* Show scale as clickable pill (assistant only) */}
-        {!isUser && message.scale && (
+        {!isUser && !message.interrupted && message.scale && (
           <div className="mt-3 pt-2.5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
             <p className="text-xs mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Recommended scale:</p>
             <ChatPill

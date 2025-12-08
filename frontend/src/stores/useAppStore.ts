@@ -90,9 +90,12 @@ interface ChordSlice {
 interface ChatSlice {
   messages: ChatMessage[];
   chatLoading: boolean;
+  threadId: string;  // For tracking conversation with interrupts
   addMessage: (message: ChatMessage) => void;
   sendMessage: (message: string) => Promise<ChatMessage | null>;
+  resumeMessage: (response: string) => Promise<ChatMessage | null>;
   resetChat: () => void;
+  setThreadId: (id: string) => void;
 }
 
 // ============================================================================
@@ -262,13 +265,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   messages: [],
   chatLoading: false,
+  threadId: 'default',
   
   addMessage: (message) => {
     set((state) => ({ messages: [...state.messages, message] }));
   },
+
+  setThreadId: (id) => set({ threadId: id }),
   
   sendMessage: async (message) => {
-    const { messages } = get();
+    const { messages, threadId } = get();
+    
+    // Check if the last assistant message was interrupted (waiting for clarification)
+    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+    const isResumingFromInterrupt = lastAssistantMessage?.interrupted;
     
     // Add user message
     const userMessage: ChatMessage = {
@@ -284,8 +294,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }));
 
     try {
-      const response = await apiClient.chat(message, messages);
+      // If resuming from interrupt, use resume endpoint, otherwise use regular chat
+      const response = isResumingFromInterrupt 
+        ? await apiClient.resumeChat(message, threadId)
+        : await apiClient.chat(message, messages, threadId);
       
+      // Handle interrupted response (clarifying question)
+      if (response.interrupted) {
+        const assistantMessage: ChatMessage = {
+          id: generateMessageId(),
+          role: 'assistant',
+          content: response.interrupt_data?.clarifying_question || 'I need more information to help you.',
+          timestamp: new Date(),
+          interrupted: true,
+          interruptData: response.interrupt_data,
+        };
+        
+        set((state) => ({ 
+          messages: [...state.messages, assistantMessage],
+          chatLoading: false 
+        }));
+        
+        return assistantMessage;
+      }
+      
+      // Normal response
       const assistantMessage: ChatMessage = {
         id: generateMessageId(),
         role: 'assistant',
@@ -322,8 +355,64 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return null;
     }
   },
+
+  resumeMessage: async (response) => {
+    const { threadId } = get();
+    
+    // Add user's clarification response
+    const userMessage: ChatMessage = {
+      id: generateMessageId(),
+      role: 'user',
+      content: response,
+      timestamp: new Date(),
+    };
+    
+    set((state) => ({ 
+      messages: [...state.messages, userMessage],
+      chatLoading: true 
+    }));
+
+    try {
+      const apiResponse = await apiClient.resumeChat(response, threadId);
+      
+      const assistantMessage: ChatMessage = {
+        id: generateMessageId(),
+        role: 'assistant',
+        content: apiResponse.answer,
+        timestamp: new Date(),
+        scale: apiResponse.scale,
+        chordChoices: apiResponse.chord_choices,
+        visualizations: apiResponse.visualizations,
+        outOfScope: apiResponse.out_of_scope,
+        apiRequests: apiResponse.api_requests,
+      };
+      
+      set((state) => ({ 
+        messages: [...state.messages, assistantMessage],
+        chatLoading: false 
+      }));
+      
+      return assistantMessage;
+    } catch (err) {
+      console.error('Resume chat error:', err);
+      
+      const errorMessage: ChatMessage = {
+        id: generateMessageId(),
+        role: 'assistant',
+        content: 'Sorry, I encountered an error while continuing our conversation.',
+        timestamp: new Date(),
+      };
+      
+      set((state) => ({ 
+        messages: [...state.messages, errorMessage],
+        chatLoading: false 
+      }));
+      
+      return null;
+    }
+  },
   
-  resetChat: () => set({ messages: [] }),
+  resetChat: () => set({ messages: [], threadId: `thread-${Date.now()}` }),
 
   // --------------------------------------------------------------------------
   // Chat Panel Slice
