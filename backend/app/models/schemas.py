@@ -127,6 +127,7 @@ class AgentRequest(BaseModel):
     """Request for /api/agent/chat endpoint."""
     message: str
     conversation_history: List[AgentMessage] = []
+    thread_id: Optional[str] = "default"  # For conversation tracking and interrupts
 
 
 class ChordApiRequest(BaseModel):
@@ -151,6 +152,12 @@ class ApiRequests(BaseModel):
     scale: Optional[ScaleApiRequest] = None
 
 
+class ResumeRequest(BaseModel):
+    """Request for /api/agent/resume endpoint."""
+    response: str  # User's response to the clarifying question
+    thread_id: str = "default"
+
+
 class AgentResponse(BaseModel):
     """Response for /api/agent/chat endpoint."""
     answer: str
@@ -158,4 +165,6 @@ class AgentResponse(BaseModel):
     chord_choices: List[str] = []
     visualizations: bool = False
     out_of_scope: bool = False
+    interrupted: bool = False  # True if agent needs clarification from user
+    interrupt_data: Optional[dict] = None  # Contains clarifying_question and other interrupt info
     api_requests: Optional[ApiRequests] = None  # Parsed API requests for frontend

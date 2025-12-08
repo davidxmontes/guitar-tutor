@@ -1,5 +1,5 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse } from '../types';
-import type { AgentRequest, AgentResponse, ChatMessage } from '../types/chat';
+import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest } from '../types/chat';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -53,16 +53,29 @@ class ApiClient {
     return this.fetch<ChordResponse>(`/chords/${encodeURIComponent(root)}/${encodeURIComponent(quality)}`);
   }
 
-  async chat(message: string, conversationHistory: ChatMessage[] = []): Promise<AgentResponse> {
+  async chat(message: string, conversationHistory: ChatMessage[] = [], threadId: string = 'default'): Promise<AgentResponse> {
     const request: AgentRequest = {
       message,
       conversation_history: conversationHistory.map(msg => ({
         role: msg.role,
         content: msg.content,
       })),
+      thread_id: threadId,
     };
 
     return this.fetch<AgentResponse>('/agent/chat', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async resumeChat(response: string, threadId: string = 'default'): Promise<AgentResponse> {
+    const request: ResumeRequest = {
+      response,
+      thread_id: threadId,
+    };
+
+    return this.fetch<AgentResponse>('/agent/resume', {
       method: 'POST',
       body: JSON.stringify(request),
     });
