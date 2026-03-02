@@ -153,7 +153,7 @@ export function Header() {
           {/* Dark Mode Toggle */}
           <button
             onClick={toggleDarkMode}
-            className="p-2 rounded-lg transition-all hover:scale-105 touch-target"
+            className="p-2 rounded-lg transition-all hover:scale-105 touch-target flex items-center justify-center"
             style={{
               backgroundColor: 'var(--bg-tertiary)',
               color: 'var(--text-secondary)',

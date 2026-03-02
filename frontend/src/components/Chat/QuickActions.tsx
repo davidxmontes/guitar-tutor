@@ -5,10 +5,10 @@ interface QuickActionsProps {
 }
 
 const QUICK_ACTIONS = [
-  { label: "A minor pentatonic", prompt: "Show me the A minor pentatonic scale", icon: "🎸", type: "scale" },
-  { label: "G major chords", prompt: "What chords work in G major?", icon: "🎵", type: "chord" },
-  { label: "Blues in E", prompt: "Suggest a bluesy chord progression in E", icon: "🎶", type: "progression" },
-  { label: "Beginner chords", prompt: "What are the easiest chords for beginners?", icon: "✨", type: "chord" },
+  { label: "A minor pentatonic", prompt: "Show me the A minor pentatonic scale", type: "scale" },
+  { label: "G major chords", prompt: "What chords work in G major?", type: "chord" },
+  { label: "Blues in E", prompt: "Suggest a bluesy chord progression in E", type: "progression" },
+  { label: "Beginner chords", prompt: "What are the easiest chords for beginners?", type: "chord" },
 ];
 
 export function QuickActions({ onAction, disabled = false, darkMode: _darkMode = false }: QuickActionsProps) {
@@ -61,7 +61,6 @@ export function QuickActions({ onAction, disabled = false, darkMode: _darkMode =
                        transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]`}
             style={getButtonStyles(action.type)}
           >
-            <span className="mr-1.5">{action.icon}</span>
             {action.label}
           </button>
         ))}

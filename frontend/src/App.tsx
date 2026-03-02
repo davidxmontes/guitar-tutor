@@ -300,7 +300,7 @@ function App() {
             {/* Scale mode hint */}
             {appMode === 'scale' && scaleData && !fretboardChordData && (
               <div className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-                💡 Click on any scale note to see the chord built on that degree
+                Hint: Click on any scale note to see the chord built on that degree
               </div>
             )}
           </main>
