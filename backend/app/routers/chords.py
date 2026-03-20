@@ -4,7 +4,7 @@ Chords API routes.
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.schemas import (
+from app.models.music import (
     ChordResponse,
     CagedShapePosition,
     CagedShape,

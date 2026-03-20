@@ -5,10 +5,9 @@ Agent API routes.
 from fastapi import APIRouter, HTTPException
 import logging
 
-from app.models.schemas import (
+from app.models.agent import (
     AgentRequest,
     AgentResponse,
-    AgentMessage,
     ApiRequests,
     ChordApiRequest,
     ScaleApiRequest,
