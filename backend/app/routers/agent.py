@@ -78,6 +78,7 @@ def _history_to_dicts(request: AgentRequest) -> list[dict]:
 @router.post("/agent/chat", response_model=AgentResponse)
 async def chat_with_agent(request: AgentRequest):
     """Chat with the Guitar Tutor agent."""
+    logger.info(f"Chat request: thread={request.thread_id}, message={request.message[:80]}")
     agent = get_agent()
     result = agent.chat(
         message=request.message,
@@ -102,6 +103,7 @@ async def agent_health():
 @router.post("/agent/resume", response_model=AgentResponse)
 async def resume_agent_chat(request: ResumeRequest):
     """Resume agent chat after user answers a clarifying question."""
+    logger.info(f"Resume request: thread={request.thread_id}")
     agent = get_agent()
     result = agent.resume_chat(
         human_response=request.response,
@@ -115,6 +117,7 @@ async def resume_agent_chat(request: ResumeRequest):
 @router.post("/agent/chat/stream")
 async def stream_chat_with_agent(request: AgentRequest):
     """SSE streaming endpoint for agent chat."""
+    logger.info(f"Stream chat request: thread={request.thread_id}, message={request.message[:80]}")
 
     def event_generator():
         try:
@@ -149,6 +152,7 @@ async def stream_chat_with_agent(request: AgentRequest):
 @router.post("/agent/resume/stream")
 async def stream_resume_agent_chat(request: ResumeRequest):
     """SSE streaming endpoint for resuming agent chat."""
+    logger.info(f"Stream resume request: thread={request.thread_id}")
 
     def event_generator():
         try:
