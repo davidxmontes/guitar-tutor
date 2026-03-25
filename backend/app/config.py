@@ -18,8 +18,17 @@ class Settings(BaseSettings):
 
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     openai_api_key: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
+    llm_base_url: Optional[str] = None
     model_name: str = "gpt-4o-mini"
     log_level: str = "INFO"
+
+    @property
+    def llm_api_key(self) -> str | None:
+        """Use OpenRouter key when a custom base URL is set, otherwise OpenAI key."""
+        if self.llm_base_url:
+            return self.openrouter_api_key
+        return self.openai_api_key
 
     @property
     def origins_list(self) -> list[str]:
