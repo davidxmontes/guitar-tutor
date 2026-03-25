@@ -6,35 +6,55 @@ import logging
 import os
 import re
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 from pydantic_settings import BaseSettings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+# Resolve .env from project root (two levels up from this file: app/ -> backend/ -> root/)
+# Falls back to empty string if file doesn't exist (e.g., Docker where env vars come from compose)
+_candidate = Path(__file__).resolve().parents[2] / ".env"
+_ENV_FILE = str(_candidate) if _candidate.exists() else None
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    llm_provider: str = "openai"  # "openai" or "openrouter"
     openai_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
-    llm_base_url: Optional[str] = None
-    model_name: str = "gpt-4o-mini"
+    model_name: Optional[str] = None
     log_level: str = "INFO"
+
+    _PROVIDER_DEFAULTS: dict = {
+        "openai": {"base_url": None, "default_model": "gpt-4o-mini"},
+        "openrouter": {"base_url": "https://openrouter.ai/api/v1", "default_model": "minimax/minimax-m2.5"},
+    }
 
     @property
     def llm_api_key(self) -> str | None:
-        """Use OpenRouter key when a custom base URL is set, otherwise OpenAI key."""
-        if self.llm_base_url:
+        if self.llm_provider == "openrouter":
             return self.openrouter_api_key
         return self.openai_api_key
+
+    @property
+    def llm_base_url(self) -> str | None:
+        return self._PROVIDER_DEFAULTS.get(self.llm_provider, {}).get("base_url")
+
+    @property
+    def llm_model_name(self) -> str:
+        if self.model_name:
+            return self.model_name
+        return self._PROVIDER_DEFAULTS.get(self.llm_provider, {}).get("default_model", "gpt-4o-mini")
 
     @property
     def origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
 
 
 @lru_cache
