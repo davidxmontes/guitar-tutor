@@ -7,6 +7,7 @@ import type { ChatMessage as ChatMessageType } from '../../types/chat';
 interface ChatPanelProps {
   messages: ChatMessageType[];
   isLoading: boolean;
+  streamingStatus?: string | null;
   onSendMessage: (message: string) => void;
   onChordClick?: (chord: string, apiRequest?: { root: string; quality: string }) => void;
   onScaleClick?: (scale: string, apiRequest?: { root: string; mode: string }) => void;
@@ -24,6 +25,7 @@ interface ChatPanelProps {
 export function ChatPanel({
   messages,
   isLoading,
+  streamingStatus,
   onSendMessage,
   onChordClick,
   onScaleClick,
@@ -187,9 +189,9 @@ export function ChatPanel({
             {/* Loading indicator */}
             {isLoading && (
               <div className="flex justify-start mb-3">
-                <div 
+                <div
                   className="rounded-2xl rounded-bl-sm px-4 py-3 border"
-                  style={{ 
+                  style={{
                     backgroundColor: 'var(--card-bg)',
                     borderColor: 'var(--border-primary)',
                     boxShadow: 'var(--shadow-sm)'
@@ -200,6 +202,11 @@ export function ChatPanel({
                     <div className="w-2 h-2 rounded-full animate-bounce" style={{ animationDelay: '150ms', backgroundColor: 'var(--accent-400)' }} />
                     <div className="w-2 h-2 rounded-full animate-bounce" style={{ animationDelay: '300ms', backgroundColor: 'var(--accent-400)' }} />
                   </div>
+                  {streamingStatus && (
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                      {streamingStatus}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

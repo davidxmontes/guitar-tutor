@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { apiClient } from '../api/client';
-import type { 
+import { apiClient, nodeLabel } from '../api/client';
+import type {
   ScaleResponse, 
   ChordResponse, 
   DiatonicChord, 
@@ -90,10 +90,10 @@ interface ChordSlice {
 interface ChatSlice {
   messages: ChatMessage[];
   chatLoading: boolean;
+  streamingStatus: string | null;
   threadId: string;  // For tracking conversation with interrupts
   addMessage: (message: ChatMessage) => void;
   sendMessage: (message: string) => Promise<ChatMessage | null>;
-  resumeMessage: (response: string) => Promise<ChatMessage | null>;
   resetChat: () => void;
   setThreadId: (id: string) => void;
 }
@@ -265,6 +265,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   messages: [],
   chatLoading: false,
+  streamingStatus: null,
   threadId: 'default',
   
   addMessage: (message) => {
@@ -275,31 +276,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
   
   sendMessage: async (message) => {
     const { messages, threadId } = get();
-    
+
     // Check if the last assistant message was interrupted (waiting for clarification)
     const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
     const isResumingFromInterrupt = lastAssistantMessage?.interrupted;
-    
-    // Add user message
+
+    // Add user message immediately
     const userMessage: ChatMessage = {
       id: generateMessageId(),
       role: 'user',
       content: message,
       timestamp: new Date(),
     };
-    
-    set((state) => ({ 
+
+    set((state) => ({
       messages: [...state.messages, userMessage],
-      chatLoading: true 
+      chatLoading: true,
+      streamingStatus: null,
     }));
 
+    const onStatus = (node: string) => set({ streamingStatus: nodeLabel(node) });
+
     try {
-      // If resuming from interrupt, use resume endpoint, otherwise use regular chat
-      const response = isResumingFromInterrupt 
-        ? await apiClient.resumeChat(message, threadId)
-        : await apiClient.chat(message, messages, threadId);
-      
-      // Handle interrupted response (clarifying question)
+      const response = isResumingFromInterrupt
+        ? await apiClient.streamResume(message, threadId, onStatus)
+        : await apiClient.streamChat(message, messages, threadId, onStatus);
+
+      // Handle interrupted response (agent asking a clarifying question)
       if (response.interrupted) {
         const assistantMessage: ChatMessage = {
           id: generateMessageId(),
@@ -309,15 +312,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
           interrupted: true,
           interruptData: response.interrupt_data,
         };
-        
-        set((state) => ({ 
+
+        set((state) => ({
           messages: [...state.messages, assistantMessage],
-          chatLoading: false 
+          chatLoading: false,
+          streamingStatus: null,
         }));
-        
+
         return assistantMessage;
       }
-      
+
       // Normal response
       const assistantMessage: ChatMessage = {
         id: generateMessageId(),
@@ -330,84 +334,30 @@ export const useAppStore = create<AppStore>((set, get) => ({
         outOfScope: response.out_of_scope,
         apiRequests: response.api_requests,
       };
-      
-      set((state) => ({ 
+
+      set((state) => ({
         messages: [...state.messages, assistantMessage],
-        chatLoading: false 
+        chatLoading: false,
+        streamingStatus: null,
       }));
-      
+
       return assistantMessage;
     } catch (err) {
       console.error('Chat error:', err);
-      
+
       const errorMessage: ChatMessage = {
         id: generateMessageId(),
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please make sure the backend is running.',
         timestamp: new Date(),
       };
-      
-      set((state) => ({ 
-        messages: [...state.messages, errorMessage],
-        chatLoading: false 
-      }));
-      
-      return null;
-    }
-  },
 
-  resumeMessage: async (response) => {
-    const { threadId } = get();
-    
-    // Add user's clarification response
-    const userMessage: ChatMessage = {
-      id: generateMessageId(),
-      role: 'user',
-      content: response,
-      timestamp: new Date(),
-    };
-    
-    set((state) => ({ 
-      messages: [...state.messages, userMessage],
-      chatLoading: true 
-    }));
-
-    try {
-      const apiResponse = await apiClient.resumeChat(response, threadId);
-      
-      const assistantMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: apiResponse.answer,
-        timestamp: new Date(),
-        scale: apiResponse.scale,
-        chordChoices: apiResponse.chord_choices,
-        visualizations: apiResponse.visualizations,
-        outOfScope: apiResponse.out_of_scope,
-        apiRequests: apiResponse.api_requests,
-      };
-      
-      set((state) => ({ 
-        messages: [...state.messages, assistantMessage],
-        chatLoading: false 
-      }));
-      
-      return assistantMessage;
-    } catch (err) {
-      console.error('Resume chat error:', err);
-      
-      const errorMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error while continuing our conversation.',
-        timestamp: new Date(),
-      };
-      
-      set((state) => ({ 
+      set((state) => ({
         messages: [...state.messages, errorMessage],
-        chatLoading: false 
+        chatLoading: false,
+        streamingStatus: null,
       }));
-      
+
       return null;
     }
   },
@@ -456,6 +406,7 @@ export const useActiveChordShapes = () => useAppStore((state) => state.activeCho
 // Chat selectors
 export const useChatMessages = () => useAppStore((state) => state.messages);
 export const useChatLoading = () => useAppStore((state) => state.chatLoading);
+export const useStreamingStatus = () => useAppStore((state) => state.streamingStatus);
 
 // Chat panel selectors
 export const useChatPanelState = () => useAppStore((state) => ({

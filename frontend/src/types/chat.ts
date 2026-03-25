@@ -63,3 +63,11 @@ export interface ResumeRequest {
   response: string;  // User's answer to clarifying question
   thread_id: string;
 }
+
+// SSE wire-format event types (matches backend stream endpoints)
+export type SseEvent =
+  | { event: 'status';    data: { node: string } }
+  | { event: 'interrupt'; data: { clarifying_question?: string; action?: string } }
+  | { event: 'answer';    data: AgentResponse }
+  | { event: 'error';     data: { detail: string } }
+  | { event: 'done';      data: Record<string, never> };

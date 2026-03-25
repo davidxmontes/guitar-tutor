@@ -1,5 +1,5 @@
 import { ChatPanel } from '../Chat';
-import { useAppStore } from '../../stores';
+import { useAppStore, useStreamingStatus } from '../../stores';
 
 interface ChatSidebarProps {
   onSendMessage: (message: string) => void;
@@ -26,6 +26,7 @@ export function ChatSidebar({
     selectedRoot,
     selectedMode,
   } = useAppStore();
+  const streamingStatus = useStreamingStatus();
 
   return (
     <aside
@@ -35,6 +36,7 @@ export function ChatSidebar({
       <ChatPanel
         messages={messages}
         isLoading={chatLoading}
+        streamingStatus={streamingStatus}
         onSendMessage={onSendMessage}
         onChordClick={onChordClick}
         onScaleClick={onScaleClick}
@@ -120,6 +122,7 @@ export function MobileChatSheet({
     selectedRoot,
     selectedMode,
   } = useAppStore();
+  const streamingStatus = useStreamingStatus();
 
   const handleClose = () => setMobileSheetOpen(false);
 
@@ -160,6 +163,7 @@ export function MobileChatSheet({
           <ChatPanel
             messages={messages}
             isLoading={chatLoading}
+            streamingStatus={streamingStatus}
             onSendMessage={onSendMessage}
             onChordClick={(chord, apiRequest) => {
               onChordClick?.(chord, apiRequest);
