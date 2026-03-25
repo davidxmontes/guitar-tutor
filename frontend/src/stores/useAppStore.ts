@@ -288,6 +288,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       content: message,
       timestamp: new Date(),
     };
+    const streamingMsgId = generateMessageId();
 
     set((state) => ({
       messages: [...state.messages, userMessage],
@@ -297,63 +298,92 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const onStatus = (node: string) => set({ streamingStatus: nodeLabel(node) });
 
+    const onToken = (text: string) => {
+      set((state) => {
+        const msgs = [...state.messages];
+        const lastMsg = msgs[msgs.length - 1];
+
+        if (lastMsg?.id === streamingMsgId) {
+          msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + text };
+        } else {
+          // First token — create the streaming message
+          msgs.push({
+            id: streamingMsgId,
+            role: 'assistant',
+            content: text,
+            timestamp: new Date(),
+          });
+        }
+
+        return { messages: msgs, chatLoading: false, streamingStatus: null };
+      });
+    };
+
     try {
       const response = isResumingFromInterrupt
-        ? await apiClient.streamResume(message, threadId, onStatus)
-        : await apiClient.streamChat(message, messages, threadId, onStatus);
+        ? await apiClient.streamResume(message, threadId, onStatus, onToken)
+        : await apiClient.streamChat(message, messages, threadId, onStatus, onToken);
 
       // Handle interrupted response (agent asking a clarifying question)
       if (response.interrupted) {
-        const assistantMessage: ChatMessage = {
-          id: generateMessageId(),
-          role: 'assistant',
-          content: response.interrupt_data?.clarifying_question || 'I need more information to help you.',
-          timestamp: new Date(),
-          interrupted: true,
-          interruptData: response.interrupt_data,
-        };
-
         set((state) => ({
-          messages: [...state.messages, assistantMessage],
+          messages: [
+            ...state.messages.filter(m => m.id !== streamingMsgId),
+            {
+              id: generateMessageId(),
+              role: 'assistant' as const,
+              content: response.interrupt_data?.clarifying_question || 'I need more information to help you.',
+              timestamp: new Date(),
+              interrupted: true,
+              interruptData: response.interrupt_data,
+            },
+          ],
           chatLoading: false,
           streamingStatus: null,
         }));
 
-        return assistantMessage;
+        return get().messages[get().messages.length - 1];
       }
 
-      // Normal response
-      const assistantMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: response.answer,
-        timestamp: new Date(),
-        scale: response.scale,
-        chordChoices: response.chord_choices,
-        visualizations: response.visualizations,
-        outOfScope: response.out_of_scope,
-        apiRequests: response.api_requests,
-      };
+      // Finalize the streaming message with metadata, or create if no tokens were streamed
+      set((state) => {
+        const msgs = [...state.messages];
+        const idx = msgs.findIndex(m => m.id === streamingMsgId);
+        const finalMessage: ChatMessage = {
+          id: streamingMsgId,
+          role: 'assistant',
+          content: response.answer,
+          timestamp: new Date(),
+          scale: response.scale,
+          chordChoices: response.chord_choices,
+          visualizations: response.visualizations,
+          outOfScope: response.out_of_scope,
+          apiRequests: response.api_requests,
+        };
 
-      set((state) => ({
-        messages: [...state.messages, assistantMessage],
-        chatLoading: false,
-        streamingStatus: null,
-      }));
+        if (idx >= 0) {
+          msgs[idx] = finalMessage;
+        } else {
+          msgs.push(finalMessage);
+        }
 
-      return assistantMessage;
+        return { messages: msgs, chatLoading: false, streamingStatus: null };
+      });
+
+      return get().messages.find(m => m.id === streamingMsgId) ?? null;
     } catch (err) {
       console.error('Chat error:', err);
 
-      const errorMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please make sure the backend is running.',
-        timestamp: new Date(),
-      };
-
       set((state) => ({
-        messages: [...state.messages, errorMessage],
+        messages: [
+          ...state.messages.filter(m => m.id !== streamingMsgId),
+          {
+            id: generateMessageId(),
+            role: 'assistant' as const,
+            content: 'Sorry, I encountered an error. Please make sure the backend is running.',
+            timestamp: new Date(),
+          },
+        ],
         chatLoading: false,
         streamingStatus: null,
       }));
