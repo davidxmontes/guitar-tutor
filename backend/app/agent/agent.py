@@ -109,14 +109,20 @@ _NODE_FIELDS = {
 class GuitarTutorAgent:
     """Guitar Tutor Agent using LangGraph."""
 
-    def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0):
+    def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0,
+                 base_url: str | None = None, api_key: str | None = None):
         self.memory = MemorySaver()
+        self.model_name = model_name
 
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
+        resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not resolved_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
 
-        self.llm = ChatOpenAI(model=model_name, temperature=temperature)
+        llm_kwargs: dict = {"model": model_name, "temperature": temperature, "api_key": resolved_key}
+        if base_url:
+            llm_kwargs["base_url"] = base_url
+
+        self.llm = ChatOpenAI(**llm_kwargs)
         self.graph = self._build_graph()
 
     # --- Graph construction ---
@@ -389,7 +395,14 @@ _agent_instance: Optional[GuitarTutorAgent] = None
 
 def get_agent() -> GuitarTutorAgent:
     """Get or create the singleton agent instance."""
+    from app.config import get_settings
+
     global _agent_instance
     if _agent_instance is None:
-        _agent_instance = GuitarTutorAgent()
+        settings = get_settings()
+        _agent_instance = GuitarTutorAgent(
+            model_name=settings.model_name,
+            base_url=settings.llm_base_url,
+            api_key=settings.llm_api_key,
+        )
     return _agent_instance
