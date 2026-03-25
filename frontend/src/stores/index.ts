@@ -14,5 +14,6 @@ export {
   useActiveChordShapes,
   useChatMessages,
   useChatLoading,
+  useStreamingStatus,
   useChatPanelState,
 } from './useAppStore';
