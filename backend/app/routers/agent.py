@@ -93,7 +93,7 @@ async def agent_health():
     """Check if the agent is properly configured and ready."""
     try:
         agent = get_agent()
-        return {"status": "ready", "model": "gpt-4o-mini"}
+        return {"status": "ready", "model": agent.model_name}
     except ValueError as e:
         return {"status": "not_configured", "error": str(e)}
     except Exception as e:
