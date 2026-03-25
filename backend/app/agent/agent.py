@@ -32,9 +32,8 @@ class PreppedQuestionSchema(TypedDict):
     clarifying_question: Optional[str] = Field(None, description="A clarifying question if needed")
 
 
-class AnswerRequestSchema(TypedDict):
-    """Schema for the generate_answer node output."""
-    answer: str = Field(..., description="The answer text to return to the user")
+class AnswerMetadataSchema(TypedDict):
+    """Schema for answer metadata extraction (scale, chords, visualizations)."""
     scale: str = Field(..., description="A single recommended scale name relevant to the user question")
     chord_choices: List[str] = Field(..., description="List of chord names recommended")
     visualizations: bool = Field(False, description="Whether visualizations are needed")
@@ -76,26 +75,29 @@ Output requirements (JSON ONLY): produce exactly one of these three JSON shapes 
 - Do NOT include voicings, diagrams, notes, or additional metadata.
 """
 
-QUESTION_INSTRUCTIONS = """You are the Guitar Tutor LLM node. Your role is to interpret a user's question and return a focused, helpful, music-theory / guitar-oriented answer.
+ANSWER_TEXT_INSTRUCTIONS = """You are the Guitar Tutor. Answer the user's guitar/music theory question.
 
-Hard constraints (must be strictly followed):
+Hard constraints:
 - ONLY answer music theory or guitar-related questions.
-- When recommending chord(s) or scale(s), LIMIT output to chord or scale NAMES ONLY (e.g., 'C major', 'A minor').
-- Always provide a single relevant `scale` string in every response.
-- When listing chord options, use the `chord_choices` array with chord names only.
-- Keep output concise and structured.
-
-Behavior & output format:
-- Decide whether output can be presented visually (chord progression, chords, or scale). If yes, set `visualizations` to true.
-- Always include a short, clear `answer` field (1-3 concise paragraphs).
-- Always include the `scale` field with a single recommended scale name.
-- Include chord recommendations in `chord_choices` array.
+- Mention relevant chords and scales by name (e.g., "C major", "A minor pentatonic").
+- Keep output concise: 1-3 paragraphs.
 
 Tone & pedagogy:
 - Be friendly, clear, and pedagogical. Explain WHY choices work.
-- Use short examples in the `answer` field.
+- Use short examples where helpful.
 
 Question: {user_question}
+"""
+
+ANSWER_METADATA_INSTRUCTIONS = """Given this guitar/music question and answer, extract structured metadata. Return ONLY the requested fields.
+
+Question: {user_question}
+Answer: {answer}
+
+Extract:
+- scale: the single most relevant scale name (e.g., "A minor pentatonic")
+- chord_choices: list of chord names mentioned or recommended (e.g., ["C", "Am", "F", "G"])
+- visualizations: true if the answer involves chords, scales, or progressions that can be shown on a fretboard
 """
 
 # Node names for status tracking
@@ -220,31 +222,36 @@ class GuitarTutorAgent:
                 "out_of_scope": False,
             }
 
-        structured_llm = self.llm.with_structured_output(AnswerRequestSchema)
         messages = state.get("messages", [])
-
         question_text = question_for_llm if question_for_llm else (
             messages[-1].content if messages else ""
         )
 
-        system_message = SystemMessage(
-            content=QUESTION_INSTRUCTIONS.format(user_question=question_text)
+        # Call 1: Generate answer text (regular LLM — streamed via stream_mode="messages")
+        text_system = SystemMessage(
+            content=ANSWER_TEXT_INSTRUCTIONS.format(user_question=question_text)
         )
+        response = self.llm.invoke([text_system, HumanMessage(content=question_text)])
+        answer_text = response.content
 
-        result = structured_llm.invoke([system_message, HumanMessage(content=question_text)])
-
-        q = result if isinstance(result, dict) else (
+        # Call 2: Extract metadata (structured output — quick, not streamed)
+        metadata_llm = self.llm.with_structured_output(AnswerMetadataSchema)
+        metadata_system = SystemMessage(
+            content=ANSWER_METADATA_INSTRUCTIONS.format(
+                user_question=question_text, answer=answer_text
+            )
+        )
+        result = metadata_llm.invoke([metadata_system])
+        meta = result if isinstance(result, dict) else (
             result.model_dump() if hasattr(result, "model_dump") else result.dict()
         )
-
-        answer_text = q.get("answer", "")
 
         return {
             "messages": [AIMessage(content=answer_text)],
             "answer": answer_text,
-            "scale": q.get("scale"),
-            "chord_choices": q.get("chord_choices", []),
-            "visualizations": q.get("visualizations", False),
+            "scale": meta.get("scale"),
+            "chord_choices": meta.get("chord_choices", []),
+            "visualizations": meta.get("visualizations", False),
             "out_of_scope": False,
         }
 
@@ -341,22 +348,25 @@ class GuitarTutorAgent:
 
     # --- Public API: streaming (SSE) ---
 
-    def stream_chat(
-        self,
-        message: str,
-        conversation_history: List[dict] = None,
-        thread_id: Optional[str] = "1",
-    ) -> Generator[dict, None, None]:
-        """Stream chat processing as SSE event dicts."""
-        config = {"configurable": {"thread_id": thread_id}}
-        messages = self._build_messages(conversation_history or [], message)
-
+    def _iter_stream(self, graph_input, config) -> Generator[dict, None, None]:
+        """Shared streaming logic: yields status, token, interrupt, and answer events."""
         last_output = None
-        for event in self.graph.stream({"messages": messages}, config=config, stream_mode="values"):
-            node = self._identify_node(event)
-            logger.debug(f"Stream event from node: {node}")
-            yield {"event": "status", "data": {"node": node}}
-            last_output = event
+
+        for mode, event in self.graph.stream(
+            graph_input, config=config, stream_mode=["messages", "values"]
+        ):
+            if mode == "messages":
+                chunk, metadata = event
+                node = metadata.get("langgraph_node", "")
+                # Only yield text tokens from the answer text call, not structured output calls
+                has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
+                if node == "generate_answer" and has_content:
+                    yield {"event": "token", "data": {"text": chunk.content}}
+            elif mode == "values":
+                node = self._identify_node(event)
+                logger.debug(f"Stream event from node: {node}")
+                yield {"event": "status", "data": {"node": node}}
+                last_output = event
 
         interrupt_data = self._check_for_interrupt(config)
         if interrupt_data:
@@ -366,6 +376,17 @@ class GuitarTutorAgent:
         if last_output:
             yield {"event": "answer", "data": self._extract_result(last_output)}
 
+    def stream_chat(
+        self,
+        message: str,
+        conversation_history: List[dict] = None,
+        thread_id: Optional[str] = "1",
+    ) -> Generator[dict, None, None]:
+        """Stream chat processing as SSE event dicts."""
+        config = {"configurable": {"thread_id": thread_id}}
+        messages = self._build_messages(conversation_history or [], message)
+        yield from self._iter_stream({"messages": messages}, config)
+
     def stream_resume(
         self,
         human_response: str,
@@ -373,20 +394,9 @@ class GuitarTutorAgent:
     ) -> Generator[dict, None, None]:
         """Stream resume processing as SSE event dicts."""
         config = {"configurable": {"thread_id": thread_id}}
-
-        last_output = None
-        for event in self.graph.stream(
-            Command(resume={"response": human_response}),
-            config=config,
-            stream_mode="values",
-        ):
-            node = self._identify_node(event)
-            logger.debug(f"Stream event from node: {node}")
-            yield {"event": "status", "data": {"node": node}}
-            last_output = event
-
-        if last_output:
-            yield {"event": "answer", "data": self._extract_result(last_output)}
+        yield from self._iter_stream(
+            Command(resume={"response": human_response}), config
+        )
 
 
 # Singleton instance (lazy initialization)
@@ -400,8 +410,12 @@ def get_agent() -> GuitarTutorAgent:
     global _agent_instance
     if _agent_instance is None:
         settings = get_settings()
+        logger.info(
+            f"Initializing agent: provider={settings.llm_provider}, "
+            f"model={settings.llm_model_name}, base_url={settings.llm_base_url}"
+        )
         _agent_instance = GuitarTutorAgent(
-            model_name=settings.model_name,
+            model_name=settings.llm_model_name,
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key,
         )
