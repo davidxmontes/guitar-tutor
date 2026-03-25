@@ -71,11 +71,12 @@ class ApiClient {
   }
 
   // Sends a POST request to an SSE endpoint and resolves with the final AgentResponse.
-  // Calls onStatus for each intermediate status event so the UI can show progress.
+  // Calls onStatus for intermediate status events and onToken for streamed text tokens.
   private async _runStream(
     endpoint: string,
     body: object,
     onStatus?: (node: string) => void,
+    onToken?: (text: string) => void,
   ): Promise<AgentResponse> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
@@ -93,6 +94,8 @@ class ApiClient {
     for await (const event of this._parseSseStream(response.body)) {
       if (event.event === 'status') {
         onStatus?.(event.data.node);
+      } else if (event.event === 'token') {
+        onToken?.(event.data.text);
       } else if (event.event === 'interrupt') {
         return {
           answer: '',
@@ -143,6 +146,7 @@ class ApiClient {
     conversationHistory: ChatMessage[] = [],
     threadId: string = 'default',
     onStatus?: (node: string) => void,
+    onToken?: (text: string) => void,
   ): Promise<AgentResponse> {
     const request: AgentRequest = {
       message,
@@ -152,16 +156,17 @@ class ApiClient {
       })),
       thread_id: threadId,
     };
-    return this._runStream('/agent/chat/stream', request, onStatus);
+    return this._runStream('/agent/chat/stream', request, onStatus, onToken);
   }
 
   async streamResume(
     response: string,
     threadId: string = 'default',
     onStatus?: (node: string) => void,
+    onToken?: (text: string) => void,
   ): Promise<AgentResponse> {
     const request: ResumeRequest = { response, thread_id: threadId };
-    return this._runStream('/agent/resume/stream', request, onStatus);
+    return this._runStream('/agent/resume/stream', request, onStatus, onToken);
   }
 }
 
