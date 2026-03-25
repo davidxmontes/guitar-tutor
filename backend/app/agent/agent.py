@@ -1,28 +1,29 @@
 """
 Guitar Tutor LangGraph Agent.
-Provides music theory and guitar-related answers using a two-node graph:
+Provides music theory and guitar-related answers using a three-node graph:
 1. prepare_question - normalizes and validates the user's question
-2. generate_answer - generates a structured answer with chord/scale recommendations
+2. clarify_input - handles interrupt/resume for clarifying questions
+3. generate_answer - generates a structured answer with chord/scale recommendations
 """
-from langgraph.checkpoint.memory import MemorySaver
 
-import os
 import logging
-from typing import List, Optional, TypedDict
-from pydantic import BaseModel, Field
-from langgraph.graph import StateGraph, START, END, MessagesState
+import os
+from typing import Generator, List, Optional, TypedDict
+
+from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.types import Command, interrupt
+from pydantic import Field
 
-# Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
-# --- Pydantic Schemas for structured LLM output ---
+# --- Structured output schemas ---
 
 class PreppedQuestionSchema(TypedDict):
     """Schema for the prepare_question node output."""
@@ -31,9 +32,8 @@ class PreppedQuestionSchema(TypedDict):
     clarifying_question: Optional[str] = Field(None, description="A clarifying question if needed")
 
 
-class AnswerRequestSchema(TypedDict):
-    """Schema for the generate_answer node output."""
-    answer: str = Field(..., description="The answer text to return to the user")
+class AnswerMetadataSchema(TypedDict):
+    """Schema for answer metadata extraction (scale, chords, visualizations)."""
     scale: str = Field(..., description="A single recommended scale name relevant to the user question")
     chord_choices: List[str] = Field(..., description="List of chord names recommended")
     visualizations: bool = Field(False, description="Whether visualizations are needed")
@@ -50,7 +50,7 @@ class OverallState(MessagesState):
     out_of_scope: bool = False
 
 
-# --- Prompt Templates ---
+# --- Prompt templates ---
 
 PREP_QUESTION_INSTRUCTIONS = """You are the Guitar Tutor question normalizer. You will ONLY prepare a single, concise MUSIC THEORY / GUITAR question for the NEXT node to answer — do NOT answer the question yourself.
 
@@ -75,87 +75,102 @@ Output requirements (JSON ONLY): produce exactly one of these three JSON shapes 
 - Do NOT include voicings, diagrams, notes, or additional metadata.
 """
 
-QUESTION_INSTRUCTIONS = """You are the Guitar Tutor LLM node. Your role is to interpret a user's question and return a focused, helpful, music-theory / guitar-oriented answer.
+ANSWER_TEXT_INSTRUCTIONS = """You are the Guitar Tutor. Answer the user's guitar/music theory question.
 
-Hard constraints (must be strictly followed):
+Hard constraints:
 - ONLY answer music theory or guitar-related questions.
-- When recommending chord(s) or scale(s), LIMIT output to chord or scale NAMES ONLY (e.g., 'C major', 'A minor').
-- Always provide a single relevant `scale` string in every response.
-- When listing chord options, use the `chord_choices` array with chord names only.
-- Keep output concise and structured.
-
-Behavior & output format:
-- Decide whether output can be presented visually (chord progression, chords, or scale). If yes, set `visualizations` to true.
-- Always include a short, clear `answer` field (1-3 concise paragraphs).
-- Always include the `scale` field with a single recommended scale name.
-- Include chord recommendations in `chord_choices` array.
+- Mention relevant chords and scales by name (e.g., "C major", "A minor pentatonic").
+- Keep output concise: 1-3 paragraphs.
 
 Tone & pedagogy:
 - Be friendly, clear, and pedagogical. Explain WHY choices work.
-- Use short examples in the `answer` field.
+- Use short examples where helpful.
 
 Question: {user_question}
 """
 
+ANSWER_METADATA_INSTRUCTIONS = """Given this guitar/music question and answer, extract structured metadata. Return ONLY the requested fields.
+
+Question: {user_question}
+Answer: {answer}
+
+Extract:
+- scale: the single most relevant scale name (e.g., "A minor pentatonic")
+- chord_choices: list of chord names mentioned or recommended (e.g., ["C", "Am", "F", "G"])
+- visualizations: true if the answer involves chords, scales, or progressions that can be shown on a fretboard
+"""
+
+# Node names for status tracking
+_NODE_FIELDS = {
+    "question_for_llm": "prepare_question",
+    "answer": "generate_answer",
+    "clarifying_question": "prepare_question",
+}
+
 
 class GuitarTutorAgent:
     """Guitar Tutor Agent using LangGraph."""
-    
-    def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0):
-        """Initialize the agent with the specified model."""
-        self.memory = MemorySaver()
 
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
+    def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0,
+                 base_url: str | None = None, api_key: str | None = None):
+        self.memory = MemorySaver()
+        self.model_name = model_name
+
+        resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not resolved_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-        self.llm = ChatOpenAI(model=model_name, temperature=temperature)
+
+        llm_kwargs: dict = {"model": model_name, "temperature": temperature, "api_key": resolved_key}
+        if base_url:
+            llm_kwargs["base_url"] = base_url
+
+        self.llm = ChatOpenAI(**llm_kwargs)
         self.graph = self._build_graph()
 
+    # --- Graph construction ---
+
     def _build_graph(self) -> StateGraph:
-        """Build and compile the LangGraph state machine."""
         builder = StateGraph(OverallState)
-        
+
         builder.add_node("prepare_question", self._prepare_question)
         builder.add_node("clarify_input", self._clarify_input)
         builder.add_node("generate_answer", self._generate_answer)
-        
-        builder.add_edge(START, "prepare_question")
-        builder.add_edge("prepare_question", "clarify_input")  # Check if clarification needed
-        # clarify_input routes itself using Command
-        builder.add_edge("generate_answer", END)
-        
-        return builder.compile(checkpointer=self.memory)
-    
-    def _prepare_question(self, state: dict) -> dict:
-        """Prepare and normalize the user's question."""
 
+        builder.add_edge(START, "prepare_question")
+        builder.add_edge("prepare_question", "clarify_input")
+        builder.add_edge("generate_answer", END)
+
+        return builder.compile(checkpointer=self.memory)
+
+    # --- Graph nodes ---
+
+    def _prepare_question(self, state: dict) -> dict:
         structured_llm = self.llm.with_structured_output(PreppedQuestionSchema)
-        
-        messages = state.get('messages', [])
-        # Only use the last 4 messages for context (last 3 messages + current)
+
+        messages = state.get("messages", [])
         recent_messages = messages[-4:] if len(messages) > 4 else messages
-        previous_context = "\n".join([msg.content for msg in recent_messages[:-1]]) if len(recent_messages) > 1 else "None"
+        previous_context = (
+            "\n".join([msg.content for msg in recent_messages[:-1]])
+            if len(recent_messages) > 1
+            else "None"
+        )
         last_question_text = messages[-1].content if messages else ""
 
         system_message = SystemMessage(
             content=PREP_QUESTION_INSTRUCTIONS.format(
                 previous_context=previous_context,
-                user_question=last_question_text
+                user_question=last_question_text,
             )
         )
-        
-        # Only pass system message - context is already embedded in it
+
         result = structured_llm.invoke([system_message])
-        
-        # Normalize result
-        if isinstance(result, dict):
-            q = result
-        else:
-            q = result.model_dump() if hasattr(result, 'model_dump') else result.dict()
-        
+
+        q = result if isinstance(result, dict) else (
+            result.model_dump() if hasattr(result, "model_dump") else result.dict()
+        )
+
         logger.info(f"Prepared question: {q}")
-        
+
         return {
             "question_for_llm": q.get("question_for_llm"),
             "clarifying_question": q.get("clarifying_question"),
@@ -163,36 +178,29 @@ class GuitarTutorAgent:
         }
 
     def _clarify_input(self, state: dict) -> Command:
-        """Handle clarifying questions if needed."""
         clarifying_question = state.get("clarifying_question")
-        
-        # If there's no clarifying question, skip this node
+
         if not clarifying_question:
             return Command(goto="generate_answer")
-        
-        # Interrupt() must come first - get human's response
+
         human_input = interrupt({
             "clarifying_question": clarifying_question,
-            "action": "Please answer this question to continue"
+            "action": "Please answer this question to continue",
         })
-        
-        # Append human's response to messages and clear the clarifying question
+
         return Command(
             update={
                 "messages": [HumanMessage(content=human_input.get("response", ""))],
-                "clarifying_question": None
+                "clarifying_question": None,
             },
-            goto="prepare_question"  # Re-run to now prepare the actual question
+            goto="prepare_question",
         )
 
     def _generate_answer(self, state: dict) -> dict:
-        """Generate a structured answer based on the prepared question."""
-        messages = state.get('messages', [])
         question_for_llm = state.get("question_for_llm")
         clarifying_question = state.get("clarifying_question")
         out_of_scope = state.get("out_of_scope", False)
-        
-        # Handle out of scope questions
+
         if out_of_scope:
             refusal_msg = "I only help with guitar & music theory — please ask about chords, scales, fretboard shapes, voicings, or music theory concepts."
             return {
@@ -203,8 +211,7 @@ class GuitarTutorAgent:
                 "visualizations": False,
                 "out_of_scope": True,
             }
-        
-        # Handle clarifying questions
+
         if clarifying_question and not question_for_llm:
             return {
                 "messages": [AIMessage(content=clarifying_question)],
@@ -214,90 +221,98 @@ class GuitarTutorAgent:
                 "visualizations": False,
                 "out_of_scope": False,
             }
-        
-        # Generate answer for valid questions
-        structured_llm = self.llm.with_structured_output(AnswerRequestSchema)
-        
+
+        messages = state.get("messages", [])
         question_text = question_for_llm if question_for_llm else (
             messages[-1].content if messages else ""
         )
-        
-        system_message = SystemMessage(
-            content=QUESTION_INSTRUCTIONS.format(user_question=question_text)
+
+        # Call 1: Generate answer text (regular LLM — streamed via stream_mode="messages")
+        text_system = SystemMessage(
+            content=ANSWER_TEXT_INSTRUCTIONS.format(user_question=question_text)
         )
-        
-        human_msg = HumanMessage(content=question_text)
-        result = structured_llm.invoke([system_message, human_msg])
-        
-        # Normalize result
-        if isinstance(result, dict):
-            q = result
-        else:
-            q = result.model_dump() if hasattr(result, 'model_dump') else result.dict()
-        
-        answer_text = q.get("answer", "")
-        
+        response = self.llm.invoke([text_system, HumanMessage(content=question_text)])
+        answer_text = response.content
+
+        # Call 2: Extract metadata (structured output — quick, not streamed)
+        metadata_llm = self.llm.with_structured_output(AnswerMetadataSchema)
+        metadata_system = SystemMessage(
+            content=ANSWER_METADATA_INSTRUCTIONS.format(
+                user_question=question_text, answer=answer_text
+            )
+        )
+        result = metadata_llm.invoke([metadata_system])
+        meta = result if isinstance(result, dict) else (
+            result.model_dump() if hasattr(result, "model_dump") else result.dict()
+        )
+
         return {
             "messages": [AIMessage(content=answer_text)],
             "answer": answer_text,
-            "scale": q.get("scale"),
-            "chord_choices": q.get("chord_choices", []),
-            "visualizations": q.get("visualizations", False),
+            "scale": meta.get("scale"),
+            "chord_choices": meta.get("chord_choices", []),
+            "visualizations": meta.get("visualizations", False),
             "out_of_scope": False,
         }
-    
-    def chat(
-        self,
-        message: str,
-        conversation_history: List[dict] = None,
-        thread_id: Optional[str] = "1",
-    ) -> dict:
-        """
-        Process a user message and return the agent's response.
-        
-        Args:
-            message: The user's message
-            conversation_history: Optional list of previous messages
-            thread_id: Thread ID for conversation tracking
-        
-        Returns:
-            dict with keys: answer, scale, chord_choices, visualizations, out_of_scope, 
-            interrupted (bool), interrupt_data (if interrupted)
-        """
-        config = {"configurable": {"thread_id": thread_id}}
-        
-        # Build messages list from conversation history
+
+    # --- Shared helpers ---
+
+    @staticmethod
+    def _build_messages(conversation_history: List[dict], message: str) -> list:
         messages = []
-        
         if conversation_history:
             for msg in conversation_history:
                 if msg.get("role") == "user":
                     messages.append(HumanMessage(content=msg["content"]))
                 elif msg.get("role") == "assistant":
                     messages.append(AIMessage(content=msg["content"]))
-        
-        # Add the current message
         messages.append(HumanMessage(content=message))
-        
-        # Stream the graph to handle interrupts
-        output = None
-        for event in self.graph.stream({"messages": messages}, config=config, stream_mode="values"):
-            output = event
-        
-        # Check if interrupted
+        return messages
+
+    def _check_for_interrupt(self, config: dict) -> Optional[dict]:
         state_snapshot = self.graph.get_state(config)
-        is_interrupted = False
-        interrupt_data = None
-        
         if state_snapshot.tasks:
             for task in state_snapshot.tasks:
                 if task.interrupts:
-                    is_interrupted = True
-                    interrupt_data = task.interrupts[0].value
-                    break
-        
-        # If interrupted, return interrupt info
-        if is_interrupted:
+                    return task.interrupts[0].value
+        return None
+
+    @staticmethod
+    def _extract_result(output: dict) -> dict:
+        return {
+            "interrupted": False,
+            "answer": output.get("answer", ""),
+            "scale": output.get("scale"),
+            "chord_choices": output.get("chord_choices", []),
+            "visualizations": output.get("visualizations", False),
+            "out_of_scope": output.get("out_of_scope", False),
+        }
+
+    @staticmethod
+    def _identify_node(event: dict) -> str:
+        """Identify which node produced this state update."""
+        for field, node in _NODE_FIELDS.items():
+            if event.get(field):
+                return node
+        return "processing"
+
+    # --- Public API: synchronous ---
+
+    def chat(
+        self,
+        message: str,
+        conversation_history: List[dict] = None,
+        thread_id: Optional[str] = "1",
+    ) -> dict:
+        config = {"configurable": {"thread_id": thread_id}}
+        messages = self._build_messages(conversation_history or [], message)
+
+        output = None
+        for event in self.graph.stream({"messages": messages}, config=config, stream_mode="values"):
+            output = event
+
+        interrupt_data = self._check_for_interrupt(config)
+        if interrupt_data:
             return {
                 "interrupted": True,
                 "interrupt_data": interrupt_data,
@@ -307,85 +322,81 @@ class GuitarTutorAgent:
                 "visualizations": False,
                 "out_of_scope": False,
             }
-        
-        # Convert messages to serializable format for debug output
-        debug_messages = []
-        for msg in output.get("messages", []):
-            debug_messages.append({
-                "type": type(msg).__name__,
-                "content": msg.content,
-            })
-        
-        return {
-            "interrupted": False,
-            "answer": output.get("answer", ""),
-            "scale": output.get("scale"),
-            "chord_choices": output.get("chord_choices", []),
-            "visualizations": output.get("visualizations", False),
-            "out_of_scope": output.get("out_of_scope", False),
-            "debug_state": {
-                "messages": debug_messages,
-                "question_for_llm": output.get("question_for_llm"),
-                "clarifying_question": output.get("clarifying_question"),
-                "answer": output.get("answer"),
-                "scale": output.get("scale"),
-                "chord_choices": output.get("chord_choices", []),
-                "visualizations": output.get("visualizations", False),
-                "out_of_scope": output.get("out_of_scope", False),
-            },
-        }
+
+        return self._extract_result(output)
 
     def resume_chat(
         self,
         human_response: str,
         thread_id: Optional[str] = "1",
     ) -> dict:
-        """Resume from an interrupt with human input."""
         config = {"configurable": {"thread_id": thread_id}}
-        
-        # Resume with the human response
+
         output = None
         for event in self.graph.stream(
             Command(resume={"response": human_response}),
             config=config,
-            stream_mode="values"
+            stream_mode="values",
         ):
             output = event
-        
-        # Convert messages to serializable format
-        debug_messages = []
-        for msg in output.get("messages", []):
-            debug_messages.append({
-                "type": type(msg).__name__,
-                "content": msg.content,
-            })
-        
-        return {
-            "interrupted": False,
-            "answer": output.get("answer", ""),
-            "scale": output.get("scale"),
-            "chord_choices": output.get("chord_choices", []),
-            "visualizations": output.get("visualizations", False),
-            "out_of_scope": output.get("out_of_scope", False),
-            "debug_state": {
-                "messages": debug_messages,
-                "question_for_llm": output.get("question_for_llm"),
-                "clarifying_question": output.get("clarifying_question"),
-            },
-        }
+
+        return self._extract_result(output)
 
     def check_interrupt(self, thread_id: str = "1") -> Optional[dict]:
-        """Check if there's an active interrupt for the given thread."""
         config = {"configurable": {"thread_id": thread_id}}
-        state_snapshot = self.graph.get_state(config)
-        
-        # Check if there are pending tasks with interrupts
-        if state_snapshot.tasks:
-            for task in state_snapshot.tasks:
-                if task.interrupts:
-                    return task.interrupts[0].value  # Return the interrupt data
-        
-        return None
+        return self._check_for_interrupt(config)
+
+    # --- Public API: streaming (SSE) ---
+
+    def _iter_stream(self, graph_input, config) -> Generator[dict, None, None]:
+        """Shared streaming logic: yields status, token, interrupt, and answer events."""
+        last_output = None
+
+        for mode, event in self.graph.stream(
+            graph_input, config=config, stream_mode=["messages", "values"]
+        ):
+            if mode == "messages":
+                chunk, metadata = event
+                node = metadata.get("langgraph_node", "")
+                # Only yield text tokens from the answer text call, not structured output calls
+                has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
+                if node == "generate_answer" and has_content:
+                    yield {"event": "token", "data": {"text": chunk.content}}
+            elif mode == "values":
+                node = self._identify_node(event)
+                logger.debug(f"Stream event from node: {node}")
+                yield {"event": "status", "data": {"node": node}}
+                last_output = event
+
+        interrupt_data = self._check_for_interrupt(config)
+        if interrupt_data:
+            yield {"event": "interrupt", "data": interrupt_data}
+            return
+
+        if last_output:
+            yield {"event": "answer", "data": self._extract_result(last_output)}
+
+    def stream_chat(
+        self,
+        message: str,
+        conversation_history: List[dict] = None,
+        thread_id: Optional[str] = "1",
+    ) -> Generator[dict, None, None]:
+        """Stream chat processing as SSE event dicts."""
+        config = {"configurable": {"thread_id": thread_id}}
+        messages = self._build_messages(conversation_history or [], message)
+        yield from self._iter_stream({"messages": messages}, config)
+
+    def stream_resume(
+        self,
+        human_response: str,
+        thread_id: Optional[str] = "1",
+    ) -> Generator[dict, None, None]:
+        """Stream resume processing as SSE event dicts."""
+        config = {"configurable": {"thread_id": thread_id}}
+        yield from self._iter_stream(
+            Command(resume={"response": human_response}), config
+        )
 
 
 # Singleton instance (lazy initialization)
@@ -394,7 +405,18 @@ _agent_instance: Optional[GuitarTutorAgent] = None
 
 def get_agent() -> GuitarTutorAgent:
     """Get or create the singleton agent instance."""
+    from app.config import get_settings
+
     global _agent_instance
     if _agent_instance is None:
-        _agent_instance = GuitarTutorAgent()
+        settings = get_settings()
+        logger.info(
+            f"Initializing agent: provider={settings.llm_provider}, "
+            f"model={settings.llm_model_name}, base_url={settings.llm_base_url}"
+        )
+        _agent_instance = GuitarTutorAgent(
+            model_name=settings.llm_model_name,
+            base_url=settings.llm_base_url,
+            api_key=settings.llm_api_key,
+        )
     return _agent_instance

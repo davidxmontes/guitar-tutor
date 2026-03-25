@@ -1,5 +1,8 @@
+"""
+Pydantic schemas for music theory endpoints (fretboard, tunings, scales, chords).
+"""
+
 from pydantic import BaseModel
-from typing import Optional, List
 
 
 class NotePosition(BaseModel):
@@ -73,8 +76,6 @@ class ScaleResponse(BaseModel):
     diatonic_chords: list[DiatonicChord]
 
 
-# Chord-related schemas
-
 class ChordQualityInfo(BaseModel):
     """Information about a chord quality."""
     id: str
@@ -113,58 +114,3 @@ class ChordResponse(BaseModel):
     display_name: str  # e.g., "Cmaj7", "Am"
     chord_notes: list[str]  # Notes in the chord
     caged_shapes: list[CagedShape]  # All 5 CAGED positions
-
-
-# Agent-related schemas
-
-class AgentMessage(BaseModel):
-    """A single message in a conversation."""
-    role: str  # "user" or "assistant"
-    content: str
-
-
-class AgentRequest(BaseModel):
-    """Request for /api/agent/chat endpoint."""
-    message: str
-    conversation_history: List[AgentMessage] = []
-    thread_id: Optional[str] = "default"  # For conversation tracking and interrupts
-
-
-class ChordApiRequest(BaseModel):
-    """Parsed chord API request info."""
-    root: str
-    quality: str
-    original_name: str
-    endpoint: str
-
-
-class ScaleApiRequest(BaseModel):
-    """Parsed scale API request info."""
-    root: str
-    mode: str
-    original_name: str
-    endpoint: str
-
-
-class ApiRequests(BaseModel):
-    """Container for parsed API requests from agent response."""
-    chords: List[ChordApiRequest] = []
-    scale: Optional[ScaleApiRequest] = None
-
-
-class ResumeRequest(BaseModel):
-    """Request for /api/agent/resume endpoint."""
-    response: str  # User's response to the clarifying question
-    thread_id: str = "default"
-
-
-class AgentResponse(BaseModel):
-    """Response for /api/agent/chat endpoint."""
-    answer: str
-    scale: Optional[str] = None
-    chord_choices: List[str] = []
-    visualizations: bool = False
-    out_of_scope: bool = False
-    interrupted: bool = False  # True if agent needs clarification from user
-    interrupt_data: Optional[dict] = None  # Contains clarifying_question and other interrupt info
-    api_requests: Optional[ApiRequests] = None  # Parsed API requests for frontend

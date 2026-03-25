@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { apiClient } from '../api/client';
-import type { 
+import { apiClient, nodeLabel } from '../api/client';
+import type {
   ScaleResponse, 
   ChordResponse, 
   DiatonicChord, 
@@ -90,10 +90,10 @@ interface ChordSlice {
 interface ChatSlice {
   messages: ChatMessage[];
   chatLoading: boolean;
+  streamingStatus: string | null;
   threadId: string;  // For tracking conversation with interrupts
   addMessage: (message: ChatMessage) => void;
   sendMessage: (message: string) => Promise<ChatMessage | null>;
-  resumeMessage: (response: string) => Promise<ChatMessage | null>;
   resetChat: () => void;
   setThreadId: (id: string) => void;
 }
@@ -265,6 +265,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   messages: [],
   chatLoading: false,
+  streamingStatus: null,
   threadId: 'default',
   
   addMessage: (message) => {
@@ -275,139 +276,118 @@ export const useAppStore = create<AppStore>((set, get) => ({
   
   sendMessage: async (message) => {
     const { messages, threadId } = get();
-    
+
     // Check if the last assistant message was interrupted (waiting for clarification)
     const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
     const isResumingFromInterrupt = lastAssistantMessage?.interrupted;
-    
-    // Add user message
+
+    // Add user message immediately
     const userMessage: ChatMessage = {
       id: generateMessageId(),
       role: 'user',
       content: message,
       timestamp: new Date(),
     };
-    
-    set((state) => ({ 
+    const streamingMsgId = generateMessageId();
+
+    set((state) => ({
       messages: [...state.messages, userMessage],
-      chatLoading: true 
+      chatLoading: true,
+      streamingStatus: null,
     }));
 
+    const onStatus = (node: string) => set({ streamingStatus: nodeLabel(node) });
+
+    const onToken = (text: string) => {
+      set((state) => {
+        const msgs = [...state.messages];
+        const lastMsg = msgs[msgs.length - 1];
+
+        if (lastMsg?.id === streamingMsgId) {
+          msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + text };
+        } else {
+          // First token — create the streaming message
+          msgs.push({
+            id: streamingMsgId,
+            role: 'assistant',
+            content: text,
+            timestamp: new Date(),
+          });
+        }
+
+        return { messages: msgs, chatLoading: false, streamingStatus: null };
+      });
+    };
+
     try {
-      // If resuming from interrupt, use resume endpoint, otherwise use regular chat
-      const response = isResumingFromInterrupt 
-        ? await apiClient.resumeChat(message, threadId)
-        : await apiClient.chat(message, messages, threadId);
-      
-      // Handle interrupted response (clarifying question)
+      const response = isResumingFromInterrupt
+        ? await apiClient.streamResume(message, threadId, onStatus, onToken)
+        : await apiClient.streamChat(message, messages, threadId, onStatus, onToken);
+
+      // Handle interrupted response (agent asking a clarifying question)
       if (response.interrupted) {
-        const assistantMessage: ChatMessage = {
-          id: generateMessageId(),
-          role: 'assistant',
-          content: response.interrupt_data?.clarifying_question || 'I need more information to help you.',
-          timestamp: new Date(),
-          interrupted: true,
-          interruptData: response.interrupt_data,
-        };
-        
-        set((state) => ({ 
-          messages: [...state.messages, assistantMessage],
-          chatLoading: false 
+        set((state) => ({
+          messages: [
+            ...state.messages.filter(m => m.id !== streamingMsgId),
+            {
+              id: generateMessageId(),
+              role: 'assistant' as const,
+              content: response.interrupt_data?.clarifying_question || 'I need more information to help you.',
+              timestamp: new Date(),
+              interrupted: true,
+              interruptData: response.interrupt_data,
+            },
+          ],
+          chatLoading: false,
+          streamingStatus: null,
         }));
-        
-        return assistantMessage;
+
+        return get().messages[get().messages.length - 1];
       }
-      
-      // Normal response
-      const assistantMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: response.answer,
-        timestamp: new Date(),
-        scale: response.scale,
-        chordChoices: response.chord_choices,
-        visualizations: response.visualizations,
-        outOfScope: response.out_of_scope,
-        apiRequests: response.api_requests,
-      };
-      
-      set((state) => ({ 
-        messages: [...state.messages, assistantMessage],
-        chatLoading: false 
-      }));
-      
-      return assistantMessage;
+
+      // Finalize the streaming message with metadata, or create if no tokens were streamed
+      set((state) => {
+        const msgs = [...state.messages];
+        const idx = msgs.findIndex(m => m.id === streamingMsgId);
+        const finalMessage: ChatMessage = {
+          id: streamingMsgId,
+          role: 'assistant',
+          content: response.answer,
+          timestamp: new Date(),
+          scale: response.scale,
+          chordChoices: response.chord_choices,
+          visualizations: response.visualizations,
+          outOfScope: response.out_of_scope,
+          apiRequests: response.api_requests,
+        };
+
+        if (idx >= 0) {
+          msgs[idx] = finalMessage;
+        } else {
+          msgs.push(finalMessage);
+        }
+
+        return { messages: msgs, chatLoading: false, streamingStatus: null };
+      });
+
+      return get().messages.find(m => m.id === streamingMsgId) ?? null;
     } catch (err) {
       console.error('Chat error:', err);
-      
-      const errorMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please make sure the backend is running.',
-        timestamp: new Date(),
-      };
-      
-      set((state) => ({ 
-        messages: [...state.messages, errorMessage],
-        chatLoading: false 
-      }));
-      
-      return null;
-    }
-  },
 
-  resumeMessage: async (response) => {
-    const { threadId } = get();
-    
-    // Add user's clarification response
-    const userMessage: ChatMessage = {
-      id: generateMessageId(),
-      role: 'user',
-      content: response,
-      timestamp: new Date(),
-    };
-    
-    set((state) => ({ 
-      messages: [...state.messages, userMessage],
-      chatLoading: true 
-    }));
+      set((state) => ({
+        messages: [
+          ...state.messages.filter(m => m.id !== streamingMsgId),
+          {
+            id: generateMessageId(),
+            role: 'assistant' as const,
+            content: 'Sorry, I encountered an error. Please make sure the backend is running.',
+            timestamp: new Date(),
+          },
+        ],
+        chatLoading: false,
+        streamingStatus: null,
+      }));
 
-    try {
-      const apiResponse = await apiClient.resumeChat(response, threadId);
-      
-      const assistantMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: apiResponse.answer,
-        timestamp: new Date(),
-        scale: apiResponse.scale,
-        chordChoices: apiResponse.chord_choices,
-        visualizations: apiResponse.visualizations,
-        outOfScope: apiResponse.out_of_scope,
-        apiRequests: apiResponse.api_requests,
-      };
-      
-      set((state) => ({ 
-        messages: [...state.messages, assistantMessage],
-        chatLoading: false 
-      }));
-      
-      return assistantMessage;
-    } catch (err) {
-      console.error('Resume chat error:', err);
-      
-      const errorMessage: ChatMessage = {
-        id: generateMessageId(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error while continuing our conversation.',
-        timestamp: new Date(),
-      };
-      
-      set((state) => ({ 
-        messages: [...state.messages, errorMessage],
-        chatLoading: false 
-      }));
-      
       return null;
     }
   },
@@ -456,6 +436,7 @@ export const useActiveChordShapes = () => useAppStore((state) => state.activeCho
 // Chat selectors
 export const useChatMessages = () => useAppStore((state) => state.messages);
 export const useChatLoading = () => useAppStore((state) => state.chatLoading);
+export const useStreamingStatus = () => useAppStore((state) => state.streamingStatus);
 
 // Chat panel selectors
 export const useChatPanelState = () => useAppStore((state) => ({

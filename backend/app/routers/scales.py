@@ -4,7 +4,7 @@ Scales API routes.
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models.schemas import (
+from app.models.music import (
     ScalesListResponse,
     ScaleResponse,
     ScaleNotePosition,

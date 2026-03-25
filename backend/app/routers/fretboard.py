@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 
-from app.models.schemas import FretboardResponse, NotePosition
+from app.models.music import FretboardResponse, NotePosition
 from app.music.notes import generate_fretboard
 from app.music.tunings import get_tuning_notes
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.models.schemas import TuningsResponse, TuningInfo
+from app.models.music import TuningsResponse, TuningInfo
 from app.music.tunings import get_all_tunings
 
 router = APIRouter()
