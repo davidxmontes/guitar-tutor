@@ -67,6 +67,7 @@ export interface ResumeRequest {
 // SSE wire-format event types (matches backend stream endpoints)
 export type SseEvent =
   | { event: 'status';    data: { node: string } }
+  | { event: 'token';     data: { text: string } }
   | { event: 'interrupt'; data: { clarifying_question?: string; action?: string } }
   | { event: 'answer';    data: AgentResponse }
   | { event: 'error';     data: { detail: string } }
