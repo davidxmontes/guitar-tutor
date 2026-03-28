@@ -58,18 +58,22 @@ Inputs available to you (replace in runtime): {previous_context} (list of recent
 
 Output requirements (JSON ONLY): produce exactly one of these three JSON shapes and nothing else. Use canonical chord/scale names when relevant. Keep output ≤ 20 words when possible.
 
-1) Clear music/guitar question. This is used as input to the following LLM node call. Do not use for clarifying_questions/additional input needed from user. Use clarifying_question for that.
+1) Clear music/guitar question — STRONGLY PREFERRED. Use your best judgment to fill in any gaps.
 {{"question_for_llm": "<≤ 20 words, concise guitar/music-theory question>", "out_of_scope": false}}
 
-2) Need clarification (ask one short question only). This is used for clarifying the question to prepare requesting additional user input.
+2) Need clarification — LAST RESORT ONLY. Use this ONLY when you truly cannot proceed (e.g., the question is so vague that any assumption would be misleading).
 {{"clarifying_question": "<one short clarifying question>", "out_of_scope": false}}
 
 3) Out of scope
 {{"out_of_scope": true}}
 
+Best judgment guidelines:
+- PREFER producing a question_for_llm over asking for clarification. Make reasonable assumptions and move forward.
+- If the user omits a key (e.g., "what scale should I use for blues?"), pick the most common one (e.g., A or E for blues) and note your assumption in the question, like: "What scale to use for blues in A? (assumed A — adjust if needed)"
+- If the user omits details like tuning, assume standard tuning. If they omit a genre, infer from context.
+- Only use clarifying_question when the request is genuinely too vague to make ANY reasonable assumption.
 - If the user's request is not music, guitar or music theory related, return the out_of_scope JSON above.
-- If ambiguous but fixable with one question (e.g., missing root), return a single clarifying_question.
-- If you provide a clarifying_question, do not provide an 'answer' as well.
+- If you provide a clarifying_question, do not provide a question_for_llm as well.
 - IMPORTANT: If you produce a clarifying question, it MUST be returned in the `clarifying_question` field and `question_for_llm` MUST be empty or null.
 - Prefer concise canonical names for chords/scales (e.g., "C major", "A minor pentatonic").
 - Do NOT include voicings, diagrams, notes, or additional metadata.
@@ -85,6 +89,7 @@ Hard constraints:
 Tone & pedagogy:
 - Be friendly, clear, and pedagogical. Explain WHY choices work.
 - Use short examples where helpful.
+- If the question contains an assumption note (e.g., "assumed A — adjust if needed"), briefly mention it at the end of your answer in a natural way, like: "I went with A here — feel free to ask about a different key!" Keep it short and conversational, not a disclaimer.
 
 Question: {user_question}
 """
@@ -145,8 +150,6 @@ class GuitarTutorAgent:
     # --- Graph nodes ---
 
     def _prepare_question(self, state: dict) -> dict:
-        structured_llm = self.llm.with_structured_output(PreppedQuestionSchema)
-
         messages = state.get("messages", [])
         recent_messages = messages[-4:] if len(messages) > 4 else messages
         previous_context = (
@@ -163,11 +166,8 @@ class GuitarTutorAgent:
             )
         )
 
-        result = structured_llm.invoke([system_message])
-
-        q = result if isinstance(result, dict) else (
-            result.model_dump() if hasattr(result, "model_dump") else result.dict()
-        )
+        q = self._invoke_structured(PreppedQuestionSchema, [system_message],
+                                    fallback={"question_for_llm": last_question_text, "out_of_scope": False})
 
         logger.info(f"Prepared question: {q}")
 
@@ -235,16 +235,13 @@ class GuitarTutorAgent:
         answer_text = response.content
 
         # Call 2: Extract metadata (structured output — quick, not streamed)
-        metadata_llm = self.llm.with_structured_output(AnswerMetadataSchema)
         metadata_system = SystemMessage(
             content=ANSWER_METADATA_INSTRUCTIONS.format(
                 user_question=question_text, answer=answer_text
             )
         )
-        result = metadata_llm.invoke([metadata_system])
-        meta = result if isinstance(result, dict) else (
-            result.model_dump() if hasattr(result, "model_dump") else result.dict()
-        )
+        meta = self._invoke_structured(AnswerMetadataSchema, [metadata_system],
+                                       fallback={"scale": None, "chord_choices": [], "visualizations": False})
 
         return {
             "messages": [AIMessage(content=answer_text)],
@@ -256,6 +253,21 @@ class GuitarTutorAgent:
         }
 
     # --- Shared helpers ---
+
+    def _invoke_structured(self, schema, messages: list, *, fallback: dict) -> dict:
+        """Invoke structured output with error handling and fallback."""
+        try:
+            structured_llm = self.llm.with_structured_output(schema)
+            result = structured_llm.invoke(messages)
+            if result is None:
+                logger.warning("Structured output returned None, using fallback")
+                return fallback
+            return result if isinstance(result, dict) else (
+                result.model_dump() if hasattr(result, "model_dump") else result.dict()
+            )
+        except Exception as e:
+            logger.error(f"Structured output failed ({schema.__name__}): {e}")
+            return fallback
 
     @staticmethod
     def _build_messages(conversation_history: List[dict], message: str) -> list:
@@ -351,6 +363,8 @@ class GuitarTutorAgent:
     def _iter_stream(self, graph_input, config) -> Generator[dict, None, None]:
         """Shared streaming logic: yields status, token, interrupt, and answer events."""
         last_output = None
+        in_answer_node = False
+        answer_tokens_started = False
 
         for mode, event in self.graph.stream(
             graph_input, config=config, stream_mode=["messages", "values"]
@@ -358,12 +372,22 @@ class GuitarTutorAgent:
             if mode == "messages":
                 chunk, metadata = event
                 node = metadata.get("langgraph_node", "")
-                # Only yield text tokens from the answer text call, not structured output calls
                 has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
-                if node == "generate_answer" and has_content:
-                    yield {"event": "token", "data": {"text": chunk.content}}
+                # Only yield tokens from the generate_answer node, and only after
+                # we've confirmed via the values stream that we're in that node.
+                # Skip JSON-like chunks from the structured metadata call.
+                if node == "generate_answer" and in_answer_node and has_content:
+                    text = chunk.content
+                    if not answer_tokens_started:
+                        stripped = text.strip()
+                        if stripped.startswith("{") or stripped.startswith("["):
+                            continue
+                        answer_tokens_started = True
+                    yield {"event": "token", "data": {"text": text}}
             elif mode == "values":
                 node = self._identify_node(event)
+                if node == "generate_answer":
+                    in_answer_node = True
                 logger.debug(f"Stream event from node: {node}")
                 yield {"event": "status", "data": {"node": node}}
                 last_output = event

@@ -17,6 +17,47 @@ function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+// Generate unique thread IDs
+function generateThreadId(): string {
+  return `thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// localStorage keys
+const STORAGE_KEY_THREAD = 'guitar-tutor-thread-id';
+const STORAGE_KEY_MESSAGES = 'guitar-tutor-messages';
+
+function loadThreadId(): string {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_THREAD);
+    if (stored) return stored;
+    const newId = generateThreadId();
+    localStorage.setItem(STORAGE_KEY_THREAD, newId);
+    return newId;
+  } catch {
+    return generateThreadId();
+  }
+}
+
+function loadMessages(): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return parsed
+      .filter((m: any) => m.content != null && m.content !== 'null')
+      .map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch {
+    return [];
+  }
+}
+
+function persistThread(threadId: string, messages: ChatMessage[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY_THREAD, threadId);
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
+  } catch { /* storage full or unavailable */ }
+}
+
 // ============================================================================
 // Theme Slice
 // ============================================================================
@@ -263,16 +304,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   // Chat Slice
   // --------------------------------------------------------------------------
-  messages: [],
+  messages: loadMessages(),
   chatLoading: false,
   streamingStatus: null,
-  threadId: 'default',
+  threadId: loadThreadId(),
   
   addMessage: (message) => {
-    set((state) => ({ messages: [...state.messages, message] }));
+    set((state) => {
+      const messages = [...state.messages, message];
+      persistThread(state.threadId, messages);
+      return { messages };
+    });
   },
 
-  setThreadId: (id) => set({ threadId: id }),
+  setThreadId: (id) => {
+    persistThread(id, get().messages);
+    set({ threadId: id });
+  },
   
   sendMessage: async (message) => {
     const { messages, threadId } = get();
@@ -290,11 +338,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
     const streamingMsgId = generateMessageId();
 
-    set((state) => ({
-      messages: [...state.messages, userMessage],
-      chatLoading: true,
-      streamingStatus: null,
-    }));
+    set((state) => {
+      const msgs = [...state.messages, userMessage];
+      persistThread(state.threadId, msgs);
+      return { messages: msgs, chatLoading: true, streamingStatus: null };
+    });
 
     const onStatus = (node: string) => set({ streamingStatus: nodeLabel(node) });
 
@@ -326,8 +374,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       // Handle interrupted response (agent asking a clarifying question)
       if (response.interrupted) {
-        set((state) => ({
-          messages: [
+        set((state) => {
+          const msgs = [
             ...state.messages.filter(m => m.id !== streamingMsgId),
             {
               id: generateMessageId(),
@@ -337,10 +385,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
               interrupted: true,
               interruptData: response.interrupt_data,
             },
-          ],
-          chatLoading: false,
-          streamingStatus: null,
-        }));
+          ];
+          persistThread(state.threadId, msgs);
+          return { messages: msgs, chatLoading: false, streamingStatus: null };
+        });
 
         return get().messages[get().messages.length - 1];
       }
@@ -352,7 +400,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const finalMessage: ChatMessage = {
           id: streamingMsgId,
           role: 'assistant',
-          content: response.answer,
+          content: response.answer || (idx >= 0 ? state.messages[idx].content : ''),
           timestamp: new Date(),
           scale: response.scale,
           chordChoices: response.chord_choices,
@@ -367,6 +415,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           msgs.push(finalMessage);
         }
 
+        persistThread(state.threadId, msgs);
         return { messages: msgs, chatLoading: false, streamingStatus: null };
       });
 
@@ -374,8 +423,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (err) {
       console.error('Chat error:', err);
 
-      set((state) => ({
-        messages: [
+      set((state) => {
+        const msgs = [
           ...state.messages.filter(m => m.id !== streamingMsgId),
           {
             id: generateMessageId(),
@@ -383,16 +432,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
             content: 'Sorry, I encountered an error. Please make sure the backend is running.',
             timestamp: new Date(),
           },
-        ],
-        chatLoading: false,
-        streamingStatus: null,
-      }));
+        ];
+        persistThread(state.threadId, msgs);
+        return { messages: msgs, chatLoading: false, streamingStatus: null };
+      });
 
       return null;
     }
   },
   
-  resetChat: () => set({ messages: [], threadId: `thread-${Date.now()}` }),
+  resetChat: () => {
+    const newThreadId = generateThreadId();
+    persistThread(newThreadId, []);
+    set({ messages: [], threadId: newThreadId });
+  },
 
   // --------------------------------------------------------------------------
   // Chat Panel Slice
