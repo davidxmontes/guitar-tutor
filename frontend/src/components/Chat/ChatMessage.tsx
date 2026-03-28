@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { ChatPill } from './ChatPill'
 import type { ChatMessage as ChatMessageType } from '../../types/chat';
 
@@ -39,7 +40,7 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         ) : (
           <div className="text-sm leading-relaxed chat-markdown">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         )}
 

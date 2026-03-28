@@ -255,6 +255,23 @@ input:focus-visible {
   margin: 0.25rem 0;
   color: var(--text-muted);
 }
+.chat-markdown table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.85em;
+  width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+.chat-markdown th, .chat-markdown td {
+  border: 1px solid var(--border-primary);
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+}
+.chat-markdown th {
+  font-weight: 600;
+  background-color: var(--border-primary);
+}
 
 /* CAGED color utilities - for use in dynamic styling */
 .caged-c { --caged-color: #f97316; }
