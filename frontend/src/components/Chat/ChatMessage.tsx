@@ -40,7 +40,7 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         ) : (
           <div className="text-sm leading-relaxed chat-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ''}</ReactMarkdown>
           </div>
         )}
 

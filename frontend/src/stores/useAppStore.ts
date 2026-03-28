@@ -43,7 +43,9 @@ function loadMessages(): ChatMessage[] {
     const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+    return parsed
+      .filter((m: any) => m.content != null && m.content !== 'null')
+      .map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
   } catch {
     return [];
   }
@@ -398,7 +400,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const finalMessage: ChatMessage = {
           id: streamingMsgId,
           role: 'assistant',
-          content: response.answer,
+          content: response.answer || (idx >= 0 ? state.messages[idx].content : ''),
           timestamp: new Date(),
           scale: response.scale,
           chordChoices: response.chord_choices,
