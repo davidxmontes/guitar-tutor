@@ -1,3 +1,4 @@
+import ReactMarkdown from 'react-markdown'
 import { ChatPill } from './ChatPill'
 import type { ChatMessage as ChatMessageType } from '../../types/chat';
 
@@ -34,7 +35,13 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
       <div className={bubbleClassName}>
         {/* Message content */}
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        {isUser ? (
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        ) : (
+          <div className="text-sm leading-relaxed chat-markdown">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        )}
 
         {/* Show chord choices as clickable pills (assistant only) */}
         {!isUser && !message.interrupted && message.chordChoices && message.chordChoices.length > 0 && (
