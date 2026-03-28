@@ -358,6 +358,8 @@ class GuitarTutorAgent:
     def _iter_stream(self, graph_input, config) -> Generator[dict, None, None]:
         """Shared streaming logic: yields status, token, interrupt, and answer events."""
         last_output = None
+        in_answer_node = False
+        answer_tokens_started = False
 
         for mode, event in self.graph.stream(
             graph_input, config=config, stream_mode=["messages", "values"]
@@ -365,12 +367,22 @@ class GuitarTutorAgent:
             if mode == "messages":
                 chunk, metadata = event
                 node = metadata.get("langgraph_node", "")
-                # Only yield text tokens from the answer text call, not structured output calls
                 has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
-                if node == "generate_answer" and has_content:
-                    yield {"event": "token", "data": {"text": chunk.content}}
+                # Only yield tokens from the generate_answer node, and only after
+                # we've confirmed via the values stream that we're in that node.
+                # Skip JSON-like chunks from the structured metadata call.
+                if node == "generate_answer" and in_answer_node and has_content:
+                    text = chunk.content
+                    if not answer_tokens_started:
+                        stripped = text.strip()
+                        if stripped.startswith("{") or stripped.startswith("["):
+                            continue
+                        answer_tokens_started = True
+                    yield {"event": "token", "data": {"text": text}}
             elif mode == "values":
                 node = self._identify_node(event)
+                if node == "generate_answer":
+                    in_answer_node = True
                 logger.debug(f"Stream event from node: {node}")
                 yield {"event": "status", "data": {"node": node}}
                 last_output = event
