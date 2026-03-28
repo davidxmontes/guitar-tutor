@@ -145,8 +145,6 @@ class GuitarTutorAgent:
     # --- Graph nodes ---
 
     def _prepare_question(self, state: dict) -> dict:
-        structured_llm = self.llm.with_structured_output(PreppedQuestionSchema)
-
         messages = state.get("messages", [])
         recent_messages = messages[-4:] if len(messages) > 4 else messages
         previous_context = (
@@ -163,11 +161,8 @@ class GuitarTutorAgent:
             )
         )
 
-        result = structured_llm.invoke([system_message])
-
-        q = result if isinstance(result, dict) else (
-            result.model_dump() if hasattr(result, "model_dump") else result.dict()
-        )
+        q = self._invoke_structured(PreppedQuestionSchema, [system_message],
+                                    fallback={"question_for_llm": last_question_text, "out_of_scope": False})
 
         logger.info(f"Prepared question: {q}")
 
@@ -235,16 +230,13 @@ class GuitarTutorAgent:
         answer_text = response.content
 
         # Call 2: Extract metadata (structured output — quick, not streamed)
-        metadata_llm = self.llm.with_structured_output(AnswerMetadataSchema)
         metadata_system = SystemMessage(
             content=ANSWER_METADATA_INSTRUCTIONS.format(
                 user_question=question_text, answer=answer_text
             )
         )
-        result = metadata_llm.invoke([metadata_system])
-        meta = result if isinstance(result, dict) else (
-            result.model_dump() if hasattr(result, "model_dump") else result.dict()
-        )
+        meta = self._invoke_structured(AnswerMetadataSchema, [metadata_system],
+                                       fallback={"scale": None, "chord_choices": [], "visualizations": False})
 
         return {
             "messages": [AIMessage(content=answer_text)],
@@ -256,6 +248,21 @@ class GuitarTutorAgent:
         }
 
     # --- Shared helpers ---
+
+    def _invoke_structured(self, schema, messages: list, *, fallback: dict) -> dict:
+        """Invoke structured output with error handling and fallback."""
+        try:
+            structured_llm = self.llm.with_structured_output(schema)
+            result = structured_llm.invoke(messages)
+            if result is None:
+                logger.warning("Structured output returned None, using fallback")
+                return fallback
+            return result if isinstance(result, dict) else (
+                result.model_dump() if hasattr(result, "model_dump") else result.dict()
+            )
+        except Exception as e:
+            logger.error(f"Structured output failed ({schema.__name__}): {e}")
+            return fallback
 
     @staticmethod
     def _build_messages(conversation_history: List[dict], message: str) -> list:
