@@ -2,6 +2,7 @@ import { ScaleSelector } from '../ScaleSelector/ScaleSelector';
 import { ChordSelector } from '../ChordSelector/ChordSelector';
 import { DiatonicChordsRow } from '../DiatonicChordsRow/DiatonicChordsRow';
 import { PlayTextButton } from '../PlayButton';
+import { SongControls } from '../SongControls';
 import { playChord, getChordDuration } from '../../utils/audio';
 import { useAppStore } from '../../stores';
 import type { DiatonicChord } from '../../types';
@@ -63,6 +64,10 @@ export function ControlBar({
           boxShadow: 'var(--shadow-md)',
         }}
       >
+        {appMode === 'song' ? (
+          <SongControls />
+        ) : (
+          <>
         <div className="flex flex-wrap items-center gap-3 md:gap-6">
           {/* Scale Mode Controls */}
           {appMode === 'scale' && (
@@ -162,6 +167,8 @@ export function ControlBar({
             </button>
           )}
         </div>
+          </>
+        )}
       </div>
     </section>
   );

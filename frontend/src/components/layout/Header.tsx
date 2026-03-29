@@ -17,11 +17,17 @@ export function Header() {
     fetchChord,
   } = useAppStore();
 
-  const showDisplayToggle = scaleData || chordData;
+  const showDisplayToggle = appMode !== 'song' && (scaleData || chordData);
 
   // Handle mode switch while preserving scale context for chord overlay rendering
-  const handleModeSwitch = useCallback(async (mode: 'scale' | 'chord') => {
+  const handleModeSwitch = useCallback(async (mode: 'scale' | 'chord' | 'song') => {
     setAppMode(mode);
+
+    if (mode === 'song') {
+      clearChord();
+      resetChord();
+      return;
+    }
 
     if (mode === 'chord') {
       clearChord();
@@ -70,7 +76,7 @@ export function Header() {
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 md:gap-4">
-          {/* Mode Toggle (Scale/Chord) */}
+          {/* Mode Toggle (Scale/Chord/Songs) */}
           <div
             className="flex rounded-lg p-0.5 md:p-1 border"
             style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}
@@ -102,6 +108,20 @@ export function Header() {
             >
               <span className="hidden sm:inline">Chord Mode</span>
               <span className="sm:hidden">Chord</span>
+            </button>
+            <button
+              onClick={() => handleModeSwitch('song')}
+              className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all touch-target ${
+                appMode === 'song' ? 'shadow-sm border font-bold' : ''
+              }`}
+              style={{
+                backgroundColor: appMode === 'song' ? 'var(--card-bg)' : 'transparent',
+                borderColor: appMode === 'song' ? 'var(--border-primary)' : 'transparent',
+                color: appMode === 'song' ? 'var(--accent-600)' : 'var(--text-tertiary)',
+              }}
+            >
+              <span className="hidden sm:inline">Songs</span>
+              <span className="sm:hidden">Song</span>
             </button>
           </div>
 
