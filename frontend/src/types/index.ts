@@ -107,7 +107,10 @@ export interface ChordQualitiesResponse {
 }
 
 // App modes
-export type AppMode = 'scales' | 'chords';
+export type AppMode = 'scale' | 'chord' | 'song';
 
 // Display mode for notes
 export type DisplayMode = 'notes' | 'intervals';
+
+// Song types
+export * from './song';

@@ -1,15 +1,21 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { apiClient, nodeLabel } from '../api/client';
 import type {
-  ScaleResponse, 
-  ChordResponse, 
-  DiatonicChord, 
-  DisplayMode 
+  ScaleResponse,
+  ChordResponse,
+  DiatonicChord,
+  DisplayMode,
+  SongSearchResult,
+  SongTracksResponse,
+  TabDataResponse,
+  ChordProResponse,
+  HighlightedNote,
 } from '../types';
 import type { ChatMessage } from '../types/chat';
 
 // App mode type
-export type AppMode = 'scale' | 'chord';
+export type AppMode = 'scale' | 'chord' | 'song';
 
 // Generate unique message IDs
 function generateMessageId(): string {
@@ -153,9 +159,51 @@ interface ChatPanelSlice {
 }
 
 // ============================================================================
+// Song Slice
+// ============================================================================
+interface SongSlice {
+  // Search
+  songSearchQuery: string;
+  songSearchResults: SongSearchResult[];
+  songSearchLoading: boolean;
+  songSearchError: string | null;
+
+  // Selected song & tracks
+  selectedSong: SongSearchResult | null;
+  songTracks: SongTracksResponse | null;
+  selectedTrackIndex: number;
+
+  // Tab data
+  tabData: TabDataResponse | null;
+  tabLoading: boolean;
+  tabError: string | null;
+
+  // ChordPro
+  chordProData: ChordProResponse | null;
+  chordProLoading: boolean;
+
+  // View mode within song mode
+  songViewMode: 'tab' | 'chords';
+
+  // Bridge: highlighted notes on fretboard
+  highlightedNotes: HighlightedNote[];
+
+  // Actions
+  searchSongs: (query: string) => Promise<void>;
+  selectSong: (song: SongSearchResult) => Promise<void>;
+  selectTrack: (index: number) => Promise<void>;
+  fetchChordPro: (songId: number) => Promise<void>;
+  setSongViewMode: (mode: 'tab' | 'chords') => void;
+  setHighlightedNotes: (notes: HighlightedNote[]) => void;
+  clearHighlightedNotes: () => void;
+  clearSongState: () => void;
+  backToSearch: () => void;
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice;
+type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice;
 
 // ============================================================================
 // Store Implementation
@@ -460,6 +508,131 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setChatWidth: (width) => set({ chatWidth: width }),
   toggleCollapsed: () => set((state) => ({ chatCollapsed: !state.chatCollapsed })),
   setMobileSheetOpen: (open) => set({ mobileSheetOpen: open }),
+
+  // --------------------------------------------------------------------------
+  // Song Slice
+  // --------------------------------------------------------------------------
+  songSearchQuery: '',
+  songSearchResults: [],
+  songSearchLoading: false,
+  songSearchError: null,
+
+  selectedSong: null,
+  songTracks: null,
+  selectedTrackIndex: 0,
+
+  tabData: null,
+  tabLoading: false,
+  tabError: null,
+
+  chordProData: null,
+  chordProLoading: false,
+
+  songViewMode: 'tab',
+  highlightedNotes: [],
+
+  searchSongs: async (query) => {
+    set({ songSearchLoading: true, songSearchError: null, songSearchQuery: query });
+    try {
+      const data = await apiClient.searchSongs(query);
+      set({ songSearchResults: data.results, songSearchLoading: false });
+    } catch (err) {
+      console.error('Failed to search songs:', err);
+      set({
+        songSearchError: err instanceof Error ? err.message : 'Failed to search songs',
+        songSearchLoading: false,
+      });
+    }
+  },
+
+  selectSong: async (song) => {
+    set({
+      selectedSong: song,
+      tabLoading: true,
+      tabError: null,
+      tabData: null,
+      chordProData: null,
+      selectedTrackIndex: 0,
+      songViewMode: 'tab',
+      highlightedNotes: [],
+    });
+    try {
+      const tracksData = await apiClient.getSongTracks(song.song_id);
+      set({ songTracks: tracksData });
+
+      // Find first non-vocal, non-empty track
+      const defaultTrack = tracksData.tracks.find(t => !t.is_vocal && !t.is_empty);
+      const trackIdx = defaultTrack ? defaultTrack.index : 0;
+
+      const tabData = await apiClient.getTabData(song.song_id, trackIdx);
+      set({ tabData, selectedTrackIndex: trackIdx, tabLoading: false });
+    } catch (err) {
+      console.error('Failed to load song:', err);
+      set({
+        tabError: err instanceof Error ? err.message : 'Failed to load song',
+        tabLoading: false,
+      });
+    }
+  },
+
+  selectTrack: async (index) => {
+    const { selectedSong } = get();
+    if (!selectedSong) return;
+    set({ selectedTrackIndex: index, tabLoading: true, tabError: null, highlightedNotes: [] });
+    try {
+      const tabData = await apiClient.getTabData(selectedSong.song_id, index);
+      set({ tabData, tabLoading: false });
+    } catch (err) {
+      console.error('Failed to load track:', err);
+      set({
+        tabError: err instanceof Error ? err.message : 'Failed to load track',
+        tabLoading: false,
+      });
+    }
+  },
+
+  fetchChordPro: async (songId) => {
+    set({ chordProLoading: true });
+    try {
+      const data = await apiClient.getChordPro(songId);
+      set({ chordProData: data, chordProLoading: false });
+    } catch {
+      set({ chordProData: null, chordProLoading: false });
+    }
+  },
+
+  setSongViewMode: (mode) => set({ songViewMode: mode }),
+  setHighlightedNotes: (notes) => set({ highlightedNotes: notes }),
+  clearHighlightedNotes: () => set({ highlightedNotes: [] }),
+
+  clearSongState: () => set({
+    songSearchQuery: '',
+    songSearchResults: [],
+    songSearchLoading: false,
+    songSearchError: null,
+    selectedSong: null,
+    songTracks: null,
+    selectedTrackIndex: 0,
+    tabData: null,
+    tabLoading: false,
+    tabError: null,
+    chordProData: null,
+    chordProLoading: false,
+    songViewMode: 'tab',
+    highlightedNotes: [],
+  }),
+
+  backToSearch: () => set({
+    selectedSong: null,
+    songTracks: null,
+    selectedTrackIndex: 0,
+    tabData: null,
+    tabLoading: false,
+    tabError: null,
+    chordProData: null,
+    chordProLoading: false,
+    highlightedNotes: [],
+  }),
 }));
 
 // ============================================================================
@@ -477,17 +650,23 @@ export const useShowScaleInChordMode = () => useAppStore((state) => state.showSc
 
 // Scale selectors
 export const useScaleData = () => useAppStore((state) => state.scaleData);
-export const useSelectedScale = () => useAppStore((state) => ({
-  root: state.selectedRoot,
-  mode: state.selectedMode,
-}));
+export const useSelectedScale = () =>
+  useAppStore(
+    useShallow((state) => ({
+      root: state.selectedRoot,
+      mode: state.selectedMode,
+    })),
+  );
 
 // Chord selectors
 export const useChordData = () => useAppStore((state) => state.chordData);
-export const useSelectedChord = () => useAppStore((state) => ({
-  root: state.selectedChordRoot,
-  quality: state.selectedChordQuality,
-}));
+export const useSelectedChord = () =>
+  useAppStore(
+    useShallow((state) => ({
+      root: state.selectedChordRoot,
+      quality: state.selectedChordQuality,
+    })),
+  );
 export const useActiveVoicings = () => useAppStore((state) => state.activeVoicings);
 
 // Chat selectors
@@ -496,8 +675,29 @@ export const useChatLoading = () => useAppStore((state) => state.chatLoading);
 export const useStreamingStatus = () => useAppStore((state) => state.streamingStatus);
 
 // Chat panel selectors
-export const useChatPanelState = () => useAppStore((state) => ({
-  width: state.chatWidth,
-  collapsed: state.chatCollapsed,
-  mobileOpen: state.mobileSheetOpen,
-}));
+export const useChatPanelState = () =>
+  useAppStore(
+    useShallow((state) => ({
+      width: state.chatWidth,
+      collapsed: state.chatCollapsed,
+      mobileOpen: state.mobileSheetOpen,
+    })),
+  );
+
+// Song selectors
+export const useSongSearch = () =>
+  useAppStore(
+    useShallow((state) => ({
+      query: state.songSearchQuery,
+      results: state.songSearchResults,
+      loading: state.songSearchLoading,
+      error: state.songSearchError,
+    })),
+  );
+export const useSelectedSong = () => useAppStore((state) => state.selectedSong);
+export const useSongTracks = () => useAppStore((state) => state.songTracks);
+export const useTabData = () => useAppStore((state) => state.tabData);
+export const useTabLoading = () => useAppStore((state) => state.tabLoading);
+export const useTabError = () => useAppStore((state) => state.tabError);
+export const useSongViewMode = () => useAppStore((state) => state.songViewMode);
+export const useHighlightedNotes = () => useAppStore((state) => state.highlightedNotes);

@@ -2,6 +2,9 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { Fretboard } from './components/Fretboard';
 import { ChordDiagramRow } from './components/ChordDiagram';
 import { ChordPopup } from './components/ChordPopup';
+import { SongSearch } from './components/SongSearch';
+import { TabViewer } from './components/TabViewer';
+import { ChordProView } from './components/ChordProView';
 import { Header, ChatSidebar, MobileChatSheet, ControlBar } from './components/layout';
 import { useFretboard } from './hooks';
 import { useAppStore } from './stores';
@@ -39,6 +42,14 @@ function App() {
     resetChord,
     setChordData,
     sendMessage,
+    selectedSong,
+    tabData,
+    tabLoading,
+    tabError,
+    chordProData,
+    chordProLoading,
+    songViewMode,
+    highlightedNotes,
   } = useAppStore();
 
   // ============================================================================
@@ -88,8 +99,8 @@ function App() {
   }, [appMode, scaleData]);
 
   // Determine which chord data to show on fretboard
-  const fretboardChordData = chordData;
-  const fretboardScalePositions = (appMode === 'scale' || showScaleInChordMode)
+  const fretboardChordData = appMode === 'song' ? null : chordData;
+  const fretboardScalePositions = (appMode === 'scale' || (appMode === 'chord' && showScaleInChordMode))
     ? (scaleData?.positions ?? [])
     : [];
 
@@ -248,8 +259,65 @@ function App() {
 
           {/* Scrollable Content */}
           <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 pb-20 md:pb-6" style={{ backgroundColor: 'var(--main-content-bg)' }}>
+            {/* Song mode content */}
+            {appMode === 'song' && !selectedSong && (
+              <SongSearch />
+            )}
+
+            {appMode === 'song' && selectedSong && (
+              <>
+                {songViewMode === 'tab' ? (
+                  <>
+                    {tabLoading && (
+                      <div className="flex items-center justify-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        Loading tab...
+                      </div>
+                    )}
+                    {!tabLoading && tabError && (
+                      <div
+                        className="rounded-lg p-4 border text-sm"
+                        style={{
+                          borderColor: '#b91c1c',
+                          backgroundColor: 'rgba(239,68,68,0.1)',
+                          color: '#b91c1c',
+                        }}
+                      >
+                        {tabError}
+                      </div>
+                    )}
+                    {!tabLoading && !tabError && tabData && (
+                      <TabViewer tabData={tabData.tab_data} />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {chordProLoading && (
+                      <div className="flex items-center justify-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        Loading chords...
+                      </div>
+                    )}
+                    {!chordProLoading && chordProData && (
+                      <ChordProView chordpro={chordProData.chordpro} />
+                    )}
+                    {!chordProLoading && !chordProData && (
+                      <div
+                        className="rounded-lg p-4 border text-sm"
+                        style={{
+                          borderColor: 'var(--border-primary)',
+                          backgroundColor: 'var(--card-bg)',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        No chord data available for this song.
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
             {/* Chord Diagrams */}
-            {fretboardChordData && (
+            {appMode !== 'song' && fretboardChordData && (
               <ChordDiagramRow
                 voicings={fretboardChordData.voicings}
                 activeVoicings={activeVoicings}
@@ -298,6 +366,7 @@ function App() {
                 onScaleNoteClick={handleScaleNoteClick}
                 clickableScaleNotes={clickableScaleNotes}
                 darkMode={darkMode}
+                highlightedNotes={appMode === 'song' ? highlightedNotes : []}
               />
             )}
 
