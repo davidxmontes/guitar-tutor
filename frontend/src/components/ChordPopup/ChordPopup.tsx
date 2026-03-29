@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { ChordResponse } from '../../types'
 import { ChordDiagram } from '../ChordDiagram/ChordDiagram'
 import { playChord, playArpeggio } from '../../utils/audio'
-import { CAGED_COLORS } from '../../constants/colors'
+import { getVoicingColor } from '../../constants/colors'
 
 interface ChordPopupProps {
   chordData: ChordResponse
@@ -13,7 +13,7 @@ interface ChordPopupProps {
 
 // Find the best matching shape index based on clicked fret
 function findBestShapeIndex(chordData: ChordResponse, clickedFret?: number): number {
-  if (clickedFret === undefined || chordData.caged_shapes.length === 0) {
+  if (clickedFret === undefined || chordData.voicings.length === 0) {
     return 0
   }
   
@@ -21,7 +21,7 @@ function findBestShapeIndex(chordData: ChordResponse, clickedFret?: number): num
   let bestIndex = 0
   let bestScore = Infinity
   
-  chordData.caged_shapes.forEach((shape, index) => {
+  chordData.voicings.forEach((shape, index) => {
     const { min_fret, max_fret } = shape
     
     // If clicked fret is within this shape's range, prioritize it
@@ -38,7 +38,7 @@ function findBestShapeIndex(chordData: ChordResponse, clickedFret?: number): num
   
   // If no shape contains the fret, find the closest one
   if (bestScore === Infinity) {
-    chordData.caged_shapes.forEach((shape, index) => {
+    chordData.voicings.forEach((shape, index) => {
       const { min_fret, max_fret } = shape
       const distToMin = Math.abs(clickedFret - min_fret)
       const distToMax = Math.abs(clickedFret - max_fret)
@@ -54,12 +54,12 @@ function findBestShapeIndex(chordData: ChordResponse, clickedFret?: number): num
 }
 
 export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordPopupProps) {
-  // Initialize with the best matching shape based on clicked fret
-  const [currentShapeIndex, setCurrentShapeIndex] = useState(() => 
+  // Initialize with the best matching voicing based on clicked fret
+  const [currentVoicingIndex, setCurrentVoicingIndex] = useState(() => 
     findBestShapeIndex(chordData, clickedFret)
   )
-  const shapes = chordData.caged_shapes
-  const currentShape = shapes[currentShapeIndex]
+  const voicings = chordData.voicings
+  const currentVoicing = voicings[currentVoicingIndex]
 
   // Handle escape key to close
   useEffect(() => {
@@ -67,15 +67,15 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
       if (e.key === 'Escape') {
         onClose()
       } else if (e.key === 'ArrowLeft') {
-        setCurrentShapeIndex(prev => (prev - 1 + shapes.length) % shapes.length)
+        setCurrentVoicingIndex(prev => (prev - 1 + voicings.length) % voicings.length)
       } else if (e.key === 'ArrowRight') {
-        setCurrentShapeIndex(prev => (prev + 1) % shapes.length)
+        setCurrentVoicingIndex(prev => (prev + 1) % voicings.length)
       }
     }
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, shapes.length])
+  }, [onClose, voicings.length])
 
   // Handle click outside to close
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
@@ -85,21 +85,21 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
   }, [onClose])
 
   const handlePlayChord = () => {
-    const positions = currentShape.positions.map(p => ({ string: p.string, fret: p.fret }))
+    const positions = currentVoicing.positions.map(p => ({ string: p.string, fret: p.fret }))
     playChord(positions)
   }
 
   const handlePlayArpeggio = () => {
-    const positions = currentShape.positions.map(p => ({ string: p.string, fret: p.fret }))
+    const positions = currentVoicing.positions.map(p => ({ string: p.string, fret: p.fret }))
     playArpeggio(positions, 0.15, 0.4, 'up')
   }
 
   const prevShape = () => {
-    setCurrentShapeIndex(prev => (prev - 1 + shapes.length) % shapes.length)
+    setCurrentVoicingIndex(prev => (prev - 1 + voicings.length) % voicings.length)
   }
 
   const nextShape = () => {
-    setCurrentShapeIndex(prev => (prev + 1) % shapes.length)
+    setCurrentVoicingIndex(prev => (prev + 1) % voicings.length)
   }
 
   // Calculate popup position (keep it in viewport)
@@ -152,17 +152,22 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
           </button>
           
           <div className="flex items-center gap-2">
+            {(() => {
+              const color = getVoicingColor(currentVoicing.label)
+              return (
             <span 
               className="text-sm font-medium px-2 py-1 rounded"
               style={{ 
-                backgroundColor: CAGED_COLORS[currentShape.shape].hex + '20',
-                color: CAGED_COLORS[currentShape.shape].hex,
+                backgroundColor: `${color.hex}20`,
+                color: color.hex,
               }}
             >
-              {currentShape.shape} Shape
+              {currentVoicing.label}
             </span>
+              )
+            })()}
             <span className="text-xs text-[var(--text-muted)]">
-              {currentShapeIndex + 1} / {shapes.length}
+              {currentVoicingIndex + 1} / {voicings.length}
             </span>
           </div>
           
@@ -179,7 +184,7 @@ export function ChordPopup({ chordData, position, clickedFret, onClose }: ChordP
         {/* Chord diagram */}
         <div className="flex justify-center mb-3">
           <ChordDiagram
-            shape={currentShape}
+            shape={currentVoicing}
             isActive={true}
           />
         </div>

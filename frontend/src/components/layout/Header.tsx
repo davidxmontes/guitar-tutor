@@ -12,31 +12,28 @@ export function Header() {
     toggleDarkMode,
     scaleData,
     chordData,
-    clearScale,
     clearChord,
-    resetScale,
     resetChord,
     fetchChord,
   } = useAppStore();
 
   const showDisplayToggle = scaleData || chordData;
 
-  // Handle mode switch with data clearing
+  // Handle mode switch while preserving scale context for chord overlay rendering
   const handleModeSwitch = useCallback(async (mode: 'scale' | 'chord') => {
     setAppMode(mode);
-    
-    // Clear all data when switching modes
-    clearScale();
-    clearChord();
-    resetScale();
-    resetChord();
 
     if (mode === 'chord') {
+      clearChord();
+      resetChord();
       // Auto-load C major chord when switching to chord mode
       await fetchChord('C', 'major');
+      return;
     }
-    // Scale mode - App.tsx useEffect will auto-fetch
-  }, [setAppMode, clearScale, clearChord, resetScale, resetChord, fetchChord]);
+    // Scale mode: remove chord overlay; App.tsx useEffect will fetch if needed
+    clearChord();
+    resetChord();
+  }, [setAppMode, clearChord, resetChord, fetchChord]);
 
   return (
     <header

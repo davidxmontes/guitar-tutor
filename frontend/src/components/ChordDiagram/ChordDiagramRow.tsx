@@ -1,57 +1,57 @@
-import type { CagedShape, CagedShapeName } from '../../types'
+import type { ChordVoicing } from '../../types'
 import { ChordDiagram } from './ChordDiagram'
 import { PlayButton } from '../PlayButton'
 import { playChord, playArpeggio, getChordDuration } from '../../utils/audio'
-import { CAGED_COLORS } from '../../constants/colors'
+import { getVoicingColor } from '../../constants/colors'
 
 interface ChordDiagramRowProps {
-  shapes: CagedShape[]
-  activeShapes: CagedShapeName[]
-  onToggleShape: (shape: CagedShapeName) => void
+  voicings: ChordVoicing[]
+  activeVoicings: string[]
+  onToggleVoicing: (label: string) => void
   isExpanded: boolean
   onToggleExpanded: () => void
 }
 
-export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpanded, onToggleExpanded }: ChordDiagramRowProps) {
-  const handlePlayChord = (shape: CagedShape, e: React.MouseEvent) => {
+export function ChordDiagramRow({ voicings, activeVoicings, onToggleVoicing, isExpanded, onToggleExpanded }: ChordDiagramRowProps) {
+  const handlePlayChord = (voicing: ChordVoicing, e: React.MouseEvent) => {
     e.stopPropagation()
-    const positions = shape.positions.map(p => ({ string: p.string, fret: p.fret }))
+    const positions = voicing.positions.map(p => ({ string: p.string, fret: p.fret }))
     playChord(positions)
   }
-  
-  const handlePlayArpeggio = (shape: CagedShape, e: React.MouseEvent) => {
+
+  const handlePlayArpeggio = (voicing: ChordVoicing, e: React.MouseEvent) => {
     e.stopPropagation()
-    const positions = shape.positions.map(p => ({ string: p.string, fret: p.fret }))
+    const positions = voicing.positions.map(p => ({ string: p.string, fret: p.fret }))
     playArpeggio(positions, 0.15, 0.4, 'up')
   }
 
   const handleShowAll = () => {
-    shapes.forEach(s => {
-      if (!activeShapes.includes(s.shape)) {
-        onToggleShape(s.shape)
+    voicings.forEach(v => {
+      if (!activeVoicings.includes(v.label)) {
+        onToggleVoicing(v.label)
       }
     })
   }
 
-  // Minimized view - compact bar with shape buttons
   if (!isExpanded) {
     return (
-      <div 
+      <div
         className="rounded-xl px-4 py-2 flex items-center justify-between"
         style={{ backgroundColor: 'var(--bg-tertiary)' }}
       >
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>CAGED Chord Shapes</span>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Chord Voicings</span>
           <div className="flex gap-1">
-            {shapes.map(shape => {
-              const isActive = activeShapes.includes(shape.shape)
+            {voicings.map(voicing => {
+              const isActive = activeVoicings.includes(voicing.label)
+              const color = getVoicingColor(voicing.label)
               return (
                 <button
-                  key={shape.shape}
-                  onClick={() => onToggleShape(shape.shape)}
-                  className={`w-7 h-7 rounded-md text-xs font-bold transition-all flex items-center justify-center ${
+                  key={voicing.label}
+                  onClick={() => onToggleVoicing(voicing.label)}
+                  className={`min-w-12 h-7 rounded-md text-xs font-bold transition-all px-2 flex items-center justify-center ${
                     isActive
-                      ? `${CAGED_COLORS[shape.shape].bg} text-white shadow-sm`
+                      ? `${color.bg} text-white shadow-sm`
                       : 'border'
                   }`}
                   style={!isActive ? {
@@ -60,7 +60,7 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                     color: 'var(--text-secondary)'
                   } : undefined}
                 >
-                  {shape.shape}
+                  {voicing.label}
                 </button>
               )
             })}
@@ -89,25 +89,25 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
     )
   }
 
-  // Expanded view - full diagrams
   return (
-    <div 
+    <div
       className="rounded-xl p-3"
       style={{ backgroundColor: 'var(--bg-tertiary)' }}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>CAGED Chord Shapes</span>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Chord Voicings</span>
           <div className="flex gap-1">
-            {shapes.map(shape => {
-              const isActive = activeShapes.includes(shape.shape)
+            {voicings.map(voicing => {
+              const isActive = activeVoicings.includes(voicing.label)
+              const color = getVoicingColor(voicing.label)
               return (
                 <button
-                  key={shape.shape}
-                  onClick={() => onToggleShape(shape.shape)}
-                  className={`w-7 h-7 rounded-md text-xs font-bold transition-all flex items-center justify-center ${
+                  key={voicing.label}
+                  onClick={() => onToggleVoicing(voicing.label)}
+                  className={`min-w-12 h-7 rounded-md text-xs font-bold transition-all px-2 flex items-center justify-center ${
                     isActive
-                      ? `${CAGED_COLORS[shape.shape].bg} text-white shadow-sm`
+                      ? `${color.bg} text-white shadow-sm`
                       : 'border'
                   }`}
                   style={!isActive ? {
@@ -116,7 +116,7 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
                     color: 'var(--text-secondary)'
                   } : undefined}
                 >
-                  {shape.shape}
+                  {voicing.label}
                 </button>
               )
             })}
@@ -140,33 +140,31 @@ export function ChordDiagramRow({ shapes, activeShapes, onToggleShape, isExpande
           Minimize
         </button>
       </div>
-      {/* Horizontally scrollable diagrams container */}
       <div className="overflow-x-auto -mx-3 px-3 pt-1">
         <div className="flex gap-4 md:gap-6 pb-2">
-          {shapes.map(shape => {
-            const isActive = activeShapes.includes(shape.shape)
-            const positions = shape.positions
+          {voicings.map(voicing => {
+            const isActive = activeVoicings.includes(voicing.label)
+            const positions = voicing.positions
             const chordDuration = getChordDuration(positions.length)
             const arpeggioDuration = positions.length * 0.15 + 0.4
-            
+
             return (
-              <div key={shape.shape} className="flex flex-col items-center gap-1 flex-shrink-0">
+              <div key={voicing.label} className="flex flex-col items-center gap-1 flex-shrink-0">
                 <ChordDiagram
-                  shape={shape}
+                  shape={voicing}
                   isActive={isActive}
-                  onClick={() => onToggleShape(shape.shape)}
+                  onClick={() => onToggleVoicing(voicing.label)}
                 />
-                {/* Play buttons */}
                 <div className="flex gap-1">
                   <PlayButton
-                    onClick={(e: React.MouseEvent) => handlePlayChord(shape, e)}
+                    onClick={(e: React.MouseEvent) => handlePlayChord(voicing, e)}
                     duration={chordDuration * 1000}
                     size="sm"
                     variant="ghost"
                     label="Strum"
                   />
                   <PlayButton
-                    onClick={(e: React.MouseEvent) => handlePlayArpeggio(shape, e)}
+                    onClick={(e: React.MouseEvent) => handlePlayArpeggio(voicing, e)}
                     duration={arpeggioDuration * 1000}
                     size="sm"
                     variant="ghost"

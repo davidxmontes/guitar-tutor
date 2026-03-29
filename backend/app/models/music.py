@@ -1,12 +1,11 @@
-"""
-Pydantic schemas for music theory endpoints (fretboard, tunings, scales, chords).
-"""
+"""Pydantic schemas for music theory endpoints (fretboard, tunings, scales, chords)."""
 
 from pydantic import BaseModel
 
 
 class NotePosition(BaseModel):
     """A single note position on the fretboard."""
+
     string: int  # 1-6 (1 = high E, 6 = low E)
     fret: int  # 0-22 (0 = open string)
     note: str  # Note name, e.g., "C", "F#", "Bb"
@@ -14,6 +13,7 @@ class NotePosition(BaseModel):
 
 class FretboardResponse(BaseModel):
     """Response for /api/fretboard endpoint."""
+
     tuning: str
     tuning_notes: list[str]  # e.g., ["E", "B", "G", "D", "A", "E"]
     strings: list[list[NotePosition]]  # 6 strings, each with 23 positions
@@ -22,6 +22,7 @@ class FretboardResponse(BaseModel):
 
 class TuningInfo(BaseModel):
     """Information about a guitar tuning."""
+
     id: str
     name: str
     notes: list[str]  # Open string notes from string 1 (high E) to string 6 (low E)
@@ -29,28 +30,33 @@ class TuningInfo(BaseModel):
 
 class TuningsResponse(BaseModel):
     """Response for /api/tunings endpoint."""
+
     tunings: list[TuningInfo]
 
 
 class ScaleInfo(BaseModel):
     """Basic scale information."""
+
     id: str
     name: str
 
 
 class ScaleCategory(BaseModel):
     """Category of scales."""
+
     category: str
     scales: list[ScaleInfo]
 
 
 class ScalesListResponse(BaseModel):
     """Response for /api/scales endpoint."""
+
     scales: list[ScaleCategory]
 
 
 class DiatonicChord(BaseModel):
     """A diatonic chord in a scale."""
+
     numeral: str  # e.g., "I", "ii", "IV"
     root: str  # Root note, e.g., "C"
     quality: str  # "major", "minor", "diminished"
@@ -59,6 +65,7 @@ class DiatonicChord(BaseModel):
 
 class ScaleNotePosition(BaseModel):
     """A note position with scale information."""
+
     string: int
     fret: int
     note: str
@@ -69,6 +76,7 @@ class ScaleNotePosition(BaseModel):
 
 class ScaleResponse(BaseModel):
     """Response for /api/scales/{root}/{mode} endpoint."""
+
     root: str
     mode: str
     scale_notes: list[str]
@@ -78,17 +86,20 @@ class ScaleResponse(BaseModel):
 
 class ChordQualityInfo(BaseModel):
     """Information about a chord quality."""
+
     id: str
     name: str
 
 
 class ChordQualitiesResponse(BaseModel):
     """Response for /api/chords/qualities endpoint."""
+
     qualities: list[ChordQualityInfo]
 
 
-class CagedShapePosition(BaseModel):
-    """A single position within a CAGED shape."""
+class ChordVoicingPosition(BaseModel):
+    """A single position within a chord voicing."""
+
     string: int
     fret: int
     note: str
@@ -96,21 +107,23 @@ class CagedShapePosition(BaseModel):
     is_root: bool
 
 
-class CagedShape(BaseModel):
-    """A single CAGED shape voicing."""
-    shape: str  # "C", "A", "G", "E", "D"
-    name: str  # e.g., "C Major (A shape)"
-    color: str  # CSS color for this shape
-    base_fret: int  # Starting fret position
+class ChordVoicing(BaseModel):
+    """A single chord voicing."""
+
+    label: str  # e.g. "Pos 1"
+    name: str
+    color: str
+    base_fret: int
     min_fret: int
     max_fret: int
-    positions: list[CagedShapePosition]
+    positions: list[ChordVoicingPosition]
 
 
 class ChordResponse(BaseModel):
     """Response for /api/chords/{root}/{quality} endpoint."""
+
     root: str
     quality: str
-    display_name: str  # e.g., "Cmaj7", "Am"
-    chord_notes: list[str]  # Notes in the chord
-    caged_shapes: list[CagedShape]  # All 5 CAGED positions
+    display_name: str
+    chord_notes: list[str]
+    voicings: list[ChordVoicing]

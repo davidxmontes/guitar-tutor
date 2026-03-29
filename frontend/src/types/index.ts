@@ -67,11 +67,8 @@ export interface ScaleResponse {
   diatonic_chords: DiatonicChord[];
 }
 
-// CAGED shape names
-export type CagedShapeName = 'C' | 'A' | 'G' | 'E' | 'D';
-
-// Position within a CAGED shape
-export interface CagedShapePosition {
+// Position within a chord voicing
+export interface ChordVoicingPosition {
   string: number;
   fret: number;
   note: string;
@@ -79,15 +76,15 @@ export interface CagedShapePosition {
   is_root: boolean;
 }
 
-// A single CAGED shape voicing
-export interface CagedShape {
-  shape: CagedShapeName;
+// A single chord voicing
+export interface ChordVoicing {
+  label: string;
   name: string;
   color: string;
   base_fret: number;
   min_fret: number;
   max_fret: number;
-  positions: CagedShapePosition[];
+  positions: ChordVoicingPosition[];
 }
 
 // Response from /api/chords/{root}/{quality}
@@ -96,7 +93,7 @@ export interface ChordResponse {
   quality: string;
   display_name: string;
   chord_notes: string[];
-  caged_shapes: CagedShape[];
+  voicings: ChordVoicing[];
 }
 
 // Chord quality info

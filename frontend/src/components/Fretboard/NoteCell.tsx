@@ -1,5 +1,4 @@
-import type { CagedShapeName } from '../../types';
-import { CAGED_COLORS } from '../../constants/colors';
+import { getVoicingColor } from '../../constants/colors';
 
 interface NoteCellProps {
   note: string;
@@ -10,75 +9,82 @@ interface NoteCellProps {
   isRoot?: boolean;
   degreeLabel?: string;
   displayMode?: 'notes' | 'intervals';
-  cagedShape?: CagedShapeName | null;
+  voicingLabel?: string | null;
   isChordRoot?: boolean;
+  hasChordOverlay?: boolean;
   onClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   isClickable?: boolean;
   darkMode?: boolean;
 }
 
-export function NoteCell({ 
-  note, 
+export function NoteCell({
+  note,
   string,
-  fret, 
+  fret,
   isOpenString,
   isInScale = false,
   isRoot = false,
   degreeLabel,
   displayMode = 'notes',
-  cagedShape,
+  voicingLabel,
   isChordRoot = false,
+  hasChordOverlay = false,
   onClick,
   isClickable = false,
   darkMode = false,
 }: NoteCellProps) {
-  // Determine styling based on context
+  const voicingColor = voicingLabel ? getVoicingColor(voicingLabel) : null;
+
   const getColorClasses = () => {
-    // Chord mode - CAGED shape coloring takes priority
-    if (cagedShape) {
+    if (voicingLabel) {
       if (isChordRoot) {
-        return darkMode 
+        return darkMode
           ? 'bg-gray-100 text-gray-900 ring-2'
           : 'bg-gray-900 text-white ring-2';
       }
-      return `${CAGED_COLORS[cagedShape].bg} text-white`;
+      return `${voicingColor?.bg ?? ''} text-white`;
     }
-    
-    // Scale mode
+
     if (isRoot) {
-      return darkMode 
+      return darkMode
         ? 'bg-gray-100 text-gray-900'
         : 'bg-gray-900 text-white';
     }
+
     if (isInScale) {
-      return 'text-white';  // Background applied via inline style
+      return 'text-white';
     }
-    return '';  // Will use inline styles for dimmed notes
+
+    return '';
   };
-  
-  // Get ring color for chord root
+
   const getRingStyle = (): React.CSSProperties => {
-    if (cagedShape && isChordRoot) {
+    if (voicingLabel && isChordRoot) {
       return { '--tw-ring-color': 'var(--accent-400)' } as React.CSSProperties;
     }
     return {};
   };
-  
-  // Get background for scale notes
+
   const getScaleNoteStyle = (): React.CSSProperties => {
-    if (isInScale && !isRoot && !cagedShape) {
-      return { backgroundColor: 'var(--accent-500)' };
+    if (isInScale && !isRoot && !voicingLabel) {
+      if (hasChordOverlay) {
+        return {
+          // Muted underlay: keep theme green, just reduce intensity when chord tones are present.
+          backgroundColor: 'var(--accent-500)',
+          opacity: 0.3,
+          color: 'white'
+        };
+      }
+      return {
+        backgroundColor: 'var(--accent-500)'
+      };
     }
     return {};
   };
 
-  // Determine what to display in the circle
   const displayText = displayMode === 'intervals' && degreeLabel ? degreeLabel : note;
-  
-  // Determine if this note should be dimmed
-  const isDimmed = !isInScale && !isRoot && !cagedShape;
-  
-  // Handle click
+  const isDimmed = !isInScale && !isRoot && !voicingLabel;
+
   const handleClick = (e: React.MouseEvent) => {
     if (onClick && isClickable) {
       onClick(e, note, string, fret);
@@ -86,25 +92,24 @@ export function NoteCell({
   };
 
   return (
-    <div 
+    <div
       className="relative flex items-center justify-center flex-shrink-0 w-11 h-[38px]"
       style={{
-        backgroundColor: isOpenString 
-          ? (darkMode ? 'rgba(71, 85, 105, 0.3)' : '#f9fafb') 
+        backgroundColor: isOpenString
+          ? (darkMode ? 'rgba(71, 85, 105, 0.3)' : '#f9fafb')
           : 'transparent'
       }}
     >
-      {/* Fret line - positioned at the right edge of the cell */}
-      <div 
+      <div
         className="absolute right-0 top-0 bottom-0"
         style={{
           width: isOpenString ? '6px' : '2px',
-          backgroundColor: isOpenString 
+          backgroundColor: isOpenString
             ? (darkMode ? '#475569' : '#d1d5db')
             : (darkMode ? '#334155' : '#e5e7eb')
         }}
       />
-      {/* Note circle */}
+
       <button
         onClick={handleClick}
         className={`
