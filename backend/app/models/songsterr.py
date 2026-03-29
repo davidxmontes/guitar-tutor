@@ -69,6 +69,7 @@ class TrackSummary(BaseModel):
     instrument: str
     is_vocal: bool = False
     is_empty: bool = False
+    tuning: list[int] | None = None
 
 
 class SongSearchResult(BaseModel):
