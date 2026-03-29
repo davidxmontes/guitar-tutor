@@ -57,3 +57,25 @@ def get_tuning_notes(tuning_id: str) -> list[str]:
     """Get the notes for a tuning."""
     tuning = TUNINGS.get(tuning_id, TUNINGS["standard"])
     return tuning["notes"]
+
+
+def notes_to_semitone_map(notes: list[str]) -> dict[int, int]:
+    """Convert a list of 6 note names (string 1→6) to {string_number: semitone_value}.
+
+    Example: ["E", "B", "G", "D", "A", "E"] → {1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4}
+    """
+    from app.music.chords import note_to_index
+
+    return {i + 1: note_to_index(note) for i, note in enumerate(notes)}
+
+
+def match_tuning_id(notes: list[str]) -> str | None:
+    """Check if a list of note names matches a known tuning. Returns the tuning ID or None."""
+    from app.music.chords import note_to_index
+
+    target = [note_to_index(n) for n in notes]
+    for tuning_id, tuning in TUNINGS.items():
+        candidate = [note_to_index(n) for n in tuning["notes"]]
+        if candidate == target:
+            return tuning_id
+    return None

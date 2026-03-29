@@ -1,6 +1,6 @@
 """Chords API routes."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.models.music import (
     ChordQualitiesResponse,
@@ -16,6 +16,7 @@ from app.music.chords import (
     get_chord_notes,
 )
 from app.music.chords_db import get_voicing_positions
+from app.music.tunings import get_tuning_notes, notes_to_semitone_map
 
 router = APIRouter()
 
@@ -48,13 +49,20 @@ async def get_chord_qualities():
 
 
 @router.get("/chords/{root}/{quality}", response_model=ChordResponse)
-async def get_chord(root: str, quality: str):
+async def get_chord(
+    root: str,
+    quality: str,
+    tuning: str = Query(default="standard", description="Tuning ID"),
+    tuning_notes: str | None = Query(default=None, description="Comma-separated custom tuning notes, string 1 to 6"),
+):
     """
     Get chord information with voicings from chords-db.
 
     Args:
         root: Root note (e.g., "C", "F#", "Bb")
         quality: Chord quality (e.g., "major", "minor", "dominant7")
+        tuning: Tuning ID (e.g., "standard", "drop_d")
+        tuning_notes: Comma-separated custom tuning notes (overrides tuning ID)
     """
     if root not in VALID_ROOTS:
         raise HTTPException(status_code=400, detail=f"Invalid root note: {root}")
@@ -62,8 +70,19 @@ async def get_chord(root: str, quality: str):
     if quality not in CHORD_INTERVALS:
         raise HTTPException(status_code=400, detail=f"Invalid chord quality: {quality}")
 
+    # Resolve tuning
+    if tuning_notes:
+        notes = [n.strip() for n in tuning_notes.split(",")]
+        if len(notes) != 6:
+            raise HTTPException(status_code=400, detail="tuning_notes must have exactly 6 notes")
+        tuning_map = notes_to_semitone_map(notes)
+    elif tuning != "standard":
+        tuning_map = notes_to_semitone_map(get_tuning_notes(tuning))
+    else:
+        tuning_map = None
+
     chord_notes = get_chord_notes(root, quality)
-    voicing_data = get_voicing_positions(root, quality)
+    voicing_data = get_voicing_positions(root, quality, tuning=tuning_map)
 
     if voicing_data is None:
         raise HTTPException(

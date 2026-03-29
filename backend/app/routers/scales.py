@@ -34,34 +34,43 @@ async def get_scale(
     root: str,
     mode: str,
     tuning: str = Query(default="standard", description="Guitar tuning to use"),
+    tuning_notes: str | None = Query(default=None, description="Comma-separated custom tuning notes, string 1 to 6"),
 ):
     """
     Get scale information and fretboard positions.
-    
+
     Args:
         root: Root note (e.g., "C", "F#", "Bb")
         mode: Scale mode (e.g., "major", "pentatonic_minor")
         tuning: Guitar tuning to use
+        tuning_notes: Comma-separated custom tuning notes (overrides tuning ID)
     """
     # Validate root note
     valid_roots = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"]
     if root not in valid_roots:
         raise HTTPException(status_code=400, detail=f"Invalid root note: {root}")
-    
+
     # Validate mode
     if mode not in SCALE_INTERVALS:
         raise HTTPException(status_code=400, detail=f"Invalid scale mode: {mode}")
-    
-    # Validate tuning
-    if tuning not in TUNINGS:
-        raise HTTPException(status_code=400, detail=f"Invalid tuning: {tuning}")
-    
+
+    # Resolve tuning
+    if tuning_notes:
+        notes = [n.strip() for n in tuning_notes.split(",")]
+        if len(notes) != 6:
+            raise HTTPException(status_code=400, detail="tuning_notes must have exactly 6 notes")
+        resolved_notes = notes
+    else:
+        # Validate tuning ID
+        if tuning not in TUNINGS:
+            raise HTTPException(status_code=400, detail=f"Invalid tuning: {tuning}")
+        resolved_notes = get_tuning_notes(tuning)
+
     # Get scale notes
     scale_notes = get_scale_notes(root, mode)
-    
-    # Get tuning notes and generate fretboard
-    tuning_notes = get_tuning_notes(tuning)
-    fretboard = generate_fretboard(tuning_notes)
+
+    # Generate fretboard with resolved tuning
+    fretboard = generate_fretboard(resolved_notes)
     
     # Find all positions on fretboard that are in the scale
     positions = []

@@ -52,9 +52,9 @@ def index_to_note(index: int) -> str:
     return CHROMATIC_NOTES[index % 12]
 
 
-def get_note_at_position(string: int, fret: int) -> str:
+def get_note_at_position(string: int, fret: int, tuning: dict[int, int] | None = None) -> str:
     """Get the note at a specific string/fret position."""
-    open_note = STANDARD_TUNING[string]
+    open_note = (tuning or STANDARD_TUNING)[string]
     return index_to_note(open_note + fret)
 
 
