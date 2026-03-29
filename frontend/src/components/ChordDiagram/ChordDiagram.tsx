@@ -1,9 +1,9 @@
 import React from 'react'
-import type { CagedShape } from '../../types'
-import { CAGED_COLORS } from '../../constants/colors'
+import type { ChordVoicing } from '../../types'
+import { getVoicingColor } from '../../constants/colors'
 
 interface ChordDiagramProps {
-  shape: CagedShape
+  shape: ChordVoicing
   isActive: boolean
   onClick?: () => void
 }
@@ -19,6 +19,9 @@ const DOT_RADIUS = 9
 const CARD_HEIGHT = 180
 
 export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
+  const voicingColor = getVoicingColor(shape.label)
+  const badgeText = getBadgeText(shape.label)
+
   // Calculate the fret range to display
   const frets = shape.positions.map(p => p.fret)
   const minFret = Math.min(...frets)
@@ -76,7 +79,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
         }
       `}
       style={{
-        '--tw-ring-color': isActive ? CAGED_COLORS[shape.shape].hex : 'transparent',
+        '--tw-ring-color': isActive ? voicingColor.hex : 'transparent',
         '--tw-ring-offset-color': 'var(--card-bg)',
         height: CARD_HEIGHT,
       } as React.CSSProperties}
@@ -84,33 +87,34 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
     >
       {/* Header with shape name and badge */}
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-xs font-bold text-[var(--text-primary)]">{shape.shape}-Shape</h3>
-        <span className={`w-5 h-5 rounded-full ${CAGED_COLORS[shape.shape].bg} text-white text-[10px] font-bold flex items-center justify-center`}>
-          {shape.shape}
+        <h3 className="text-xs font-bold text-[var(--text-primary)]">{shape.label}</h3>
+        <span
+          className={`w-7 h-7 rounded-full ${voicingColor.bg} text-white text-[12px] font-bold flex items-center justify-center leading-none`}
+          title={shape.label}
+        >
+          {badgeText}
         </span>
       </div>
       
       {/* Chord diagram */}
       <div className="pl-5">
-        <div>
+        <div className="relative pt-4" style={{ width: DIAGRAM_WIDTH + 20 }}>
           {/* Top markers (X for muted, O for open) */}
-          <div className="flex mb-1 h-5">
-            {[6, 5, 4, 3, 2, 1].map(stringNum => (
-              <div 
-                key={stringNum} 
-                className="flex items-center justify-center text-[11px] font-bold text-[var(--text-secondary)]"
-                style={{ width: STRING_SPACING }}
-              >
-                {mutedStrings.has(stringNum) ? 'X' : openStrings.has(stringNum) ? 'O' : ''}
-              </div>
-            ))}
-          </div>
-        
-        <svg 
-          width={DIAGRAM_WIDTH + 20} 
-          height={diagramHeight}
-          className="overflow-visible"
-        >
+          {[6, 5, 4, 3, 2, 1].map((stringNum) => (
+            <span
+              key={stringNum}
+              className="absolute top-0 -translate-x-1/2 text-[11px] font-bold text-[var(--text-secondary)] leading-none pointer-events-none"
+              style={{ left: getStringX(stringNum) }}
+            >
+              {mutedStrings.has(stringNum) ? 'X' : openStrings.has(stringNum) ? 'O' : ''}
+            </span>
+          ))}
+
+          <svg 
+            width={DIAGRAM_WIDTH + 20} 
+            height={diagramHeight}
+            className="overflow-visible"
+          >
           {/* Fret number indicator */}
           <text
             x="-12"
@@ -205,7 +209,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
               width={getStringX(barreInfo.minString) - getStringX(barreInfo.maxString) + DOT_RADIUS * 2}
               height={12}
               rx={6}
-              fill={CAGED_COLORS[shape.shape].hex}
+              fill={voicingColor.hex}
               opacity={0.4}
             />
           )}
@@ -227,7 +231,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
                     cx={x}
                     cy={y}
                     r={DOT_RADIUS}
-                    fill={CAGED_COLORS[shape.shape].hex}
+                    fill={voicingColor.hex}
                     className="drop-shadow-sm"
                   />
                   <text
@@ -244,7 +248,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
               )
             })
           }
-        </svg>
+          </svg>
         </div>
       </div>
       
@@ -255,7 +259,7 @@ export function ChordDiagram({ shape, isActive, onClick }: ChordDiagramProps) {
 }
 
 // Detect if there's a barre chord
-function detectBarre(shape: CagedShape, startFret: number): { fret: number; minString: number; maxString: number } | null {
+function detectBarre(shape: ChordVoicing, startFret: number): { fret: number; minString: number; maxString: number } | null {
   // Group positions by fret
   const fretGroups = new Map<number, typeof shape.positions>()
   shape.positions.forEach(pos => {
@@ -283,7 +287,7 @@ function detectBarre(shape: CagedShape, startFret: number): { fret: number; minS
 }
 
 // Get fret range label - show separate windows if positions span multiple octaves
-function getFretLabel(shape: CagedShape, barreInfo: { fret: number; minString: number; maxString: number } | null): string {
+function getFretLabel(shape: ChordVoicing, barreInfo: { fret: number; minString: number; maxString: number } | null): string {
   const frets = shape.positions.map(p => p.fret).sort((a, b) => a - b)
   const uniqueFrets = [...new Set(frets)]
   
@@ -310,4 +314,10 @@ function getFretLabel(shape: CagedShape, barreInfo: { fret: number; minString: n
   const label = windowLabels.join(', ')
   
   return barreInfo ? `${label} (Barre)` : label
+}
+
+function getBadgeText(label: string): string {
+  const match = label.match(/(\d+)/)
+  if (match) return match[1]
+  return label.slice(0, 2).toUpperCase()
 }
