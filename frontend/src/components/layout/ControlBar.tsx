@@ -1,5 +1,6 @@
 import { ScaleSelector } from '../ScaleSelector/ScaleSelector';
 import { ChordSelector } from '../ChordSelector/ChordSelector';
+import { TuningSelector } from '../TuningSelector';
 import { DiatonicChordsRow } from '../DiatonicChordsRow/DiatonicChordsRow';
 import { PlayTextButton } from '../PlayButton';
 import { SongControls } from '../SongControls';
@@ -35,6 +36,11 @@ export function ControlBar({
     activeVoicings,
     showScaleInChordMode,
     setShowScaleInChordMode,
+    // Tuning state
+    selectedTuning,
+    customTuningNotes,
+    availableTunings,
+    setSelectedTuning,
   } = useAppStore();
 
   const showClearButton = scaleData || chordData;
@@ -69,6 +75,22 @@ export function ControlBar({
         ) : (
           <>
         <div className="flex flex-wrap items-center gap-3 md:gap-6">
+          {/* Tuning Selector (scale & chord modes) */}
+          {availableTunings.length > 0 && (
+            <>
+              <TuningSelector
+                selectedTuning={selectedTuning}
+                tunings={availableTunings}
+                customTuningNotes={customTuningNotes}
+                onSelect={setSelectedTuning}
+              />
+              <div
+                className="hidden md:block h-10 w-px"
+                style={{ backgroundColor: 'var(--border-primary)' }}
+              />
+            </>
+          )}
+
           {/* Scale Mode Controls */}
           {appMode === 'scale' && (
             <>

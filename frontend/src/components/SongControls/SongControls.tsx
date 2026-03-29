@@ -8,6 +8,9 @@ export function SongControls() {
   const songViewMode = useAppStore((s) => s.songViewMode);
   const chordProData = useAppStore((s) => s.chordProData);
   const chordProLoading = useAppStore((s) => s.chordProLoading);
+  const selectedTuning = useAppStore((s) => s.selectedTuning);
+  const availableTunings = useAppStore((s) => s.availableTunings);
+  const customTuningNotes = useAppStore((s) => s.customTuningNotes);
 
   const selectTrack = useAppStore((s) => s.selectTrack);
   const setSongViewMode = useAppStore((s) => s.setSongViewMode);
@@ -21,7 +24,14 @@ export function SongControls() {
   const selectedTrack =
     tracks.find((track) => track.index === selectedTrackIndex) ??
     tracks[0];
-  const selectedTrackTuning = formatTuning(selectedTrack?.tuning);
+
+  // Show tuning name from matched tuning, or fall back to note letters
+  const matchedTuning = availableTunings.find((t) => t.id === selectedTuning);
+  const tuningDisplay = matchedTuning
+    ? `${matchedTuning.name} (${[...matchedTuning.notes].reverse().join(' ')})`
+    : customTuningNotes
+      ? `Custom (${[...customTuningNotes].reverse().join(' ')})`
+      : formatTuning(selectedTrack?.tuning);
 
   const handleViewModeChange = async (mode: 'tab' | 'chords') => {
     setSongViewMode(mode);
@@ -43,7 +53,7 @@ export function SongControls() {
         </div>
         <div className="text-[11px] md:text-xs" style={{ color: 'var(--text-muted)' }}>
           Song ID: {selectedSong.song_id}
-          {selectedTrackTuning ? ` • Tuning: ${selectedTrackTuning}` : ''}
+          {tuningDisplay ? ` • Tuning: ${tuningDisplay}` : ''}
         </div>
       </div>
 

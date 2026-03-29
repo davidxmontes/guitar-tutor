@@ -117,8 +117,10 @@ class ApiClient {
     throw new Error('Stream ended without an answer event');
   }
 
-  async getFretboard(tuning: string = 'standard'): Promise<FretboardResponse> {
-    return this.fetch<FretboardResponse>(`/fretboard?tuning=${tuning}`);
+  async getFretboard(tuning: string = 'standard', tuningNotes?: string): Promise<FretboardResponse> {
+    let url = `/fretboard?tuning=${tuning}`;
+    if (tuningNotes) url += `&tuning_notes=${encodeURIComponent(tuningNotes)}`;
+    return this.fetch<FretboardResponse>(url);
   }
 
   async getTunings(): Promise<TuningsResponse> {
@@ -129,16 +131,20 @@ class ApiClient {
     return this.fetch<ScalesListResponse>('/scales');
   }
 
-  async getScale(root: string, mode: string, tuning: string = 'standard'): Promise<ScaleResponse> {
-    return this.fetch<ScaleResponse>(`/scales/${encodeURIComponent(root)}/${encodeURIComponent(mode)}?tuning=${tuning}`);
+  async getScale(root: string, mode: string, tuning: string = 'standard', tuningNotes?: string): Promise<ScaleResponse> {
+    let url = `/scales/${encodeURIComponent(root)}/${encodeURIComponent(mode)}?tuning=${tuning}`;
+    if (tuningNotes) url += `&tuning_notes=${encodeURIComponent(tuningNotes)}`;
+    return this.fetch<ScaleResponse>(url);
   }
 
   async getChordQualities(): Promise<ChordQualitiesResponse> {
     return this.fetch<ChordQualitiesResponse>('/chords/qualities');
   }
 
-  async getChord(root: string, quality: string): Promise<ChordResponse> {
-    return this.fetch<ChordResponse>(`/chords/${encodeURIComponent(root)}/${encodeURIComponent(quality)}`);
+  async getChord(root: string, quality: string, tuning: string = 'standard', tuningNotes?: string): Promise<ChordResponse> {
+    let url = `/chords/${encodeURIComponent(root)}/${encodeURIComponent(quality)}?tuning=${tuning}`;
+    if (tuningNotes) url += `&tuning_notes=${encodeURIComponent(tuningNotes)}`;
+    return this.fetch<ChordResponse>(url);
   }
 
   async streamChat(

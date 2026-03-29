@@ -11,11 +11,13 @@ interface MeasureGroupProps {
   canStepPrev?: boolean;
   onStepPrev?: () => void;
   onBeatClick: (beat: TabBeat, beatId: string) => void;
+  tuningNotes?: string[];
 }
 
-const TAB_STRINGS = ['e|', 'B|', 'G|', 'D|', 'A|', 'E|'] as const;
+const DEFAULT_tabStrings = ['e|', 'B|', 'G|', 'D|', 'A|', 'E|'];
+const NUM_STRINGS = 6;
 const LINE_GAP_PX = 16;
-const STAFF_HEIGHT_PX = LINE_GAP_PX * (TAB_STRINGS.length - 1);
+const STAFF_HEIGHT_PX = LINE_GAP_PX * (NUM_STRINGS - 1);
 const MIN_MEASURE_WIDTH_PX = 180;
 const BEAT_SPACING_PX = 34;
 const TAB_FONT_FAMILY =
@@ -89,11 +91,11 @@ function formatNote(note?: TabNote): string {
   return text;
 }
 
-function mapNotesByString(notes: TabNote[]): Map<number, TabNote> {
+function mapNotesByString(notes: TabNote[], stringCount: number): Map<number, TabNote> {
   const byString = new Map<number, TabNote>();
   for (const note of notes) {
     if (typeof note.string !== 'number') continue;
-    if (note.string < 0 || note.string >= TAB_STRINGS.length) continue;
+    if (note.string < 0 || note.string >= stringCount) continue;
     if (!byString.has(note.string)) byString.set(note.string, note);
   }
   return byString;
@@ -109,7 +111,11 @@ export function MeasureGroup({
   canStepPrev = false,
   onStepPrev,
   onBeatClick,
+  tuningNotes,
 }: MeasureGroupProps) {
+  const tabStrings = tuningNotes
+    ? tuningNotes.map((n, i) => `${i === 0 ? n.toLowerCase() : n}|`)
+    : DEFAULT_tabStrings;
   const measureMinWidthPx = compact ? 150 : MIN_MEASURE_WIDTH_PX;
   const beatSpacingPx = compact ? 30 : BEAT_SPACING_PX;
   const noteFontSizePx = compact ? 12 : 13;
@@ -160,7 +166,7 @@ export function MeasureGroup({
             className="absolute top-6"
             style={{ left: leftSliceWidthPx + leftSliceGapPx, height: STAFF_HEIGHT_PX }}
           >
-            {TAB_STRINGS.map((label, stringIdx) => (
+            {tabStrings.map((label, stringIdx) => (
               <div
                 key={label}
                 className="absolute text-[11px] font-semibold font-mono leading-none -translate-y-1/2"
@@ -177,7 +183,7 @@ export function MeasureGroup({
 
           <div className="relative inline-flex" style={{ height: STAFF_HEIGHT_PX }}>
             <div className="absolute inset-0 pointer-events-none">
-              {TAB_STRINGS.map((_, stringIdx) => (
+              {tabStrings.map((_, stringIdx) => (
                 <div
                   key={stringIdx}
                   className="absolute left-0 right-0 h-px"
@@ -286,7 +292,7 @@ export function MeasureGroup({
                     beats.map((beat, beatIdx) => {
                       const beatId = `${measureIndex}:${beatIdx}`;
                       const xPercent = ((beatIdx + 0.5) / beatColumns) * 100;
-                      const notesByString = mapNotesByString(beat.notes ?? []);
+                      const notesByString = mapNotesByString(beat.notes ?? [], tabStrings.length);
                       const isSelected = beatId === selectedBeatId;
 
                       return (
@@ -306,7 +312,7 @@ export function MeasureGroup({
                             title="Click to highlight this beat on the fretboard"
                           />
 
-                          {TAB_STRINGS.map((_, stringIdx) => {
+                          {tabStrings.map((_, stringIdx) => {
                             const text = formatNote(notesByString.get(stringIdx));
                             if (!text) return null;
 

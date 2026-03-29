@@ -21,6 +21,37 @@ export function formatTuning(
   return ordered.map((midi) => midiToNoteName(midi, includeOctave)).join(' ');
 }
 
+/**
+ * Convert Songsterr MIDI tuning array to note names.
+ * Songsterr tuning is ordered high-to-low (string 1 to 6), same as app convention.
+ */
+export function midiTuningToNotes(midiTuning: number[]): string[] {
+  return midiTuning.map((midi) => midiToNoteName(midi));
+}
+
+/**
+ * Match a set of tuning notes against known tunings.
+ * Compares by note index to handle enharmonic equivalents (e.g. D# vs Eb).
+ */
+export function matchTuningId(
+  notes: string[],
+  tunings: Array<{ id: string; notes: string[] }>,
+): string | null {
+  const noteToIndex = (n: string) => {
+    const flat: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
+    const normalized = flat[n] ?? n;
+    return NOTE_NAMES.indexOf(normalized as typeof NOTE_NAMES[number]);
+  };
+  const target = notes.map(noteToIndex);
+  for (const t of tunings) {
+    const candidate = t.notes.map(noteToIndex);
+    if (candidate.length === target.length && candidate.every((v, i) => v === target[i])) {
+      return t.id;
+    }
+  }
+  return null;
+}
+
 export function pickPrimaryTuning(
   tunings: Array<number[] | null | undefined>,
   options: { includeOctave?: boolean; lowToHigh?: boolean } = {},

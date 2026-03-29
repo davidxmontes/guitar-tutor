@@ -11,8 +11,10 @@ import type {
   TabDataResponse,
   ChordProResponse,
   HighlightedNote,
+  TuningInfo,
 } from '../types';
 import type { ChatMessage } from '../types/chat';
+import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
 
 // App mode type
 export type AppMode = 'scale' | 'chord' | 'song';
@@ -201,9 +203,21 @@ interface SongSlice {
 }
 
 // ============================================================================
+// Tuning Slice
+// ============================================================================
+interface TuningSlice {
+  selectedTuning: string;
+  customTuningNotes: string[] | null;
+  availableTunings: TuningInfo[];
+  setSelectedTuning: (tuning: string) => void;
+  setCustomTuningNotes: (notes: string[] | null) => void;
+  fetchTunings: () => Promise<void>;
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice;
+type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice;
 
 // ============================================================================
 // Store Implementation
@@ -244,7 +258,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   diagramsExpanded: false,
   popupState: null,
   
-  setAppMode: (mode) => set({ appMode: mode }),
+  setAppMode: (mode) => {
+    const prev = get().appMode;
+    // Reset tuning to standard when leaving song mode
+    if (prev === 'song' && mode !== 'song') {
+      set({ appMode: mode, selectedTuning: 'standard', customTuningNotes: null });
+    } else {
+      set({ appMode: mode });
+    }
+  },
   setDisplayMode: (mode) => set({ displayMode: mode }),
   setShowScaleInChordMode: (show) => set({ showScaleInChordMode: show }),
   setDiagramsExpanded: (expanded) => set({ diagramsExpanded: expanded }),
@@ -268,13 +290,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   fetchScale: async (root, mode) => {
     set({ scaleLoading: true, scaleError: null, selectedRoot: root, selectedMode: mode });
     try {
-      const data = await apiClient.getScale(root, mode);
+      const { selectedTuning, customTuningNotes } = get();
+      const tuningNotes = customTuningNotes?.join(',');
+      const data = await apiClient.getScale(root, mode, selectedTuning, tuningNotes);
       set({ scaleData: data, selectedDiatonicChord: null, scaleLoading: false });
     } catch (err) {
       console.error('Failed to fetch scale:', err);
-      set({ 
+      set({
         scaleError: err instanceof Error ? err.message : 'Failed to load scale',
-        scaleLoading: false 
+        scaleLoading: false
       });
     }
   },
@@ -319,20 +343,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
   fetchChord: async (root, quality) => {
     set({ chordLoading: true, chordError: null });
     try {
-      const data = await apiClient.getChord(root, quality);
-      set({ 
-        chordData: data, 
+      const { selectedTuning, customTuningNotes } = get();
+      const tuningNotes = customTuningNotes?.join(',');
+      const data = await apiClient.getChord(root, quality, selectedTuning, tuningNotes);
+      set({
+        chordData: data,
         selectedChordRoot: root,
         selectedChordQuality: quality,
         activeVoicings: [],
-        chordLoading: false 
+        chordLoading: false
       });
       return data;
     } catch (err) {
       console.error('Failed to fetch chord:', err);
-      set({ 
+      set({
         chordError: err instanceof Error ? err.message : 'Failed to load chord',
-        chordLoading: false 
+        chordLoading: false
       });
       return null;
     }
@@ -510,6 +536,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setMobileSheetOpen: (open) => set({ mobileSheetOpen: open }),
 
   // --------------------------------------------------------------------------
+  // Tuning Slice
+  // --------------------------------------------------------------------------
+  selectedTuning: 'standard',
+  customTuningNotes: null,
+  availableTunings: [],
+
+  setSelectedTuning: (tuning) => set({ selectedTuning: tuning, customTuningNotes: null }),
+  setCustomTuningNotes: (notes) => set({ customTuningNotes: notes }),
+  fetchTunings: async () => {
+    try {
+      const data = await apiClient.getTunings();
+      set({ availableTunings: data.tunings });
+
+      // If currently in 'custom' tuning (e.g. song loaded before tunings arrived),
+      // retry matching against the now-loaded tunings
+      const { selectedTuning, customTuningNotes } = get();
+      if (selectedTuning === 'custom' && customTuningNotes) {
+        const matched = matchTuningId(customTuningNotes, data.tunings);
+        if (matched) {
+          set({ selectedTuning: matched, customTuningNotes: null });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch tunings:', err);
+    }
+  },
+
+  // --------------------------------------------------------------------------
   // Song Slice
   // --------------------------------------------------------------------------
   songSearchQuery: '',
@@ -563,6 +617,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
       // Find first non-vocal, non-empty track
       const defaultTrack = tracksData.tracks.find(t => !t.is_vocal && !t.is_empty);
       const trackIdx = defaultTrack ? defaultTrack.index : 0;
+      const selectedTrack = tracksData.tracks.find(t => t.index === trackIdx);
+
+      // Auto-detect tuning from track
+      if (selectedTrack?.tuning) {
+        const notes = midiTuningToNotes(selectedTrack.tuning);
+        const matched = matchTuningId(notes, get().availableTunings);
+        if (matched) {
+          set({ selectedTuning: matched, customTuningNotes: null });
+        } else {
+          set({ selectedTuning: 'custom', customTuningNotes: notes });
+        }
+      } else {
+        set({ selectedTuning: 'standard', customTuningNotes: null });
+      }
 
       const tabData = await apiClient.getTabData(song.song_id, trackIdx);
       set({ tabData, selectedTrackIndex: trackIdx, tabLoading: false });
@@ -576,9 +644,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   selectTrack: async (index) => {
-    const { selectedSong } = get();
+    const { selectedSong, songTracks, availableTunings } = get();
     if (!selectedSong) return;
     set({ selectedTrackIndex: index, tabLoading: true, tabError: null, highlightedNotes: [] });
+
+    // Auto-detect tuning from new track
+    const track = songTracks?.tracks.find(t => t.index === index);
+    if (track?.tuning) {
+      const notes = midiTuningToNotes(track.tuning);
+      const matched = matchTuningId(notes, availableTunings);
+      if (matched) {
+        set({ selectedTuning: matched, customTuningNotes: null });
+      } else {
+        set({ selectedTuning: 'custom', customTuningNotes: notes });
+      }
+    } else {
+      set({ selectedTuning: 'standard', customTuningNotes: null });
+    }
+
     try {
       const tabData = await apiClient.getTabData(selectedSong.song_id, index);
       set({ tabData, tabLoading: false });
@@ -701,3 +784,8 @@ export const useTabLoading = () => useAppStore((state) => state.tabLoading);
 export const useTabError = () => useAppStore((state) => state.tabError);
 export const useSongViewMode = () => useAppStore((state) => state.songViewMode);
 export const useHighlightedNotes = () => useAppStore((state) => state.highlightedNotes);
+
+// Tuning selectors
+export const useSelectedTuning = () => useAppStore((state) => state.selectedTuning);
+export const useAvailableTunings = () => useAppStore((state) => state.availableTunings);
+export const useCustomTuningNotes = () => useAppStore((state) => state.customTuningNotes);

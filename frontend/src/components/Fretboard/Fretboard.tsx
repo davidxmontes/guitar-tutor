@@ -3,8 +3,10 @@ import { FretboardHeader, FretMarkersRow } from './FretboardHeader';
 import { StringRow } from './StringRow';
 import { getVoicingColor } from '../../constants/colors';
 
-// String names from high to low (string 1 to string 6)
-const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+// Derive string labels from tuning notes: string 1 (high) is lowercase, rest uppercase
+function tuningToStringNames(tuningNotes: string[]): string[] {
+  return tuningNotes.map((note, i) => (i === 0 ? note.toLowerCase() : note));
+}
 
 interface FretboardProps {
   strings: NotePosition[][];
@@ -133,7 +135,7 @@ export function Fretboard({
               <StringRow
                 key={idx}
                 stringNumber={idx + 1}
-                stringName={STRING_NAMES[idx]}
+                stringName={tuningToStringNames(tuningNotes)[idx]}
                 notes={stringNotes}
                 scalePositions={scalePositions}
                 chordVoicings={chordVoicings}

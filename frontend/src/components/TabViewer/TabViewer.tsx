@@ -6,6 +6,7 @@ import { MeasureGroup } from './MeasureGroup';
 interface TabViewerProps {
   tabData: TabData;
   measuresPerRow?: number;
+  tuningNotes?: string[];
 }
 
 function chunkMeasures(tabMeasures: TabData['measures'], size: number): TabData['measures'][] {
@@ -70,7 +71,7 @@ function getBeatsPerMeasure(measure?: TabMeasure): number {
   return 4;
 }
 
-export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
+export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewerProps) {
   const setHighlightedNotes = useAppStore((s) => s.setHighlightedNotes);
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [playheadMeasureIndex, setPlayheadMeasureIndex] = useState(0);
@@ -99,6 +100,25 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
   const bpm = tabData.automations?.tempo?.[0]?.bpm;
   const effectiveBpm = typeof bpm === 'number' && bpm > 0 ? bpm : 120;
   const measureCount = tabData.measures?.length ?? 0;
+  const beatSequence = useMemo(() => {
+    const sequence: Array<{ measureIndex: number; beatIndex: number; beat: TabBeat }> = [];
+    for (let measureIndex = 0; measureIndex < measureCount; measureIndex += 1) {
+      const beats = getBeatsFromMeasure(tabData.measures[measureIndex]);
+      for (let beatIndex = 0; beatIndex < beats.length; beatIndex += 1) {
+        sequence.push({ measureIndex, beatIndex, beat: beats[beatIndex] });
+      }
+    }
+    return sequence;
+  }, [measureCount, tabData.measures]);
+  const selectedBeatSequenceIndex = useMemo(
+    () =>
+      selectedBeatId
+        ? beatSequence.findIndex(
+            ({ measureIndex, beatIndex }) => `${measureIndex}:${beatIndex}` === selectedBeatId,
+          )
+        : -1,
+    [beatSequence, selectedBeatId],
+  );
 
   const handleBeatClick = useCallback(
     (beat: TabBeat, beatId: string) => {
@@ -109,6 +129,73 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
       if (!Number.isNaN(measureIdx)) setPlayheadMeasureIndex(measureIdx);
     },
     [setHighlightedNotes],
+  );
+
+  const moveBeatSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (beatSequence.length === 0) return;
+      setIsPlaying(false);
+
+      let nextIndex = -1;
+      if (selectedBeatSequenceIndex >= 0) {
+        nextIndex = selectedBeatSequenceIndex + direction;
+      } else {
+        const firstAtOrAfterPlayhead = beatSequence.findIndex(
+          ({ measureIndex }) => measureIndex >= playheadMeasureIndex,
+        );
+        if (direction > 0) {
+          nextIndex = firstAtOrAfterPlayhead >= 0 ? firstAtOrAfterPlayhead : 0;
+        } else {
+          nextIndex = firstAtOrAfterPlayhead > 0 ? firstAtOrAfterPlayhead - 1 : beatSequence.length - 1;
+        }
+      }
+
+      if (nextIndex < 0 || nextIndex >= beatSequence.length) return;
+      const next = beatSequence[nextIndex];
+      const beatId = `${next.measureIndex}:${next.beatIndex}`;
+      setSelectedBeatId(beatId);
+      setPlayheadMeasureIndex(next.measureIndex);
+      setHighlightedNotes(toHighlightedNotes(next.beat));
+    },
+    [beatSequence, playheadMeasureIndex, selectedBeatSequenceIndex, setHighlightedNotes],
+  );
+
+  const moveMeasureSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (measureCount === 0) return;
+      setIsPlaying(false);
+
+      let sourceMeasureIndex = playheadMeasureIndex;
+      let sourceBeatIndex = 0;
+      if (selectedBeatId) {
+        const [measurePart, beatPart] = selectedBeatId.split(':');
+        const parsedMeasure = Number(measurePart);
+        const parsedBeat = Number(beatPart);
+        if (!Number.isNaN(parsedMeasure)) sourceMeasureIndex = parsedMeasure;
+        if (!Number.isNaN(parsedBeat)) sourceBeatIndex = parsedBeat;
+      }
+
+      const targetMeasureIndex = Math.max(
+        0,
+        Math.min(measureCount - 1, sourceMeasureIndex + direction),
+      );
+      if (targetMeasureIndex === sourceMeasureIndex) return;
+
+      const targetBeats = getBeatsFromMeasure(tabData.measures[targetMeasureIndex]);
+      setPlayheadMeasureIndex(targetMeasureIndex);
+
+      if (targetBeats.length === 0) {
+        setSelectedBeatId(null);
+        setHighlightedNotes([]);
+        return;
+      }
+
+      const targetBeatIndex = Math.min(sourceBeatIndex, targetBeats.length - 1);
+      const targetBeat = targetBeats[targetBeatIndex];
+      setSelectedBeatId(`${targetMeasureIndex}:${targetBeatIndex}`);
+      setHighlightedNotes(toHighlightedNotes(targetBeat));
+    },
+    [measureCount, playheadMeasureIndex, selectedBeatId, setHighlightedNotes, tabData.measures],
   );
 
   const stepToPrevMeasure = useCallback(() => {
@@ -177,6 +264,42 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
   }, [effectiveBpm, isPlaying, measureCount, playheadMeasureIndex, tabData.measures]);
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        if (
+          target.isContentEditable ||
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          tagName === 'SELECT'
+        ) {
+          return;
+        }
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        moveBeatSelection(-1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        moveBeatSelection(1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveMeasureSelection(-1);
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveMeasureSelection(1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [moveBeatSelection, moveMeasureSelection]);
+
+  useEffect(() => {
     if (!measureCount) return;
     const measureEl = document.querySelector(`[data-measure-index="${playheadMeasureIndex}"]`);
     if (measureEl instanceof HTMLElement) {
@@ -217,7 +340,7 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
             {tabData.name || 'Tab Viewer'}
           </h3>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Click any beat to highlight those notes on the fretboard.
+            Click any beat to highlight those notes on the fretboard. Use ←/→ for beats and ↑/↓ for measures.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -318,6 +441,7 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
                 canStepPrev={playheadMeasureIndex > 0}
                 onStepPrev={stepToPrevMeasure}
                 onBeatClick={handleBeatClick}
+                tuningNotes={tuningNotes}
               />
             </div>
           );

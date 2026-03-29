@@ -50,12 +50,16 @@ function App() {
     chordProLoading,
     songViewMode,
     highlightedNotes,
+    selectedTuning,
+    customTuningNotes,
+    fetchTunings,
   } = useAppStore();
 
   // ============================================================================
   // Fretboard data (still uses hook for API fetch with loading/error)
   // ============================================================================
-  const { fretboardData, loading, error } = useFretboard();
+  const tuningNotes = customTuningNotes?.join(',');
+  const { fretboardData, loading, error } = useFretboard(selectedTuning, tuningNotes);
 
   // ============================================================================
   // Apply dark mode class on mount and sync with localStorage
@@ -70,13 +74,29 @@ function App() {
   }, [darkMode]);
 
   // ============================================================================
-  // Auto-fetch scale when in scale mode
+  // Fetch available tunings on mount
+  // ============================================================================
+  useEffect(() => { fetchTunings(); }, [fetchTunings]);
+
+  // ============================================================================
+  // Auto-fetch scale when in scale mode (re-fetches on tuning change)
   // ============================================================================
   useEffect(() => {
     if (appMode === 'scale') {
       fetchScale(selectedRoot, selectedMode);
     }
-  }, [appMode, selectedRoot, selectedMode, fetchScale]);
+  }, [appMode, selectedRoot, selectedMode, selectedTuning, customTuningNotes, fetchScale]);
+
+  // ============================================================================
+  // Re-fetch chord when tuning changes
+  // ============================================================================
+  useEffect(() => {
+    const { selectedChordRoot, selectedChordQuality } = useAppStore.getState();
+    if (appMode === 'chord' && selectedChordRoot && selectedChordQuality) {
+      fetchChord(selectedChordRoot, selectedChordQuality);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTuning, customTuningNotes]);
 
   // ============================================================================
   // Computed Values
@@ -152,7 +172,8 @@ function App() {
 
     try {
       // Fetch chord data directly without updating the store
-      const data = await apiClient.getChord(diatonicChord.root, diatonicChord.quality);
+      const { selectedTuning: t, customTuningNotes: cn } = useAppStore.getState();
+      const data = await apiClient.getChord(diatonicChord.root, diatonicChord.quality, t, cn?.join(','));
       setPopupState({
         chordData: data,
         position: { x: e.clientX, y: e.clientY },
@@ -286,7 +307,7 @@ function App() {
                       </div>
                     )}
                     {!tabLoading && !tabError && tabData && (
-                      <TabViewer tabData={tabData.tab_data} />
+                      <TabViewer tabData={tabData.tab_data} tuningNotes={fretboardData?.tuning_notes} />
                     )}
                   </>
                 ) : (
