@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppStore, useSongSearch } from '../../stores/useAppStore';
 import type { SongSearchResult } from '../../types';
+import { pickPrimaryTuning } from '../../utils/tuning';
 
 export function SongSearch() {
   const [inputValue, setInputValue] = useState('');
@@ -112,6 +113,7 @@ function SongResultRow({
     .map((t) => t.instrument)
     .filter((v, i, a) => a.indexOf(v) === i)
     .slice(0, 4);
+  const tuningText = pickPrimaryTuning(song.tracks.map((t) => t.tuning));
 
   return (
     <button
@@ -129,6 +131,11 @@ function SongResultRow({
         <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
           {song.artist}
         </div>
+        {tuningText && (
+          <div className="text-[11px] truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+            Tuning: {tuningText}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">

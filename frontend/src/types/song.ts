@@ -6,6 +6,7 @@ export interface TrackSummary {
   instrument: string;
   is_vocal: boolean;
   is_empty: boolean;
+  tuning: number[] | null;
 }
 
 export interface SongSearchResult {

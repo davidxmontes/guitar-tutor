@@ -1,4 +1,5 @@
 import { useAppStore } from '../../stores/useAppStore';
+import { formatTuning } from '../../utils/tuning';
 
 export function SongControls() {
   const selectedSong = useAppStore((s) => s.selectedSong);
@@ -17,6 +18,10 @@ export function SongControls() {
 
   const tracks = songTracks?.tracks ?? selectedSong.tracks;
   const chordsAvailable = selectedSong.has_chords;
+  const selectedTrack =
+    tracks.find((track) => track.index === selectedTrackIndex) ??
+    tracks[0];
+  const selectedTrackTuning = formatTuning(selectedTrack?.tuning);
 
   const handleViewModeChange = async (mode: 'tab' | 'chords') => {
     setSongViewMode(mode);
@@ -38,6 +43,7 @@ export function SongControls() {
         </div>
         <div className="text-[11px] md:text-xs" style={{ color: 'var(--text-muted)' }}>
           Song ID: {selectedSong.song_id}
+          {selectedTrackTuning ? ` • Tuning: ${selectedTrackTuning}` : ''}
         </div>
       </div>
 
@@ -57,6 +63,7 @@ export function SongControls() {
               {track.name || track.instrument}
               {track.is_vocal ? ' (vocal)' : ''}
               {track.is_empty ? ' (empty)' : ''}
+              {track.tuning?.length ? ` • ${formatTuning(track.tuning)}` : ''}
             </option>
           ))}
         </select>
@@ -116,4 +123,3 @@ export function SongControls() {
     </div>
   );
 }
-
