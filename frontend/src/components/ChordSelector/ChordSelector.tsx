@@ -1,32 +1,92 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-const CHORD_QUALITIES = [
-  // Triads
-  { value: 'major', label: 'Major', suffix: '', category: 'Triads' },
-  { value: 'minor', label: 'Minor', suffix: 'm', category: 'Triads' },
-  { value: 'diminished', label: 'Dim', suffix: '°', category: 'Triads' },
-  { value: 'augmented', label: 'Aug', suffix: '+', category: 'Triads' },
-  // Suspended
-  { value: 'sus2', label: 'Sus2', suffix: 'sus2', category: 'Suspended' },
-  { value: 'sus4', label: 'Sus4', suffix: 'sus4', category: 'Suspended' },
-  // 7th chords
-  { value: 'dominant7', label: '7', suffix: '7', category: '7th' },
-  { value: 'major7', label: 'Maj7', suffix: 'maj7', category: '7th' },
-  { value: 'minor7', label: 'm7', suffix: 'm7', category: '7th' },
-  { value: 'dim7', label: 'Dim7', suffix: '°7', category: '7th' },
-  { value: 'm7b5', label: 'm7♭5', suffix: 'ø7', category: '7th' },
-  { value: '7sus4', label: '7sus4', suffix: '7sus4', category: '7th' },
-  // 6th chords
-  { value: '6', label: '6', suffix: '6', category: '6th' },
-  { value: 'm6', label: 'm6', suffix: 'm6', category: '6th' },
-  // Extended
-  { value: 'add9', label: 'Add9', suffix: 'add9', category: 'Extended' },
-  { value: '9', label: '9', suffix: '9', category: 'Extended' },
-  { value: 'm9', label: 'm9', suffix: 'm9', category: 'Extended' },
-  { value: 'maj9', label: 'Maj9', suffix: 'maj9', category: 'Extended' },
+type BaseQualityValue = 'major' | 'minor' | 'diminished' | 'augmented' | 'sus2' | 'sus4';
+type ExtensionValue = 'none' | '6' | '7' | 'dom7' | 'add9' | '9' | 'maj9' | 'm7b5';
+
+interface ExtensionOption {
+  value: ExtensionValue;
+  label: string;
+  quality: string;
+  suffix: string;
+}
+
+interface BaseQualityOption {
+  value: BaseQualityValue;
+  label: string;
+  extensions: ExtensionOption[];
+}
+
+const BASE_QUALITY_OPTIONS: BaseQualityOption[] = [
+  {
+    value: 'major',
+    label: 'Major',
+    extensions: [
+      { value: 'none', label: 'None', quality: 'major', suffix: '' },
+      { value: '6', label: '6', quality: '6', suffix: '6' },
+      { value: '7', label: '7 (Major 7th)', quality: 'major7', suffix: 'maj7' },
+      { value: 'dom7', label: 'b7 (Dominant)', quality: 'dominant7', suffix: '7' },
+      { value: 'add9', label: 'Add9', quality: 'add9', suffix: 'add9' },
+      { value: '9', label: '9', quality: '9', suffix: '9' },
+      { value: 'maj9', label: 'Maj9', quality: 'maj9', suffix: 'maj9' },
+    ],
+  },
+  {
+    value: 'minor',
+    label: 'Minor',
+    extensions: [
+      { value: 'none', label: 'None', quality: 'minor', suffix: 'm' },
+      { value: '6', label: '6', quality: 'm6', suffix: 'm6' },
+      { value: '7', label: '7', quality: 'minor7', suffix: 'm7' },
+      { value: 'add9', label: 'Add9', quality: 'madd9', suffix: 'm(add9)' },
+      { value: '9', label: '9', quality: 'm9', suffix: 'm9' },
+    ],
+  },
+  {
+    value: 'diminished',
+    label: 'Diminished',
+    extensions: [
+      { value: 'none', label: 'None', quality: 'diminished', suffix: '°' },
+      { value: '7', label: 'Dim7', quality: 'dim7', suffix: '°7' },
+      { value: 'm7b5', label: 'm7b5 (Half-dim)', quality: 'm7b5', suffix: 'ø7' },
+    ],
+  },
+  {
+    value: 'augmented',
+    label: 'Augmented',
+    extensions: [{ value: 'none', label: 'None', quality: 'augmented', suffix: '+' }],
+  },
+  {
+    value: 'sus2',
+    label: 'Sus2',
+    extensions: [{ value: 'none', label: 'None', quality: 'sus2', suffix: 'sus2' }],
+  },
+  {
+    value: 'sus4',
+    label: 'Sus4',
+    extensions: [
+      { value: 'none', label: 'None', quality: 'sus4', suffix: 'sus4' },
+      { value: '7', label: '7', quality: '7sus4', suffix: '7sus4' },
+    ],
+  },
 ];
+
+const DEFAULT_SELECTION = { base: 'major' as BaseQualityValue, extension: 'none' as ExtensionValue };
+
+function getSelectionForQuality(quality: string | null | undefined): { base: BaseQualityValue; extension: ExtensionValue } {
+  if (!quality) return DEFAULT_SELECTION;
+
+  for (const base of BASE_QUALITY_OPTIONS) {
+    for (const ext of base.extensions) {
+      if (ext.quality === quality) {
+        return { base: base.value, extension: ext.value };
+      }
+    }
+  }
+
+  return DEFAULT_SELECTION;
+}
 
 interface ChordSelectorProps {
   selectedRoot: string | null;
@@ -36,31 +96,56 @@ interface ChordSelectorProps {
 }
 
 export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMode = false }: ChordSelectorProps) {
-  const [root, setRoot] = useState<string>(selectedRoot || 'C');
-  const [quality, setQuality] = useState<string>(selectedQuality || 'major');
+  const initialSelection = getSelectionForQuality(selectedQuality);
 
-  // Update local state when props change
+  const [root, setRoot] = useState<string>(selectedRoot || 'C');
+  const [baseQuality, setBaseQuality] = useState<BaseQualityValue>(initialSelection.base);
+  const [extension, setExtension] = useState<ExtensionValue>(initialSelection.extension);
+
+  const extensionOptions = useMemo(
+    () => BASE_QUALITY_OPTIONS.find((b) => b.value === baseQuality)?.extensions ?? [],
+    [baseQuality]
+  );
+
+  const selectedExtensionOption = extensionOptions.find((opt) => opt.value === extension) ?? extensionOptions[0];
+  const selectedQualityValue = selectedExtensionOption?.quality ?? 'major';
+
   useEffect(() => {
     if (selectedRoot) setRoot(selectedRoot);
-    if (selectedQuality) setQuality(selectedQuality);
+    if (selectedQuality) {
+      const selection = getSelectionForQuality(selectedQuality);
+      setBaseQuality(selection.base);
+      setExtension(selection.extension);
+    }
   }, [selectedRoot, selectedQuality]);
 
   const handleRootChange = (newRoot: string) => {
     setRoot(newRoot);
-    onSelect(newRoot, quality);
+    onSelect(newRoot, selectedQualityValue);
   };
 
-  const handleQualityChange = (newQuality: string) => {
-    setQuality(newQuality);
-    onSelect(root, newQuality);
+  const handleBaseQualityChange = (newBase: BaseQualityValue) => {
+    const options = BASE_QUALITY_OPTIONS.find((b) => b.value === newBase)?.extensions ?? [];
+    const nextExtension = options.some((opt) => opt.value === extension)
+      ? extension
+      : options[0]?.value ?? 'none';
+
+    const nextQuality = options.find((opt) => opt.value === nextExtension)?.quality ?? 'major';
+
+    setBaseQuality(newBase);
+    setExtension(nextExtension);
+    onSelect(root, nextQuality);
   };
 
-  // Get display name for current chord
-  const qualityInfo = CHORD_QUALITIES.find(q => q.value === quality);
-  const chordName = `${root}${qualityInfo?.suffix || ''}`;
+  const handleExtensionChange = (newExtension: ExtensionValue) => {
+    const nextQuality = extensionOptions.find((opt) => opt.value === newExtension)?.quality;
+    if (!nextQuality) return;
 
-  // Group qualities by category
-  const categories = ['Triads', 'Suspended', '7th', '6th', 'Extended'];
+    setExtension(newExtension);
+    onSelect(root, nextQuality);
+  };
+
+  const chordName = `${root}${selectedExtensionOption?.suffix ?? ''}`;
 
   return (
     <div className="flex flex-wrap items-center gap-3 md:gap-6">
@@ -84,12 +169,12 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
         </select>
       </div>
 
-      {/* Quality selector with categories */}
+      {/* Base quality selector */}
       <div className="flex flex-col gap-1">
-        <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Type</label>
+        <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Quality</label>
         <select
-          value={quality}
-          onChange={(e) => handleQualityChange(e.target.value)}
+          value={baseQuality}
+          onChange={(e) => handleBaseQualityChange(e.target.value as BaseQualityValue)}
           className="px-3 md:px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer touch-target"
           style={{
             backgroundColor: 'var(--bg-input)',
@@ -98,26 +183,43 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
             '--tw-ring-color': 'var(--accent-500)'
           } as React.CSSProperties}
         >
-          {categories.map((category) => (
-            <optgroup key={category} label={category}>
-              {CHORD_QUALITIES.filter(q => q.category === category).map((q) => (
-                <option key={q.value} value={q.value}>{q.label}</option>
-              ))}
-            </optgroup>
+          {BASE_QUALITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Extension selector */}
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Extension</label>
+        <select
+          value={extension}
+          onChange={(e) => handleExtensionChange(e.target.value as ExtensionValue)}
+          disabled={extensionOptions.length <= 1}
+          className="px-3 md:px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: 'var(--bg-input)',
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-primary)',
+            '--tw-ring-color': 'var(--accent-500)'
+          } as React.CSSProperties}
+        >
+          {extensionOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
       </div>
 
       {/* Current chord display - hide on mobile */}
       <div className="hidden lg:block h-10 w-px" style={{ backgroundColor: 'var(--border-primary)' }}></div>
-      <div 
+      <div
         className="hidden lg:block px-4 py-2 rounded-lg border"
         style={{
           backgroundColor: darkMode ? 'var(--accent-900)' : 'var(--accent-50)',
           borderColor: darkMode ? 'var(--accent-700)' : 'var(--accent-200)'
         }}
       >
-        <span 
+        <span
           className="text-lg font-bold"
           style={{ color: darkMode ? 'var(--accent-300)' : 'var(--accent-700)' }}
         >
