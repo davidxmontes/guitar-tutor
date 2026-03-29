@@ -75,11 +75,27 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [playheadMeasureIndex, setPlayheadMeasureIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [focusFretboardMode, setFocusFretboardMode] = useState(true);
+  const focusWindowSize = Math.max(1, measuresPerRow);
 
-  const measureRows = useMemo(
-    () => chunkMeasures(tabData.measures ?? [], Math.max(1, measuresPerRow)),
-    [tabData.measures, measuresPerRow],
-  );
+  const measureRows = useMemo(() => {
+    const measures = tabData.measures ?? [];
+    if (!focusFretboardMode) {
+      return chunkMeasures(measures, Math.max(1, measuresPerRow)).map((rowMeasures, rowIndex) => ({
+        measures: rowMeasures,
+        startMeasureIndex: rowIndex * Math.max(1, measuresPerRow),
+      }));
+    }
+
+    const start = Math.max(0, playheadMeasureIndex);
+    const end = Math.min(measures.length, start + focusWindowSize);
+    return [
+      {
+        measures: measures.slice(start, end),
+        startMeasureIndex: start,
+      },
+    ];
+  }, [focusFretboardMode, measuresPerRow, playheadMeasureIndex, tabData.measures]);
   const bpm = tabData.automations?.tempo?.[0]?.bpm;
   const effectiveBpm = typeof bpm === 'number' && bpm > 0 ? bpm : 120;
   const measureCount = tabData.measures?.length ?? 0;
@@ -123,10 +139,13 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
     setPlayheadMeasureIndex(0);
     setSelectedBeatId(null);
     setIsPlaying(false);
+    setFocusFretboardMode(true);
   }, [tabData.measures]);
 
   useEffect(() => {
     if (!measureCount) return;
+    if (selectedBeatId) return;
+
     const currentMeasure = tabData.measures[playheadMeasureIndex];
     const beats = getBeatsFromMeasure(currentMeasure);
     const firstPlayableBeat = beats.find((beat) =>
@@ -135,7 +154,7 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
 
     if (firstPlayableBeat) {
       setHighlightedNotes(toHighlightedNotes(firstPlayableBeat));
-    } else if (!selectedBeatId) {
+    } else {
       setHighlightedNotes([]);
     }
   }, [playheadMeasureIndex, measureCount, selectedBeatId, setHighlightedNotes, tabData.measures]);
@@ -251,15 +270,28 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
               ▶
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setFocusFretboardMode((current) => !current)}
+            className="h-8 px-3 rounded-full text-xs font-semibold border"
+            style={{
+              borderColor: focusFretboardMode ? 'var(--accent-600)' : 'var(--border-primary)',
+              color: focusFretboardMode ? 'var(--accent-500)' : 'var(--text-secondary)',
+              backgroundColor: focusFretboardMode ? 'rgba(16,185,129,0.1)' : 'var(--card-bg)',
+            }}
+            title="Toggle compact measure strip and focus on fretboard"
+          >
+            {focusFretboardMode ? 'Fret Focus On' : 'Fret Focus Off'}
+          </button>
           <div className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
             M{Math.min(playheadMeasureIndex + 1, Math.max(1, measureCount))}
           </div>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className={focusFretboardMode ? 'space-y-3' : 'space-y-6'}>
         {measureRows.map((row, rowIndex) => {
-          const rowMarker = row.find((m) => m.marker?.text)?.marker?.text;
+          const rowMarker = row.measures.find((m) => m.marker?.text)?.marker?.text;
           return (
             <div key={rowIndex} className="space-y-2">
               {rowMarker && (
@@ -277,10 +309,14 @@ export function TabViewer({ tabData, measuresPerRow = 4 }: TabViewerProps) {
                 </div>
               )}
               <MeasureGroup
-                measures={row}
-                startMeasureIndex={rowIndex * Math.max(1, measuresPerRow)}
+                measures={row.measures}
+                startMeasureIndex={row.startMeasureIndex}
                 selectedBeatId={selectedBeatId}
                 activeMeasureIndex={playheadMeasureIndex}
+                compact={focusFretboardMode}
+                showLeftBackSlice={focusFretboardMode}
+                canStepPrev={playheadMeasureIndex > 0}
+                onStepPrev={stepToPrevMeasure}
                 onBeatClick={handleBeatClick}
               />
             </div>

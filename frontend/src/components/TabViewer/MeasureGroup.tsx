@@ -6,6 +6,10 @@ interface MeasureGroupProps {
   startMeasureIndex: number;
   selectedBeatId: string | null;
   activeMeasureIndex?: number;
+  compact?: boolean;
+  showLeftBackSlice?: boolean;
+  canStepPrev?: boolean;
+  onStepPrev?: () => void;
   onBeatClick: (beat: TabBeat, beatId: string) => void;
 }
 
@@ -100,20 +104,62 @@ export function MeasureGroup({
   startMeasureIndex,
   selectedBeatId,
   activeMeasureIndex,
+  compact = false,
+  showLeftBackSlice = false,
+  canStepPrev = false,
+  onStepPrev,
   onBeatClick,
 }: MeasureGroupProps) {
+  const measureMinWidthPx = compact ? 150 : MIN_MEASURE_WIDTH_PX;
+  const beatSpacingPx = compact ? 30 : BEAT_SPACING_PX;
+  const noteFontSizePx = compact ? 12 : 13;
+  const annotationFontSizePx = compact ? 9 : 10;
+  const leftSliceWidthPx = compact && showLeftBackSlice ? 24 : 0;
+  const leftSliceGapPx = compact && showLeftBackSlice ? 6 : 0;
+  const leftPaddingPx = 32 + leftSliceWidthPx + leftSliceGapPx;
+
   return (
     <div className="overflow-x-auto">
       <div
-        className="rounded-xl border px-3 py-4 md:px-5 md:py-5"
+        className={compact ? 'rounded-xl border px-2 py-3 md:px-3 md:py-4' : 'rounded-xl border px-3 py-4 md:px-5 md:py-5'}
         style={{
           borderColor: 'var(--border-primary)',
           backgroundColor: 'var(--card-bg)',
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div className="relative inline-block min-w-full pl-8 pr-2 pt-6 pb-7">
-          <div className="absolute left-0 top-6" style={{ height: STAFF_HEIGHT_PX }}>
+        <div
+          className="relative inline-block min-w-full pr-2 pt-6 pb-7"
+          style={{ paddingLeft: leftPaddingPx }}
+        >
+          {compact && showLeftBackSlice && (
+            <div
+              className="absolute left-0 rounded-md overflow-hidden border"
+              style={{
+                top: 6,
+                bottom: 7,
+                width: leftSliceWidthPx,
+                borderColor: 'var(--border-primary)',
+                backgroundColor: 'var(--bg-secondary)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={onStepPrev}
+                disabled={!canStepPrev}
+                className="h-full w-full text-[10px] font-semibold flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ color: 'var(--text-secondary)' }}
+                title="Go to previous measure"
+              >
+                ◀
+              </button>
+            </div>
+          )}
+
+          <div
+            className="absolute top-6"
+            style={{ left: leftSliceWidthPx + leftSliceGapPx, height: STAFF_HEIGHT_PX }}
+          >
             {TAB_STRINGS.map((label, stringIdx) => (
               <div
                 key={label}
@@ -148,7 +194,7 @@ export function MeasureGroup({
               const beats = getBeats(measure);
               const hasNotes = hasRenderableNotes(beats);
               const beatColumns = Math.max(beats.length, 1);
-              const measureWidth = Math.max(MIN_MEASURE_WIDTH_PX, beatColumns * BEAT_SPACING_PX);
+              const measureWidth = Math.max(measureMinWidthPx, beatColumns * beatSpacingPx);
               const beatHitWidth = Math.max(24, Math.min(52, measureWidth / beatColumns));
               const rawAnnotations = beats.map(formatBeatAnnotation);
               const compactAnnotations = rawAnnotations.map((annotation, idx) => {
@@ -191,8 +237,9 @@ export function MeasureGroup({
                   )}
 
                   <div
-                    className="absolute -top-5 left-3 text-[11px] font-semibold font-mono"
+                    className="absolute left-3 text-[11px] font-semibold font-mono"
                     style={{
+                      top: compact ? -24 : -26,
                       color: isHighlightedMeasure ? 'var(--accent-500)' : 'var(--text-muted)',
                       fontFamily: TAB_FONT_FAMILY,
                     }}
@@ -221,10 +268,11 @@ export function MeasureGroup({
                       {compactAnnotations.map((annotation, beatIdx) => (
                         <div
                           key={`annotation:${measureIndex}:${beatIdx}`}
-                          className="px-0.5 text-[10px] leading-none text-center truncate"
+                          className="px-0.5 leading-none text-center truncate"
                           style={{
                             width: `${100 / beatColumns}%`,
                             color: 'var(--text-secondary)',
+                            fontSize: annotationFontSizePx,
                           }}
                           title={annotation || undefined}
                         >
@@ -265,13 +313,14 @@ export function MeasureGroup({
                             return (
                               <div
                                 key={`${beatId}:${stringIdx}`}
-                                className="absolute z-20 -translate-x-1/2 -translate-y-1/2 px-1 text-[13px] font-semibold font-mono leading-none pointer-events-none"
+                                className="absolute z-20 -translate-x-1/2 -translate-y-1/2 px-1 font-semibold font-mono leading-none pointer-events-none"
                                 style={{
                                   left: `${xPercent}%`,
                                   top: stringIdx * LINE_GAP_PX,
                                   color: isSelected ? 'var(--accent-400)' : 'var(--text-primary)',
                                   backgroundColor: 'var(--card-bg)',
                                   fontFamily: TAB_FONT_FAMILY,
+                                  fontSize: noteFontSizePx,
                                 }}
                               >
                                 {text}
