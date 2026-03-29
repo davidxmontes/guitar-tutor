@@ -30,6 +30,7 @@ async def search_songs(q: str = Query(..., min_length=1, description="Search que
                 index=i,
                 name=t.name or t.instrument,
                 instrument=t.instrument,
+                tuning=t.tuning,
             )
             for i, t in enumerate(r.tracks)
         ]
@@ -63,6 +64,7 @@ async def get_song_tracks(song_id: int):
             instrument=t.instrument,
             is_vocal=t.is_vocal_track,
             is_empty=t.is_empty,
+            tuning=t.tuning,
         )
         for i, t in enumerate(revision.tracks)
     ]
