@@ -8,8 +8,8 @@ An interactive web app for learning guitar music theory. Pick a scale or chord, 
 
 - **Interactive fretboard** — 22 frets, all 6 strings, clickable notes. Toggle between note names and intervals.
 - **Scale explorer** — 14+ scales with diatonic chord generation. Select a scale and see every note highlighted across the neck.
-- **Chord visualizer** — 18+ chord qualities with full CAGED shape support. Each shape gets its own color so you can see how they connect across the fretboard.
-- **CAGED shape filtering** — Toggle individual shapes on/off, isolate one shape, or view them all overlapping with multi-color indicators.
+- **Chord visualizer** — 18+ chord qualities powered by a curated voicing database. Explore real guitar voicings across positions on the neck.
+- **Voicing filtering** — Toggle individual voicings on/off, isolate one position, or view all voicings together.
 - **AI tutor chat** — Ask questions about music theory and get answers that automatically update the fretboard. Suggestions come as clickable pills you can tap to load instantly.
 - **Mobile friendly** — Responsive layout with a slide-up chat panel on small screens.
 
@@ -69,7 +69,7 @@ The backend exposes a few endpoints — full docs available at `/docs` when the 
 
 - `GET /api/fretboard` — Full chromatic fretboard grid
 - `GET /api/scales/{root}/{mode}` — Scale positions + diatonic chords
-- `GET /api/chords/{root}/{quality}` — Chord positions with CAGED shapes
+- `GET /api/chords/{root}/{quality}` — Chord positions with database-backed voicings
 - `POST /api/agent/chat` — Send a message to the AI tutor
 
 ## Project structure
@@ -97,7 +97,7 @@ The backend exposes a few endpoints — full docs available at `/docs` when the 
 
 ## Design decisions
 
-- **Backend-driven theory** — All music theory calculations (scale formulas, chord voicings, CAGED positions) live on the backend. The frontend is a display layer.
+- **Backend-driven theory** — All music theory calculations (scale formulas, chord notes, voicing adaptation) live on the backend. The frontend is a display layer.
 - **CSS Grid fretboard** — The fretboard is built with Tailwind's CSS Grid, not SVG or canvas. Simpler to style and naturally responsive.
 - **LangGraph agent** — The AI tutor uses a two-node state graph so it can pause to ask clarifying questions before answering.
 - **Zustand over Redux** — Lightweight state management split into domain slices (scale, chord, chat, UI) without the boilerplate.
