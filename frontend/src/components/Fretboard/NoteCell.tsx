@@ -14,6 +14,7 @@ interface NoteCellProps {
   hasChordOverlay?: boolean;
   onClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   isClickable?: boolean;
+  isHighlighted?: boolean;
   darkMode?: boolean;
 }
 
@@ -31,11 +32,16 @@ export function NoteCell({
   hasChordOverlay = false,
   onClick,
   isClickable = false,
+  isHighlighted = false,
   darkMode = false,
 }: NoteCellProps) {
   const voicingColor = voicingLabel ? getVoicingColor(voicingLabel) : null;
 
   const getColorClasses = () => {
+    if (isHighlighted) {
+      return 'bg-amber-400 text-gray-900 ring-2 ring-amber-400 animate-pulse';
+    }
+
     if (voicingLabel) {
       if (isChordRoot) {
         return darkMode
@@ -59,6 +65,9 @@ export function NoteCell({
   };
 
   const getRingStyle = (): React.CSSProperties => {
+    if (isHighlighted) {
+      return {};
+    }
     if (voicingLabel && isChordRoot) {
       return { '--tw-ring-color': 'var(--accent-400)' } as React.CSSProperties;
     }
@@ -66,6 +75,8 @@ export function NoteCell({
   };
 
   const getScaleNoteStyle = (): React.CSSProperties => {
+    if (isHighlighted) return {};
+
     if (isInScale && !isRoot && !voicingLabel) {
       if (hasChordOverlay) {
         return {
@@ -83,7 +94,7 @@ export function NoteCell({
   };
 
   const displayText = displayMode === 'intervals' && degreeLabel ? degreeLabel : note;
-  const isDimmed = !isInScale && !isRoot && !voicingLabel;
+  const isDimmed = !isHighlighted && !isInScale && !isRoot && !voicingLabel;
 
   const handleClick = (e: React.MouseEvent) => {
     if (onClick && isClickable) {
@@ -128,7 +139,7 @@ export function NoteCell({
             color: darkMode ? '#94a3b8' : '#9ca3af'
           } : {})
         }}
-        title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isClickable ? ' (click for chord)' : ''}`}
+        title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isHighlighted ? ' (highlighted from tab beat)' : ''}${isClickable ? ' (click for chord)' : ''}`}
       >
         {displayText}
       </button>

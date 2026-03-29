@@ -1,4 +1,4 @@
-import type { NotePosition, ScaleNotePosition, ChordVoicing } from '../../types';
+import type { NotePosition, ScaleNotePosition, ChordVoicing, HighlightedNote } from '../../types';
 import { NoteCell } from './NoteCell';
 
 interface ChordPositionInfo {
@@ -27,6 +27,7 @@ interface StringRowProps {
   displayMode?: 'notes' | 'intervals';
   onNoteClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   clickableNotes?: Set<string>;
+  highlightedNotes?: HighlightedNote[];
   darkMode?: boolean;
   hasChordOverlay?: boolean;
 }
@@ -41,6 +42,7 @@ export function StringRow({
   displayMode = 'notes',
   onNoteClick,
   clickableNotes,
+  highlightedNotes = [],
   darkMode = false,
   hasChordOverlay = false,
 }: StringRowProps) {
@@ -66,6 +68,10 @@ export function StringRow({
         });
     });
 
+  const highlightedMap = new Set(
+    highlightedNotes.map((note) => `${note.string}:${note.fret}`),
+  );
+
   return (
     <div className="flex items-stretch">
       <div className="w-10 flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
@@ -87,6 +93,7 @@ export function StringRow({
           const scalePos = scaleMap.get(notePos.fret);
           const chordPos = chordMap.get(notePos.fret);
           const isClickable = clickableNotes?.has(notePos.note) && !!scalePos;
+          const isHighlighted = highlightedMap.has(`${stringNumber}:${notePos.fret}`);
 
           return (
             <NoteCell
@@ -104,6 +111,7 @@ export function StringRow({
               hasChordOverlay={hasChordOverlay}
               onClick={onNoteClick}
               isClickable={isClickable}
+              isHighlighted={isHighlighted}
               darkMode={darkMode}
             />
           );

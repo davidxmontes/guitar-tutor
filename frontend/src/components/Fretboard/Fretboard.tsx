@@ -1,4 +1,4 @@
-import type { NotePosition, ScaleNotePosition, ChordVoicing } from '../../types';
+import type { NotePosition, ScaleNotePosition, ChordVoicing, HighlightedNote } from '../../types';
 import { FretboardHeader, FretMarkersRow } from './FretboardHeader';
 import { StringRow } from './StringRow';
 import { getVoicingColor } from '../../constants/colors';
@@ -16,6 +16,7 @@ interface FretboardProps {
   displayMode?: 'notes' | 'intervals';
   onScaleNoteClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   clickableScaleNotes?: Set<string>;
+  highlightedNotes?: HighlightedNote[];
   darkMode?: boolean;
 }
 
@@ -29,6 +30,7 @@ export function Fretboard({
   displayMode = 'notes',
   onScaleNoteClick,
   clickableScaleNotes,
+  highlightedNotes = [],
   darkMode = false,
 }: FretboardProps) {
   const hasScale = scalePositions.length > 0;
@@ -139,6 +141,7 @@ export function Fretboard({
                 displayMode={displayMode}
                 onNoteClick={onScaleNoteClick}
                 clickableNotes={clickableScaleNotes}
+                highlightedNotes={highlightedNotes}
                 darkMode={darkMode}
                 hasChordOverlay={hasChords}
               />
