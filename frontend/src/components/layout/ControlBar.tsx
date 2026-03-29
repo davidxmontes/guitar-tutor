@@ -31,19 +31,21 @@ export function ControlBar({
     selectedChordRoot,
     selectedChordQuality,
     chordData,
-    activeChordShapes,
+    activeVoicings,
+    showScaleInChordMode,
+    setShowScaleInChordMode,
   } = useAppStore();
 
   const showClearButton = scaleData || chordData;
-  const showPlayButton = appMode === 'chord' && chordData && activeChordShapes.length > 0;
+  const showPlayButton = appMode === 'chord' && chordData && activeVoicings.length > 0;
 
   const handlePlayChord = () => {
     if (!chordData) return;
-    const activeShape = chordData.caged_shapes.find((s) =>
-      activeChordShapes.includes(s.shape)
+    const activeVoicing = chordData.voicings.find((s) =>
+      activeVoicings.includes(s.label)
     );
-    if (activeShape) {
-      const positions = activeShape.positions.map((p) => ({
+    if (activeVoicing) {
+      const positions = activeVoicing.positions.map((p) => ({
         string: p.string,
         fret: p.fret,
       }));
@@ -94,12 +96,46 @@ export function ControlBar({
 
           {/* Chord Mode Controls */}
           {appMode === 'chord' && (
-            <ChordSelector
-              selectedRoot={selectedChordRoot}
-              selectedQuality={selectedChordQuality}
-              onSelect={onDirectChordSelect}
-              darkMode={darkMode}
-            />
+            <>
+              <ChordSelector
+                selectedRoot={selectedChordRoot}
+                selectedQuality={selectedChordQuality}
+                onSelect={onDirectChordSelect}
+                darkMode={darkMode}
+              />
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-xs md:text-sm"
+                  style={{ color: scaleData ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+                >
+                  Show Scale Overlay
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showScaleInChordMode}
+                  aria-label="Show Scale Overlay"
+                  onClick={() => scaleData && setShowScaleInChordMode(!showScaleInChordMode)}
+                  disabled={!scaleData}
+                  className={`
+                    relative inline-flex h-6 w-11 items-center rounded-full border transition-colors
+                    ${showScaleInChordMode ? '' : ''}
+                    ${scaleData ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}
+                  `}
+                  style={{
+                    backgroundColor: showScaleInChordMode ? 'var(--accent-500)' : 'var(--bg-tertiary)',
+                    borderColor: showScaleInChordMode ? 'var(--accent-600)' : 'var(--border-primary)',
+                  }}
+                >
+                  <span
+                    className={`
+                      inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform
+                      ${showScaleInChordMode ? 'translate-x-5' : 'translate-x-0.5'}
+                    `}
+                  />
+                </button>
+              </div>
+            </>
           )}
         </div>
 

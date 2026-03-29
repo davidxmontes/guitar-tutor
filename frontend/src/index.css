@@ -273,13 +273,6 @@ input:focus-visible {
   background-color: var(--border-primary);
 }
 
-/* CAGED color utilities - for use in dynamic styling */
-.caged-c { --caged-color: #f97316; }
-.caged-a { --caged-color: #eab308; }
-.caged-g { --caged-color: #22c55e; }
-.caged-e { --caged-color: #3b82f6; }
-.caged-d { --caged-color: #a855f7; }
-
 /* ===== Responsive / Mobile-first utilities ===== */
 
 /* Touch-friendly minimum tap target (44px as per WCAG guidelines) */

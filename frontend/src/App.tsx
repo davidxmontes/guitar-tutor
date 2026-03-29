@@ -17,6 +17,7 @@ function App() {
     appMode,
     setAppMode,
     displayMode,
+    showScaleInChordMode,
     diagramsExpanded,
     setDiagramsExpanded,
     popupState,
@@ -30,9 +31,9 @@ function App() {
     clearScale,
     resetScale,
     chordData,
-    activeChordShapes,
-    setActiveChordShapes,
-    toggleChordShape,
+    activeVoicings,
+    setActiveVoicings,
+    toggleVoicing,
     fetchChord,
     clearChord,
     resetChord,
@@ -88,6 +89,9 @@ function App() {
 
   // Determine which chord data to show on fretboard
   const fretboardChordData = chordData;
+  const fretboardScalePositions = (appMode === 'scale' || showScaleInChordMode)
+    ? (scaleData?.positions ?? [])
+    : [];
 
   // ============================================================================
   // Event Handlers
@@ -104,7 +108,7 @@ function App() {
     if (selectedDiatonicChord?.numeral === diatonicChord.numeral) {
       setSelectedDiatonicChord(null);
       setChordData(null);
-      setActiveChordShapes([]);
+      setActiveVoicings([]);
       return;
     }
 
@@ -112,9 +116,9 @@ function App() {
     setSelectedDiatonicChord(diatonicChord);
     const data = await fetchChord(diatonicChord.root, diatonicChord.quality);
     if (data) {
-      setActiveChordShapes([]);
+      setActiveVoicings([]);
     }
-  }, [selectedDiatonicChord, setSelectedDiatonicChord, fetchChord, setChordData, setActiveChordShapes]);
+  }, [selectedDiatonicChord, setSelectedDiatonicChord, fetchChord, setChordData, setActiveVoicings]);
 
   // Handle direct chord select (chord mode)
   const handleDirectChordSelect = useCallback(async (root: string, quality: string) => {
@@ -247,9 +251,9 @@ function App() {
             {/* Chord Diagrams */}
             {fretboardChordData && (
               <ChordDiagramRow
-                shapes={fretboardChordData.caged_shapes}
-                activeShapes={activeChordShapes}
-                onToggleShape={toggleChordShape}
+                voicings={fretboardChordData.voicings}
+                activeVoicings={activeVoicings}
+                onToggleVoicing={toggleVoicing}
                 isExpanded={diagramsExpanded}
                 onToggleExpanded={() => setDiagramsExpanded(!diagramsExpanded)}
               />
@@ -287,9 +291,9 @@ function App() {
                 strings={fretboardData.strings}
                 fretCount={fretboardData.fret_count}
                 tuningNotes={fretboardData.tuning_notes}
-                scalePositions={fretboardChordData ? [] : scaleData?.positions}
-                chordShapes={fretboardChordData?.caged_shapes}
-                activeChordShapes={activeChordShapes}
+                scalePositions={fretboardScalePositions}
+                chordVoicings={fretboardChordData?.voicings}
+                activeVoicings={activeVoicings}
                 displayMode={displayMode}
                 onScaleNoteClick={handleScaleNoteClick}
                 clickableScaleNotes={clickableScaleNotes}

@@ -4,7 +4,6 @@ import type {
   ScaleResponse, 
   ChordResponse, 
   DiatonicChord, 
-  CagedShapeName,
   DisplayMode 
 } from '../types';
 import type { ChatMessage } from '../types/chat';
@@ -78,10 +77,12 @@ interface PopupState {
 interface UISlice {
   appMode: AppMode;
   displayMode: DisplayMode;
+  showScaleInChordMode: boolean;
   diagramsExpanded: boolean;
   popupState: PopupState | null;
   setAppMode: (mode: AppMode) => void;
   setDisplayMode: (mode: DisplayMode) => void;
+  setShowScaleInChordMode: (show: boolean) => void;
   setDiagramsExpanded: (expanded: boolean) => void;
   setPopupState: (state: PopupState | null) => void;
 }
@@ -112,14 +113,14 @@ interface ChordSlice {
   chordData: ChordResponse | null;
   selectedChordRoot: string | null;
   selectedChordQuality: string | null;
-  activeChordShapes: CagedShapeName[];
+  activeVoicings: string[];
   chordLoading: boolean;
   chordError: string | null;
   setChordData: (data: ChordResponse | null) => void;
   setSelectedChordRoot: (root: string | null) => void;
   setSelectedChordQuality: (quality: string | null) => void;
-  setActiveChordShapes: (shapes: CagedShapeName[]) => void;
-  toggleChordShape: (shape: CagedShapeName) => void;
+  setActiveVoicings: (shapes: string[]) => void;
+  toggleVoicing: (shape: string) => void;
   fetchChord: (root: string, quality: string) => Promise<ChordResponse | null>;
   clearChord: () => void;
   resetChord: () => void;
@@ -191,11 +192,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   appMode: 'scale',
   displayMode: 'notes',
+  showScaleInChordMode: false,
   diagramsExpanded: false,
   popupState: null,
   
   setAppMode: (mode) => set({ appMode: mode }),
   setDisplayMode: (mode) => set({ displayMode: mode }),
+  setShowScaleInChordMode: (show) => set({ showScaleInChordMode: show }),
   setDiagramsExpanded: (expanded) => set({ diagramsExpanded: expanded }),
   setPopupState: (state) => set({ popupState: state }),
 
@@ -246,21 +249,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   chordData: null,
   selectedChordRoot: null,
   selectedChordQuality: null,
-  activeChordShapes: [],
+  activeVoicings: [],
   chordLoading: false,
   chordError: null,
   
   setChordData: (data) => set({ chordData: data }),
   setSelectedChordRoot: (root) => set({ selectedChordRoot: root }),
   setSelectedChordQuality: (quality) => set({ selectedChordQuality: quality }),
-  setActiveChordShapes: (shapes) => set({ activeChordShapes: shapes }),
+  setActiveVoicings: (shapes) => set({ activeVoicings: shapes }),
   
-  toggleChordShape: (shape) => {
+  toggleVoicing: (shape) => {
     set((state) => {
-      if (state.activeChordShapes.includes(shape)) {
-        return { activeChordShapes: state.activeChordShapes.filter(s => s !== shape) };
+      if (state.activeVoicings.includes(shape)) {
+        return { activeVoicings: state.activeVoicings.filter(s => s !== shape) };
       } else {
-        return { activeChordShapes: [...state.activeChordShapes, shape] };
+        return { activeVoicings: [...state.activeVoicings, shape] };
       }
     });
   },
@@ -273,7 +276,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         chordData: data, 
         selectedChordRoot: root,
         selectedChordQuality: quality,
-        activeChordShapes: [],
+        activeVoicings: [],
         chordLoading: false 
       });
       return data;
@@ -291,14 +294,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     chordData: null,
     selectedChordRoot: null,
     selectedChordQuality: null,
-    activeChordShapes: [],
+    activeVoicings: [],
     chordError: null 
   }),
   
   resetChord: () => set({ 
     selectedChordRoot: null, 
     selectedChordQuality: null, 
-    activeChordShapes: [] 
+    activeVoicings: [] 
   }),
 
   // --------------------------------------------------------------------------
@@ -470,6 +473,7 @@ export const useToggleDarkMode = () => useAppStore((state) => state.toggleDarkMo
 // UI selectors
 export const useAppMode = () => useAppStore((state) => state.appMode);
 export const useDisplayMode = () => useAppStore((state) => state.displayMode);
+export const useShowScaleInChordMode = () => useAppStore((state) => state.showScaleInChordMode);
 
 // Scale selectors
 export const useScaleData = () => useAppStore((state) => state.scaleData);
@@ -484,7 +488,7 @@ export const useSelectedChord = () => useAppStore((state) => ({
   root: state.selectedChordRoot,
   quality: state.selectedChordQuality,
 }));
-export const useActiveChordShapes = () => useAppStore((state) => state.activeChordShapes);
+export const useActiveVoicings = () => useAppStore((state) => state.activeVoicings);
 
 // Chat selectors
 export const useChatMessages = () => useAppStore((state) => state.messages);
