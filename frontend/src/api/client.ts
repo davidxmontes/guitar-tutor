@@ -1,4 +1,4 @@
-import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse } from '../types';
+import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent } from '../types/chat';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
@@ -167,6 +167,24 @@ class ApiClient {
   ): Promise<AgentResponse> {
     const request: ResumeRequest = { response, thread_id: threadId };
     return this._runStream('/agent/resume/stream', request, onStatus, onToken);
+  }
+
+  // --- Song endpoints ---
+
+  async searchSongs(query: string): Promise<SongSearchResponse> {
+    return this.fetch<SongSearchResponse>(`/songs/search?q=${encodeURIComponent(query)}`);
+  }
+
+  async getSongTracks(songId: number): Promise<SongTracksResponse> {
+    return this.fetch<SongTracksResponse>(`/songs/${songId}/tracks`);
+  }
+
+  async getTabData(songId: number, trackIndex: number = 0): Promise<TabDataResponse> {
+    return this.fetch<TabDataResponse>(`/songs/${songId}/tab?track=${trackIndex}`);
+  }
+
+  async getChordPro(songId: number): Promise<ChordProResponse> {
+    return this.fetch<ChordProResponse>(`/songs/${songId}/chords`);
   }
 }
 
