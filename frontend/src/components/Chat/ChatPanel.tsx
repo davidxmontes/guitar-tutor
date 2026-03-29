@@ -169,7 +169,7 @@ export function ChatPanel({
             </div>
             <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Start a conversation</p>
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Ask about chord progressions, scales, or CAGED shapes
+              Ask about chord progressions, scales, or voicings
             </p>
           </div>
         ) : (
