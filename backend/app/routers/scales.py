@@ -74,18 +74,18 @@ async def get_scale(
     
     # Find all positions on fretboard that are in the scale
     positions = []
-    
-    # Normalize root for comparison
-    flat_to_sharp = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
-    normalized_root = flat_to_sharp.get(root, root)
-    
+
+    # Normalize root to flat notation for comparison
+    sharp_to_flat = {"C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb"}
+    normalized_root = sharp_to_flat.get(root, root)
+
     for string_notes in fretboard:
         for note_pos in string_notes:
-            # Check if this note is in the scale
-            normalized_note = flat_to_sharp.get(note_pos["note"], note_pos["note"])
-            
+            note_name = note_pos["note"]
+            normalized_note = sharp_to_flat.get(note_name, note_name)
+
             if normalized_note in scale_notes:
-                degree, degree_label = get_scale_degree(note_pos["note"], root, mode)
+                degree, degree_label = get_scale_degree(note_name, root, mode)
                 is_root = normalized_note == normalized_root
                 
                 positions.append(ScaleNotePosition(
