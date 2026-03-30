@@ -92,7 +92,6 @@ export function SongSearch() {
       {/* Initial state */}
       {results.length === 0 && inputValue.trim().length < 2 && (
         <div className="text-center py-16">
-          <div className="text-4xl mb-3">🎸</div>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             Search for a song to view its tab
           </p>
