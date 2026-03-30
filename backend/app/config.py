@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     openrouter_api_key: Optional[str] = None
     model_name: Optional[str] = None
     log_level: str = "INFO"
+    agent_actions_enabled: bool = True
+    agent_tool_calling_enabled: bool = True
+    agent_summary_enabled: bool = True
+    agent_summary_turn_interval: int = 6
+    agent_summary_char_threshold: int = 7000
+    agent_recent_turn_window: int = 10
+    agent_checkpoint_backend: str = "memory"  # memory | sqlite
+    agent_checkpoint_sqlite_path: str = ".agent_checkpoints.sqlite"
 
     _PROVIDER_DEFAULTS: dict = {
         "openai": {"base_url": None, "default_model": "gpt-4o-mini"},
