@@ -130,6 +130,21 @@ class TheoryShowScaleAction(BaseModel):
     mode: str
 
 
+class FretboardHighlightPosition(BaseModel):
+    string: int  # 1-6 (1 = high E)
+    fret: int    # 0-22
+
+
+class FretboardHighlightGroup(BaseModel):
+    name: str
+    positions: List[FretboardHighlightPosition]
+
+
+class FretboardHighlightAction(BaseModel):
+    type: Literal["fretboard.highlight"]
+    groups: List[FretboardHighlightGroup]
+
+
 AgentAction = Annotated[
     Union[
         SongSearchAction,
@@ -138,6 +153,7 @@ AgentAction = Annotated[
         SongMeasureFocusAction,
         TheoryShowChordAction,
         TheoryShowScaleAction,
+        FretboardHighlightAction,
     ],
     Field(discriminator="type"),
 ]

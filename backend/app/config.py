@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     openrouter_api_key: Optional[str] = None
     model_name: Optional[str] = None
+    llm_timeout_seconds: Optional[float] = 300.0
     log_level: str = "INFO"
     agent_actions_enabled: bool = True
     agent_tool_calling_enabled: bool = True

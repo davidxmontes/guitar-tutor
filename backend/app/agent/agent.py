@@ -18,7 +18,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.types import Command, interrupt
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.agent.parser import parse_chord_name, parse_scale_name
 from app.config import get_settings
@@ -45,24 +45,52 @@ class ThreadNotFoundError(RuntimeError):
 class PreppedQuestionSchema(TypedDict):
     """Schema for the prepare_question node output."""
 
-    question_for_llm: Optional[str] = Field(None, description="A concise guitar/music-theory question")
     out_of_scope: bool = Field(False, description="Whether the question is out of scope")
-    clarifying_question: Optional[str] = Field(None, description="A clarifying question if needed")
+    clarifying_question_for_user: Optional[str] = Field(None, description="A clarifying question to send to the user")
 
 
-class AnswerMetadataSchema(TypedDict):
-    """Schema for answer metadata extraction (scale, chords, visualizations)."""
+class SongToolPlanSchema(BaseModel):
+    """Structured song-tool intent chosen during answer generation."""
+
+    song_search_query: Optional[str] = Field(
+        None,
+        description=(
+            "Search query for a specific song the user wants opened in the song UI, "
+            "for example 'frisky dominic fike'. Null when no song lookup is needed."
+        ),
+    )
+    focus_measure_number: Optional[int] = Field(
+        None,
+        description=(
+            "1-based measure number the user wants focused in the currently selected or requested song. "
+            "Null when no measure navigation is needed."
+        ),
+    )
+
+
+class FretboardHighlightPositionSchema(TypedDict):
+    string: int
+    fret: int
+
+
+class FretboardHighlightGroupSchema(TypedDict):
+    name: str
+    positions: List[FretboardHighlightPositionSchema]
+
+
+class AnswerPostProcessSchema(TypedDict):
+    """Combined schema for metadata extraction + fretboard highlights in one call."""
 
     scale: Optional[str] = Field(None, description="Most relevant scale name")
     chord_choices: List[str] = Field(default_factory=list, description="List of chord names recommended")
     visualizations: bool = Field(False, description="Whether visualizations are needed")
+    highlight_groups: List[FretboardHighlightGroupSchema] = Field(default_factory=list, description="Fretboard highlight groups")
 
 
 class OverallState(MessagesState):
     """Overall state for the agent graph."""
 
-    question_for_llm: Optional[str] = None
-    clarifying_question: Optional[str] = None
+    clarifying_question_for_user: Optional[str] = None
     answer: str = ""
     scale: Optional[str] = None
     chord_choices: List[str] = []
@@ -81,39 +109,55 @@ class OverallState(MessagesState):
 
 # --- Prompt templates ---
 
-PREP_QUESTION_INSTRUCTIONS = """You are the Guitar Tutor question normalizer. You will ONLY prepare a single, concise MUSIC THEORY / GUITAR question for the NEXT node to answer — do NOT answer the question yourself.
+PREP_QUESTION_INSTRUCTIONS = """You are the Guitar Tutor gate. Decide whether to proceed, clarify, or reject the user's question. Do NOT answer the question yourself.
 
-Inputs available to you (replace in runtime):
+Inputs:
 - running_summary: {running_summary}
 - previous_context: {previous_context}
 - ui_context: {ui_context}
 - user_question: {user_question}
 
-Output requirements (JSON ONLY): produce exactly one of these three JSON shapes and nothing else. Use canonical chord/scale names when relevant. Keep output <= 20 words when possible.
+Return JSON ONLY. Produce exactly one of these shapes:
+1) Proceed (preferred)
+{{"out_of_scope": false}}
 
-1) Clear music/guitar question — STRONGLY PREFERRED. Use your best judgment to fill in any gaps.
-{{"question_for_llm": "<<= 20 words, concise guitar/music-theory question>", "out_of_scope": false}}
-
-2) Need clarification — LAST RESORT ONLY. Use this ONLY when you truly cannot proceed (e.g., the question is so vague that any assumption would be misleading).
-{{"clarifying_question": "<one short clarifying question>", "out_of_scope": false}}
+2) Need clarification
+{{"clarifying_question_for_user": "<one short clarifying question>", "out_of_scope": false}}
 
 3) Out of scope
 {{"out_of_scope": true}}
 
-Best judgment guidelines:
-- PREFER producing question_for_llm over asking for clarification. Make reasonable assumptions and move forward.
-- Treat ui_context as a trusted runtime source of truth for current app/song/beat state whenever available.
-- If details are missing in user text but present in ui_context, use ui_context and continue instead of asking clarification.
-- If the user omits details like tuning, assume standard tuning unless ui_context indicates otherwise.
-- If ui_context has active song/track state and user asks about "this song", keep that context.
-- If user asks deictic questions like "What chord is this?" and ui_context includes selected_beat_id/highlighted_notes, keep that selected-beat context explicit.
-- Do not invent or renumber measure/beat references if selected_beat_id already provides concrete context.
-- If the user asks to search/find/show/display a song or tab, preserve that intent explicitly in question_for_llm (e.g., include artist/title clue).
-- If the user asks to show a section or measure, preserve the requested measure reference in question_for_llm.
-- Only use clarifying_question when the request is genuinely too vague to make ANY reasonable assumption.
-- If the user's request is not music, guitar, songs, tabs, measures, or music theory related, return out_of_scope true.
-- If you provide clarifying_question, do not provide question_for_llm.
-- Do NOT include voicings, diagrams, notes, or additional metadata.
+Guidelines:
+- Default to proceeding. Trust the answer model's judgement to handle ambiguity, fill in gaps, and make creative choices.
+- Never clarify about format, notation style, or level of detail — just proceed.
+- Never clarify to confirm intent — if the user mentions a song, artist, chord, scale, or technique, proceed.
+- Only clarify when the question is genuinely unanswerable without more info (e.g. "help me with this" with zero context).
+- For a pure greeting with no music content, use clarifying_question_for_user to greet briefly and ask what guitar/music help they want.
+- If the request is not about music, guitar, songs, tabs, measures, or music theory, return out_of_scope true.
+"""
+
+SONG_TOOL_INTENT_INSTRUCTIONS = """You are deciding whether the Guitar Tutor should use song UI tools before answering. Do NOT answer the user.
+
+Inputs:
+- running_summary: {running_summary}
+- previous_context: {previous_context}
+- ui_context: {ui_context}
+- user_question: {user_question}
+
+Return JSON ONLY with this exact shape:
+{{
+  "song_search_query": string | null,
+  "focus_measure_number": integer | null
+}}
+
+Rules:
+- Use "song_search_query" when the user wants to open, load, search, show, display, or learn a specific song/tab in the Songs UI.
+- Natural teaching phrasing still counts as song intent. Example: "show me how to play wonderwall" should return {{"song_search_query": "wonderwall", "focus_measure_number": null}}.
+- Include artist names when they are present or clearly implied. Example: "teach me frisky by dominic fike" -> "frisky dominic fike".
+- Do NOT set song_search_query for theory-only requests like chords, scales, intervals, fretboard notes, or generic techniques.
+- Use "focus_measure_number" only when the user explicitly asks to jump to, show, start at, or focus a numbered measure in a song.
+- Measure numbers are 1-based in your output.
+- If no song tool is needed, return null for both fields.
 """
 
 ANSWER_TEXT_INSTRUCTIONS = """You are the Guitar Tutor. Answer the user's guitar/music theory question.
@@ -123,31 +167,56 @@ Hard constraints:
 - Keep output concise: 1-3 paragraphs.
 
 Inputs:
-- Question: {user_question}
 - Running summary: {running_summary}
 - UI context: {ui_context}
 - Tool context: {tool_context}
 
 Behavior:
 - Be clear and pedagogical. Explain WHY choices work.
-- Treat ui_context as authoritative for current selection/playhead/highlighted notes when present.
-- If a concrete song/tool lookup succeeded, ground your answer in those results.
-- If a lookup failed, explain the limitation briefly and continue with the best fallback guidance.
-- If user intent is song search/display, briefly name the matched song/artist (if known) and what the UI will show next.
-- If user intent is measure/section focus, explicitly mention the measure target and any assumptions made.
-- Do NOT say you lack direct tab database access. You are integrated with a song-tab lookup tool in this application.
-- For deictic questions ("this chord", "this beat"), prioritize ui_context.selected_beat_id/highlighted_notes as the reference.
+- The user's explicit intent always takes priority over the current UI state.
+- Use ui_context for current selection/playhead/highlighted notes only when the user references "this"/"current" context.
+- If a song/tool lookup succeeded, ground your answer in those results.
+- Do NOT say you lack direct tab database access. You are integrated with a song-tab lookup tool.
 """
 
-ANSWER_METADATA_INSTRUCTIONS = """Given this guitar/music question and answer, extract structured metadata. Return ONLY the requested fields.
+ANSWER_POSTPROCESS_INSTRUCTIONS = """Given a guitar/music question and answer, extract structured metadata AND fretboard highlight positions in a single response.
 
 Question: {user_question}
 Answer: {answer}
+UI context: {ui_context}
+Tuning (string 1=high E to string 6=low E): {tuning_notes}
 
+--- PART 1: Metadata ---
 Extract:
-- scale: the single most relevant scale name (e.g., "A minor pentatonic")
+- scale: the single most relevant scale name (e.g., "A minor pentatonic"), or null
 - chord_choices: list of chord names mentioned or recommended (e.g., ["C", "Am", "F", "G"])
 - visualizations: true if the answer involves chords, scales, progressions, song tabs, or measure navigation
+
+--- PART 2: Fretboard highlights ---
+Extract highlight_groups: fret positions to highlight on the interactive fretboard.
+
+When to emit groups:
+- Emit groups when the answer discusses SPECIFIC fret positions, voicings, shapes, or fingerings. This includes:
+  - Explicit string/fret references (e.g. "3rd fret on the A string")
+  - Tab-notation voicings (e.g. "x32010", "3x2003") — convert these to string/fret positions (leftmost digit = string 6/low E, rightmost = string 1/high E; "x" = muted/skip, "0" = open)
+  - Named shapes with positions (e.g. "CAGED shape at fret 5", "barre chord at 7th fret")
+- Do NOT emit groups for general theory, chord names without ANY position info, or scale names without specific fret references.
+
+Group rules:
+- Each group is one named shape/voicing/position set. Multiple groups = multiple alternatives to cycle through.
+- String numbering: string 1 = high E (thinnest), string 6 = low E (thickest). Fret 0 = open string.
+- Keep group names short (2-5 words), e.g. "Open E", "Barre at 5th", "Box 1", "CAGED A shape".
+- Omit muted/unplayed strings — only include strings that are actually fretted or open and part of the shape.
+- Max 6 groups. Max 6 positions per group.
+
+Playability constraints (CRITICAL — every voicing MUST be physically playable):
+- Max 4-fret span between the lowest and highest fretted notes (excluding open strings). Stretch up to 5 frets ONLY for intentionally creative/extended voicings.
+- At most one note per string.
+- All fretted notes must be reachable simultaneously by a human fretting hand — no impossible finger stretches.
+- Prefer standard voicing positions (open chords, common barre shapes, CAGED forms) unless the user specifically asks for unusual or creative voicings.
+- When suggesting chord progressions, use voicings in nearby positions to minimize hand movement between chords.
+
+Return empty list if no specific fret positions apply.
 """
 
 SUMMARY_INSTRUCTIONS = """Summarize the conversation for future guitar tutoring context.
@@ -166,9 +235,8 @@ Return a concise summary under 180 words capturing:
 
 # Node names for status tracking
 _NODE_FIELDS = {
-    "question_for_llm": "prepare_question",
     "answer": "generate_answer",
-    "clarifying_question": "prepare_question",
+    "clarifying_question_for_user": "prepare_question",
 }
 
 
@@ -204,6 +272,8 @@ class GuitarTutorAgent:
         llm_kwargs: dict = {"model": model_name, "temperature": temperature, "api_key": resolved_key}
         if base_url:
             llm_kwargs["base_url"] = base_url
+        if settings.llm_timeout_seconds and settings.llm_timeout_seconds > 0:
+            llm_kwargs["timeout"] = settings.llm_timeout_seconds
 
         self.llm = ChatOpenAI(**llm_kwargs)
         self.graph = self._build_graph()
@@ -256,14 +326,10 @@ class GuitarTutorAgent:
         last_question_text = self._message_text(messages[-1]) if messages else ""
         lower_question = last_question_text.lower().strip()
 
-        # Deterministic fast-path: when UI context is strong for deictic chord-identification,
-        # avoid unnecessary clarification loops and carry concrete beat context forward.
+        # Deterministic fast-path: deictic chord-identification with strong UI context
         if self._is_context_identification_question(lower_question) and self._has_strong_ui_context(ui_context):
-            selected_beat = ui_context.get("selected_beat_id")
-            beat_text = f" at selected beat {selected_beat}" if selected_beat else ""
             return {
-                "question_for_llm": f"Identify the chord{beat_text} using highlighted notes in current song context.",
-                "clarifying_question": None,
+                "clarifying_question_for_user": None,
                 "out_of_scope": False,
                 "running_summary": running_summary,
                 "summary_turn_count": summary_turn_count,
@@ -281,32 +347,31 @@ class GuitarTutorAgent:
         q = self._invoke_structured(
             PreppedQuestionSchema,
             [system_message],
-            fallback={"question_for_llm": last_question_text, "out_of_scope": False},
+            fallback={"out_of_scope": False},
         )
 
         logger.info("Prepared question=%s", q)
 
-        clarifying_question = q.get("clarifying_question")
-        if isinstance(clarifying_question, str) and clarifying_question.strip().lower() in {"null", "none"}:
-            clarifying_question = None
+        clarifying_question_for_user = q.get("clarifying_question_for_user")
+        if isinstance(clarifying_question_for_user, str) and clarifying_question_for_user.strip().lower() in {"null", "none"}:
+            clarifying_question_for_user = None
 
         return {
-            "question_for_llm": q.get("question_for_llm"),
-            "clarifying_question": clarifying_question,
+            "clarifying_question_for_user": clarifying_question_for_user,
             "out_of_scope": q.get("out_of_scope", False),
             "running_summary": running_summary,
             "summary_turn_count": summary_turn_count,
         }
 
     def _clarify_input(self, state: dict) -> Command:
-        clarifying_question = state.get("clarifying_question")
+        clarifying_question_for_user = state.get("clarifying_question_for_user")
 
-        if not clarifying_question:
+        if not clarifying_question_for_user:
             return Command(goto="generate_answer")
 
         human_input = interrupt(
             {
-                "clarifying_question": clarifying_question,
+                "clarifying_question": clarifying_question_for_user,
                 "action": "Please answer this question to continue",
             }
         )
@@ -314,14 +379,14 @@ class GuitarTutorAgent:
         return Command(
             update={
                 "messages": [HumanMessage(content=human_input.get("response", ""))],
-                "clarifying_question": None,
+                "clarifying_question_for_user": None,
+                "out_of_scope": False,
             },
-            goto="prepare_question",
+            goto="generate_answer",
         )
 
     def _generate_answer(self, state: dict) -> dict:
-        question_for_llm = state.get("question_for_llm")
-        clarifying_question = state.get("clarifying_question")
+        clarifying_question_for_user = state.get("clarifying_question_for_user")
         out_of_scope = state.get("out_of_scope", False)
         running_summary = state.get("running_summary", "")
         ui_context = state.get("ui_context") or {}
@@ -343,10 +408,10 @@ class GuitarTutorAgent:
                 "memory_status": memory_status,
             }
 
-        if clarifying_question and not question_for_llm:
+        if clarifying_question_for_user:
             return {
-                "messages": [AIMessage(content=clarifying_question)],
-                "answer": clarifying_question,
+                "messages": [AIMessage(content=clarifying_question_for_user)],
+                "answer": clarifying_question_for_user,
                 "scale": None,
                 "chord_choices": [],
                 "visualizations": False,
@@ -356,48 +421,75 @@ class GuitarTutorAgent:
             }
 
         messages = state.get("messages", [])
-        question_text = question_for_llm if question_for_llm else (self._message_text(messages[-1]) if messages else "")
-
-        tool_context, song_actions = self._run_song_tools(question_text, ui_context)
+        user_question = self._message_text(messages[-1]) if messages else ""
         prompt_ui_context = self._project_ui_context_for_prompt(ui_context)
+        song_tool_plan = self._plan_song_tools(
+            user_question=user_question,
+            messages=messages,
+            ui_context=ui_context,
+            running_summary=running_summary,
+        )
+        logger.info("Song tool plan=%s", song_tool_plan)
+        tool_context, song_actions = self._run_song_tools(
+            user_question,
+            ui_context,
+            song_search_query=song_tool_plan.get("song_search_query"),
+            focus_measure_number=song_tool_plan.get("focus_measure_number"),
+        )
 
         # Call 1: Generate answer text (regular LLM — streamed via stream_mode="messages")
         text_system = SystemMessage(
             content=ANSWER_TEXT_INSTRUCTIONS.format(
-                user_question=question_text,
                 running_summary=running_summary or "None",
                 ui_context=prompt_ui_context or "None",
                 tool_context=tool_context or "None",
             )
         )
-        response = self.llm.invoke([text_system, HumanMessage(content=question_text)])
-        answer_text = self._coerce_text(response.content)
 
-        # Call 2: Extract metadata (structured output — quick, not streamed)
-        metadata_system = SystemMessage(
-            content=ANSWER_METADATA_INSTRUCTIONS.format(
-                user_question=question_text,
+        # Include recent conversation history so the LLM can resolve
+        # follow-up references ("this", "those chords", "show me visualizations for that")
+        recent_history = messages[-(self.recent_turn_window * 2):]
+        llm_messages = [text_system] + recent_history
+        response = self.llm.invoke(llm_messages)
+        answer_text = self._clean_answer_text(self._coerce_text(response.content))
+
+        # Call 2: Extract metadata + fretboard highlights in one structured call
+        tuning_id = ui_context.get("selected_tuning") or "standard"
+        custom_notes = ui_context.get("custom_tuning_notes")
+        tuning_notes = custom_notes if custom_notes else get_tuning_notes(tuning_id)
+
+        postprocess_system = SystemMessage(
+            content=ANSWER_POSTPROCESS_INSTRUCTIONS.format(
+                user_question=user_question,
                 answer=answer_text,
+                ui_context=prompt_ui_context or "None",
+                tuning_notes=tuning_notes,
             )
         )
-        meta = self._invoke_structured(
-            AnswerMetadataSchema,
-            [metadata_system],
-            fallback={"scale": None, "chord_choices": [], "visualizations": False},
+        post = self._invoke_structured(
+            AnswerPostProcessSchema,
+            [postprocess_system],
+            fallback={"scale": None, "chord_choices": [], "visualizations": False, "highlight_groups": []},
         )
 
         actions: list[dict] = []
         if self.actions_enabled:
             actions.extend(song_actions)
-            actions.extend(self._build_theory_actions(meta.get("scale"), meta.get("chord_choices", [])))
+            actions.extend(self._build_theory_actions(post.get("scale"), post.get("chord_choices", [])))
+
+            # Validate and add highlight groups from the combined call
+            highlight_groups = self._validate_highlight_groups(post.get("highlight_groups", []))
+            if highlight_groups:
+                actions.append({"type": "fretboard.highlight", "groups": highlight_groups})
+
             actions = self._dedupe_actions(actions)
 
         return {
             "messages": [AIMessage(content=answer_text)],
             "answer": answer_text,
-            "scale": meta.get("scale"),
-            "chord_choices": meta.get("chord_choices", []),
-            "visualizations": meta.get("visualizations", False),
+            "scale": post.get("scale"),
+            "chord_choices": post.get("chord_choices", []),
+            "visualizations": post.get("visualizations", False),
             "out_of_scope": False,
             "actions": actions,
             "memory_status": memory_status,
@@ -406,19 +498,76 @@ class GuitarTutorAgent:
     # --- Shared helpers ---
 
     def _invoke_structured(self, schema, messages: list, *, fallback: dict) -> dict:
-        """Invoke structured output with error handling and fallback."""
+        """Invoke structured output with error handling and fallback.
+
+        Tries with_structured_output first (native tool/function calling).
+        If that fails, falls back to a plain LLM call and parses JSON from the response text.
+        """
+        schema_name = getattr(schema, "__name__", str(schema))
+
+        # Attempt 1: native structured output
         try:
             structured_llm = self.llm.with_structured_output(schema)
             result = structured_llm.invoke(messages)
             if result is None:
-                logger.warning("Structured output returned None, using fallback")
-                return fallback
-            return result if isinstance(result, dict) else (
-                result.model_dump() if hasattr(result, "model_dump") else result.dict()
-            )
+                logger.warning("Structured output returned None, trying JSON fallback")
+            else:
+                return result if isinstance(result, dict) else (
+                    result.model_dump() if hasattr(result, "model_dump") else result.dict()
+                )
         except Exception as e:
-            logger.error("Structured output failed (%s): %s", getattr(schema, "__name__", str(schema)), e)
-            return fallback
+            logger.warning("Structured output failed (%s): %s — trying JSON fallback", schema_name, e)
+
+        # Attempt 2: plain call + JSON extraction
+        try:
+            raw_response = self.llm.invoke(messages)
+            raw_text = self._coerce_text(raw_response.content).strip()
+            parsed = self._extract_json(raw_text)
+            if parsed is not None:
+                logger.info("JSON fallback succeeded for %s", schema_name)
+                return parsed
+            logger.warning("JSON fallback could not parse response for %s", schema_name)
+        except Exception as e:
+            logger.error("JSON fallback also failed (%s): %s", schema_name, e)
+
+        return fallback
+
+    @staticmethod
+    def _extract_json(text: str) -> dict | None:
+        """Extract a JSON object from LLM text that may contain markdown fences or preamble."""
+        import json
+
+        # Try the whole string first
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # Try extracting from markdown code fences
+        fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+        if fence_match:
+            try:
+                return json.loads(fence_match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+
+        # Try finding the first { ... } block
+        brace_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if brace_match:
+            try:
+                return json.loads(brace_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        return None
+
+    @staticmethod
+    def _clean_answer_text(text: str) -> str:
+        """Strip model-specific artifacts (e.g. minimax tool_call blocks) from answer text."""
+        cleaned = re.sub(r"<minimax:tool_call>.*?</minimax:tool_call>", "", text, flags=re.DOTALL)
+        # Also handle unclosed tags
+        cleaned = re.sub(r"<minimax:tool_call>.*", "", cleaned, flags=re.DOTALL)
+        return cleaned.strip()
 
     @staticmethod
     def _coerce_text(content: Any) -> str:
@@ -531,6 +680,70 @@ class GuitarTutorAgent:
                 return node
         return "processing"
 
+    @staticmethod
+    def _validate_highlight_groups(groups: list) -> list[dict]:
+        """Validate and filter highlight groups from structured output."""
+        valid_groups = []
+        for g in (groups or []):
+            name = g.get("name", "").strip()
+            positions = [
+                p for p in (g.get("positions") or [])
+                if isinstance(p.get("string"), int) and isinstance(p.get("fret"), int)
+                and 1 <= p["string"] <= 6 and 0 <= p["fret"] <= 22
+            ]
+            if name and positions:
+                valid_groups.append({"name": name, "positions": positions})
+        return valid_groups
+
+    def _plan_song_tools(
+        self,
+        *,
+        user_question: str,
+        messages: list,
+        ui_context: dict,
+        running_summary: str,
+    ) -> dict:
+        """Use the answer-phase model to decide if song tools are needed."""
+        prompt_ui_context = self._project_ui_context_for_prompt(ui_context)
+        recent_messages = messages[-(self.recent_turn_window * 2):] if messages else []
+        previous_context = self._format_messages_for_prompt(recent_messages[:-1]) if len(recent_messages) > 1 else "None"
+
+        system_message = SystemMessage(
+            content=SONG_TOOL_INTENT_INSTRUCTIONS.format(
+                running_summary=running_summary or "None",
+                previous_context=previous_context,
+                ui_context=prompt_ui_context or "None",
+                user_question=user_question,
+            )
+        )
+
+        plan = self._invoke_structured(
+            SongToolPlanSchema,
+            [system_message],
+            fallback={"song_search_query": None, "focus_measure_number": None},
+        )
+
+        song_search_query = plan.get("song_search_query")
+        if isinstance(song_search_query, str):
+            song_search_query = song_search_query.strip()
+            if song_search_query.lower() in {"", "null", "none"}:
+                song_search_query = None
+        else:
+            song_search_query = None
+
+        focus_measure_number = plan.get("focus_measure_number")
+        try:
+            focus_measure_number = int(focus_measure_number) if focus_measure_number is not None else None
+        except (TypeError, ValueError):
+            focus_measure_number = None
+        if focus_measure_number is not None and focus_measure_number < 1:
+            focus_measure_number = None
+
+        return {
+            "song_search_query": song_search_query,
+            "focus_measure_number": focus_measure_number,
+        }
+
     def _build_theory_actions(self, scale: Optional[str], chord_choices: List[str]) -> list[dict]:
         actions: list[dict] = []
 
@@ -573,21 +786,23 @@ class GuitarTutorAgent:
             deduped.append(action)
         return deduped
 
-    def _run_song_tools(self, question_text: str, ui_context: dict) -> tuple[str, list[dict]]:
+    def _run_song_tools(
+        self,
+        question_text: str,
+        ui_context: dict,
+        *,
+        song_search_query: str | None = None,
+        focus_measure_number: int | None = None,
+    ) -> tuple[str, list[dict]]:
         """Run bounded Songsterr lookups for song/measure intents and return context + actions."""
         if not self.tool_calling_enabled:
             return "", []
 
         q = question_text.strip()
         lower_q = q.lower()
-        search_query = self._extract_song_search_query(q)
-        song_intent = (
-            any(token in lower_q for token in ["song", "tab", "track", "measure", "riff", "verse", "chorus"])
-            or search_query is not None
-            or ("display" in lower_q and ("song" in lower_q or "tab" in lower_q))
-        )
-        if not song_intent:
-            return "", []
+        search_query = song_search_query.strip() if isinstance(song_search_query, str) else None
+        if search_query and search_query.lower() in {"null", "none"}:
+            search_query = None
 
         tool_context_lines: list[str] = []
         actions: list[dict] = []
@@ -623,11 +838,7 @@ class GuitarTutorAgent:
                 tool_context_lines.append(f"Song search failed for '{search_query}': {exc}")
 
         # 2) Measure focus intent (for this song or selected search result)
-        requested_measure = self._extract_measure_index(q)
-        wants_measure_focus = (
-            (requested_measure is not None and self._is_measure_navigation_intent(lower_q))
-            or self._is_explicit_measure_navigation(lower_q)
-        )
+        focus_measure_index = focus_measure_number - 1 if isinstance(focus_measure_number, int) else None
 
         # For deictic identification questions ("what chord is this"), trust selected UI beat context
         # and avoid expensive network measure resolution.
@@ -638,15 +849,14 @@ class GuitarTutorAgent:
                 tool_context_lines.append(
                     f"User selected beat context: beat_id={selected_beat}, highlighted_frets={highlighted}."
                 )
-            wants_measure_focus = False
+            focus_measure_index = None
 
-        if wants_measure_focus and selected_song_id is not None:
-            measure_index = requested_measure if requested_measure is not None else int((ui_context or {}).get("playhead_measure_index") or 0)
+        if focus_measure_index is not None and selected_song_id is not None:
             try:
                 resolved_measure, resolved_beat = songsterr.resolve_measure_focus_sync(
                     song_id=int(selected_song_id),
                     track_index=selected_track_index,
-                    requested_measure_index=max(0, measure_index),
+                    requested_measure_index=max(0, focus_measure_index),
                 )
                 action: dict[str, Any] = {
                     "type": "song.measure.focus",
@@ -664,6 +874,10 @@ class GuitarTutorAgent:
                     f"Could not resolve measure focus for song_id={selected_song_id}, "
                     f"track={selected_track_index}: {exc}"
                 )
+        elif focus_measure_index is not None:
+            tool_context_lines.append(
+                f"User asked to focus measure {focus_measure_number}, but no song is currently selected."
+            )
 
         return "\n".join(tool_context_lines), self._dedupe_actions(actions)
 
@@ -715,45 +929,6 @@ class GuitarTutorAgent:
             projected["highlighted_notes"] = resolved
 
         return projected
-
-    @staticmethod
-    def _extract_song_search_query(question: str) -> Optional[str]:
-        text = question.strip()
-        lower = text.lower()
-
-        # Handle common "tabs for <song>" phrasing regardless of sentence prefix.
-        generic_for_match = re.search(
-            r"\b(?:tab|tabs|song|songs|track|tracks)\s+for\s+(.+)",
-            lower,
-        )
-        if generic_for_match:
-            query = generic_for_match.group(1).strip(" .,!?:;")
-            if query and "measure" not in query:
-                return query
-
-        patterns = [
-            r"(?:search|find|look\s*up|display|show)\s+(?:for\s+)?(?:song|songs|tab|tabs|track|tracks)\s+(.+)",
-            r"(?:show|display)\s+(?:me\s+)?(?:the\s+)?tab\s+for\s+(.+)",
-            r"look\s+up\s+(.+)",
-        ]
-        for pattern in patterns:
-            match = re.match(pattern, lower)
-            if not match:
-                continue
-            query = match.group(1).strip(" .,!?")
-            if query and len(query) >= 2:
-                return query
-
-        # Quoted title fallback: "Frisky" by Dominic Fike
-        quote_match = re.search(r'"([^"]+)"(?:\s+by\s+([a-z0-9 .,&\'-]+))?', lower)
-        if quote_match:
-            title = quote_match.group(1).strip(" .,!?:;")
-            artist = (quote_match.group(2) or "").strip(" .,!?:;")
-            if title and artist:
-                return f"{title} {artist}"
-            if title:
-                return title
-        return None
 
     @staticmethod
     def _normalize_search_text(text: str) -> str:
@@ -817,16 +992,6 @@ class GuitarTutorAgent:
         return best_record, best_score
 
     @staticmethod
-    def _extract_measure_index(question: str) -> Optional[int]:
-        match = re.search(r"\bmeasure\s*#?\s*(\d+)\b", question.lower())
-        if not match:
-            return None
-
-        # Users speak in 1-based measure numbers; action contract is 0-based.
-        one_based = int(match.group(1))
-        return max(0, one_based - 1)
-
-    @staticmethod
     def _is_context_identification_question(lower_question: str) -> bool:
         return any(
             phrase in lower_question
@@ -850,32 +1015,6 @@ class GuitarTutorAgent:
             ui_context.get("playhead_measure_index") is not None
         )
         return (has_selected_beat or has_song_or_playhead) and has_highlighted
-
-    @staticmethod
-    def _is_measure_navigation_intent(lower_question: str) -> bool:
-        return any(
-            token in lower_question
-            for token in [
-                "go to",
-                "jump to",
-                "navigate to",
-                "move to",
-                "focus",
-                "show me",
-                "display",
-                "scroll to",
-                "play from",
-                "start at",
-            ]
-        )
-
-    @staticmethod
-    def _is_explicit_measure_navigation(lower_question: str) -> bool:
-        patterns = [
-            r"\b(?:go|jump|move|navigate|scroll|start|play)\s+.*\bmeasure\b",
-            r"\bmeasure\s+\d+\s*(?:please|now|next)?\b",
-        ]
-        return any(re.search(pattern, lower_question) for pattern in patterns)
 
     def _maybe_refresh_summary(self, state: dict) -> tuple[str, int]:
         """Maintain a rolling summary for long threads (logical compaction)."""
