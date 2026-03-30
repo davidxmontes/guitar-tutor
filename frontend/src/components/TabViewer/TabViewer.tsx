@@ -403,7 +403,7 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
             }}
             title="Toggle compact measure strip and focus on fretboard"
           >
-            {focusFretboardMode ? 'Fret Focus On' : 'Fret Focus Off'}
+            Fret Focus
           </button>
           <div className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
             M{Math.min(playheadMeasureIndex + 1, Math.max(1, measureCount))}

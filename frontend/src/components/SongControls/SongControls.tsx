@@ -46,22 +46,76 @@ export function SongControls() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 w-full">
-      <div className="min-w-0">
-        <div className="text-xs md:text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+    <div className="flex flex-col gap-3 md:gap-4 w-full">
+      <div className="flex items-center gap-2 min-w-0 text-[11px] md:text-xs">
+        <button
+          type="button"
+          onClick={backToSearch}
+          className="truncate transition-opacity hover:opacity-80"
+          style={{ color: 'var(--accent-600)' }}
+          title="Back to Search Results"
+        >
+          Songs / Search Results
+        </button>
+        <span style={{ color: 'var(--text-muted)' }}>/</span>
+        <span className="truncate" style={{ color: 'var(--text-muted)' }}>
           {selectedSong.artist} - {selectedSong.title}
-        </div>
-        <div className="text-[11px] md:text-xs" style={{ color: 'var(--text-muted)' }}>
-          Song ID: {selectedSong.song_id}
-          {tuningDisplay ? ` • Tuning: ${tuningDisplay}` : ''}
-        </div>
+        </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 md:gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 md:gap-4">
+        <div className="min-w-0">
+          <div className="text-xs md:text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+            {selectedSong.artist} - {selectedSong.title}
+          </div>
+          <div className="text-[11px] md:text-xs" style={{ color: 'var(--text-muted)' }}>
+            Song ID: {selectedSong.song_id}
+            {tuningDisplay ? ` • Tuning: ${tuningDisplay}` : ''}
+          </div>
+          <div
+            className="mt-2 inline-flex rounded-lg p-0.5 border"
+            style={{
+              borderColor: 'var(--border-primary)',
+              backgroundColor: 'var(--bg-tertiary)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => void handleViewModeChange('tab')}
+              className={`px-3 py-1.5 text-xs md:text-sm rounded-md font-medium ${
+                songViewMode === 'tab' ? 'shadow-sm border' : ''
+              }`}
+              style={{
+                borderColor: songViewMode === 'tab' ? 'var(--border-primary)' : 'transparent',
+                backgroundColor: songViewMode === 'tab' ? 'var(--card-bg)' : 'transparent',
+                color: songViewMode === 'tab' ? 'var(--accent-600)' : 'var(--text-tertiary)',
+              }}
+            >
+              Tab
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleViewModeChange('chords')}
+              disabled={!chordsAvailable}
+              className={`px-3 py-1.5 text-xs md:text-sm rounded-md font-medium ${
+                songViewMode === 'chords' ? 'shadow-sm border' : ''
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              style={{
+                borderColor: songViewMode === 'chords' ? 'var(--border-primary)' : 'transparent',
+                backgroundColor: songViewMode === 'chords' ? 'var(--card-bg)' : 'transparent',
+                color: songViewMode === 'chords' ? 'var(--accent-600)' : 'var(--text-tertiary)',
+              }}
+              title={chordsAvailable ? 'Show ChordPro lyrics/chords' : 'No chords available'}
+            >
+              Chords
+            </button>
+          </div>
+        </div>
+
         <select
           value={selectedTrackIndex}
           onChange={(e) => void selectTrack(Number(e.target.value))}
-          className="px-3 py-2 rounded-lg text-xs md:text-sm border"
+          className="w-full lg:w-auto lg:min-w-[360px] px-3 py-2 rounded-lg text-xs md:text-sm border"
           style={{
             borderColor: 'var(--border-primary)',
             backgroundColor: 'var(--bg-secondary)',
@@ -77,58 +131,6 @@ export function SongControls() {
             </option>
           ))}
         </select>
-
-        <div
-          className="flex rounded-lg p-0.5 border"
-          style={{
-            borderColor: 'var(--border-primary)',
-            backgroundColor: 'var(--bg-tertiary)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => void handleViewModeChange('tab')}
-            className={`px-3 py-1.5 text-xs md:text-sm rounded-md font-medium ${
-              songViewMode === 'tab' ? 'shadow-sm border' : ''
-            }`}
-            style={{
-              borderColor: songViewMode === 'tab' ? 'var(--border-primary)' : 'transparent',
-              backgroundColor: songViewMode === 'tab' ? 'var(--card-bg)' : 'transparent',
-              color: songViewMode === 'tab' ? 'var(--accent-600)' : 'var(--text-tertiary)',
-            }}
-          >
-            Tab
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleViewModeChange('chords')}
-            disabled={!chordsAvailable}
-            className={`px-3 py-1.5 text-xs md:text-sm rounded-md font-medium ${
-              songViewMode === 'chords' ? 'shadow-sm border' : ''
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-            style={{
-              borderColor: songViewMode === 'chords' ? 'var(--border-primary)' : 'transparent',
-              backgroundColor: songViewMode === 'chords' ? 'var(--card-bg)' : 'transparent',
-              color: songViewMode === 'chords' ? 'var(--accent-600)' : 'var(--text-tertiary)',
-            }}
-            title={chordsAvailable ? 'Show ChordPro lyrics/chords' : 'No chords available'}
-          >
-            Chords
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={backToSearch}
-          className="px-3 py-2 rounded-lg text-xs md:text-sm font-medium border"
-          style={{
-            borderColor: 'var(--border-primary)',
-            backgroundColor: 'var(--card-bg)',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          Back to Search
-        </button>
       </div>
     </div>
   );

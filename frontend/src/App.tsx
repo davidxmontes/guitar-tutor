@@ -461,13 +461,15 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--main-content-bg)' }}>
-          {/* Control Bar - uses Zustand for state, only needs action handlers */}
-          <ControlBar
-            onScaleSelect={handleScaleSelect}
-            onDiatonicChordClick={handleDiatonicChordClick}
-            onDirectChordSelect={handleDirectChordSelect}
-            onClearAll={handleClearAll}
-          />
+          {/* Control Bar - hide empty song panel before a song is selected */}
+          {!(appMode === 'song' && !selectedSong) && (
+            <ControlBar
+              onScaleSelect={handleScaleSelect}
+              onDiatonicChordClick={handleDiatonicChordClick}
+              onDirectChordSelect={handleDirectChordSelect}
+              onClearAll={handleClearAll}
+            />
+          )}
 
           {/* Scrollable Content */}
           <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 pb-20 md:pb-6" style={{ backgroundColor: 'var(--main-content-bg)' }}>

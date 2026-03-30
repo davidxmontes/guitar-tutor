@@ -148,7 +148,7 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
   const chordName = `${root}${selectedExtensionOption?.suffix ?? ''}`;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 md:gap-6">
+    <div className="flex flex-wrap items-center gap-3 md:gap-4">
       {/* Root selector */}
       <div className="flex flex-col gap-1">
         <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Root</label>

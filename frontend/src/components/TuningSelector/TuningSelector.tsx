@@ -27,7 +27,7 @@ export function TuningSelector({
         value={selectedTuning}
         onChange={(e) => onSelect(e.target.value)}
         disabled={isCustom}
-        className="px-3 md:px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer touch-target"
+        className="w-full min-w-[180px] md:w-[280px] px-3 md:px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer touch-target"
         style={{
           backgroundColor: 'var(--bg-input)',
           borderColor: 'var(--border-primary)',
