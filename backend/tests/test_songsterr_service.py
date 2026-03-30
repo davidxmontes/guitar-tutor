@@ -3,6 +3,7 @@ from app.services.songsterr import (
     TABS_PART_CDN_HOSTS,
     TABS_STAGE_CDN_HOST,
     _build_tab_candidate_urls,
+    _extract_first_playable_beat_index,
     _extract_search_records,
 )
 
@@ -65,3 +66,41 @@ def test_build_tab_candidate_urls_without_image_uses_part_hosts():
         track_index=3,
     )
     assert urls == [f"https://{host}.cloudfront.net/part/2/3" for host in TABS_PART_CDN_HOSTS]
+
+
+def test_extract_first_playable_beat_index_prefers_sounding_notes():
+    tab_data = {
+        "measures": [
+            {
+                "voices": [
+                    {
+                        "beats": [
+                            {"notes": [{"rest": True}]},
+                            {"notes": [{"string": 0, "fret": 3}]},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    assert _extract_first_playable_beat_index(tab_data, 0) == 1
+
+
+def test_extract_first_playable_beat_index_returns_zero_for_all_rests():
+    tab_data = {
+        "measures": [
+            {
+                "voices": [
+                    {
+                        "beats": [
+                            {"notes": [{"rest": True}]},
+                            {"notes": [{"dead": True}]},
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    assert _extract_first_playable_beat_index(tab_data, 0) == 0
