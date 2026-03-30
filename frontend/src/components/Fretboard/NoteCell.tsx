@@ -15,6 +15,8 @@ interface NoteCellProps {
   onClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   isClickable?: boolean;
   isHighlighted?: boolean;
+  isAgentHighlighted?: boolean;
+  hasAgentHighlightLayer?: boolean;
   darkMode?: boolean;
 }
 
@@ -33,11 +35,17 @@ export function NoteCell({
   onClick,
   isClickable = false,
   isHighlighted = false,
+  isAgentHighlighted = false,
+  hasAgentHighlightLayer = false,
   darkMode = false,
 }: NoteCellProps) {
   const voicingColor = voicingLabel ? getVoicingColor(voicingLabel) : null;
 
   const getColorClasses = () => {
+    if (isAgentHighlighted) {
+      return 'ring-2 ring-violet-400 text-white';
+    }
+
     if (isHighlighted) {
       return 'bg-amber-400 text-gray-900 ring-2 ring-amber-400 animate-pulse';
     }
@@ -65,6 +73,9 @@ export function NoteCell({
   };
 
   const getRingStyle = (): React.CSSProperties => {
+    if (isAgentHighlighted) {
+      return { backgroundColor: '#7c3aed' };
+    }
     if (isHighlighted) {
       return {};
     }
@@ -75,7 +86,7 @@ export function NoteCell({
   };
 
   const getScaleNoteStyle = (): React.CSSProperties => {
-    if (isHighlighted) return {};
+    if (isAgentHighlighted || isHighlighted) return {};
 
     if (isInScale && !isRoot && !voicingLabel) {
       if (hasChordOverlay) {
@@ -94,7 +105,8 @@ export function NoteCell({
   };
 
   const displayText = displayMode === 'intervals' && degreeLabel ? degreeLabel : note;
-  const isDimmed = !isHighlighted && !isInScale && !isRoot && !voicingLabel;
+  const isDimmed = !isAgentHighlighted && !isHighlighted && !isInScale && !isRoot && !voicingLabel;
+  const isAgentDimmed = hasAgentHighlightLayer && !isAgentHighlighted && !isDimmed;
 
   const handleClick = (e: React.MouseEvent) => {
     if (onClick && isClickable) {
@@ -129,7 +141,7 @@ export function NoteCell({
           shadow-sm
           ${isClickable ? 'cursor-pointer hover:scale-[1.15] hover:shadow-md hover:z-20' : 'cursor-default'}
           ${getColorClasses()}
-          ${isDimmed ? 'opacity-40' : ''}
+          ${isDimmed ? 'opacity-40' : isAgentDimmed ? 'opacity-30' : ''}
         `}
         style={{
           ...getRingStyle(),
@@ -139,7 +151,7 @@ export function NoteCell({
             color: darkMode ? '#94a3b8' : '#9ca3af'
           } : {})
         }}
-        title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isHighlighted ? ' (highlighted from tab beat)' : ''}${isClickable ? ' (click for chord)' : ''}`}
+        title={`${note} - Fret ${fret}${degreeLabel ? ` (${degreeLabel})` : ''}${isAgentHighlighted ? ' (agent highlight)' : ''}${isHighlighted ? ' (highlighted from tab beat)' : ''}${isClickable ? ' (click for chord)' : ''}`}
       >
         {displayText}
       </button>

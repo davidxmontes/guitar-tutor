@@ -1,4 +1,5 @@
 import type { NotePosition, ScaleNotePosition, ChordVoicing, HighlightedNote } from '../../types';
+import type { FretboardHighlightPosition } from '../../types/chat';
 import { NoteCell } from './NoteCell';
 
 interface ChordPositionInfo {
@@ -28,6 +29,8 @@ interface StringRowProps {
   onNoteClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   clickableNotes?: Set<string>;
   highlightedNotes?: HighlightedNote[];
+  agentHighlightPositions?: FretboardHighlightPosition[];
+  hasAgentHighlightLayer?: boolean;
   darkMode?: boolean;
   hasChordOverlay?: boolean;
 }
@@ -43,6 +46,8 @@ export function StringRow({
   onNoteClick,
   clickableNotes,
   highlightedNotes = [],
+  agentHighlightPositions = [],
+  hasAgentHighlightLayer = false,
   darkMode = false,
   hasChordOverlay = false,
 }: StringRowProps) {
@@ -72,6 +77,12 @@ export function StringRow({
     highlightedNotes.map((note) => `${note.string}:${note.fret}`),
   );
 
+  const agentHighlightMap = new Set(
+    agentHighlightPositions
+      .filter((pos) => pos.string === stringNumber)
+      .map((pos) => pos.fret),
+  );
+
   return (
     <div className="flex items-stretch">
       <div className="w-10 flex-shrink-0 flex items-center justify-center text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
@@ -94,6 +105,7 @@ export function StringRow({
           const chordPos = chordMap.get(notePos.fret);
           const isClickable = clickableNotes?.has(notePos.note) && !!scalePos;
           const isHighlighted = highlightedMap.has(`${stringNumber}:${notePos.fret}`);
+          const isAgentHighlighted = agentHighlightMap.has(notePos.fret);
 
           return (
             <NoteCell
@@ -112,6 +124,8 @@ export function StringRow({
               onClick={onNoteClick}
               isClickable={isClickable}
               isHighlighted={isHighlighted}
+              isAgentHighlighted={isAgentHighlighted}
+              hasAgentHighlightLayer={hasAgentHighlightLayer}
               darkMode={darkMode}
             />
           );
