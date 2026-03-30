@@ -73,8 +73,11 @@ function getBeatsPerMeasure(measure?: TabMeasure): number {
 
 export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewerProps) {
   const setHighlightedNotes = useAppStore((s) => s.setHighlightedNotes);
-  const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
-  const [playheadMeasureIndex, setPlayheadMeasureIndex] = useState(0);
+  const selectedBeatId = useAppStore((s) => s.selectedBeatId);
+  const playheadMeasureIndex = useAppStore((s) => s.playheadMeasureIndex);
+  const setSelectedBeatId = useAppStore((s) => s.setSelectedBeatId);
+  const setPlayheadMeasureIndex = useAppStore((s) => s.setPlayheadMeasureIndex);
+  const focusMeasureBeat = useAppStore((s) => s.focusMeasureBeat);
   const [isPlaying, setIsPlaying] = useState(false);
   const [focusFretboardMode, setFocusFretboardMode] = useState(true);
   const focusWindowSize = Math.max(1, measuresPerRow);
@@ -121,14 +124,15 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
   );
 
   const handleBeatClick = useCallback(
-    (beat: TabBeat, beatId: string) => {
+    (_beat: TabBeat, beatId: string) => {
       setIsPlaying(false);
-      setSelectedBeatId(beatId);
-      setHighlightedNotes(toHighlightedNotes(beat));
-      const measureIdx = Number(beatId.split(':')[0]);
-      if (!Number.isNaN(measureIdx)) setPlayheadMeasureIndex(measureIdx);
+      const [measurePart, beatPart] = beatId.split(':');
+      const measureIdx = Number(measurePart);
+      const beatIdx = Number(beatPart);
+      if (Number.isNaN(measureIdx)) return;
+      focusMeasureBeat(measureIdx, Number.isNaN(beatIdx) ? undefined : beatIdx);
     },
-    [setHighlightedNotes],
+    [focusMeasureBeat],
   );
 
   const moveBeatSelection = useCallback(
@@ -152,12 +156,9 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
 
       if (nextIndex < 0 || nextIndex >= beatSequence.length) return;
       const next = beatSequence[nextIndex];
-      const beatId = `${next.measureIndex}:${next.beatIndex}`;
-      setSelectedBeatId(beatId);
-      setPlayheadMeasureIndex(next.measureIndex);
-      setHighlightedNotes(toHighlightedNotes(next.beat));
+      focusMeasureBeat(next.measureIndex, next.beatIndex);
     },
-    [beatSequence, playheadMeasureIndex, selectedBeatSequenceIndex, setHighlightedNotes],
+    [beatSequence, focusMeasureBeat, playheadMeasureIndex, selectedBeatSequenceIndex],
   );
 
   const moveMeasureSelection = useCallback(
@@ -182,33 +183,31 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
       if (targetMeasureIndex === sourceMeasureIndex) return;
 
       const targetBeats = getBeatsFromMeasure(tabData.measures[targetMeasureIndex]);
-      setPlayheadMeasureIndex(targetMeasureIndex);
 
       if (targetBeats.length === 0) {
+        setPlayheadMeasureIndex(targetMeasureIndex);
         setSelectedBeatId(null);
         setHighlightedNotes([]);
         return;
       }
 
       const targetBeatIndex = Math.min(sourceBeatIndex, targetBeats.length - 1);
-      const targetBeat = targetBeats[targetBeatIndex];
-      setSelectedBeatId(`${targetMeasureIndex}:${targetBeatIndex}`);
-      setHighlightedNotes(toHighlightedNotes(targetBeat));
+      focusMeasureBeat(targetMeasureIndex, targetBeatIndex);
     },
-    [measureCount, playheadMeasureIndex, selectedBeatId, setHighlightedNotes, tabData.measures],
+    [focusMeasureBeat, measureCount, playheadMeasureIndex, selectedBeatId, setHighlightedNotes, setPlayheadMeasureIndex, setSelectedBeatId, tabData.measures],
   );
 
   const stepToPrevMeasure = useCallback(() => {
     setIsPlaying(false);
     setSelectedBeatId(null);
-    setPlayheadMeasureIndex((idx) => Math.max(0, idx - 1));
-  }, []);
+    setPlayheadMeasureIndex(Math.max(0, playheadMeasureIndex - 1));
+  }, [playheadMeasureIndex, setPlayheadMeasureIndex, setSelectedBeatId]);
 
   const stepToNextMeasure = useCallback(() => {
     setIsPlaying(false);
     setSelectedBeatId(null);
-    setPlayheadMeasureIndex((idx) => Math.min(Math.max(0, measureCount - 1), idx + 1));
-  }, [measureCount]);
+    setPlayheadMeasureIndex(Math.min(Math.max(0, measureCount - 1), playheadMeasureIndex + 1));
+  }, [measureCount, playheadMeasureIndex, setPlayheadMeasureIndex, setSelectedBeatId]);
 
   const togglePlayback = useCallback(() => {
     if (measureCount === 0) return;
@@ -227,7 +226,7 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
     setSelectedBeatId(null);
     setIsPlaying(false);
     setFocusFretboardMode(true);
-  }, [tabData.measures]);
+  }, [setPlayheadMeasureIndex, setSelectedBeatId, tabData.measures]);
 
   useEffect(() => {
     if (!measureCount) return;
@@ -256,12 +255,12 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
     const beatsInMeasure = getBeatsPerMeasure(tabData.measures[playheadMeasureIndex]);
     const measureMs = Math.max(1, beatsInMeasure) * (60 / effectiveBpm) * 1000;
     const timer = window.setTimeout(() => {
-      setPlayheadMeasureIndex((idx) => Math.min(measureCount - 1, idx + 1));
+      setPlayheadMeasureIndex(Math.min(measureCount - 1, playheadMeasureIndex + 1));
       setSelectedBeatId(null);
     }, measureMs);
 
     return () => window.clearTimeout(timer);
-  }, [effectiveBpm, isPlaying, measureCount, playheadMeasureIndex, tabData.measures]);
+  }, [effectiveBpm, isPlaying, measureCount, playheadMeasureIndex, setPlayheadMeasureIndex, setSelectedBeatId, tabData.measures]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ScaleCategory } from '../../types';
 import { apiClient } from '../../api/client';
 
-const ROOT_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const ROOT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 interface ScaleSelectorProps {
   selectedRoot: string;

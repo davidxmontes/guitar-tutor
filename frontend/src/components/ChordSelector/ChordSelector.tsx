@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const ROOTS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 type BaseQualityValue = 'major' | 'minor' | 'diminished' | 'augmented' | 'sus2' | 'sus4';
 type ExtensionValue = 'none' | '6' | '7' | 'dom7' | 'add9' | '9' | 'maj9' | 'm7b5';

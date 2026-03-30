@@ -1,5 +1,5 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse } from '../types';
-import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent } from '../types/chat';
+import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -11,6 +11,7 @@ export function nodeLabel(node: string): string {
   const labels: Record<string, string> = {
     prepare_question: 'Preparing...',
     clarify:          'Thinking...',
+    clarify_input:    'Need clarification...',
     generate_answer:  'Generating answer...',
   };
   return labels[node] ?? 'Thinking...';
@@ -85,7 +86,22 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      let detail = `API error: ${response.status} ${response.statusText}`;
+      let code: string | undefined;
+      let threadId: string | undefined;
+      try {
+        const data = await response.json();
+        if (typeof data?.detail === 'string') detail = data.detail;
+        if (typeof data?.detail?.detail === 'string') detail = data.detail.detail;
+        if (typeof data?.detail?.code === 'string') code = data.detail.code;
+        if (typeof data?.detail?.thread_id === 'string') threadId = data.detail.thread_id;
+      } catch {
+        // ignore JSON parse errors
+      }
+      const err = new Error(detail) as Error & { code?: string; thread_id?: string };
+      err.code = code;
+      err.thread_id = threadId;
+      throw err;
     }
     if (!response.body) {
       throw new Error('No response body from stream endpoint');
@@ -109,7 +125,10 @@ class ApiClient {
       } else if (event.event === 'answer') {
         return event.data;
       } else if (event.event === 'error') {
-        throw new Error(event.data.detail);
+        const err = new Error(event.data.detail) as Error & { code?: string; thread_id?: string };
+        err.code = event.data.code;
+        err.thread_id = event.data.thread_id;
+        throw err;
       }
       // 'done' — stream finished normally after 'answer', nothing to do
     }
@@ -149,18 +168,31 @@ class ApiClient {
 
   async streamChat(
     message: string,
-    conversationHistory: ChatMessage[] = [],
     threadId: string = 'default',
+    uiContext?: UiContext,
+    options?: {
+      bootstrapHistory?: ChatMessage[];
+      requireExistingThread?: boolean;
+      deprecatedConversationHistory?: ChatMessage[];
+    },
     onStatus?: (node: string) => void,
     onToken?: (text: string) => void,
   ): Promise<AgentResponse> {
+    const bootstrapHistory = options?.bootstrapHistory ?? [];
+    const deprecatedConversationHistory = options?.deprecatedConversationHistory ?? [];
     const request: AgentRequest = {
       message,
-      conversation_history: conversationHistory.map(msg => ({
+      thread_id: threadId,
+      ui_context: uiContext,
+      require_existing_thread: options?.requireExistingThread ?? false,
+      bootstrap_history: bootstrapHistory.map(msg => ({
         role: msg.role,
         content: msg.content,
       })),
-      thread_id: threadId,
+      conversation_history: deprecatedConversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
     };
     return this._runStream('/agent/chat/stream', request, onStatus, onToken);
   }
@@ -168,10 +200,11 @@ class ApiClient {
   async streamResume(
     response: string,
     threadId: string = 'default',
+    uiContext?: UiContext,
     onStatus?: (node: string) => void,
     onToken?: (text: string) => void,
   ): Promise<AgentResponse> {
-    const request: ResumeRequest = { response, thread_id: threadId };
+    const request: ResumeRequest = { response, thread_id: threadId, ui_context: uiContext };
     return this._runStream('/agent/resume/stream', request, onStatus, onToken);
   }
 

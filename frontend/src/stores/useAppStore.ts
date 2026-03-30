@@ -11,9 +11,11 @@ import type {
   TabDataResponse,
   ChordProResponse,
   HighlightedNote,
+  TabBeat,
+  TabMeasure,
   TuningInfo,
 } from '../types';
-import type { ChatMessage } from '../types/chat';
+import type { ChatMessage, UiContext } from '../types/chat';
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
 
 // App mode type
@@ -63,6 +65,54 @@ function persistThread(threadId: string, messages: ChatMessage[]) {
     localStorage.setItem(STORAGE_KEY_THREAD, threadId);
     localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
   } catch { /* storage full or unavailable */ }
+}
+
+function getBeatsFromMeasure(measure?: TabMeasure): TabBeat[] {
+  if (!measure) return [];
+  const voices = measure.voices ?? [];
+  if (voices.length === 0) return [];
+  if (voices.length === 1) return voices[0]?.beats ?? [];
+
+  let bestBeats: TabBeat[] = voices[0]?.beats ?? [];
+  let bestScore = -1;
+  for (const voice of voices) {
+    const beats = voice?.beats ?? [];
+    const score = beats.reduce((acc, beat) => {
+      const noteCount = (beat.notes ?? []).filter((n) => !n.rest && !n.dead).length;
+      return acc + noteCount;
+    }, 0);
+    if (score > bestScore) {
+      bestScore = score;
+      bestBeats = beats;
+    }
+  }
+  return bestBeats;
+}
+
+function toHighlightedNotes(beat?: TabBeat): HighlightedNote[] {
+  if (!beat) return [];
+  const seen = new Set<string>();
+  const highlights: HighlightedNote[] = [];
+  for (const note of beat.notes ?? []) {
+    if (note.rest || note.dead) continue;
+    if (typeof note.string !== 'number' || typeof note.fret !== 'number') continue;
+    const mappedString = note.string + 1;
+    if (mappedString < 1 || mappedString > 6) continue;
+
+    const key = `${mappedString}:${note.fret}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    highlights.push({ string: mappedString, fret: note.fret });
+  }
+  return highlights;
+}
+
+function firstPlayableBeatIndex(beats: TabBeat[]): number | undefined {
+  for (let i = 0; i < beats.length; i += 1) {
+    const notes = beats[i].notes ?? [];
+    if (notes.some((n) => !n.rest && !n.dead)) return i;
+  }
+  return beats.length ? 0 : undefined;
 }
 
 // ============================================================================
@@ -189,14 +239,20 @@ interface SongSlice {
 
   // Bridge: highlighted notes on fretboard
   highlightedNotes: HighlightedNote[];
+  playheadMeasureIndex: number;
+  selectedBeatId: string | null;
 
   // Actions
   searchSongs: (query: string) => Promise<void>;
   selectSong: (song: SongSearchResult) => Promise<void>;
+  selectSongById: (songId: number) => Promise<void>;
   selectTrack: (index: number) => Promise<void>;
   fetchChordPro: (songId: number) => Promise<void>;
   setSongViewMode: (mode: 'tab' | 'chords') => void;
   setHighlightedNotes: (notes: HighlightedNote[]) => void;
+  setPlayheadMeasureIndex: (index: number) => void;
+  setSelectedBeatId: (id: string | null) => void;
+  focusMeasureBeat: (measureIndex: number, beatIndex?: number) => void;
   clearHighlightedNotes: () => void;
   clearSongState: () => void;
   backToSearch: () => void;
@@ -444,10 +500,95 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
     };
 
+    const buildUiContext = (): UiContext => {
+      const state = get();
+      return {
+        app_mode: state.appMode,
+        display_mode: state.displayMode,
+        selected_tuning: state.selectedTuning,
+        custom_tuning_notes: state.customTuningNotes,
+        selected_scale: state.scaleData
+          ? { root: state.selectedRoot, mode: state.selectedMode }
+          : null,
+        selected_chord: state.chordData
+          ? { root: state.selectedChordRoot, quality: state.selectedChordQuality }
+          : null,
+        selected_song: state.selectedSong
+          ? {
+              song_id: state.selectedSong.song_id,
+              artist: state.selectedSong.artist,
+              title: state.selectedSong.title,
+              has_chords: state.selectedSong.has_chords,
+            }
+          : null,
+        selected_track_index: state.selectedTrackIndex,
+        song_view_mode: state.songViewMode,
+        playhead_measure_index: state.playheadMeasureIndex,
+        selected_beat_id: state.selectedBeatId,
+        highlighted_notes: state.highlightedNotes,
+      };
+    };
+
+    const sendWithBootstrapRetry = async () => {
+      const uiContext = buildUiContext();
+      if (isResumingFromInterrupt) {
+        try {
+          return await apiClient.streamResume(message, threadId, uiContext, onStatus, onToken);
+        } catch (err) {
+          const code = (err as Error & { code?: string }).code;
+          if (code !== 'THREAD_NOT_FOUND') throw err;
+
+          console.warn('Resume thread missing on server, retrying with bootstrap history.');
+          return apiClient.streamChat(
+            message,
+            threadId,
+            uiContext,
+            {
+              requireExistingThread: false,
+              bootstrapHistory: messages,
+              deprecatedConversationHistory: messages,
+            },
+            onStatus,
+            onToken,
+          );
+        }
+      }
+
+      const requireExistingThread = messages.length > 0;
+      try {
+        return await apiClient.streamChat(
+          message,
+          threadId,
+          uiContext,
+          {
+            requireExistingThread,
+          },
+          onStatus,
+          onToken,
+        );
+      } catch (err) {
+        const code = (err as Error & { code?: string }).code;
+        if (code !== 'THREAD_NOT_FOUND') throw err;
+
+        // One-time bootstrap fallback from local persisted history.
+        console.warn('Thread missing on server, retrying with bootstrap history.');
+        return apiClient.streamChat(
+          message,
+          threadId,
+          uiContext,
+          {
+            requireExistingThread: false,
+            bootstrapHistory: messages,
+            deprecatedConversationHistory: messages,
+          },
+          onStatus,
+          onToken,
+        );
+      }
+    };
+
     try {
-      const response = isResumingFromInterrupt
-        ? await apiClient.streamResume(message, threadId, onStatus, onToken)
-        : await apiClient.streamChat(message, messages, threadId, onStatus, onToken);
+      const response = await sendWithBootstrapRetry();
 
       // Handle interrupted response (agent asking a clarifying question)
       if (response.interrupted) {
@@ -484,6 +625,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           visualizations: response.visualizations,
           outOfScope: response.out_of_scope,
           apiRequests: response.api_requests,
+          actions: response.actions,
+          memoryStatus: response.memory_status,
         };
 
         if (idx >= 0) {
@@ -499,6 +642,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return get().messages.find(m => m.id === streamingMsgId) ?? null;
     } catch (err) {
       console.error('Chat error:', err);
+      const errCode = (err as Error & { code?: string }).code;
+      const isThreadMissing = errCode === 'THREAD_NOT_FOUND';
 
       set((state) => {
         const msgs = [
@@ -506,7 +651,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           {
             id: generateMessageId(),
             role: 'assistant' as const,
-            content: 'Sorry, I encountered an error. Please make sure the backend is running.',
+            content: isThreadMissing
+              ? 'I lost server-side thread memory and could not restore this conversation. Please reset chat and try again.'
+              : 'Sorry, I encountered an error. Please make sure the backend is running.',
             timestamp: new Date(),
           },
         ];
@@ -584,6 +731,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   songViewMode: 'tab',
   highlightedNotes: [],
+  playheadMeasureIndex: 0,
+  selectedBeatId: null,
 
   searchSongs: async (query) => {
     set({ songSearchLoading: true, songSearchError: null, songSearchQuery: query });
@@ -609,6 +758,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       selectedTrackIndex: 0,
       songViewMode: 'tab',
       highlightedNotes: [],
+      playheadMeasureIndex: 0,
+      selectedBeatId: null,
     });
     try {
       const tracksData = await apiClient.getSongTracks(song.song_id);
@@ -633,9 +784,59 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
 
       const tabData = await apiClient.getTabData(song.song_id, trackIdx);
-      set({ tabData, selectedTrackIndex: trackIdx, tabLoading: false });
+      set({
+        tabData,
+        selectedTrackIndex: trackIdx,
+        tabLoading: false,
+        playheadMeasureIndex: 0,
+        selectedBeatId: null,
+      });
     } catch (err) {
       console.error('Failed to load song:', err);
+      set({
+        tabError: err instanceof Error ? err.message : 'Failed to load song',
+        tabLoading: false,
+      });
+    }
+  },
+
+  selectSongById: async (songId) => {
+    const state = get();
+    const fromResults = state.songSearchResults.find((s) => s.song_id === songId);
+    if (fromResults) {
+      await state.selectSong(fromResults);
+      return;
+    }
+
+    set({
+      tabLoading: true,
+      tabError: null,
+      tabData: null,
+      chordProData: null,
+      selectedTrackIndex: 0,
+      songViewMode: 'tab',
+      highlightedNotes: [],
+      playheadMeasureIndex: 0,
+      selectedBeatId: null,
+    });
+
+    try {
+      const tracksData = await apiClient.getSongTracks(songId);
+      const syntheticSong: SongSearchResult = {
+        song_id: songId,
+        artist: tracksData.artist,
+        title: tracksData.title,
+        has_chords: true,
+        tracks: tracksData.tracks,
+      };
+
+      set({ selectedSong: syntheticSong, songTracks: tracksData });
+
+      const defaultTrack = tracksData.tracks.find(t => !t.is_vocal && !t.is_empty);
+      const trackIdx = defaultTrack ? defaultTrack.index : 0;
+      await get().selectTrack(trackIdx);
+    } catch (err) {
+      console.error('Failed to load song by ID:', err);
       set({
         tabError: err instanceof Error ? err.message : 'Failed to load song',
         tabLoading: false,
@@ -646,7 +847,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   selectTrack: async (index) => {
     const { selectedSong, songTracks, availableTunings } = get();
     if (!selectedSong) return;
-    set({ selectedTrackIndex: index, tabLoading: true, tabError: null, highlightedNotes: [] });
+    set({
+      selectedTrackIndex: index,
+      tabLoading: true,
+      tabError: null,
+      highlightedNotes: [],
+      playheadMeasureIndex: 0,
+      selectedBeatId: null,
+    });
 
     // Auto-detect tuning from new track
     const track = songTracks?.tracks.find(t => t.index === index);
@@ -664,7 +872,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     try {
       const tabData = await apiClient.getTabData(selectedSong.song_id, index);
-      set({ tabData, tabLoading: false });
+      set({
+        tabData,
+        tabLoading: false,
+        playheadMeasureIndex: 0,
+        selectedBeatId: null,
+      });
     } catch (err) {
       console.error('Failed to load track:', err);
       set({
@@ -686,6 +899,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setSongViewMode: (mode) => set({ songViewMode: mode }),
   setHighlightedNotes: (notes) => set({ highlightedNotes: notes }),
+  setPlayheadMeasureIndex: (index) => set({ playheadMeasureIndex: index }),
+  setSelectedBeatId: (id) => set({ selectedBeatId: id }),
+  focusMeasureBeat: (measureIndex, beatIndex) => {
+    const { tabData } = get();
+    const measures = tabData?.tab_data?.measures ?? [];
+    if (measures.length === 0) {
+      set({ playheadMeasureIndex: 0, selectedBeatId: null, highlightedNotes: [] });
+      return;
+    }
+
+    const clampedMeasure = Math.max(0, Math.min(measures.length - 1, measureIndex));
+    const beats = getBeatsFromMeasure(measures[clampedMeasure]);
+    if (beats.length === 0) {
+      set({
+        playheadMeasureIndex: clampedMeasure,
+        selectedBeatId: null,
+        highlightedNotes: [],
+      });
+      return;
+    }
+
+    const fallbackBeatIndex = firstPlayableBeatIndex(beats);
+    const resolvedBeatIndex = Math.max(
+      0,
+      Math.min(beats.length - 1, beatIndex ?? fallbackBeatIndex ?? 0),
+    );
+    const beat = beats[resolvedBeatIndex];
+    set({
+      playheadMeasureIndex: clampedMeasure,
+      selectedBeatId: `${clampedMeasure}:${resolvedBeatIndex}`,
+      highlightedNotes: toHighlightedNotes(beat),
+    });
+  },
   clearHighlightedNotes: () => set({ highlightedNotes: [] }),
 
   clearSongState: () => set({
@@ -703,6 +949,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     chordProLoading: false,
     songViewMode: 'tab',
     highlightedNotes: [],
+    playheadMeasureIndex: 0,
+    selectedBeatId: null,
   }),
 
   backToSearch: () => set({
@@ -715,6 +963,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     chordProData: null,
     chordProLoading: false,
     highlightedNotes: [],
+    playheadMeasureIndex: 0,
+    selectedBeatId: null,
   }),
 }));
 
@@ -784,6 +1034,8 @@ export const useTabLoading = () => useAppStore((state) => state.tabLoading);
 export const useTabError = () => useAppStore((state) => state.tabError);
 export const useSongViewMode = () => useAppStore((state) => state.songViewMode);
 export const useHighlightedNotes = () => useAppStore((state) => state.highlightedNotes);
+export const usePlayheadMeasureIndex = () => useAppStore((state) => state.playheadMeasureIndex);
+export const useSelectedBeatId = () => useAppStore((state) => state.selectedBeatId);
 
 // Tuning selectors
 export const useSelectedTuning = () => useAppStore((state) => state.selectedTuning);

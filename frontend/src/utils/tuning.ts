@@ -1,4 +1,4 @@
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
 export function midiToNoteName(midi: number, includeOctave: boolean = false): string {
   if (!Number.isFinite(midi)) return '?';
@@ -38,8 +38,8 @@ export function matchTuningId(
   tunings: Array<{ id: string; notes: string[] }>,
 ): string | null {
   const noteToIndex = (n: string) => {
-    const flat: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
-    const normalized = flat[n] ?? n;
+    const sharp: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' };
+    const normalized = sharp[n] ?? n;
     return NOTE_NAMES.indexOf(normalized as typeof NOTE_NAMES[number]);
   };
   const target = notes.map(noteToIndex);

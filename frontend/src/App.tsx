@@ -10,6 +10,7 @@ import { useFretboard } from './hooks';
 import { useAppStore } from './stores';
 import { apiClient } from './api/client';
 import type { DiatonicChord } from './types';
+import type { AgentAction } from './types/chat';
 
 function App() {
   // ============================================================================
@@ -50,6 +51,11 @@ function App() {
     chordProLoading,
     songViewMode,
     highlightedNotes,
+    searchSongs,
+    selectSongById,
+    selectTrack,
+    focusMeasureBeat,
+    setSongViewMode,
     selectedTuning,
     customTuningNotes,
     fetchTunings,
@@ -242,17 +248,81 @@ function App() {
   }, [setAppMode, fetchScale]);
 
   // Handle chat send with visualization
+  const executeAgentActions = useCallback(async (actions: AgentAction[]) => {
+    const currentMode = useAppStore.getState().appMode;
+
+    for (const action of actions) {
+      try {
+        if (action.type === 'theory.show_chord') {
+          // In song mode, skip auto-switching — let the user click pills instead
+          if (currentMode === 'song') continue;
+          await handleChatChordClick(`${action.root} ${action.quality}`, {
+            root: action.root,
+            quality: action.quality,
+          });
+          continue;
+        }
+        if (action.type === 'theory.show_scale') {
+          if (currentMode === 'song') continue;
+          await handleChatScaleClick(`${action.root} ${action.mode}`, {
+            root: action.root,
+            mode: action.mode,
+          });
+          continue;
+        }
+        if (action.type === 'song.search') {
+          setAppMode('song');
+          await searchSongs(action.query);
+          continue;
+        }
+        if (action.type === 'song.select') {
+          setAppMode('song');
+          await selectSongById(action.song_id);
+          continue;
+        }
+        if (action.type === 'song.track.select') {
+          setAppMode('song');
+          await selectTrack(action.track_index);
+          continue;
+        }
+        if (action.type === 'song.measure.focus') {
+          setAppMode('song');
+          setSongViewMode('tab');
+          focusMeasureBeat(action.measure_index, action.beat_index);
+          continue;
+        }
+        console.warn('Unknown agent action type:', action);
+      } catch (err) {
+        console.error('Failed to execute agent action:', action, err);
+      }
+    }
+  }, [
+    focusMeasureBeat,
+    handleChatChordClick,
+    handleChatScaleClick,
+    searchSongs,
+    selectSongById,
+    selectTrack,
+    setAppMode,
+    setSongViewMode,
+  ]);
+
   const handleChatSend = useCallback(async (message: string) => {
     const response = await sendMessage(message);
-    
-    // If visualizations requested and we have parsed chord requests, show the first one
+
+    if (response?.actions?.length) {
+      await executeAgentActions(response.actions);
+      return;
+    }
+
+    // Backward compatibility fallback for older responses with no actions[]
     if (response?.visualizations && response.apiRequests?.chords?.length) {
       const firstChordRequest = response.apiRequests.chords[0];
       if (response.chordChoices?.[0]) {
         await handleChatChordClick(response.chordChoices[0], firstChordRequest);
       }
     }
-  }, [sendMessage, handleChatChordClick]);
+  }, [sendMessage, executeAgentActions, handleChatChordClick]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
