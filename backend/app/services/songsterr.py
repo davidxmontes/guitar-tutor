@@ -88,10 +88,50 @@ def _build_tab_candidate_urls(song_id: int, revision_id: int, image: str | None,
     return candidate_urls
 
 
+def _extract_first_playable_beat_index(tab_data: dict, measure_index: int) -> int | None:
+    """Return the first beat index in a measure that has playable notes."""
+    measures = tab_data.get("measures") or []
+    if measure_index < 0 or measure_index >= len(measures):
+        return None
+
+    measure = measures[measure_index] or {}
+    voices = measure.get("voices") or []
+    if not voices:
+        return None
+
+    # Pick the voice with the most sounding notes.
+    best_beats: list[dict] = []
+    best_score = -1
+    for voice in voices:
+        beats = voice.get("beats") or []
+        score = 0
+        for beat in beats:
+            notes = beat.get("notes") or []
+            score += sum(1 for n in notes if not n.get("rest") and not n.get("dead"))
+        if score > best_score:
+            best_score = score
+            best_beats = beats
+
+    for idx, beat in enumerate(best_beats):
+        notes = beat.get("notes") or []
+        if any(not n.get("rest") and not n.get("dead") for n in notes):
+            return idx
+    return 0 if best_beats else None
+
+
 async def search_songs(query: str) -> list[SongsterrRecord]:
     """Search Songsterr for songs matching the query."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(f"{SONGSTERR_API}/search", params={"pattern": query})
+        resp.raise_for_status()
+        records_payload = _extract_search_records(resp.json())
+        return [SongsterrRecord.model_validate(r) for r in records_payload]
+
+
+def search_songs_sync(query: str) -> list[SongsterrRecord]:
+    """Synchronous song search for agent-side tool usage."""
+    with httpx.Client(timeout=15.0) as client:
+        resp = client.get(f"{SONGSTERR_API}/search", params={"pattern": query})
         resp.raise_for_status()
         records_payload = _extract_search_records(resp.json())
         return [SongsterrRecord.model_validate(r) for r in records_payload]
@@ -108,6 +148,21 @@ async def get_song_revision(song_id: int) -> SongsterrRevisionResponse:
 
         revision_id = revisions[0]["revisionId"]
         resp = await client.get(f"{SONGSTERR_API}/revision/{revision_id}")
+        resp.raise_for_status()
+        return SongsterrRevisionResponse.model_validate(resp.json())
+
+
+def get_song_revision_sync(song_id: int) -> SongsterrRevisionResponse:
+    """Synchronous latest revision lookup for agent-side tool usage."""
+    with httpx.Client(timeout=15.0) as client:
+        rev_resp = client.get(f"{SONGSTERR_API}/meta/{song_id}/revisions")
+        rev_resp.raise_for_status()
+        revisions = rev_resp.json()
+        if not revisions:
+            raise ValueError(f"No revisions found for song {song_id}")
+
+        revision_id = revisions[0]["revisionId"]
+        resp = client.get(f"{SONGSTERR_API}/revision/{revision_id}")
         resp.raise_for_status()
         return SongsterrRevisionResponse.model_validate(resp.json())
 
@@ -147,6 +202,65 @@ async def get_tab_data(
         f"Tab data not found for song={song_id}, rev={revision_id}, track={track_index}. "
         f"Attempted: {attempted}",
     )
+
+
+def get_tab_data_sync(
+    song_id: int,
+    revision_id: int,
+    image: str | None,
+    track_index: int,
+) -> dict:
+    """Synchronous tab fetch and decompression for agent-side tool usage."""
+    candidate_urls = _build_tab_candidate_urls(song_id, revision_id, image, track_index)
+
+    if not candidate_urls:
+        raise ValueError("No candidate tab URLs could be built")
+
+    with httpx.Client(timeout=15.0) as client:
+        last_error: Exception | None = None
+        for url in candidate_urls:
+            try:
+                resp = client.get(url)
+                if resp.status_code == 404:
+                    continue
+                resp.raise_for_status()
+                return json.loads(_decompress(resp.content))
+            except Exception as exc:
+                last_error = exc
+                continue
+
+    attempted = ", ".join(candidate_urls)
+    if last_error:
+        raise RuntimeError(
+            f"All tab CDN candidates failed for song={song_id}, rev={revision_id}, "
+            f"track={track_index}. Attempted: {attempted}",
+        ) from last_error
+    raise RuntimeError(
+        f"Tab data not found for song={song_id}, rev={revision_id}, track={track_index}. "
+        f"Attempted: {attempted}",
+    )
+
+
+def resolve_measure_focus_sync(
+    song_id: int,
+    track_index: int,
+    requested_measure_index: int,
+) -> tuple[int, int | None]:
+    """Resolve a valid (measure_index, beat_index) focus target for a song track."""
+    revision = get_song_revision_sync(song_id)
+    tab_data = get_tab_data_sync(
+        song_id=revision.song_id,
+        revision_id=revision.revision_id,
+        image=revision.image,
+        track_index=track_index,
+    )
+    measures = tab_data.get("measures") or []
+    if not measures:
+        return 0, None
+
+    clamped_measure = max(0, min(requested_measure_index, len(measures) - 1))
+    beat_index = _extract_first_playable_beat_index(tab_data, clamped_measure)
+    return clamped_measure, beat_index
 
 
 async def get_chordpro(song_id: int) -> str | None:
