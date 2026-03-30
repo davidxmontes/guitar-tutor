@@ -18,7 +18,7 @@ TUNINGS = {
     "half_step_down": {
         "id": "half_step_down",
         "name": "Half Step Down",
-        "notes": ["D#", "A#", "F#", "C#", "G#", "D#"],
+        "notes": ["Eb", "Bb", "Gb", "Db", "Ab", "Eb"],
     },
     "full_step_down": {
         "id": "full_step_down",
