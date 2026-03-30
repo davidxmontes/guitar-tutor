@@ -50,6 +50,7 @@ export function ChatPanel({
   if (isCollapsed) {
     return (
       <div
+        data-agent-highlight-scope="chat"
         className="flex flex-col h-full font-sans border-r items-center justify-start py-2"
         style={{
           backgroundColor: 'var(--chat-bg)',
@@ -73,6 +74,7 @@ export function ChatPanel({
 
   return (
     <div 
+      data-agent-highlight-scope="chat"
       className="flex flex-col h-full font-sans border-r"
       style={{ 
         backgroundColor: 'var(--chat-bg)',
