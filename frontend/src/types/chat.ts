@@ -123,13 +123,29 @@ export type TheoryShowScaleAction = {
   mode: string;
 };
 
+export type FretboardHighlightPosition = {
+  string: number; // 1-6 (1 = high E)
+  fret: number;
+};
+
+export type FretboardHighlightGroup = {
+  name: string;
+  positions: FretboardHighlightPosition[];
+};
+
+export type FretboardHighlightAction = {
+  type: 'fretboard.highlight';
+  groups: FretboardHighlightGroup[];
+};
+
 export type AgentAction =
   | SongSearchAction
   | SongSelectAction
   | SongTrackSelectAction
   | SongMeasureFocusAction
   | TheoryShowChordAction
-  | TheoryShowScaleAction;
+  | TheoryShowScaleAction
+  | FretboardHighlightAction;
 
 export interface AgentResponse {
   answer: string;

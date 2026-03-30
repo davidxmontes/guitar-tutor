@@ -15,7 +15,7 @@ import type {
   TabMeasure,
   TuningInfo,
 } from '../types';
-import type { ChatMessage, UiContext } from '../types/chat';
+import type { ChatMessage, UiContext, FretboardHighlightGroup } from '../types/chat';
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
 
 // App mode type
@@ -271,9 +271,24 @@ interface TuningSlice {
 }
 
 // ============================================================================
+// Agent Highlight Slice
+// ============================================================================
+interface AgentHighlightSlice {
+  agentHighlightGroups: FretboardHighlightGroup[] | null;
+  agentHighlightIndex: number;
+  agentHighlightMessageId: string | null;
+  agentHighlightVisible: boolean;
+  setAgentHighlights: (groups: FretboardHighlightGroup[], messageId: string) => void;
+  clearAgentHighlights: () => void;
+  toggleAgentHighlightVisible: () => void;
+  nextAgentHighlight: () => void;
+  prevAgentHighlight: () => void;
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice;
+type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice;
 
 // ============================================================================
 // Store Implementation
@@ -668,7 +683,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   resetChat: () => {
     const newThreadId = generateThreadId();
     persistThread(newThreadId, []);
-    set({ messages: [], threadId: newThreadId });
+    set({
+      messages: [],
+      threadId: newThreadId,
+      agentHighlightGroups: null,
+      agentHighlightIndex: 0,
+      agentHighlightMessageId: null,
+      agentHighlightVisible: false,
+    });
   },
 
   // --------------------------------------------------------------------------
@@ -965,6 +987,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
     highlightedNotes: [],
     playheadMeasureIndex: 0,
     selectedBeatId: null,
+  }),
+
+  // --------------------------------------------------------------------------
+  // Agent Highlight Slice
+  // --------------------------------------------------------------------------
+  agentHighlightGroups: null,
+  agentHighlightIndex: 0,
+  agentHighlightMessageId: null,
+  agentHighlightVisible: false,
+
+  setAgentHighlights: (groups, messageId) => set({ agentHighlightGroups: groups, agentHighlightIndex: 0, agentHighlightMessageId: messageId, agentHighlightVisible: true }),
+
+  clearAgentHighlights: () => set({ agentHighlightGroups: null, agentHighlightIndex: 0, agentHighlightMessageId: null, agentHighlightVisible: false }),
+
+  toggleAgentHighlightVisible: () => set((state) => ({ agentHighlightVisible: !state.agentHighlightVisible })),
+
+  nextAgentHighlight: () => set((state) => {
+    if (!state.agentHighlightGroups) return {};
+    return { agentHighlightIndex: (state.agentHighlightIndex + 1) % state.agentHighlightGroups.length };
+  }),
+
+  prevAgentHighlight: () => set((state) => {
+    if (!state.agentHighlightGroups) return {};
+    const len = state.agentHighlightGroups.length;
+    return { agentHighlightIndex: (state.agentHighlightIndex - 1 + len) % len };
   }),
 }));
 

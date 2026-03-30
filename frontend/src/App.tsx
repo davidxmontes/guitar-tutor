@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { Fretboard } from './components/Fretboard';
 import { ChordDiagramRow } from './components/ChordDiagram';
 import { ChordPopup } from './components/ChordPopup';
@@ -10,9 +10,11 @@ import { useFretboard } from './hooks';
 import { useAppStore } from './stores';
 import { apiClient } from './api/client';
 import type { DiatonicChord } from './types';
-import type { AgentAction } from './types/chat';
+import type { AgentAction, FretboardHighlightAction } from './types/chat';
 
 function App() {
+  const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
+
   // ============================================================================
   // Zustand Store - only what App.tsx needs directly
   // ============================================================================
@@ -43,6 +45,7 @@ function App() {
     resetChord,
     setChordData,
     sendMessage,
+    messages,
     selectedSong,
     tabData,
     tabLoading,
@@ -59,6 +62,13 @@ function App() {
     selectedTuning,
     customTuningNotes,
     fetchTunings,
+    agentHighlightGroups,
+    agentHighlightIndex,
+    agentHighlightVisible,
+    setAgentHighlights,
+    clearAgentHighlights,
+    nextAgentHighlight,
+    prevAgentHighlight,
   } = useAppStore();
 
   // ============================================================================
@@ -83,6 +93,56 @@ function App() {
   // Fetch available tunings on mount
   // ============================================================================
   useEffect(() => { fetchTunings(); }, [fetchTunings]);
+
+  useEffect(() => {
+    const updateScope = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) {
+        setAgentHighlightKeyScopeActive(false);
+        return;
+      }
+      setAgentHighlightKeyScopeActive(!!target.closest('[data-agent-highlight-scope="chat"]'));
+    };
+
+    const handlePointerDown = (event: PointerEvent) => updateScope(event.target);
+    const handleFocusIn = (event: FocusEvent) => updateScope(event.target);
+
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('focusin', handleFocusIn);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('focusin', handleFocusIn);
+    };
+  }, []);
+
+  // Rehydrate the latest assistant fretboard highlight from persisted chat history
+  // after a full page refresh. This keeps the overlay controls in chat aligned
+  // with the visible assistant message without replaying all agent actions.
+  useEffect(() => {
+    const latestHighlightMessage = [...messages].reverse().find((message) =>
+      message.role === 'assistant'
+      && message.actions?.some(
+        (action): action is FretboardHighlightAction =>
+          action.type === 'fretboard.highlight' && action.groups.length > 0,
+      ),
+    );
+
+    if (!latestHighlightMessage) {
+      clearAgentHighlights();
+      return;
+    }
+
+    const highlightAction = latestHighlightMessage.actions?.find(
+      (action): action is FretboardHighlightAction =>
+        action.type === 'fretboard.highlight' && action.groups.length > 0,
+    );
+
+    if (highlightAction) {
+      setAgentHighlights(highlightAction.groups, latestHighlightMessage.id);
+    }
+    // Intentionally mount-only: we want refresh rehydration, but we should not
+    // re-enable highlights after the user explicitly clears or hides them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ============================================================================
   // Auto-fetch scale when in scale mode (re-fetches on tuning change)
@@ -124,8 +184,8 @@ function App() {
     return new Set(scaleData.scale_notes);
   }, [appMode, scaleData]);
 
-  // Determine which chord data to show on fretboard
-  const fretboardChordData = appMode === 'song' ? null : chordData;
+  // Determine which chord data to show on fretboard (suppress when agent highlights are active)
+  const fretboardChordData = (appMode === 'song' || agentHighlightVisible) ? null : chordData;
   const fretboardScalePositions = (appMode === 'scale' || (appMode === 'chord' && showScaleInChordMode))
     ? (scaleData?.positions ?? [])
     : [];
@@ -201,7 +261,8 @@ function App() {
     clearChord();
     resetScale();
     resetChord();
-  }, [clearScale, clearChord, resetScale, resetChord]);
+    clearAgentHighlights();
+  }, [clearScale, clearChord, resetScale, resetChord, clearAgentHighlights]);
 
   // Handle chat chord click
   const handleChatChordClick = useCallback(async (
@@ -247,8 +308,63 @@ function App() {
     fetchScale(root, mode);
   }, [setAppMode, fetchScale]);
 
+  // Derive active agent highlight group for fretboard (only when visible)
+  const agentHighlightGroup = agentHighlightVisible && agentHighlightGroups
+    ? agentHighlightGroups[agentHighlightIndex] ?? null
+    : null;
+
+  useEffect(() => {
+    if (
+      !agentHighlightKeyScopeActive ||
+      !agentHighlightVisible ||
+      !agentHighlightGroups ||
+      agentHighlightGroups.length <= 1
+    ) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        if (
+          target.isContentEditable ||
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          tagName === 'SELECT'
+        ) {
+          return;
+        }
+      }
+
+      // In song mode, TabViewer already owns arrow-key navigation.
+      if (appMode === 'song') return;
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        prevAgentHighlight();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        nextAgentHighlight();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    agentHighlightGroups,
+    agentHighlightKeyScopeActive,
+    agentHighlightVisible,
+    appMode,
+    nextAgentHighlight,
+    prevAgentHighlight,
+  ]);
+
   // Handle chat send with visualization
-  const executeAgentActions = useCallback(async (actions: AgentAction[]) => {
+  const executeAgentActions = useCallback(async (actions: AgentAction[], messageId?: string) => {
     const currentMode = useAppStore.getState().appMode;
 
     for (const action of actions) {
@@ -291,6 +407,10 @@ function App() {
           focusMeasureBeat(action.measure_index, action.beat_index);
           continue;
         }
+        if (action.type === 'fretboard.highlight') {
+          if (messageId) setAgentHighlights(action.groups, messageId);
+          continue;
+        }
         console.warn('Unknown agent action type:', action);
       } catch (err) {
         console.error('Failed to execute agent action:', action, err);
@@ -303,6 +423,7 @@ function App() {
     searchSongs,
     selectSongById,
     selectTrack,
+    setAgentHighlights,
     setAppMode,
     setSongViewMode,
   ]);
@@ -311,7 +432,7 @@ function App() {
     const response = await sendMessage(message);
 
     if (response?.actions?.length) {
-      await executeAgentActions(response.actions);
+      await executeAgentActions(response.actions, response.id);
       return;
     }
 
@@ -458,6 +579,7 @@ function App() {
                 clickableScaleNotes={clickableScaleNotes}
                 darkMode={darkMode}
                 highlightedNotes={appMode === 'song' ? highlightedNotes : []}
+                agentHighlightGroup={agentHighlightGroup}
               />
             )}
 
