@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const ROOTS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 type BaseQualityValue = 'major' | 'minor' | 'diminished' | 'augmented' | 'sus2' | 'sus4';
 type ExtensionValue = 'none' | '6' | '7' | 'dom7' | 'add9' | '9' | 'maj9' | 'm7b5';
@@ -148,7 +148,7 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
   const chordName = `${root}${selectedExtensionOption?.suffix ?? ''}`;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 md:gap-6">
+    <div className="flex flex-wrap items-center gap-3 md:gap-4">
       {/* Root selector */}
       <div className="flex flex-col gap-1">
         <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Root</label>

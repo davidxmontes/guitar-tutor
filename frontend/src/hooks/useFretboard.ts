@@ -8,7 +8,7 @@ interface UseFretboardResult {
   error: string | null;
 }
 
-export function useFretboard(tuning: string = 'standard'): UseFretboardResult {
+export function useFretboard(tuning: string = 'standard', tuningNotes?: string): UseFretboardResult {
   const [fretboardData, setFretboardData] = useState<FretboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +17,7 @@ export function useFretboard(tuning: string = 'standard'): UseFretboardResult {
     async function fetchFretboard() {
       try {
         setLoading(true);
-        const data = await apiClient.getFretboard(tuning);
+        const data = await apiClient.getFretboard(tuning, tuningNotes);
         setFretboardData(data);
         setError(null);
       } catch (err) {
@@ -29,7 +29,7 @@ export function useFretboard(tuning: string = 'standard'): UseFretboardResult {
     }
 
     fetchFretboard();
-  }, [tuning]);
+  }, [tuning, tuningNotes]);
 
   return { fretboardData, loading, error };
 }

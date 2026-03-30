@@ -2,11 +2,11 @@
 Music theory: Note definitions and chromatic calculations.
 """
 
-# All 12 chromatic notes (using sharps as default)
-CHROMATIC_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+# All 12 chromatic notes using flats (the music-theory standard for enharmonics).
+CHROMATIC_NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
-# Enharmonic equivalents (for display purposes)
-ENHARMONIC_MAP = {
+# Sharps accepted as input, mapped to their flat equivalents.
+SHARP_TO_FLAT = {
     "C#": "Db",
     "D#": "Eb",
     "F#": "Gb",
@@ -14,34 +14,32 @@ ENHARMONIC_MAP = {
     "A#": "Bb",
 }
 
-# Reverse mapping
-FLAT_TO_SHARP = {v: k for k, v in ENHARMONIC_MAP.items()}
+
+def _normalize_note(note: str) -> str:
+    """Normalize a note name to the flat-based canonical form."""
+    return SHARP_TO_FLAT.get(note, note)
 
 
 def get_note_at_fret(open_note: str, fret: int) -> str:
     """
     Calculate the note at a given fret position.
-    
+
     Args:
-        open_note: The note of the open string (e.g., "E", "A")
+        open_note: The note of the open string (e.g., "E", "A", "Bb")
         fret: The fret number (0 = open string)
-    
+
     Returns:
-        The note name at that position
+        The note name at that position (using flat notation)
     """
-    # Normalize open_note to sharp notation
-    if open_note in FLAT_TO_SHARP:
-        open_note = FLAT_TO_SHARP[open_note]
-    
-    # Find the index of the open note
+    normalized = _normalize_note(open_note)
+
     try:
-        start_index = CHROMATIC_NOTES.index(open_note)
+        start_index = CHROMATIC_NOTES.index(normalized)
     except ValueError:
         raise ValueError(f"Invalid note: {open_note}")
-    
-    # Calculate new note index (wrapping around)
+
     new_index = (start_index + fret) % 12
-    
+
     return CHROMATIC_NOTES[new_index]
 
 

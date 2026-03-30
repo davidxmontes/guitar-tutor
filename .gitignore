@@ -98,3 +98,5 @@ lib-cov/
 # Vite
 *.local
 agent-test/
+
+samples/

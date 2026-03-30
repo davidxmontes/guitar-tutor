@@ -2,8 +2,8 @@
 
 from typing import Dict, List
 
-# Chromatic scale
-CHROMATIC_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+# Chromatic scale (using flats — the music-theory standard)
+CHROMATIC_NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
 # Chord intervals (semitones from root) with interval names
 CHORD_INTERVALS = {
@@ -42,8 +42,8 @@ STANDARD_TUNING = {
 
 def note_to_index(note: str) -> int:
     """Convert note name to chromatic index (0-11)."""
-    flat_to_sharp = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
-    normalized = flat_to_sharp.get(note, note)
+    sharp_to_flat = {"C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb"}
+    normalized = sharp_to_flat.get(note, note)
     return CHROMATIC_NOTES.index(normalized)
 
 
@@ -52,9 +52,9 @@ def index_to_note(index: int) -> str:
     return CHROMATIC_NOTES[index % 12]
 
 
-def get_note_at_position(string: int, fret: int) -> str:
+def get_note_at_position(string: int, fret: int, tuning: dict[int, int] | None = None) -> str:
     """Get the note at a specific string/fret position."""
-    open_note = STANDARD_TUNING[string]
+    open_note = (tuning or STANDARD_TUNING)[string]
     return index_to_note(open_note + fret)
 
 

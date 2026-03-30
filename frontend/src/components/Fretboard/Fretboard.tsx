@@ -1,10 +1,13 @@
-import type { NotePosition, ScaleNotePosition, ChordVoicing } from '../../types';
+import type { NotePosition, ScaleNotePosition, ChordVoicing, HighlightedNote } from '../../types';
+import type { FretboardHighlightGroup } from '../../types/chat';
 import { FretboardHeader, FretMarkersRow } from './FretboardHeader';
 import { StringRow } from './StringRow';
 import { getVoicingColor } from '../../constants/colors';
 
-// String names from high to low (string 1 to string 6)
-const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+// Derive string labels from tuning notes: string 1 (high) is lowercase, rest uppercase
+function tuningToStringNames(tuningNotes: string[]): string[] {
+  return tuningNotes.map((note, i) => (i === 0 ? note.toLowerCase() : note));
+}
 
 interface FretboardProps {
   strings: NotePosition[][];
@@ -16,6 +19,8 @@ interface FretboardProps {
   displayMode?: 'notes' | 'intervals';
   onScaleNoteClick?: (e: React.MouseEvent, note: string, string: number, fret: number) => void;
   clickableScaleNotes?: Set<string>;
+  highlightedNotes?: HighlightedNote[];
+  agentHighlightGroup?: FretboardHighlightGroup | null;
   darkMode?: boolean;
 }
 
@@ -29,10 +34,14 @@ export function Fretboard({
   displayMode = 'notes',
   onScaleNoteClick,
   clickableScaleNotes,
+  highlightedNotes = [],
+  agentHighlightGroup = null,
   darkMode = false,
 }: FretboardProps) {
   const hasScale = scalePositions.length > 0;
   const hasChords = chordVoicings.length > 0;
+  const hasAgentHighlight = !!agentHighlightGroup && agentHighlightGroup.positions.length > 0;
+  const hasOverlay = hasChords || hasAgentHighlight;
   const visibleVoicings = (activeVoicings.length > 0
     ? chordVoicings.filter((v) => activeVoicings.includes(v.label))
     : chordVoicings
@@ -55,6 +64,12 @@ export function Fretboard({
 
         {/* Legend - scrollable on mobile */}
         <div className="flex items-center gap-2 md:gap-4 text-sm overflow-x-auto pb-1 -mb-1 pl-1 pt-1">
+          {hasAgentHighlight && (
+            <div className="flex items-center gap-1 md:gap-1.5 flex-shrink-0">
+              <div className="w-3 h-3 md:w-4 md:h-4 rounded-full ring-2 ring-violet-400" style={{ backgroundColor: '#7c3aed' }} />
+              <span className="text-[10px] md:text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{agentHighlightGroup!.name}</span>
+            </div>
+          )}
           {hasChords ? (
             <>
               <div className="flex items-center gap-1 md:gap-1.5 flex-shrink-0">
@@ -131,7 +146,7 @@ export function Fretboard({
               <StringRow
                 key={idx}
                 stringNumber={idx + 1}
-                stringName={STRING_NAMES[idx]}
+                stringName={tuningToStringNames(tuningNotes)[idx]}
                 notes={stringNotes}
                 scalePositions={scalePositions}
                 chordVoicings={chordVoicings}
@@ -139,8 +154,11 @@ export function Fretboard({
                 displayMode={displayMode}
                 onNoteClick={onScaleNoteClick}
                 clickableNotes={clickableScaleNotes}
+                highlightedNotes={highlightedNotes}
+                agentHighlightPositions={agentHighlightGroup?.positions}
+                hasAgentHighlightLayer={hasAgentHighlight}
                 darkMode={darkMode}
-                hasChordOverlay={hasChords}
+                hasChordOverlay={hasOverlay}
               />
             ))}
           </div>

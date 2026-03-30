@@ -52,30 +52,14 @@ MINOR_DIATONIC_CHORDS = [
     ("VII", "major"),
 ]
 
-CHROMATIC_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
-# Enharmonic equivalents for display
-ENHARMONIC_MAP = {
-    "C#": "Db",
-    "D#": "Eb",
-    "F#": "Gb",
-    "G#": "Ab",
-    "A#": "Bb",
-}
+CHROMATIC_NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
 
 def note_to_index(note: str) -> int:
     """Convert note name to chromatic index (0-11)."""
-    # Handle flats by converting to sharps
-    flat_to_sharp = {
-        "Db": "C#",
-        "Eb": "D#",
-        "Gb": "F#",
-        "Ab": "G#",
-        "Bb": "A#",
-    }
-    note = flat_to_sharp.get(note, note)
-    return CHROMATIC_NOTES.index(note)
+    sharp_to_flat = {"C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb"}
+    normalized = sharp_to_flat.get(note, note)
+    return CHROMATIC_NOTES.index(normalized)
 
 
 def index_to_note(index: int) -> str:
@@ -102,8 +86,8 @@ def get_scale_degree(note: str, root: str, mode: str) -> Tuple[int, str]:
     scale_notes = get_scale_notes(root, mode)
     
     # Normalize note for comparison
-    flat_to_sharp = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
-    normalized = flat_to_sharp.get(note, note)
+    sharp_to_flat = {"C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb"}
+    normalized = sharp_to_flat.get(note, note)
     
     if normalized in scale_notes:
         degree = scale_notes.index(normalized) + 1

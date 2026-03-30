@@ -8,6 +8,7 @@ from typing import Any
 
 from app.music.chords import (
     CHORD_INTERVALS,
+    STANDARD_TUNING,
     _get_quality_suffix,
     get_note_at_position,
     note_to_index,
@@ -101,6 +102,7 @@ def get_voicing_positions(
     root: str,
     quality: str,
     max_fret: int = 22,
+    tuning: dict[int, int] | None = None,
 ) -> list[dict[str, Any]] | None:
     """
     Get voicings for a chord from chords-db converted to app format.
@@ -111,6 +113,13 @@ def get_voicing_positions(
     if entry is None:
         return None
 
+    effective_tuning = tuning or STANDARD_TUNING
+    # Per-string semitone offset: positive means target string is lower → fret must increase
+    string_offsets = {
+        s: STANDARD_TUNING[s] - effective_tuning[s] for s in range(1, 7)
+    }
+    is_transposed = any(v != 0 for v in string_offsets.values())
+
     root_index = note_to_index(root)
     interval_map = _interval_name_map(quality)
     quality_suffix = _get_quality_suffix(quality)
@@ -120,6 +129,7 @@ def get_voicing_positions(
     for position_index, db_position in enumerate(entry["positions"], start=1):
         base_fret = int(db_position["baseFret"])
         positions: list[dict[str, Any]] = []
+        voicing_valid = True
 
         # chords-db frets are ordered low-E to high-E. App strings are 1=high-E, 6=low-E.
         for db_string_index, fret_value in enumerate(db_position["frets"]):
@@ -132,11 +142,21 @@ def get_voicing_positions(
             else:
                 actual_fret = base_fret + fret_value - 1
 
-            note_name = get_note_at_position(string_number, actual_fret)
+            # Transpose for non-standard tuning
+            if is_transposed:
+                actual_fret = actual_fret + string_offsets[string_number]
+                if actual_fret < 0:
+                    voicing_valid = False
+                    break
+
+            note_name = get_note_at_position(string_number, actual_fret, effective_tuning)
             semitone_distance = (note_to_index(note_name) - root_index) % 12
             interval_name = interval_map.get(semitone_distance)
 
             if interval_name is None:
+                if is_transposed:
+                    voicing_valid = False
+                    break
                 continue
 
             positions.append(
@@ -149,7 +169,7 @@ def get_voicing_positions(
                 }
             )
 
-        if not positions:
+        if not voicing_valid or not positions:
             continue
 
         replicated_positions = list(positions)
@@ -169,7 +189,7 @@ def get_voicing_positions(
                 {
                     "string": pos["string"],
                     "fret": octave_fret,
-                    "note": get_note_at_position(pos["string"], octave_fret),
+                    "note": get_note_at_position(pos["string"], octave_fret, effective_tuning),
                     "interval": pos["interval"],
                     "is_root": pos["is_root"],
                 }
@@ -178,13 +198,14 @@ def get_voicing_positions(
 
         replicated_positions.sort(key=lambda p: (p["string"], p["fret"]))
         played_frets = [p["fret"] for p in replicated_positions]
+        transposed_base = base_fret + string_offsets.get(6, 0) if is_transposed else base_fret
         voicing_label = f"Pos {position_index}"
         voicings.append(
             {
                 "label": voicing_label,
                 "name": f"{root}{quality_suffix} ({voicing_label})",
                 "color": "accent",
-                "base_fret": base_fret,
+                "base_fret": max(transposed_base, 1),
                 "min_fret": min(played_frets),
                 "max_fret": max(played_frets),
                 "positions": replicated_positions,

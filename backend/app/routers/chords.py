@@ -1,43 +1,12 @@
 """Chords API routes."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
-from app.models.music import (
-    ChordQualitiesResponse,
-    ChordQualityInfo,
-    ChordResponse,
-    ChordVoicing,
-    ChordVoicingPosition,
-)
-from app.music.chords import (
-    CHORD_INTERVALS,
-    _get_quality_suffix,
-    get_available_chord_qualities,
-    get_chord_notes,
-)
-from app.music.chords_db import get_voicing_positions
+from app.models.music import ChordQualitiesResponse, ChordQualityInfo, ChordResponse
+from app.music.chords import get_available_chord_qualities
+from app.services.chord_service import get_chord
 
 router = APIRouter()
-
-VALID_ROOTS = [
-    "C",
-    "C#",
-    "Db",
-    "D",
-    "D#",
-    "Eb",
-    "E",
-    "F",
-    "F#",
-    "Gb",
-    "G",
-    "G#",
-    "Ab",
-    "A",
-    "A#",
-    "Bb",
-    "B",
-]
 
 
 @router.get("/chords/qualities", response_model=ChordQualitiesResponse)
@@ -48,58 +17,16 @@ async def get_chord_qualities():
 
 
 @router.get("/chords/{root}/{quality}", response_model=ChordResponse)
-async def get_chord(root: str, quality: str):
-    """
-    Get chord information with voicings from chords-db.
-
-    Args:
-        root: Root note (e.g., "C", "F#", "Bb")
-        quality: Chord quality (e.g., "major", "minor", "dominant7")
-    """
-    if root not in VALID_ROOTS:
-        raise HTTPException(status_code=400, detail=f"Invalid root note: {root}")
-
-    if quality not in CHORD_INTERVALS:
-        raise HTTPException(status_code=400, detail=f"Invalid chord quality: {quality}")
-
-    chord_notes = get_chord_notes(root, quality)
-    voicing_data = get_voicing_positions(root, quality)
-
-    if voicing_data is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Chord {root} {quality} not available in voicings database",
-        )
-
-    voicings = []
-    for voicing in voicing_data:
-        positions = [
-            ChordVoicingPosition(
-                string=pos["string"],
-                fret=pos["fret"],
-                note=pos["note"],
-                interval=pos["interval"],
-                is_root=pos["is_root"],
-            )
-            for pos in voicing["positions"]
-        ]
-
-        voicings.append(
-            ChordVoicing(
-                label=voicing["label"],
-                name=voicing["name"],
-                color=voicing["color"],
-                base_fret=voicing["base_fret"],
-                min_fret=voicing["min_fret"],
-                max_fret=voicing["max_fret"],
-                positions=positions,
-            )
-        )
-
-    return ChordResponse(
-        root=root,
-        quality=quality,
-        display_name=f"{root}{_get_quality_suffix(quality)}",
-        chord_notes=chord_notes,
-        voicings=voicings,
-    )
+async def get_chord_endpoint(
+    root: str,
+    quality: str,
+    tuning: str = Query(default="standard", description="Tuning ID"),
+    tuning_notes: str | None = Query(default=None, description="Comma-separated custom tuning notes, string 1 to 6"),
+):
+    """Get chord information with voicings."""
+    try:
+        return get_chord(root, quality, tuning, tuning_notes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))

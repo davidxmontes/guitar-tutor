@@ -1,0 +1,2 @@
+export { ChordProView } from './ChordProView';
+
