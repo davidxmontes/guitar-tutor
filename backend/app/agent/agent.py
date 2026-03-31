@@ -2,7 +2,7 @@
 Guitar Tutor LangGraph Agent.
 
 Graph nodes:
-1. prepare_question - normalizes and validates the user's question
+1. classify_input - classifies whether to proceed, clarify, or reject the user's question
 2. clarify_input - handles interrupt/resume for clarifying questions
 3. generate_answer - generates answer text + structured metadata/actions
 """
@@ -10,22 +10,33 @@ Graph nodes:
 import logging
 import os
 import re
-from typing import Any, Generator, List, Optional, TypedDict
+from typing import Any, Generator, List, Optional
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
-from pydantic import BaseModel, Field
 
 from app.agent.parser import parse_chord_name, parse_scale_name
+from app.agent.prompts import (
+    ANSWER_POSTPROCESS_INSTRUCTIONS,
+    ANSWER_TEXT_INSTRUCTIONS,
+    CLASSIFY_INPUT_INSTRUCTIONS,
+    SONG_TOOL_INTENT_INSTRUCTIONS,
+    SUMMARY_INSTRUCTIONS,
+)
+from app.agent.schemas import (
+    AnswerPostProcessSchema,
+    ClassificationSchema,
+    OverallState,
+    SongToolPlanSchema,
+)
+from app.agent.song_tools import execute_song_search, resolve_measure_focus
 from app.config import get_settings
-from app.models.songsterr import SongsterrRecord
 from app.music.notes import get_note_at_fret
 from app.music.tunings import get_tuning_notes
-from app.services import songsterr
 
 load_dotenv()
 
@@ -40,203 +51,10 @@ class ThreadNotFoundError(RuntimeError):
         self.thread_id = thread_id
 
 
-# --- Structured output schemas ---
-
-class PreppedQuestionSchema(TypedDict):
-    """Schema for the prepare_question node output."""
-
-    out_of_scope: bool = Field(False, description="Whether the question is out of scope")
-    clarifying_question_for_user: Optional[str] = Field(None, description="A clarifying question to send to the user")
-
-
-class SongToolPlanSchema(BaseModel):
-    """Structured song-tool intent chosen during answer generation."""
-
-    song_search_query: Optional[str] = Field(
-        None,
-        description=(
-            "Search query for a specific song the user wants opened in the song UI, "
-            "for example 'frisky dominic fike'. Null when no song lookup is needed."
-        ),
-    )
-    focus_measure_number: Optional[int] = Field(
-        None,
-        description=(
-            "1-based measure number the user wants focused in the currently selected or requested song. "
-            "Null when no measure navigation is needed."
-        ),
-    )
-
-
-class FretboardHighlightPositionSchema(TypedDict):
-    string: int
-    fret: int
-
-
-class FretboardHighlightGroupSchema(TypedDict):
-    name: str
-    positions: List[FretboardHighlightPositionSchema]
-
-
-class AnswerPostProcessSchema(TypedDict):
-    """Combined schema for metadata extraction + fretboard highlights in one call."""
-
-    scale: Optional[str] = Field(None, description="Most relevant scale name")
-    chord_choices: List[str] = Field(default_factory=list, description="List of chord names recommended")
-    visualizations: bool = Field(False, description="Whether visualizations are needed")
-    highlight_groups: List[FretboardHighlightGroupSchema] = Field(default_factory=list, description="Fretboard highlight groups")
-
-
-class OverallState(MessagesState):
-    """Overall state for the agent graph."""
-
-    clarifying_question_for_user: Optional[str] = None
-    answer: str = ""
-    scale: Optional[str] = None
-    chord_choices: List[str] = []
-    visualizations: bool = False
-    out_of_scope: bool = False
-
-    # New context/memory fields
-    ui_context: dict = {}
-    running_summary: str = ""
-    summary_turn_count: int = 0
-
-    # New response fields
-    actions: List[dict] = []
-    memory_status: str = "fresh"
-
-
-# --- Prompt templates ---
-
-PREP_QUESTION_INSTRUCTIONS = """You are the Guitar Tutor gate. Decide whether to proceed, clarify, or reject the user's question. Do NOT answer the question yourself.
-
-Inputs:
-- running_summary: {running_summary}
-- previous_context: {previous_context}
-- ui_context: {ui_context}
-- user_question: {user_question}
-
-Return JSON ONLY. Produce exactly one of these shapes:
-1) Proceed (preferred)
-{{"out_of_scope": false}}
-
-2) Need clarification
-{{"clarifying_question_for_user": "<one short clarifying question>", "out_of_scope": false}}
-
-3) Out of scope
-{{"out_of_scope": true}}
-
-Guidelines:
-- Default to proceeding. Trust the answer model's judgement to handle ambiguity, fill in gaps, and make creative choices.
-- Never clarify about format, notation style, or level of detail — just proceed.
-- Never clarify to confirm intent — if the user mentions a song, artist, chord, scale, or technique, proceed.
-- Only clarify when the question is genuinely unanswerable without more info (e.g. "help me with this" with zero context).
-- For a pure greeting with no music content, use clarifying_question_for_user to greet briefly and ask what guitar/music help they want.
-- If the request is not about music, guitar, songs, tabs, measures, or music theory, return out_of_scope true.
-"""
-
-SONG_TOOL_INTENT_INSTRUCTIONS = """You are deciding whether the Guitar Tutor should use song UI tools before answering. Do NOT answer the user.
-
-Inputs:
-- running_summary: {running_summary}
-- previous_context: {previous_context}
-- ui_context: {ui_context}
-- user_question: {user_question}
-
-Return JSON ONLY with this exact shape:
-{{
-  "song_search_query": string | null,
-  "focus_measure_number": integer | null
-}}
-
-Rules:
-- Use "song_search_query" when the user wants to open, load, search, show, display, or learn a specific song/tab in the Songs UI.
-- Natural teaching phrasing still counts as song intent. Example: "show me how to play wonderwall" should return {{"song_search_query": "wonderwall", "focus_measure_number": null}}.
-- Include artist names when they are present or clearly implied. Example: "teach me frisky by dominic fike" -> "frisky dominic fike".
-- Do NOT set song_search_query for theory-only requests like chords, scales, intervals, fretboard notes, or generic techniques.
-- Use "focus_measure_number" only when the user explicitly asks to jump to, show, start at, or focus a numbered measure in a song.
-- Measure numbers are 1-based in your output.
-- If no song tool is needed, return null for both fields.
-"""
-
-ANSWER_TEXT_INSTRUCTIONS = """You are the Guitar Tutor. Answer the user's guitar/music theory question.
-
-Hard constraints:
-- ONLY answer music theory, guitar, songs, tabs, and measure-navigation related questions.
-- Keep output concise: 1-3 paragraphs.
-
-Inputs:
-- Running summary: {running_summary}
-- UI context: {ui_context}
-- Tool context: {tool_context}
-
-Behavior:
-- Be clear and pedagogical. Explain WHY choices work.
-- The user's explicit intent always takes priority over the current UI state.
-- Use ui_context for current selection/playhead/highlighted notes only when the user references "this"/"current" context.
-- If a song/tool lookup succeeded, ground your answer in those results.
-- Do NOT say you lack direct tab database access. You are integrated with a song-tab lookup tool.
-"""
-
-ANSWER_POSTPROCESS_INSTRUCTIONS = """Given a guitar/music question and answer, extract structured metadata AND fretboard highlight positions in a single response.
-
-Question: {user_question}
-Answer: {answer}
-UI context: {ui_context}
-Tuning (string 1=high E to string 6=low E): {tuning_notes}
-
---- PART 1: Metadata ---
-Extract:
-- scale: the single most relevant scale name (e.g., "A minor pentatonic"), or null
-- chord_choices: list of chord names mentioned or recommended (e.g., ["C", "Am", "F", "G"])
-- visualizations: true if the answer involves chords, scales, progressions, song tabs, or measure navigation
-
---- PART 2: Fretboard highlights ---
-Extract highlight_groups: fret positions to highlight on the interactive fretboard.
-
-When to emit groups:
-- Emit groups when the answer discusses SPECIFIC fret positions, voicings, shapes, or fingerings. This includes:
-  - Explicit string/fret references (e.g. "3rd fret on the A string")
-  - Tab-notation voicings (e.g. "x32010", "3x2003") — convert these to string/fret positions (leftmost digit = string 6/low E, rightmost = string 1/high E; "x" = muted/skip, "0" = open)
-  - Named shapes with positions (e.g. "CAGED shape at fret 5", "barre chord at 7th fret")
-- Do NOT emit groups for general theory, chord names without ANY position info, or scale names without specific fret references.
-
-Group rules:
-- Each group is one named shape/voicing/position set. Multiple groups = multiple alternatives to cycle through.
-- String numbering: string 1 = high E (thinnest), string 6 = low E (thickest). Fret 0 = open string.
-- Keep group names short (2-5 words), e.g. "Open E", "Barre at 5th", "Box 1", "CAGED A shape".
-- Omit muted/unplayed strings — only include strings that are actually fretted or open and part of the shape.
-- Max 6 groups. Max 6 positions per group.
-
-Playability constraints (CRITICAL — every voicing MUST be physically playable):
-- Max 4-fret span between the lowest and highest fretted notes (excluding open strings). Stretch up to 5 frets ONLY for intentionally creative/extended voicings.
-- At most one note per string.
-- All fretted notes must be reachable simultaneously by a human fretting hand — no impossible finger stretches.
-- Prefer standard voicing positions (open chords, common barre shapes, CAGED forms) unless the user specifically asks for unusual or creative voicings.
-- When suggesting chord progressions, use voicings in nearby positions to minimize hand movement between chords.
-
-Return empty list if no specific fret positions apply.
-"""
-
-SUMMARY_INSTRUCTIONS = """Summarize the conversation for future guitar tutoring context.
-
-Current running summary:
-{running_summary}
-
-Older raw messages to compress:
-{older_messages}
-
-Return a concise summary under 180 words capturing:
-- User goals/preferences
-- Musical key/tuning/song context
-- Prior recommendations and constraints
-"""
-
 # Node names for status tracking
 _NODE_FIELDS = {
     "answer": "generate_answer",
-    "clarifying_question_for_user": "prepare_question",
+    "clarifying_question_for_user": "classify_input",
 }
 
 
@@ -302,19 +120,19 @@ class GuitarTutorAgent:
     def _build_graph(self) -> StateGraph:
         builder = StateGraph(OverallState)
 
-        builder.add_node("prepare_question", self._prepare_question)
+        builder.add_node("classify_input", self._classify_input)
         builder.add_node("clarify_input", self._clarify_input)
         builder.add_node("generate_answer", self._generate_answer)
 
-        builder.add_edge(START, "prepare_question")
-        builder.add_edge("prepare_question", "clarify_input")
+        builder.add_edge(START, "classify_input")
+        builder.add_edge("classify_input", "clarify_input")
         builder.add_edge("generate_answer", END)
 
         return builder.compile(checkpointer=self.memory)
 
     # --- Graph nodes ---
 
-    def _prepare_question(self, state: dict) -> dict:
+    def _classify_input(self, state: dict) -> dict:
         messages = state.get("messages", [])
         ui_context = state.get("ui_context") or {}
         prompt_ui_context = self._project_ui_context_for_prompt(ui_context)
@@ -336,7 +154,7 @@ class GuitarTutorAgent:
             }
 
         system_message = SystemMessage(
-            content=PREP_QUESTION_INSTRUCTIONS.format(
+            content=CLASSIFY_INPUT_INSTRUCTIONS.format(
                 running_summary=running_summary or "None",
                 previous_context=previous_context,
                 ui_context=prompt_ui_context or "None",
@@ -345,7 +163,7 @@ class GuitarTutorAgent:
         )
 
         q = self._invoke_structured(
-            PreppedQuestionSchema,
+            ClassificationSchema,
             [system_message],
             fallback={"out_of_scope": False},
         )
@@ -423,14 +241,14 @@ class GuitarTutorAgent:
         messages = state.get("messages", [])
         user_question = self._message_text(messages[-1]) if messages else ""
         prompt_ui_context = self._project_ui_context_for_prompt(ui_context)
-        song_tool_plan = self._plan_song_tools(
+        song_tool_plan = self._plan_song_intent(
             user_question=user_question,
             messages=messages,
             ui_context=ui_context,
             running_summary=running_summary,
         )
         logger.info("Song tool plan=%s", song_tool_plan)
-        tool_context, song_actions = self._run_song_tools(
+        tool_context, song_actions = self._execute_song_actions(
             user_question,
             ui_context,
             song_search_query=song_tool_plan.get("song_search_query"),
@@ -695,7 +513,7 @@ class GuitarTutorAgent:
                 valid_groups.append({"name": name, "positions": positions})
         return valid_groups
 
-    def _plan_song_tools(
+    def _plan_song_intent(
         self,
         *,
         user_question: str,
@@ -786,7 +604,7 @@ class GuitarTutorAgent:
             deduped.append(action)
         return deduped
 
-    def _run_song_tools(
+    def _execute_song_actions(
         self,
         question_text: str,
         ui_context: dict,
@@ -798,8 +616,7 @@ class GuitarTutorAgent:
         if not self.tool_calling_enabled:
             return "", []
 
-        q = question_text.strip()
-        lower_q = q.lower()
+        lower_q = question_text.strip().lower()
         search_query = song_search_query.strip() if isinstance(song_search_query, str) else None
         if search_query and search_query.lower() in {"null", "none"}:
             search_query = None
@@ -811,37 +628,19 @@ class GuitarTutorAgent:
         selected_song_id = selected_song.get("song_id")
         selected_track_index = int((ui_context or {}).get("selected_track_index") or 0)
 
-        # 1) Optional explicit search intent
+        # 1) Song search
         if search_query:
-            try:
-                records = songsterr.search_songs_sync(search_query)
-                if records:
-                    actions.append({"type": "song.search", "query": search_query})
-                    best, score = self._choose_best_song_match(records, search_query)
-                    if best and score >= 55:
-                        actions.append({"type": "song.select", "song_id": best.song_id})
-                        actions.append({"type": "song.track.select", "track_index": 0})
-                        selected_song_id = best.song_id
-                        selected_track_index = 0
-                        tool_context_lines.append(
-                            f"Song search '{search_query}' matched: {best.artist} - {best.title} "
-                            f"(song_id={best.song_id}, score={score})."
-                        )
-                    else:
-                        tool_context_lines.append(
-                            f"Song search '{search_query}' returned results but no confident auto-select "
-                            f"(best score={score})."
-                        )
-                else:
-                    tool_context_lines.append(f"Song search '{search_query}' returned no results.")
-            except Exception as exc:
-                tool_context_lines.append(f"Song search failed for '{search_query}': {exc}")
+            ctx, acts, new_song_id, new_track = execute_song_search(search_query)
+            tool_context_lines.extend(ctx)
+            actions.extend(acts)
+            if new_song_id is not None:
+                selected_song_id = new_song_id
+                selected_track_index = new_track
 
-        # 2) Measure focus intent (for this song or selected search result)
+        # 2) Measure focus
         focus_measure_index = focus_measure_number - 1 if isinstance(focus_measure_number, int) else None
 
-        # For deictic identification questions ("what chord is this"), trust selected UI beat context
-        # and avoid expensive network measure resolution.
+        # For deictic identification questions, trust UI beat context instead.
         if self._is_context_identification_question(lower_q):
             selected_beat = (ui_context or {}).get("selected_beat_id")
             highlighted = (ui_context or {}).get("highlighted_notes") or []
@@ -852,28 +651,13 @@ class GuitarTutorAgent:
             focus_measure_index = None
 
         if focus_measure_index is not None and selected_song_id is not None:
-            try:
-                resolved_measure, resolved_beat = songsterr.resolve_measure_focus_sync(
-                    song_id=int(selected_song_id),
-                    track_index=selected_track_index,
-                    requested_measure_index=max(0, focus_measure_index),
-                )
-                action: dict[str, Any] = {
-                    "type": "song.measure.focus",
-                    "measure_index": resolved_measure,
-                }
-                if resolved_beat is not None:
-                    action["beat_index"] = resolved_beat
-                actions.append(action)
-                tool_context_lines.append(
-                    f"Resolved measure focus for song_id={selected_song_id}, track={selected_track_index}: "
-                    f"measure_index={resolved_measure}, beat_index={resolved_beat}."
-                )
-            except Exception as exc:
-                tool_context_lines.append(
-                    f"Could not resolve measure focus for song_id={selected_song_id}, "
-                    f"track={selected_track_index}: {exc}"
-                )
+            ctx, acts = resolve_measure_focus(
+                song_id=int(selected_song_id),
+                track_index=selected_track_index,
+                focus_measure_index=focus_measure_index,
+            )
+            tool_context_lines.extend(ctx)
+            actions.extend(acts)
         elif focus_measure_index is not None:
             tool_context_lines.append(
                 f"User asked to focus measure {focus_measure_number}, but no song is currently selected."
@@ -929,67 +713,6 @@ class GuitarTutorAgent:
             projected["highlighted_notes"] = resolved
 
         return projected
-
-    @staticmethod
-    def _normalize_search_text(text: str) -> str:
-        lowered = text.lower().strip()
-        lowered = re.sub(r"[^a-z0-9\s]", " ", lowered)
-        lowered = re.sub(r"\s+", " ", lowered).strip()
-        return lowered
-
-    def _split_query_title_artist(self, query: str) -> tuple[str, str]:
-        cleaned = self._normalize_search_text(query)
-        if " by " in cleaned:
-            title, artist = cleaned.split(" by ", 1)
-            return title.strip(), artist.strip()
-        return cleaned, ""
-
-    def _score_song_match(self, record: SongsterrRecord, query: str) -> int:
-        query_norm = self._normalize_search_text(query)
-        title_norm = self._normalize_search_text(record.title)
-        artist_norm = self._normalize_search_text(record.artist)
-        combined = f"{title_norm} {artist_norm}".strip()
-        q_title, q_artist = self._split_query_title_artist(query)
-
-        score = 0
-
-        # Strong exact/near-exact signals first.
-        if query_norm == combined:
-            score += 120
-        if q_title and q_title == title_norm:
-            score += 90
-        if q_artist and q_artist == artist_norm:
-            score += 80
-        if q_title and title_norm.startswith(q_title):
-            score += 40
-        if q_artist and artist_norm.startswith(q_artist):
-            score += 35
-
-        # Token overlap fallback.
-        q_tokens = set(query_norm.split())
-        c_tokens = set(combined.split())
-        if q_tokens and c_tokens:
-            overlap = len(q_tokens & c_tokens)
-            score += overlap * 8
-            # Penalize extra unrelated tokens for close-title collisions.
-            score -= max(0, len(c_tokens - q_tokens)) * 2
-
-        # Small boost for exact title even if artist differs slightly.
-        if q_title and title_norm == q_title:
-            score += 15
-
-        return score
-
-    def _choose_best_song_match(
-        self, records: List[SongsterrRecord], query: str
-    ) -> tuple[Optional[SongsterrRecord], int]:
-        if not records:
-            return None, 0
-
-        scored = [(record, self._score_song_match(record, query)) for record in records[:25]]
-        scored.sort(key=lambda x: x[1], reverse=True)
-        best_record, best_score = scored[0]
-        return best_record, best_score
 
     @staticmethod
     def _is_context_identification_question(lower_question: str) -> bool:
