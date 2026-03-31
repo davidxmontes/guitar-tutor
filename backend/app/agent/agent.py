@@ -209,6 +209,8 @@ class GuitarTutorAgent:
 
     @staticmethod
     def _coerce_text(content: Any) -> str:
+        """Normalize LLM response content to a plain string.
+        Some models return content as a list of dicts (e.g. [{\"text\": \"...\"}])."""
         if isinstance(content, str):
             return content
         if isinstance(content, list):
@@ -267,6 +269,13 @@ class GuitarTutorAgent:
         ui_context: Optional[dict],
         thread_id: str,
     ) -> tuple[dict, str]:
+        """Build the initial state dict for a graph invocation.
+
+        Handles three cases:
+        - restored: thread already in checkpointer, just send the new message
+        - bootstrapped: new thread seeded with frontend conversation history
+        - fresh: brand new thread with no prior context
+        """
         if thread_exists:
             memory_status = "restored"
             messages = [HumanMessage(content=message)]
@@ -410,6 +419,8 @@ class GuitarTutorAgent:
         in_answer_node = False
         answer_tokens_started = False
 
+        # Dual stream: "messages" gives per-token chunks for SSE streaming,
+        # "values" gives full state snapshots after each node completes.
         for mode, event in self.graph.stream(
             graph_input,
             config=config,
@@ -419,7 +430,8 @@ class GuitarTutorAgent:
                 chunk, metadata = event
                 node = metadata.get("langgraph_node", "")
                 has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
-                # Only yield tokens from generate_answer, and skip JSON-like chunks.
+                # Only yield tokens from generate_answer, and skip JSON-like chunks
+                # (structured output calls emit JSON that shouldn't reach the client).
                 if node == "generate_answer" and in_answer_node and has_content:
                     text = self._coerce_text(chunk.content)
                     if not answer_tokens_started:
