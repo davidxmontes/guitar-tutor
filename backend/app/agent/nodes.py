@@ -138,6 +138,7 @@ def _validate_highlight_groups(groups: list) -> list[dict]:
 
 
 def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
+    """Node 1: Decide whether to answer, ask for clarification, or reject as out-of-scope."""
     messages = state.get("messages", [])
     ui_context = state.get("ui_context") or {}
     prompt_ui_context = _project_ui_context_for_prompt(ui_context)
@@ -149,7 +150,8 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
     last_question_text = self._message_text(messages[-1]) if messages else ""
     lower_question = last_question_text.lower().strip()
 
-    # Deterministic fast-path: deictic chord-identification with strong UI context
+    # Fast-path: skip LLM classification for "what chord is this?" when the UI
+    # already provides highlighted notes — no ambiguity to resolve.
     if _is_context_identification_question(lower_question) and _has_strong_ui_context(ui_context):
         return {
             "clarifying_question_for_user": None,
@@ -175,6 +177,7 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
 
     logger.info("Prepared question=%s", q)
 
+    # Some models return the literal string "null" instead of omitting the field.
     clarifying_question_for_user = q.get("clarifying_question_for_user")
     if isinstance(clarifying_question_for_user, str) and clarifying_question_for_user.strip().lower() in {"null", "none"}:
         clarifying_question_for_user = None
@@ -188,11 +191,14 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
 
 
 def _clarify_input(self: "GuitarTutorAgent", state: dict) -> Command:
+    """Node 2: If classify_input set a clarifying question, pause the graph
+    with a LangGraph interrupt and wait for the user's response."""
     clarifying_question_for_user = state.get("clarifying_question_for_user")
 
     if not clarifying_question_for_user:
         return Command(goto="generate_answer")
 
+    # interrupt() pauses graph execution; the client calls resume_chat() to continue.
     human_input = interrupt(
         {
             "clarifying_question": clarifying_question_for_user,
@@ -211,6 +217,10 @@ def _clarify_input(self: "GuitarTutorAgent", state: dict) -> Command:
 
 
 def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
+    """Node 3: Produce the final response. Makes two LLM calls:
+    1. Generate natural-language answer text
+    2. Post-process to extract structured metadata (scale, chords, fretboard highlights)
+    Also runs song tool actions (search, measure focus) if the LLM planner requested them."""
     clarifying_question_for_user = state.get("clarifying_question_for_user")
     out_of_scope = state.get("out_of_scope", False)
     running_summary = state.get("running_summary", "")
@@ -356,6 +366,8 @@ def _plan_song_intent(
         fallback={"song_search_query": None, "focus_measure_number": None},
     )
 
+    # Sanitize model output — models sometimes return "null"/"none" strings
+    # or non-integer measure numbers that need coercion.
     song_search_query = plan.get("song_search_query")
     if isinstance(song_search_query, str):
         song_search_query = song_search_query.strip()
@@ -472,7 +484,16 @@ def _execute_song_actions(
 
 
 def _update_running_summary(self: "GuitarTutorAgent", state: dict) -> tuple[str, int]:
-    """Maintain a rolling summary for long threads (logical compaction)."""
+    """Conditionally regenerate the rolling conversation summary.
+
+    Long threads accumulate tokens fast. This compacts older messages into a
+    short summary that gets injected into prompts, keeping context window usage
+    bounded while preserving conversational coherence.
+
+    Triggers when either:
+    - Total message text exceeds summary_char_threshold
+    - User turn count hits the summary_turn_interval
+    """
     running_summary = state.get("running_summary", "") or ""
     summary_turn_count = int(state.get("summary_turn_count", 0) or 0)
 
@@ -494,6 +515,8 @@ def _update_running_summary(self: "GuitarTutorAgent", state: dict) -> tuple[str,
     if not (threshold_hit or interval_hit):
         return running_summary, summary_turn_count
 
+    # Only summarize messages outside the recent window — recent ones are
+    # passed directly to prompts for full fidelity.
     keep_count = self.recent_turn_window * 2
     older_messages = messages[:-keep_count] if len(messages) > keep_count else []
     if not older_messages:
