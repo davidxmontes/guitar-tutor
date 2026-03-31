@@ -86,10 +86,10 @@ The backend exposes a few endpoints — full docs available at `/docs` when the 
 The AI tutor is a LangGraph state graph with three nodes:
 
 ```
-START -> prepare_question -> clarify_input -> generate_answer -> END
+START -> classify_input -> clarify_input -> generate_answer -> END
 ```
 
-1. **prepare_question** — Gate node. Classifies the user's message as proceed, needs-clarification, or out-of-scope. Uses a running conversation summary and UI context (selected scale/chord/song, playhead position) to make the decision.
+1. **classify_input** — Gate node. Classifies the user's message as proceed, needs-clarification, or out-of-scope. Uses a running conversation summary and UI context (selected scale/chord/song, playhead position) to make the decision.
 2. **clarify_input** — If the gate requested clarification, this node interrupts the graph (LangGraph `interrupt`) and returns the question to the user. When the user responds, the graph resumes and routes to `generate_answer`.
 3. **generate_answer** — Multi-step answer generation:
    - **Song tool planning** — An LLM call decides whether to search for a song or navigate to a measure, producing action payloads the frontend executes.
@@ -115,7 +115,7 @@ The agent supports both synchronous and SSE streaming endpoints. Conversation st
 │   │   ├── routers/          # Thin FastAPI route handlers
 │   │   ├── services/         # Business logic (scale, chord, fretboard, songsterr)
 │   │   ├── music/            # Pure music theory engine (scales, chords, tunings, notes)
-│   │   ├── agent/            # LangGraph AI tutor (graph, parser)
+│   │   ├── agent/            # LangGraph AI tutor (graph, nodes, prompts, parser)
 │   │   └── models/           # Pydantic schemas
 │   └── requirements.txt
 │
