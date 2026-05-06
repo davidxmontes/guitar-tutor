@@ -192,10 +192,12 @@ interface ChatSlice {
   chatLoading: boolean;
   streamingStatus: string | null;
   threadId: string;  // For tracking conversation with interrupts
+  debugMode: boolean;
   addMessage: (message: ChatMessage) => void;
   sendMessage: (message: string) => Promise<ChatMessage | null>;
   resetChat: () => void;
   setThreadId: (id: string) => void;
+  toggleDebugMode: () => void;
 }
 
 // ============================================================================
@@ -456,6 +458,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   chatLoading: false,
   streamingStatus: null,
   threadId: loadThreadId(),
+  debugMode: false,
   
   addMessage: (message) => {
     set((state) => {
@@ -492,7 +495,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return { messages: msgs, chatLoading: true, streamingStatus: null };
     });
 
-    const onStatus = (node: string) => set({ streamingStatus: nodeLabel(node) });
+    const collectedSteps: string[] = [];
+    const onStatus = (node: string) => {
+      collectedSteps.push(node);
+      set({ streamingStatus: nodeLabel(node) });
+    };
 
     const onToken = (text: string) => {
       set((state) => {
@@ -642,6 +649,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           apiRequests: response.api_requests,
           actions: response.actions,
           memoryStatus: response.memory_status,
+          debugSteps: [...collectedSteps],
+          intent: response.intent,
         };
 
         if (idx >= 0) {
@@ -692,6 +701,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       agentHighlightVisible: false,
     });
   },
+
+  toggleDebugMode: () => set((state) => ({ debugMode: !state.debugMode })),
 
   // --------------------------------------------------------------------------
   // Chat Panel Slice
@@ -1053,6 +1064,9 @@ export const useActiveVoicings = () => useAppStore((state) => state.activeVoicin
 export const useChatMessages = () => useAppStore((state) => state.messages);
 export const useChatLoading = () => useAppStore((state) => state.chatLoading);
 export const useStreamingStatus = () => useAppStore((state) => state.streamingStatus);
+export const useDebugMode = () => useAppStore(
+  useShallow((state) => ({ debugMode: state.debugMode, toggleDebugMode: state.toggleDebugMode }))
+);
 
 // Chat panel selectors
 export const useChatPanelState = () =>

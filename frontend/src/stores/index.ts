@@ -16,5 +16,6 @@ export {
   useChatMessages,
   useChatLoading,
   useStreamingStatus,
+  useDebugMode,
   useChatPanelState,
 } from './useAppStore';

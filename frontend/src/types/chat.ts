@@ -16,9 +16,12 @@ export interface ChatMessage {
   } | null;
   // Parsed API requests from backend
   apiRequests?: ApiRequests | null;
-  // New action/memory metadata
+  // Action/memory metadata
   actions?: AgentAction[];
   memoryStatus?: MemoryStatus;
+  // Debug info (populated when debug mode is on, or always collected)
+  debugSteps?: string[];   // Node names in the order they fired
+  intent?: string;
 }
 
 // API request/response types (matches backend schemas)
@@ -161,6 +164,7 @@ export interface AgentResponse {
   api_requests?: ApiRequests;
   actions?: AgentAction[];
   memory_status?: MemoryStatus;
+  intent?: string;
 }
 
 export interface ResumeRequest {

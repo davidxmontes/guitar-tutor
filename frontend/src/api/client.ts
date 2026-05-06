@@ -6,15 +6,26 @@ import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent,
 // nginx can proxy requests to the backend service in docker-compose.
 const API_BASE_URL = (import.meta.env as any).VITE_API_BASE_URL ?? '/api';
 
-// Human-readable labels for LangGraph node names emitted by the backend.
+// Human-readable loading labels for LangGraph node names.
 export function nodeLabel(node: string): string {
   const labels: Record<string, string> = {
-    prepare_question: 'Preparing...',
-    clarify:          'Thinking...',
-    clarify_input:    'Need clarification...',
-    generate_answer:  'Generating answer...',
+    classify_input:       'Thinking...',
+    clarify_input:        'Need clarification...',
+    generate_answer_text: 'Generating answer...',
+    postprocess_answer:   'Finishing up...',
   };
   return labels[node] ?? 'Thinking...';
+}
+
+// Short labels used in the debug panel (not loading state).
+export function nodeDebugLabel(node: string): string {
+  const labels: Record<string, string> = {
+    classify_input:       'classify',
+    clarify_input:        'clarify',
+    generate_answer_text: 'answer',
+    postprocess_answer:   'postprocess',
+  };
+  return labels[node] ?? node;
 }
 
 class ApiClient {
