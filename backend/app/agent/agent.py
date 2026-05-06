@@ -22,8 +22,9 @@ from app.agent.nodes import (
     _classify_input,
     _clarify_input,
     _execute_song_actions,
-    _generate_answer,
+    _generate_answer_text,
     _plan_song_intent,
+    _postprocess_answer,
     _update_running_summary,
     _validate_highlight_groups,
 )
@@ -45,7 +46,7 @@ class ThreadNotFoundError(RuntimeError):
 
 # Node names for status tracking
 _NODE_FIELDS = {
-    "answer": "generate_answer",
+    "answer": "postprocess_answer",
     "clarifying_question_for_user": "classify_input",
 }
 
@@ -57,7 +58,8 @@ class GuitarTutorAgent:
     # assigned here so Python binds `self` automatically when called as methods.
     _classify_input = _classify_input
     _clarify_input = _clarify_input
-    _generate_answer = _generate_answer
+    _generate_answer_text = _generate_answer_text
+    _postprocess_answer = _postprocess_answer
     _plan_song_intent = _plan_song_intent
     _execute_song_actions = _execute_song_actions
     _build_theory_actions = staticmethod(_build_theory_actions)
@@ -125,11 +127,17 @@ class GuitarTutorAgent:
 
         builder.add_node("classify_input", self._classify_input)
         builder.add_node("clarify_input", self._clarify_input)
-        builder.add_node("generate_answer", self._generate_answer)
+        builder.add_node("generate_answer_text", self._generate_answer_text)
+        builder.add_node("postprocess_answer", self._postprocess_answer)
 
         builder.add_edge(START, "classify_input")
         builder.add_edge("classify_input", "clarify_input")
-        builder.add_edge("generate_answer", END)
+        # Route to END early for out-of-scope/early-return cases; otherwise postprocess.
+        builder.add_conditional_edges(
+            "generate_answer_text",
+            lambda state: END if state.get("out_of_scope") else "postprocess_answer",
+        )
+        builder.add_edge("postprocess_answer", END)
 
         return builder.compile(checkpointer=self.memory)
 
@@ -416,11 +424,6 @@ class GuitarTutorAgent:
     def _iter_stream(self, graph_input, config, *, memory_status: str) -> Generator[dict, None, None]:
         """Shared streaming logic: yields status, token, interrupt, and answer events."""
         last_output = None
-        # Use run_id to distinguish LLM calls within generate_answer.
-        # Structured output calls (song plan, postprocess) emit JSON; the main
-        # answer call emits natural language. We stream only the answer call.
-        json_run_ids: set[str] = set()
-        answer_run_id: str | None = None
 
         # Dual stream: "messages" gives per-token chunks for SSE streaming,
         # "values" gives full state snapshots after each node completes.
@@ -432,32 +435,11 @@ class GuitarTutorAgent:
             if mode == "messages":
                 chunk, metadata = event
                 node = metadata.get("langgraph_node", "")
-                run_id = str(metadata.get("run_id", "") or "")
                 has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
-
-                if node != "generate_answer" or not has_content:
-                    continue
-
-                text = self._coerce_text(chunk.content)
-
-                if answer_run_id is not None:
-                    # Only stream from the identified answer run; skip all others.
-                    if run_id == answer_run_id:
-                        yield {"event": "token", "data": {"text": text}}
-                    continue
-
-                if run_id in json_run_ids:
-                    continue  # Known structured-output run, skip all its tokens.
-
-                if text.strip().startswith("{") or text.strip().startswith("["):
-                    # This run is emitting JSON (structured output), mark and skip.
-                    json_run_ids.add(run_id)
-                    continue
-
-                # First non-JSON run from generate_answer is the answer.
-                answer_run_id = run_id
-                yield {"event": "token", "data": {"text": text}}
-
+                # generate_answer_text contains exactly one LLM call (the answer),
+                # so every content chunk from that node is safe to stream.
+                if node == "generate_answer_text" and has_content:
+                    yield {"event": "token", "data": {"text": self._coerce_text(chunk.content)}}
             elif mode == "values":
                 node = self._identify_node(event)
                 logger.debug("Stream event from node: %s", node)
