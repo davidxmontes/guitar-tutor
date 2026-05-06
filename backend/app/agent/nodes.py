@@ -91,9 +91,9 @@ def _project_ui_context_for_prompt(ui_context: dict) -> dict:
         if key in ui_context:
             projected[key] = ui_context.get(key)
 
-    # Resolve highlighted fret positions to actual note names so the LLM
-    # doesn't have to do fret arithmetic (which it gets wrong).
-    highlighted = projected.get("highlighted_notes")
+    # Rename to user_pinned_notes so prompts don't confuse user-placed pins
+    # with notes the agent itself highlights via fretboard.highlight actions.
+    highlighted = projected.pop("highlighted_notes", None)
     if highlighted and isinstance(highlighted, list):
         tuning_id = ui_context.get("selected_tuning") or "standard"
         custom_notes = ui_context.get("custom_tuning_notes")
@@ -105,14 +105,13 @@ def _project_ui_context_for_prompt(ui_context: dict) -> dict:
             fret = hn.get("fret")
             if string_num is None or fret is None:
                 continue
-            # tuning_notes is indexed 0=string1, so string_num-1
             idx = int(string_num) - 1
             if 0 <= idx < len(tuning_notes):
                 note = get_note_at_fret(tuning_notes[idx], int(fret))
                 resolved.append({**hn, "note": note})
             else:
                 resolved.append(hn)
-        projected["highlighted_notes"] = resolved
+        projected["user_pinned_notes"] = resolved
 
     return projected
 
@@ -156,6 +155,7 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
         return {
             "clarifying_question_for_user": None,
             "out_of_scope": False,
+            "intent": "chord",
             "running_summary": running_summary,
             "summary_turn_count": summary_turn_count,
         }
@@ -182,9 +182,14 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
     if isinstance(clarifying_question_for_user, str) and clarifying_question_for_user.strip().lower() in {"null", "none"}:
         clarifying_question_for_user = None
 
+    intent = q.get("intent", "general")
+    if intent not in {"song", "chord", "scale", "general"}:
+        intent = "general"
+
     return {
         "clarifying_question_for_user": clarifying_question_for_user,
         "out_of_scope": q.get("out_of_scope", False),
+        "intent": intent,
         "running_summary": running_summary,
         "summary_turn_count": summary_turn_count,
     }
@@ -226,6 +231,7 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
     running_summary = state.get("running_summary", "")
     ui_context = state.get("ui_context") or {}
     memory_status = state.get("memory_status", "fresh")
+    intent = state.get("intent", "general")
 
     if out_of_scope:
         refusal_msg = (
@@ -258,14 +264,19 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
     messages = state.get("messages", [])
     user_question = self._message_text(messages[-1]) if messages else ""
     prompt_ui_context = _project_ui_context_for_prompt(ui_context)
-    song_tool_plan = _plan_song_intent(
-        self,
-        user_question=user_question,
-        messages=messages,
-        ui_context=ui_context,
-        running_summary=running_summary,
-    )
-    logger.info("Song tool plan=%s", song_tool_plan)
+
+    if intent == "song":
+        song_tool_plan = _plan_song_intent(
+            self,
+            user_question=user_question,
+            messages=messages,
+            ui_context=ui_context,
+            running_summary=running_summary,
+        )
+        logger.info("Song tool plan=%s", song_tool_plan)
+    else:
+        song_tool_plan = {"song_search_query": None, "focus_measure_number": None}
+
     tool_context, song_actions = _execute_song_actions(
         self,
         user_question,
@@ -301,6 +312,7 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
             answer=answer_text,
             ui_context=prompt_ui_context or "None",
             tuning_notes=tuning_notes,
+            intent=intent,
         )
     )
     post = self._invoke_structured(
@@ -312,9 +324,12 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
     actions: list[dict] = []
     if self.actions_enabled:
         actions.extend(song_actions)
-        actions.extend(_build_theory_actions(post.get("scale"), post.get("chord_choices", [])))
 
-        # Validate and add highlight groups from the combined call
+        # Theory tab-switching actions are only appropriate outside song context.
+        if intent != "song":
+            actions.extend(_build_theory_actions(post.get("scale"), post.get("chord_choices", [])))
+
+        # Fretboard highlights are tab-agnostic — always safe to emit.
         highlight_groups = _validate_highlight_groups(post.get("highlight_groups", []))
         if highlight_groups:
             actions.append({"type": "fretboard.highlight", "groups": highlight_groups})
@@ -330,6 +345,7 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
         "out_of_scope": False,
         "actions": actions,
         "memory_status": memory_status,
+        "intent": intent,
     }
 
 
