@@ -325,6 +325,7 @@ class GuitarTutorAgent:
             "out_of_scope": output.get("out_of_scope", False),
             "actions": output.get("actions", []),
             "memory_status": output.get("memory_status", memory_status),
+            "intent": output.get("intent"),
         }
 
     @staticmethod

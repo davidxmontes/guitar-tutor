@@ -50,6 +50,7 @@ def _build_agent_response(result: dict) -> AgentResponse:
         api_requests=api_requests_data,
         actions=result.get("actions", []),
         memory_status=result.get("memory_status", "fresh"),
+        intent=result.get("intent"),
     )
 
 
