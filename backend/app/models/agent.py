@@ -38,7 +38,7 @@ class UiHighlightedNote(BaseModel):
 class UiContext(BaseModel):
     """Structured UI context passed from frontend for agent awareness."""
 
-    app_mode: Optional[Literal["scale", "chord", "song"]] = None
+    app_mode: Optional[Literal["scale", "chord", "song", "progression"]] = None
     display_mode: Optional[Literal["notes", "intervals"]] = None
 
     selected_tuning: Optional[str] = None
@@ -54,6 +54,7 @@ class UiContext(BaseModel):
     playhead_measure_index: Optional[int] = None
     selected_beat_id: Optional[str] = None
     highlighted_notes: Optional[List[UiHighlightedNote]] = None
+    selected_progression: Optional[dict] = None
 
     model_config = {"extra": "allow"}
 
@@ -145,6 +146,19 @@ class FretboardHighlightAction(BaseModel):
     groups: List[FretboardHighlightGroup]
 
 
+class ProgressionSlotSchema(BaseModel):
+    root: str
+    quality: str
+    positions: Optional[List[FretboardHighlightPosition]] = None
+
+
+class ProgressionSetAction(BaseModel):
+    type: Literal["progression.set"]
+    chords: List[ProgressionSlotSchema]
+    key_root: Optional[str] = None
+    key_mode: Optional[str] = None
+
+
 AgentAction = Annotated[
     Union[
         SongSearchAction,
@@ -154,6 +168,7 @@ AgentAction = Annotated[
         TheoryShowChordAction,
         TheoryShowScaleAction,
         FretboardHighlightAction,
+        ProgressionSetAction,
     ],
     Field(discriminator="type"),
 ]
