@@ -341,7 +341,7 @@ def _postprocess_answer(self: "GuitarTutorAgent", state: dict) -> dict:
     post = self._invoke_structured(
         AnswerPostProcessSchema,
         [postprocess_system],
-        fallback={"scale": None, "chord_choices": [], "visualizations": False, "highlight_groups": []},
+        fallback={"scale": None, "chord_choices": [], "visualizations": False, "highlight_groups": [], "progression_chords": []},
     )
 
     actions: list[dict] = list(song_actions)
@@ -356,6 +356,13 @@ def _postprocess_answer(self: "GuitarTutorAgent", state: dict) -> dict:
             actions.append({"type": "fretboard.highlight", "groups": highlight_groups})
 
         actions = self._dedupe_actions(actions)
+
+        progression_chords = [
+            c for c in (post.get("progression_chords") or [])
+            if isinstance(c.get("root"), str) and isinstance(c.get("quality"), str)
+        ]
+        if progression_chords:
+            actions.append({"type": "progression.set", "chords": progression_chords})
 
     return {
         "answer": answer_text,
