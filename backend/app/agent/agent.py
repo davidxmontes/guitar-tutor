@@ -22,8 +22,9 @@ from app.agent.nodes import (
     _classify_input,
     _clarify_input,
     _execute_song_actions,
-    _generate_answer,
+    _generate_answer_text,
     _plan_song_intent,
+    _postprocess_answer,
     _update_running_summary,
     _validate_highlight_groups,
 )
@@ -45,7 +46,7 @@ class ThreadNotFoundError(RuntimeError):
 
 # Node names for status tracking
 _NODE_FIELDS = {
-    "answer": "generate_answer",
+    "answer": "postprocess_answer",
     "clarifying_question_for_user": "classify_input",
 }
 
@@ -57,7 +58,8 @@ class GuitarTutorAgent:
     # assigned here so Python binds `self` automatically when called as methods.
     _classify_input = _classify_input
     _clarify_input = _clarify_input
-    _generate_answer = _generate_answer
+    _generate_answer_text = _generate_answer_text
+    _postprocess_answer = _postprocess_answer
     _plan_song_intent = _plan_song_intent
     _execute_song_actions = _execute_song_actions
     _build_theory_actions = staticmethod(_build_theory_actions)
@@ -125,11 +127,17 @@ class GuitarTutorAgent:
 
         builder.add_node("classify_input", self._classify_input)
         builder.add_node("clarify_input", self._clarify_input)
-        builder.add_node("generate_answer", self._generate_answer)
+        builder.add_node("generate_answer_text", self._generate_answer_text)
+        builder.add_node("postprocess_answer", self._postprocess_answer)
 
         builder.add_edge(START, "classify_input")
         builder.add_edge("classify_input", "clarify_input")
-        builder.add_edge("generate_answer", END)
+        # Route to END early for out-of-scope/early-return cases; otherwise postprocess.
+        builder.add_conditional_edges(
+            "generate_answer_text",
+            lambda state: END if state.get("out_of_scope") else "postprocess_answer",
+        )
+        builder.add_edge("postprocess_answer", END)
 
         return builder.compile(checkpointer=self.memory)
 
@@ -317,6 +325,7 @@ class GuitarTutorAgent:
             "out_of_scope": output.get("out_of_scope", False),
             "actions": output.get("actions", []),
             "memory_status": output.get("memory_status", memory_status),
+            "intent": output.get("intent"),
         }
 
     @staticmethod
@@ -416,8 +425,6 @@ class GuitarTutorAgent:
     def _iter_stream(self, graph_input, config, *, memory_status: str) -> Generator[dict, None, None]:
         """Shared streaming logic: yields status, token, interrupt, and answer events."""
         last_output = None
-        in_answer_node = False
-        answer_tokens_started = False
 
         # Dual stream: "messages" gives per-token chunks for SSE streaming,
         # "values" gives full state snapshots after each node completes.
@@ -430,20 +437,12 @@ class GuitarTutorAgent:
                 chunk, metadata = event
                 node = metadata.get("langgraph_node", "")
                 has_content = chunk.content and not getattr(chunk, "tool_call_chunks", None)
-                # Only yield tokens from generate_answer, and skip JSON-like chunks
-                # (structured output calls emit JSON that shouldn't reach the client).
-                if node == "generate_answer" and in_answer_node and has_content:
-                    text = self._coerce_text(chunk.content)
-                    if not answer_tokens_started:
-                        stripped = text.strip()
-                        if stripped.startswith("{") or stripped.startswith("["):
-                            continue
-                        answer_tokens_started = True
-                    yield {"event": "token", "data": {"text": text}}
+                # generate_answer_text contains exactly one LLM call (the answer),
+                # so every content chunk from that node is safe to stream.
+                if node == "generate_answer_text" and has_content:
+                    yield {"event": "token", "data": {"text": self._coerce_text(chunk.content)}}
             elif mode == "values":
                 node = self._identify_node(event)
-                if node == "generate_answer":
-                    in_answer_node = True
                 logger.debug("Stream event from node: %s", node)
                 yield {"event": "status", "data": {"node": node}}
                 last_output = event

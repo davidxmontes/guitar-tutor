@@ -11,6 +11,7 @@ class ClassificationSchema(TypedDict):
 
     out_of_scope: bool = Field(False, description="Whether the question is out of scope")
     clarifying_question_for_user: Optional[str] = Field(None, description="A clarifying question to send to the user")
+    intent: str = Field("general", description="Primary intent: 'song' | 'chord' | 'scale' | 'general'")
 
 
 class SongToolPlanSchema(BaseModel):
@@ -69,3 +70,4 @@ class OverallState(MessagesState):
     # Response fields
     actions: List[dict] = []
     memory_status: str = "fresh"
+    intent: str = "general"

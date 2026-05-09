@@ -1,14 +1,16 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ChatPill } from './ChatPill'
-import type { ChatMessage as ChatMessageType } from '../../types/chat';
+import type { AgentAction, ChatMessage as ChatMessageType } from '../../types/chat';
 import { useAppStore } from '../../stores';
+import { nodeDebugLabel } from '../../api/client';
 
 interface ChatMessageProps {
   message: ChatMessageType;
   onChordClick?: (chord: string, apiRequest?: { root: string; quality: string }) => void;
   onScaleClick?: (scale: string, apiRequest?: { root: string; mode: string }) => void;
   darkMode?: boolean;
+  debugMode?: boolean;
   // Current app selection state (passed from App)
   selectedChordRoot?: string | null;
   selectedChordQuality?: string | null;
@@ -16,7 +18,7 @@ interface ChatMessageProps {
   selectedScaleMode?: string | null;
 }
 
-export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = false, selectedChordRoot = null, selectedChordQuality = null, selectedScaleRoot = null, selectedScaleMode = null }: ChatMessageProps) {
+export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = false, debugMode = false, selectedChordRoot = null, selectedChordQuality = null, selectedScaleRoot = null, selectedScaleMode = null }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const {
     agentHighlightGroups,
@@ -134,6 +136,42 @@ export function ChatMessage({ message, onChordClick, onScaleClick, darkMode = fa
                 aria-label={agentHighlightVisible ? 'Hide highlights' : 'Show highlights'}
               >{agentHighlightVisible ? 'Hide' : 'Show'}</button>
             </div>
+          </div>
+        )}
+
+        {/* Debug panel */}
+        {debugMode && !isUser && message.debugSteps && (
+          <div className="mt-3 pt-2.5 border-t font-mono text-[10px] space-y-1" style={{ borderColor: 'var(--border-primary)', color: 'var(--text-muted)' }}>
+            <div>
+              <span className="opacity-50">steps </span>
+              {message.debugSteps.map((s, i) => (
+                <span key={i}>{i > 0 && <span className="opacity-40"> → </span>}{nodeDebugLabel(s)}</span>
+              ))}
+            </div>
+            {(message.intent || message.memoryStatus) && (
+              <div>
+                {message.intent && <><span className="opacity-50">intent </span><span>{message.intent}</span></>}
+                {message.intent && message.memoryStatus && <span className="opacity-40"> · </span>}
+                {message.memoryStatus && <><span className="opacity-50">mem </span><span>{message.memoryStatus}</span></>}
+              </div>
+            )}
+            {message.actions && message.actions.length > 0 && (
+              <div>
+                <span className="opacity-50">actions </span>
+                {message.actions.map((a: AgentAction, i: number) => (
+                  <span key={i}>
+                    {i > 0 && <span className="opacity-40"> · </span>}
+                    {'groups' in a
+                      ? `highlight(${a.groups.length})`
+                      : 'query' in a
+                      ? `search(${a.query})`
+                      : 'measure_index' in a
+                      ? `measure(${a.measure_index})`
+                      : a.type.replace(/^(theory\.|song\.)/, '')}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

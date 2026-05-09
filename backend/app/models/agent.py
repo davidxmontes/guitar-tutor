@@ -171,3 +171,4 @@ class AgentResponse(BaseModel):
     api_requests: Optional[ApiRequests] = None
     actions: List[AgentAction] = Field(default_factory=list)
     memory_status: Literal["restored", "bootstrapped", "fresh"] = "fresh"
+    intent: Optional[str] = None

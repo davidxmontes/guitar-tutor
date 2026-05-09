@@ -4,7 +4,8 @@ Graph node functions for the Guitar Tutor LangGraph agent.
 Nodes:
 1. classify_input - classifies whether to proceed, clarify, or reject the user's question
 2. clarify_input - handles interrupt/resume for clarifying questions
-3. generate_answer - generates answer text + structured metadata/actions
+3. generate_answer_text - generates the natural-language answer (single LLM call, streamed)
+4. postprocess_answer - extracts structured metadata and assembles the action list
 """
 
 from __future__ import annotations
@@ -91,9 +92,9 @@ def _project_ui_context_for_prompt(ui_context: dict) -> dict:
         if key in ui_context:
             projected[key] = ui_context.get(key)
 
-    # Resolve highlighted fret positions to actual note names so the LLM
-    # doesn't have to do fret arithmetic (which it gets wrong).
-    highlighted = projected.get("highlighted_notes")
+    # Rename to user_pinned_notes so prompts don't confuse user-placed pins
+    # with notes the agent itself highlights via fretboard.highlight actions.
+    highlighted = projected.pop("highlighted_notes", None)
     if highlighted and isinstance(highlighted, list):
         tuning_id = ui_context.get("selected_tuning") or "standard"
         custom_notes = ui_context.get("custom_tuning_notes")
@@ -105,14 +106,13 @@ def _project_ui_context_for_prompt(ui_context: dict) -> dict:
             fret = hn.get("fret")
             if string_num is None or fret is None:
                 continue
-            # tuning_notes is indexed 0=string1, so string_num-1
             idx = int(string_num) - 1
             if 0 <= idx < len(tuning_notes):
                 note = get_note_at_fret(tuning_notes[idx], int(fret))
                 resolved.append({**hn, "note": note})
             else:
                 resolved.append(hn)
-        projected["highlighted_notes"] = resolved
+        projected["user_pinned_notes"] = resolved
 
     return projected
 
@@ -156,6 +156,7 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
         return {
             "clarifying_question_for_user": None,
             "out_of_scope": False,
+            "intent": "chord",
             "running_summary": running_summary,
             "summary_turn_count": summary_turn_count,
         }
@@ -182,9 +183,14 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
     if isinstance(clarifying_question_for_user, str) and clarifying_question_for_user.strip().lower() in {"null", "none"}:
         clarifying_question_for_user = None
 
+    intent = q.get("intent", "general")
+    if intent not in {"song", "chord", "scale", "general"}:
+        intent = "general"
+
     return {
         "clarifying_question_for_user": clarifying_question_for_user,
         "out_of_scope": q.get("out_of_scope", False),
+        "intent": intent,
         "running_summary": running_summary,
         "summary_turn_count": summary_turn_count,
     }
@@ -196,7 +202,7 @@ def _clarify_input(self: "GuitarTutorAgent", state: dict) -> Command:
     clarifying_question_for_user = state.get("clarifying_question_for_user")
 
     if not clarifying_question_for_user:
-        return Command(goto="generate_answer")
+        return Command(goto="generate_answer_text")
 
     # interrupt() pauses graph execution; the client calls resume_chat() to continue.
     human_input = interrupt(
@@ -212,20 +218,20 @@ def _clarify_input(self: "GuitarTutorAgent", state: dict) -> Command:
             "clarifying_question_for_user": None,
             "out_of_scope": False,
         },
-        goto="generate_answer",
+        goto="generate_answer_text",
     )
 
 
-def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
-    """Node 3: Produce the final response. Makes two LLM calls:
-    1. Generate natural-language answer text
-    2. Post-process to extract structured metadata (scale, chords, fretboard highlights)
-    Also runs song tool actions (search, measure focus) if the LLM planner requested them."""
+def _generate_answer_text(self: "GuitarTutorAgent", state: dict) -> dict:
+    """Node 3: Generate the natural-language answer. Song planning and tool execution
+    happen here too. A separate postprocess_answer node extracts structured metadata
+    afterward, keeping this node to a single LLM call so streaming is unambiguous."""
     clarifying_question_for_user = state.get("clarifying_question_for_user")
     out_of_scope = state.get("out_of_scope", False)
     running_summary = state.get("running_summary", "")
     ui_context = state.get("ui_context") or {}
     memory_status = state.get("memory_status", "fresh")
+    intent = state.get("intent", "general")
 
     if out_of_scope:
         refusal_msg = (
@@ -258,14 +264,19 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
     messages = state.get("messages", [])
     user_question = self._message_text(messages[-1]) if messages else ""
     prompt_ui_context = _project_ui_context_for_prompt(ui_context)
-    song_tool_plan = _plan_song_intent(
-        self,
-        user_question=user_question,
-        messages=messages,
-        ui_context=ui_context,
-        running_summary=running_summary,
-    )
-    logger.info("Song tool plan=%s", song_tool_plan)
+
+    if intent == "song":
+        song_tool_plan = _plan_song_intent(
+            self,
+            user_question=user_question,
+            messages=messages,
+            ui_context=ui_context,
+            running_summary=running_summary,
+        )
+        logger.info("Song tool plan=%s", song_tool_plan)
+    else:
+        song_tool_plan = {"song_search_query": None, "focus_measure_number": None}
+
     tool_context, song_actions = _execute_song_actions(
         self,
         user_question,
@@ -274,7 +285,6 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
         focus_measure_number=song_tool_plan.get("focus_measure_number"),
     )
 
-    # Call 1: Generate answer text (regular LLM — streamed via stream_mode="messages")
     text_system = SystemMessage(
         content=ANSWER_TEXT_INSTRUCTIONS.format(
             running_summary=running_summary or "None",
@@ -283,14 +293,38 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
         )
     )
 
-    # Include recent conversation history so the LLM can resolve
-    # follow-up references ("this", "those chords", "show me visualizations for that")
+    # Include recent conversation history so the LLM can resolve follow-up references.
     recent_history = messages[-(self.recent_turn_window * 2):]
     llm_messages = [text_system] + recent_history
     response = self.llm.invoke(llm_messages)
     answer_text = self._clean_answer_text(self._coerce_text(response.content))
 
-    # Call 2: Extract metadata + fretboard highlights in one structured call
+    return {
+        "messages": [AIMessage(content=answer_text)],
+        "actions": song_actions if self.actions_enabled else [],
+        "out_of_scope": False,
+        "memory_status": memory_status,
+    }
+
+
+def _postprocess_answer(self: "GuitarTutorAgent", state: dict) -> dict:
+    """Node 4: Extract structured metadata (scale, chords, fretboard highlights) from
+    the answer text produced by generate_answer_text, then assemble the full action list."""
+    messages = state.get("messages", [])
+    answer_text = self._message_text(messages[-1]) if messages else ""
+    song_actions = state.get("actions", [])
+    ui_context = state.get("ui_context") or {}
+    intent = state.get("intent", "general")
+    memory_status = state.get("memory_status", "fresh")
+
+    # Find the last human message for the postprocess prompt.
+    user_question = ""
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            user_question = self._message_text(msg)
+            break
+
+    prompt_ui_context = _project_ui_context_for_prompt(ui_context)
     tuning_id = ui_context.get("selected_tuning") or "standard"
     custom_notes = ui_context.get("custom_tuning_notes")
     tuning_notes = custom_notes if custom_notes else get_tuning_notes(tuning_id)
@@ -301,6 +335,7 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
             answer=answer_text,
             ui_context=prompt_ui_context or "None",
             tuning_notes=tuning_notes,
+            intent=intent,
         )
     )
     post = self._invoke_structured(
@@ -309,12 +344,13 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
         fallback={"scale": None, "chord_choices": [], "visualizations": False, "highlight_groups": []},
     )
 
-    actions: list[dict] = []
+    actions: list[dict] = list(song_actions)
     if self.actions_enabled:
-        actions.extend(song_actions)
-        actions.extend(_build_theory_actions(post.get("scale"), post.get("chord_choices", [])))
+        # Theory tab-switching actions are only appropriate outside song context.
+        if intent != "song":
+            actions.extend(_build_theory_actions(post.get("scale"), post.get("chord_choices", [])))
 
-        # Validate and add highlight groups from the combined call
+        # Fretboard highlights are tab-agnostic — always safe to emit.
         highlight_groups = _validate_highlight_groups(post.get("highlight_groups", []))
         if highlight_groups:
             actions.append({"type": "fretboard.highlight", "groups": highlight_groups})
@@ -322,13 +358,12 @@ def _generate_answer(self: "GuitarTutorAgent", state: dict) -> dict:
         actions = self._dedupe_actions(actions)
 
     return {
-        "messages": [AIMessage(content=answer_text)],
         "answer": answer_text,
         "scale": post.get("scale"),
         "chord_choices": post.get("chord_choices", []),
         "visualizations": post.get("visualizations", False),
-        "out_of_scope": False,
         "actions": actions,
+        "intent": intent,
         "memory_status": memory_status,
     }
 
