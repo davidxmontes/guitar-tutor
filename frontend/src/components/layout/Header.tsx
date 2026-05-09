@@ -20,10 +20,16 @@ export function Header() {
   const showDisplayToggle = appMode !== 'song' && (scaleData || chordData);
 
   // Handle mode switch while preserving scale context for chord overlay rendering
-  const handleModeSwitch = useCallback(async (mode: 'scale' | 'chord' | 'song') => {
+  const handleModeSwitch = useCallback(async (mode: 'scale' | 'chord' | 'song' | 'progression') => {
     setAppMode(mode);
 
     if (mode === 'song') {
+      clearChord();
+      resetChord();
+      return;
+    }
+
+    if (mode === 'progression') {
       clearChord();
       resetChord();
       return;
@@ -164,6 +170,20 @@ export function Header() {
             >
               <span className="hidden sm:inline">Songs</span>
               <span className="sm:hidden">Song</span>
+            </button>
+            <button
+              onClick={() => handleModeSwitch('progression')}
+              className={`px-2 md:px-4 py-1 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all touch-target ${
+                appMode === 'progression' ? 'shadow-sm border font-bold' : ''
+              }`}
+              style={{
+                backgroundColor: appMode === 'progression' ? 'var(--card-bg)' : 'transparent',
+                borderColor: appMode === 'progression' ? 'var(--border-primary)' : 'transparent',
+                color: appMode === 'progression' ? 'var(--accent-600)' : 'var(--text-tertiary)',
+              }}
+            >
+              <span className="hidden sm:inline">Progression</span>
+              <span className="sm:hidden">Prog</span>
             </button>
           </div>
 
