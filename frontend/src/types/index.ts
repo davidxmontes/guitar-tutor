@@ -106,8 +106,15 @@ export interface ChordQualitiesResponse {
   qualities: ChordQualityInfo[];
 }
 
+export interface ProgressionSlot {
+  root: string;
+  quality: string;
+  positions?: { string: number; fret: number }[];
+  selectedVoicing?: string;
+}
+
 // App modes
-export type AppMode = 'scale' | 'chord' | 'song';
+export type AppMode = 'scale' | 'chord' | 'song' | 'progression';
 
 // Display mode for notes
 export type DisplayMode = 'notes' | 'intervals';
