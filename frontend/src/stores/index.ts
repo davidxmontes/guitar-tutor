@@ -18,4 +18,10 @@ export {
   useStreamingStatus,
   useDebugMode,
   useChatPanelState,
+  useProgressionSlots,
+  useActiveSlotIndex,
+  useProgressionChordData,
+  useProgressionChordLoading,
+  useDiatonicChordsForProgression,
+  useProgressionKey,
 } from './useAppStore';

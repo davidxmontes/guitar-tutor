@@ -6,6 +6,7 @@ import type {
   ChordResponse,
   DiatonicChord,
   DisplayMode,
+  ProgressionSlot,
   SongSearchResult,
   SongTracksResponse,
   TabDataResponse,
@@ -19,7 +20,7 @@ import type { ChatMessage, UiContext, FretboardHighlightGroup } from '../types/c
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
 
 // App mode type
-export type AppMode = 'scale' | 'chord' | 'song';
+export type AppMode = 'scale' | 'chord' | 'song' | 'progression';
 
 // Generate unique message IDs
 function generateMessageId(): string {
@@ -288,9 +289,31 @@ interface AgentHighlightSlice {
 }
 
 // ============================================================================
+// Progression Slice
+// ============================================================================
+interface ProgressionSlice {
+  progressionKeyRoot: string | null;
+  progressionKeyMode: string | null;
+  diatonicChords: DiatonicChord[];
+  progressionSlots: ProgressionSlot[];
+  activeSlotIndex: number;
+  progressionChordData: ChordResponse | null;
+  progressionChordLoading: boolean;
+
+  setProgressionKey: (root: string, mode: string) => Promise<void>;
+  addSlot: (slot: Pick<ProgressionSlot, 'root' | 'quality' | 'positions'>) => Promise<void>;
+  removeSlot: (index: number) => void;
+  updateSlotQuality: (index: number, quality: string) => Promise<void>;
+  setActiveSlot: (index: number) => Promise<void>;
+  setSlotVoicing: (index: number, voicingLabel: string) => void;
+  setProgressionFromAgent: (slots: ProgressionSlot[], keyRoot?: string, keyMode?: string) => Promise<void>;
+  clearProgression: () => void;
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice;
+type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice;
 
 // ============================================================================
 // Store Implementation
@@ -548,6 +571,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         playhead_measure_index: state.playheadMeasureIndex,
         selected_beat_id: state.selectedBeatId,
         highlighted_notes: state.highlightedNotes,
+        selected_progression: state.progressionSlots.length > 0
+          ? {
+              key_root: state.progressionKeyRoot,
+              key_mode: state.progressionKeyMode,
+              slots: state.progressionSlots.map(s => ({ root: s.root, quality: s.quality })),
+              active_slot_index: state.activeSlotIndex,
+            }
+          : null,
       };
     };
 
@@ -699,6 +730,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       agentHighlightIndex: 0,
       agentHighlightMessageId: null,
       agentHighlightVisible: false,
+      progressionSlots: [],
+      progressionChordData: null,
+      activeSlotIndex: 0,
     });
   },
 
@@ -1024,6 +1058,129 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const len = state.agentHighlightGroups.length;
     return { agentHighlightIndex: (state.agentHighlightIndex - 1 + len) % len };
   }),
+
+  // --------------------------------------------------------------------------
+  // Progression Slice
+  // --------------------------------------------------------------------------
+  progressionKeyRoot: null,
+  progressionKeyMode: null,
+  diatonicChords: [],
+  progressionSlots: [],
+  activeSlotIndex: 0,
+  progressionChordData: null,
+  progressionChordLoading: false,
+
+  setProgressionKey: async (root, mode) => {
+    set({ progressionKeyRoot: root, progressionKeyMode: mode });
+    try {
+      const { selectedTuning, customTuningNotes } = get();
+      const tuningNotes = customTuningNotes?.join(',');
+      const data = await apiClient.getScale(root, mode, selectedTuning, tuningNotes);
+      set({ diatonicChords: data.diatonic_chords });
+    } catch (err) {
+      console.error('Failed to fetch progression key scale:', err);
+    }
+  },
+
+  addSlot: async (slot) => {
+    set((state) => ({
+      progressionSlots: [...state.progressionSlots, { ...slot }],
+    }));
+    const newIndex = get().progressionSlots.length - 1;
+    await get().setActiveSlot(newIndex);
+  },
+
+  removeSlot: (index) => {
+    set((state) => {
+      const slots = state.progressionSlots.filter((_, i) => i !== index);
+      const clamped = Math.min(state.activeSlotIndex, Math.max(0, slots.length - 1));
+      return { progressionSlots: slots, activeSlotIndex: clamped };
+    });
+    const { progressionSlots, activeSlotIndex } = get();
+    if (progressionSlots.length > 0) {
+      get().setActiveSlot(activeSlotIndex);
+    } else {
+      set({ progressionChordData: null });
+    }
+  },
+
+  updateSlotQuality: async (index, quality) => {
+    set((state) => {
+      const slots = [...state.progressionSlots];
+      if (slots[index]) {
+        slots[index] = { ...slots[index], quality, selectedVoicing: undefined };
+      }
+      return { progressionSlots: slots };
+    });
+    if (get().activeSlotIndex === index) {
+      const slot = get().progressionSlots[index];
+      if (slot && !slot.positions) {
+        await get().setActiveSlot(index);
+      }
+    }
+  },
+
+  setActiveSlot: async (index) => {
+    const slots = get().progressionSlots;
+    if (index < 0 || index >= slots.length) return;
+    set({ activeSlotIndex: index });
+    const slot = slots[index];
+    if (slot.positions) {
+      set({ progressionChordData: null });
+      return;
+    }
+    set({ progressionChordLoading: true });
+    try {
+      const { selectedTuning, customTuningNotes } = get();
+      const tuningNotes = customTuningNotes?.join(',');
+      const data = await apiClient.getChord(slot.root, slot.quality, selectedTuning, tuningNotes);
+      set({ progressionChordData: data, progressionChordLoading: false });
+    } catch (err) {
+      console.error('Failed to fetch chord for progression slot:', err);
+      set({ progressionChordLoading: false });
+    }
+  },
+
+  setSlotVoicing: (index, voicingLabel) => {
+    set((state) => {
+      const slots = [...state.progressionSlots];
+      if (slots[index]) {
+        slots[index] = { ...slots[index], selectedVoicing: voicingLabel };
+      }
+      return { progressionSlots: slots };
+    });
+  },
+
+  setProgressionFromAgent: async (slots, keyRoot, keyMode) => {
+    set({
+      appMode: 'progression',
+      agentHighlightGroups: null,
+      agentHighlightIndex: 0,
+      agentHighlightMessageId: null,
+      agentHighlightVisible: false,
+      progressionSlots: slots,
+      activeSlotIndex: 0,
+      progressionChordData: null,
+      progressionKeyRoot: keyRoot ?? null,
+      progressionKeyMode: keyMode ?? null,
+    });
+    if (keyRoot && keyMode) {
+      await get().setProgressionKey(keyRoot, keyMode);
+    }
+    if (slots.length > 0) {
+      await get().setActiveSlot(0);
+    }
+  },
+
+  clearProgression: () => set({
+    progressionKeyRoot: null,
+    progressionKeyMode: null,
+    diatonicChords: [],
+    progressionSlots: [],
+    activeSlotIndex: 0,
+    progressionChordData: null,
+    progressionChordLoading: false,
+  }),
 }));
 
 // ============================================================================
@@ -1102,3 +1259,17 @@ export const useSelectedBeatId = () => useAppStore((state) => state.selectedBeat
 export const useSelectedTuning = () => useAppStore((state) => state.selectedTuning);
 export const useAvailableTunings = () => useAppStore((state) => state.availableTunings);
 export const useCustomTuningNotes = () => useAppStore((state) => state.customTuningNotes);
+
+// Progression selectors
+export const useProgressionSlots = () => useAppStore((state) => state.progressionSlots);
+export const useActiveSlotIndex = () => useAppStore((state) => state.activeSlotIndex);
+export const useProgressionChordData = () => useAppStore((state) => state.progressionChordData);
+export const useProgressionChordLoading = () => useAppStore((state) => state.progressionChordLoading);
+export const useDiatonicChordsForProgression = () => useAppStore((state) => state.diatonicChords);
+export const useProgressionKey = () =>
+  useAppStore(
+    useShallow((state) => ({
+      root: state.progressionKeyRoot,
+      mode: state.progressionKeyMode,
+    })),
+  );
