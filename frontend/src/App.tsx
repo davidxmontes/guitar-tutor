@@ -77,6 +77,9 @@ function App() {
     progressionChordData,
     progressionChordLoading,
     setProgressionFromAgent,
+    fetchProgressions,
+    fetchFavorites,
+    fetchThreads,
   } = useAppStore();
 
   // ============================================================================
@@ -98,15 +101,18 @@ function App() {
   }, [darkMode]);
 
   // ============================================================================
-  // Wire Clerk auth token into API client
+  // Wire Clerk auth token into API client and fetch user data on sign-in
   // ============================================================================
   useEffect(() => {
     if (isSignedIn) {
       apiClient.setTokenGetter(() => getToken());
+      fetchProgressions();
+      fetchFavorites();
+      fetchThreads();
     } else {
       apiClient.setTokenGetter(null);
     }
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn, getToken, fetchProgressions, fetchFavorites, fetchThreads]);
 
   // ============================================================================
   // Fetch available tunings on mount
