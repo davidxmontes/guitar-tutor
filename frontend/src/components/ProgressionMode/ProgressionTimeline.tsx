@@ -19,10 +19,13 @@ export function ProgressionTimeline() {
     if (!autoPlay) return;
     if (slot.positions) {
       playChord(slot.positions.map(p => ({ string: p.string, fret: p.fret })));
-    } else if (slot.selectedVoicing) {
+    } else {
       const { progressionChordData } = useAppStore.getState();
-      const voicing = progressionChordData?.voicings.find(v => v.label === slot.selectedVoicing);
-      if (voicing) {
+      const voicings = progressionChordData?.voicings;
+      if (voicings?.length) {
+        const voicing = slot.selectedVoicing
+          ? voicings.find(v => v.label === slot.selectedVoicing) ?? voicings[0]
+          : voicings[0];
         playChord(voicing.positions.map(p => ({ string: p.string, fret: p.fret })));
       }
     }
