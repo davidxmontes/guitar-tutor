@@ -18,6 +18,7 @@ import type {
 } from '../types';
 import type { ChatMessage, UiContext, FretboardHighlightGroup } from '../types/chat';
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
+import { setGuitarType as audioSetGuitarType, type GuitarType } from '../utils/audio';
 
 // App mode type
 export type AppMode = 'scale' | 'chord' | 'song' | 'progression';
@@ -122,6 +123,8 @@ function firstPlayableBeatIndex(beats: TabBeat[]): number | undefined {
 interface ThemeSlice {
   darkMode: boolean;
   toggleDarkMode: () => void;
+  guitarType: GuitarType;
+  setGuitarType: (type: GuitarType) => void;
 }
 
 // ============================================================================
@@ -343,6 +346,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
       return { darkMode: newMode };
     });
+  },
+
+  guitarType: (() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('guitarType') as GuitarType) ?? 'acoustic';
+    }
+    return 'acoustic';
+  })(),
+
+  setGuitarType: (type: GuitarType) => {
+    localStorage.setItem('guitarType', type);
+    audioSetGuitarType(type);
+    set({ guitarType: type });
   },
 
   // --------------------------------------------------------------------------
