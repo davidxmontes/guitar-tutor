@@ -35,8 +35,21 @@ class Settings(BaseSettings):
     agent_summary_turn_interval: int = 6
     agent_summary_char_threshold: int = 7000
     agent_recent_turn_window: int = 10
-    agent_checkpoint_backend: str = "memory"  # memory | sqlite
+    agent_checkpoint_backend: str = "memory"  # memory | sqlite | postgres
     agent_checkpoint_sqlite_path: str = ".agent_checkpoints.sqlite"
+
+    # Supabase
+    supabase_url: Optional[str] = None
+    supabase_service_key: Optional[str] = None
+    supabase_db_url: Optional[str] = None  # postgres:// connection string for LangGraph checkpoint saver
+
+    # Clerk
+    clerk_issuer_url: Optional[str] = None  # e.g. https://your-app.clerk.accounts.dev
+
+    # OTEL / Langfuse
+    otel_exporter_otlp_endpoint: Optional[str] = None  # e.g. https://cloud.langfuse.com/api/public/otel/v1/traces
+    langfuse_public_key: Optional[str] = None
+    langfuse_secret_key: Optional[str] = None
 
     _PROVIDER_DEFAULTS: dict = {
         "openai": {"base_url": None, "default_model": "gpt-4o-mini"},
