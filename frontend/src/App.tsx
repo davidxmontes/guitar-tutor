@@ -10,7 +10,8 @@ import { useFretboard } from './hooks';
 import { useAppStore } from './stores';
 import { apiClient } from './api/client';
 import type { DiatonicChord } from './types';
-import type { AgentAction, FretboardHighlightAction } from './types/chat';
+import { ProgressionMode } from './components/ProgressionMode/ProgressionMode';
+import type { AgentAction, FretboardHighlightAction, ProgressionSetAction } from './types/chat';
 
 function App() {
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
@@ -69,6 +70,11 @@ function App() {
     clearAgentHighlights,
     nextAgentHighlight,
     prevAgentHighlight,
+    progressionSlots,
+    activeSlotIndex,
+    progressionChordData,
+    progressionChordLoading,
+    setProgressionFromAgent,
   } = useAppStore();
 
   // ============================================================================
@@ -184,8 +190,29 @@ function App() {
     return new Set(scaleData.scale_notes);
   }, [appMode, scaleData]);
 
-  // Determine which chord data to show on fretboard (suppress when agent highlights are active)
-  const fretboardChordData = (appMode === 'song' || agentHighlightVisible) ? null : chordData;
+  // Active progression slot
+  const activeProgressionSlot = progressionSlots[activeSlotIndex] ?? null;
+  const isActiveSlotPinned = activeProgressionSlot !== null && !!activeProgressionSlot.positions;
+
+  // Chord overlay: suppress in song and progression modes; suppress when agent highlights are visible
+  const fretboardChordData = (appMode === 'song' || appMode === 'progression' || agentHighlightVisible) ? null : chordData;
+
+  // In progression mode with an open (non-pinned) slot, pass the slot's chord data
+  const progressionFretboardChordData =
+    appMode === 'progression' && activeProgressionSlot && !isActiveSlotPinned
+      ? progressionChordData
+      : null;
+
+  // Effective chord data for fretboard (progression takes priority over normal mode)
+  const effectiveChordData = progressionFretboardChordData ?? fretboardChordData;
+
+  // Active voicings: use slot's selectedVoicing in progression mode; use store's activeVoicings otherwise
+  const progressionActiveVoicings =
+    appMode === 'progression' && activeProgressionSlot?.selectedVoicing
+      ? [activeProgressionSlot.selectedVoicing.label]
+      : [];
+  const effectiveActiveVoicings = appMode === 'progression' ? progressionActiveVoicings : activeVoicings;
+
   const fretboardScalePositions = (appMode === 'scale' || (appMode === 'chord' && showScaleInChordMode))
     ? (scaleData?.positions ?? [])
     : [];
@@ -313,6 +340,28 @@ function App() {
     ? agentHighlightGroups[agentHighlightIndex] ?? null
     : null;
 
+  // In progression mode with a pinned slot, override the highlight group with the slot's positions
+  const progressionPinnedHighlightGroup =
+    appMode === 'progression' && isActiveSlotPinned && activeProgressionSlot!.positions
+      ? { name: `${activeProgressionSlot!.root} ${activeProgressionSlot!.quality}`, positions: activeProgressionSlot!.positions }
+      : null;
+
+  // While progressionChordData is loading, show persisted selected voicing positions immediately
+  const progressionSelectedVoicingHighlightGroup =
+    appMode === 'progression' && !isActiveSlotPinned
+      && activeProgressionSlot?.selectedVoicing
+      && progressionChordLoading
+      ? {
+          name: `${activeProgressionSlot.root} ${activeProgressionSlot.quality}`,
+          positions: activeProgressionSlot.selectedVoicing.positions,
+        }
+      : null;
+
+  const effectiveHighlightGroup =
+    progressionPinnedHighlightGroup
+    ?? progressionSelectedVoicingHighlightGroup
+    ?? agentHighlightGroup;
+
   useEffect(() => {
     if (
       !agentHighlightKeyScopeActive ||
@@ -411,6 +460,15 @@ function App() {
           if (messageId) setAgentHighlights(action.groups, messageId);
           continue;
         }
+        if (action.type === 'progression.set') {
+          const progressionAction = action as ProgressionSetAction;
+          await setProgressionFromAgent(
+            progressionAction.chords,
+            progressionAction.key_root ?? undefined,
+            progressionAction.key_mode ?? undefined,
+          );
+          continue;
+        }
         console.warn('Unknown agent action type:', action);
       } catch (err) {
         console.error('Failed to execute agent action:', action, err);
@@ -426,6 +484,7 @@ function App() {
     setAgentHighlights,
     setAppMode,
     setSongViewMode,
+    setProgressionFromAgent,
   ]);
 
   const handleChatSend = useCallback(async (message: string) => {
@@ -462,7 +521,7 @@ function App() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--main-content-bg)' }}>
           {/* Control Bar - hide empty song panel before a song is selected */}
-          {!(appMode === 'song' && !selectedSong) && (
+          {!(appMode === 'song' && !selectedSong) && appMode !== 'progression' && (
             <ControlBar
               onScaleSelect={handleScaleSelect}
               onDiatonicChordClick={handleDiatonicChordClick}
@@ -530,8 +589,13 @@ function App() {
               </>
             )}
 
+            {/* Progression mode content */}
+            {appMode === 'progression' && (
+              <ProgressionMode />
+            )}
+
             {/* Chord Diagrams */}
-            {appMode !== 'song' && fretboardChordData && (
+            {appMode !== 'song' && appMode !== 'progression' && fretboardChordData && (
               <ChordDiagramRow
                 voicings={fretboardChordData.voicings}
                 activeVoicings={activeVoicings}
@@ -574,14 +638,14 @@ function App() {
                 fretCount={fretboardData.fret_count}
                 tuningNotes={fretboardData.tuning_notes}
                 scalePositions={fretboardScalePositions}
-                chordVoicings={fretboardChordData?.voicings}
-                activeVoicings={activeVoicings}
+                chordVoicings={effectiveChordData?.voicings}
+                activeVoicings={effectiveActiveVoicings}
                 displayMode={displayMode}
                 onScaleNoteClick={handleScaleNoteClick}
                 clickableScaleNotes={clickableScaleNotes}
                 darkMode={darkMode}
                 highlightedNotes={appMode === 'song' ? highlightedNotes : []}
-                agentHighlightGroup={agentHighlightGroup}
+                agentHighlightGroup={effectiveHighlightGroup}
               />
             )}
 

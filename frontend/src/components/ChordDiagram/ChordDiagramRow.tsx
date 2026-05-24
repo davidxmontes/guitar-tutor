@@ -3,6 +3,7 @@ import { ChordDiagram } from './ChordDiagram'
 import { PlayButton } from '../PlayButton'
 import { playChord, playArpeggio, getChordDuration } from '../../utils/audio'
 import { getVoicingColor } from '../../constants/colors'
+import { useAppStore } from '../../stores'
 
 interface ChordDiagramRowProps {
   voicings: ChordVoicing[]
@@ -13,6 +14,19 @@ interface ChordDiagramRowProps {
 }
 
 export function ChordDiagramRow({ voicings, activeVoicings, onToggleVoicing, isExpanded, onToggleExpanded }: ChordDiagramRowProps) {
+  const autoPlay = useAppStore((s) => s.autoPlay)
+
+  const handleToggleVoicing = (label: string) => {
+    const isActivating = !activeVoicings.includes(label)
+    onToggleVoicing(label)
+    if (isActivating && autoPlay) {
+      const voicing = voicings.find(v => v.label === label)
+      if (voicing) {
+        playChord(voicing.positions.map(p => ({ string: p.string, fret: p.fret })))
+      }
+    }
+  }
+
   const handlePlayChord = (voicing: ChordVoicing, e: React.MouseEvent) => {
     e.stopPropagation()
     const positions = voicing.positions.map(p => ({ string: p.string, fret: p.fret }))
@@ -48,7 +62,7 @@ export function ChordDiagramRow({ voicings, activeVoicings, onToggleVoicing, isE
               return (
                 <button
                   key={voicing.label}
-                  onClick={() => onToggleVoicing(voicing.label)}
+                  onClick={() => handleToggleVoicing(voicing.label)}
                   className={`min-w-12 h-7 rounded-md text-xs font-bold transition-all px-2 flex items-center justify-center ${
                     isActive
                       ? `${color.bg} text-white shadow-sm`
@@ -104,7 +118,7 @@ export function ChordDiagramRow({ voicings, activeVoicings, onToggleVoicing, isE
               return (
                 <button
                   key={voicing.label}
-                  onClick={() => onToggleVoicing(voicing.label)}
+                  onClick={() => handleToggleVoicing(voicing.label)}
                   className={`min-w-12 h-7 rounded-md text-xs font-bold transition-all px-2 flex items-center justify-center ${
                     isActive
                       ? `${color.bg} text-white shadow-sm`
@@ -153,7 +167,7 @@ export function ChordDiagramRow({ voicings, activeVoicings, onToggleVoicing, isE
                 <ChordDiagram
                   shape={voicing}
                   isActive={isActive}
-                  onClick={() => onToggleVoicing(voicing.label)}
+                  onClick={() => handleToggleVoicing(voicing.label)}
                 />
                 <div className="flex gap-1">
                   <PlayButton

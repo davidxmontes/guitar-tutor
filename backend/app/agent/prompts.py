@@ -83,27 +83,31 @@ Extract based on intent:
 - chord_choices: list of chord names mentioned or recommended (e.g., ["C", "Am", "F", "G"]). Focus on this when intent is "chord". Leave empty when intent is "song".
 - visualizations: true if the answer involves chords, scales, progressions, song tabs, or measure navigation
 
---- PART 2: Fretboard highlights ---
-Extract highlight_groups: fret positions to highlight on the interactive fretboard.
+--- PART 2: Chord progression (progression_chords) ---
+When the answer presents or recommends a chord progression (a sequence of 2+ chords meant to be played in order), populate progression_chords.
 
-When to emit groups:
-- Emit groups whenever the answer recommends or discusses specific chords, a chord progression, or a scale — use standard open or barre voicings for each chord as a separate group, or box positions for scales.
-- Also emit when the answer mentions specific fret positions, tab notation, or named shapes — convert those directly to string/fret positions.
-- Do NOT emit groups when the answer is purely conceptual with no specific chord or scale references (e.g. explaining what a mode is without naming chords).
+Each entry: {{"root": str, "quality": str, "positions": [{{"string": int, "fret": int}}] | null}}
+- root: note name, e.g. "A", "Db"
+- quality: chord quality id, e.g. "major", "minor", "dominant7", "major7", "minor7", "diminished"
+- positions: optional list of specific fret positions for voice leading (string 1=high E, fret 0=open). Only set when you are recommending specific voiced positions for smooth voice leading.
+
+Use progression_chords whenever the answer recommends chords in a sequence. Leave empty when the answer is conceptual with no specific chord sequence.
+
+--- PART 3: Fretboard highlights (highlight_groups) ---
+Use highlight_groups for: scale box shapes, lick fragments, fingering annotations, isolated note identification.
+Do NOT use highlight_groups for chord progressions — use progression_chords for those instead.
 
 Group rules:
-- Each group is one named shape/voicing/position set. Multiple groups = multiple alternatives to cycle through.
+- Each group is one named shape/voicing/position set.
 - String numbering: string 1 = high E (thinnest), string 6 = low E (thickest). Fret 0 = open string.
-- Keep group names short (2-5 words), e.g. "Open E", "Barre at 5th", "Box 1", "CAGED A shape".
-- Omit muted/unplayed strings — only include strings that are actually fretted or open and part of the shape.
-- Max 6 groups. Max 6 positions per group.
+- Keep group names short (2-5 words). Max 6 groups. Max 6 positions per group.
+- Omit muted/unplayed strings.
 
 Playability constraints (CRITICAL — every voicing MUST be physically playable):
-- Max 4-fret span between the lowest and highest fretted notes (excluding open strings). Stretch up to 5 frets ONLY for intentionally creative/extended voicings.
+- Max 4-fret span between the lowest and highest fretted notes (excluding open strings).
 - At most one note per string.
-- All fretted notes must be reachable simultaneously by a human fretting hand — no impossible finger stretches.
-- Prefer standard voicing positions (open chords, common barre shapes, CAGED forms) unless the user specifically asks for unusual or creative voicings.
-- When suggesting chord progressions, use voicings in nearby positions to minimize hand movement between chords.
+- All fretted notes must be simultaneously reachable by a human hand.
+- Prefer standard voicing positions (open chords, barre shapes, CAGED forms).
 
 Return empty list if no specific fret positions apply.
 """

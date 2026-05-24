@@ -53,7 +53,7 @@ export interface UiHighlightedNote {
 }
 
 export interface UiContext {
-  app_mode?: 'scale' | 'chord' | 'song';
+  app_mode?: 'scale' | 'chord' | 'song' | 'progression';
   display_mode?: 'notes' | 'intervals';
   selected_tuning?: string;
   custom_tuning_notes?: string[] | null;
@@ -65,6 +65,12 @@ export interface UiContext {
   playhead_measure_index?: number;
   selected_beat_id?: string | null;
   highlighted_notes?: UiHighlightedNote[];
+  selected_progression?: {
+    key_root: string | null;
+    key_mode: string | null;
+    slots: Array<{ root: string; quality: string }>;
+    active_slot_index: number;
+  } | null;
 }
 
 export interface AgentRequest {
@@ -141,6 +147,17 @@ export type FretboardHighlightAction = {
   groups: FretboardHighlightGroup[];
 };
 
+export type ProgressionSetAction = {
+  type: 'progression.set';
+  chords: Array<{
+    root: string;
+    quality: string;
+    positions?: { string: number; fret: number }[];
+  }>;
+  key_root?: string | null;
+  key_mode?: string | null;
+};
+
 export type AgentAction =
   | SongSearchAction
   | SongSelectAction
@@ -148,7 +165,8 @@ export type AgentAction =
   | SongMeasureFocusAction
   | TheoryShowChordAction
   | TheoryShowScaleAction
-  | FretboardHighlightAction;
+  | FretboardHighlightAction
+  | ProgressionSetAction;
 
 export interface AgentResponse {
   answer: string;

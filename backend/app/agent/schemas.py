@@ -50,6 +50,15 @@ class AnswerPostProcessSchema(TypedDict):
     chord_choices: List[str] = Field(default_factory=list, description="List of chord names recommended")
     visualizations: bool = Field(False, description="Whether visualizations are needed")
     highlight_groups: List[FretboardHighlightGroupSchema] = Field(default_factory=list, description="Fretboard highlight groups")
+    progression_chords: List[dict] = Field(
+        default_factory=list,
+        description=(
+            "When the answer presents a chord progression, list each chord as "
+            "{root: str, quality: str, positions?: [{string: int, fret: int}]}. "
+            "Use this instead of highlight_groups when the answer is about a sequence of chords. "
+            "Empty list when the answer is not about a chord progression."
+        ),
+    )
 
 
 class OverallState(MessagesState):
