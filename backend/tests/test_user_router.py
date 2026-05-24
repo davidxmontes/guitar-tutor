@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from app.main import app
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_user, get_optional_user
 
 client = TestClient(app, raise_server_exceptions=False)
 
@@ -54,3 +54,38 @@ def test_delete_progression_calls_service(mock_delete):
         mock_delete.assert_called_once_with("user_test_123", "some-uuid")
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+@patch("app.routers.agent.user_service.upsert_thread")
+@patch("app.routers.agent.get_agent")
+def test_authenticated_chat_scopes_thread_id(mock_get_agent, mock_upsert):
+    """When user is authenticated, thread_id passed to agent is scoped."""
+    mock_agent = MagicMock()
+    mock_agent.chat.return_value = {
+        "answer": "C major has notes C, E, G",
+        "interrupted": False,
+        "scale": None,
+        "chord_choices": [],
+        "visualizations": False,
+        "out_of_scope": False,
+        "actions": [],
+        "memory_status": "fresh",
+    }
+    mock_get_agent.return_value = mock_agent
+
+    app.dependency_overrides[get_optional_user] = lambda: "user_123"
+    try:
+        response = client.post(
+            "/api/agent/chat",
+            json={"message": "What notes are in C major?", "thread_id": "thread-abc"},
+            headers={"Authorization": "Bearer fake"},
+        )
+        assert response.status_code == 200
+        call_kwargs = mock_agent.chat.call_args.kwargs
+        assert call_kwargs["thread_id"] == "user_123:thread-abc"
+        mock_upsert.assert_called_once()
+        upsert_kwargs = mock_upsert.call_args.kwargs
+        assert upsert_kwargs["user_id"] == "user_123"
+        assert upsert_kwargs["thread_id"] == "thread-abc"
+    finally:
+        app.dependency_overrides.pop(get_optional_user, None)
