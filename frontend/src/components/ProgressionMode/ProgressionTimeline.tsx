@@ -1,5 +1,6 @@
 import { useAppStore } from '../../stores';
 import { ProgressionSlotCard } from './ProgressionSlotCard';
+import { playChord } from '../../utils/audio';
 
 export function ProgressionTimeline() {
   const {
@@ -9,18 +10,34 @@ export function ProgressionTimeline() {
     removeSlot,
     addSlot,
     diatonicChords,
+    autoPlay,
   } = useAppStore();
+
+  const handleSetActive = async (index: number) => {
+    const slot = progressionSlots[index];
+    await setActiveSlot(index);
+    if (!autoPlay) return;
+    if (slot.positions) {
+      playChord(slot.positions.map(p => ({ string: p.string, fret: p.fret })));
+    } else if (slot.selectedVoicing) {
+      const { progressionChordData } = useAppStore.getState();
+      const voicing = progressionChordData?.voicings.find(v => v.label === slot.selectedVoicing);
+      if (voicing) {
+        playChord(voicing.positions.map(p => ({ string: p.string, fret: p.fret })));
+      }
+    }
+  };
 
   const handlePrev = () => {
     if (progressionSlots.length === 0) return;
     const next = (activeSlotIndex - 1 + progressionSlots.length) % progressionSlots.length;
-    setActiveSlot(next);
+    handleSetActive(next);
   };
 
   const handleNext = () => {
     if (progressionSlots.length === 0) return;
     const next = (activeSlotIndex + 1) % progressionSlots.length;
-    setActiveSlot(next);
+    handleSetActive(next);
   };
 
   const handleAddDefault = () => {
@@ -68,7 +85,7 @@ export function ProgressionTimeline() {
             slot={slot}
             index={index}
             isActive={index === activeSlotIndex}
-            onSetActive={setActiveSlot}
+            onSetActive={handleSetActive}
             onRemove={removeSlot}
           />
         ))}
