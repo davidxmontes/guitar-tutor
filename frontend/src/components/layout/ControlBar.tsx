@@ -24,8 +24,6 @@ export function ControlBar({
   const {
     appMode,
     darkMode,
-    guitarType,
-    setGuitarType,
     // Scale state
     selectedRoot,
     selectedMode,
@@ -155,27 +153,6 @@ export function ControlBar({
               </div>
 
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="flex flex-col gap-1">
-                  <span
-                    className="text-[10px] md:text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    Sound
-                  </span>
-                  <select
-                    value={guitarType}
-                    onChange={(e) => setGuitarType(e.target.value as 'acoustic' | 'electric')}
-                    className="h-[42px] rounded-lg border px-2 py-1 text-xs md:text-sm font-medium cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--card-bg)',
-                      borderColor: 'var(--border-primary)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    <option value="acoustic">Acoustic</option>
-                    <option value="electric">Electric</option>
-                  </select>
-                </div>
                 {showPlayButton && (
                   <PlayTextButton
                     onClick={handlePlayChord}
