@@ -13,6 +13,8 @@ export function Header() {
     toggleDarkMode,
     guitarType,
     setGuitarType,
+    autoPlay,
+    setAutoPlay,
     scaleData,
     chordData,
     clearChord,
@@ -246,6 +248,26 @@ export function Header() {
                     <option value="acoustic">Acoustic</option>
                     <option value="electric">Electric</option>
                   </select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                    Auto-Play
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoPlay}
+                    onClick={() => setAutoPlay(!autoPlay)}
+                    className="relative inline-flex h-5 w-9 items-center rounded-full border transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: autoPlay ? 'var(--accent-500)' : 'var(--bg-tertiary)',
+                      borderColor: autoPlay ? 'var(--accent-600)' : 'var(--border-primary)',
+                    }}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${autoPlay ? 'translate-x-4' : 'translate-x-0.5'}`}
+                    />
+                  </button>
                 </div>
               </div>
             )}

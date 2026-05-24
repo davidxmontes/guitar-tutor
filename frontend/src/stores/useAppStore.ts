@@ -125,6 +125,8 @@ interface ThemeSlice {
   toggleDarkMode: () => void;
   guitarType: GuitarType;
   setGuitarType: (type: GuitarType) => void;
+  autoPlay: boolean;
+  setAutoPlay: (value: boolean) => void;
 }
 
 // ============================================================================
@@ -359,6 +361,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     localStorage.setItem('guitarType', type);
     audioSetGuitarType(type);
     set({ guitarType: type });
+  },
+
+  autoPlay: (() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('autoPlay') === 'true';
+    }
+    return false;
+  })(),
+
+  setAutoPlay: (value: boolean) => {
+    localStorage.setItem('autoPlay', String(value));
+    set({ autoPlay: value });
   },
 
   // --------------------------------------------------------------------------
