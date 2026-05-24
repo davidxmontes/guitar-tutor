@@ -131,6 +131,11 @@ function createKarplusString(
   source.buffer = buffer
 
   if (guitarType === 'electric') {
+    // Smooth the attack to avoid a sharp pick transient when distortion hits the onset
+    const attackGain = ctx.createGain()
+    attackGain.gain.setValueAtTime(0, startTime)
+    attackGain.gain.linearRampToValueAtTime(1, startTime + 0.012)
+
     const waveshaper = ctx.createWaveShaper()
     waveshaper.curve = ELECTRIC_DISTORTION_CURVE
     waveshaper.oversample = '2x'
@@ -139,7 +144,8 @@ function createKarplusString(
     presence.frequency.value = 2500
     presence.gain.value = 4
     presence.Q.value = 1.5
-    source.connect(waveshaper)
+    source.connect(attackGain)
+    attackGain.connect(waveshaper)
     waveshaper.connect(presence)
     presence.connect(ctx.destination)
   } else {

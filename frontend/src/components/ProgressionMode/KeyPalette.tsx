@@ -27,6 +27,12 @@ export function KeyPalette() {
     apiClient.getScalesList().then((data) => setScaleCategories(data.scales));
   }, []);
 
+  useEffect(() => {
+    if (!progressionKeyRoot) {
+      setProgressionKey('C', 'major');
+    }
+  }, []);
+
   const handleRootChange = (root: string) => {
     setProgressionKey(root, progressionKeyMode ?? 'major');
   };
