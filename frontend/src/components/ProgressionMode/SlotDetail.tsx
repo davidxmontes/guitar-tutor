@@ -71,10 +71,13 @@ export function SlotDetail() {
 
   if (!progressionChordData) return null;
 
-  const activeVoicings = activeSlot.selectedVoicing ? [activeSlot.selectedVoicing] : [];
+  const activeVoicings = activeSlot.selectedVoicing
+    ? [activeSlot.selectedVoicing.label]
+    : [];
 
   const handleToggleVoicing = (label: string) => {
-    setSlotVoicing(activeSlotIndex, activeSlot.selectedVoicing === label ? '' : label);
+    const isDeselecting = activeSlot.selectedVoicing?.label === label;
+    setSlotVoicing(activeSlotIndex, isDeselecting ? '' : label);
   };
 
   return (

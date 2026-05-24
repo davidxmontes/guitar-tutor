@@ -110,7 +110,7 @@ export interface ProgressionSlot {
   root: string;
   quality: string;
   positions?: { string: number; fret: number }[];
-  selectedVoicing?: string;
+  selectedVoicing?: { label: string; positions: { string: number; fret: number }[] };
 }
 
 // App modes

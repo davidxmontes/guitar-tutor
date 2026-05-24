@@ -1172,10 +1172,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSlotVoicing: (index, voicingLabel) => {
+    const { progressionChordData } = get();
+    const voicing = progressionChordData?.voicings.find(v => v.label === voicingLabel);
     set((state) => {
       const slots = [...state.progressionSlots];
       if (slots[index]) {
-        slots[index] = { ...slots[index], selectedVoicing: voicingLabel };
+        slots[index] = {
+          ...slots[index],
+          selectedVoicing: voicingLabel && voicing
+            ? { label: voicingLabel, positions: voicing.positions }
+            : undefined,
+        };
       }
       return { progressionSlots: slots };
     });

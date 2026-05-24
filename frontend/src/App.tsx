@@ -73,6 +73,7 @@ function App() {
     progressionSlots,
     activeSlotIndex,
     progressionChordData,
+    progressionChordLoading,
     setProgressionFromAgent,
   } = useAppStore();
 
@@ -208,7 +209,7 @@ function App() {
   // Active voicings: use slot's selectedVoicing in progression mode; use store's activeVoicings otherwise
   const progressionActiveVoicings =
     appMode === 'progression' && activeProgressionSlot?.selectedVoicing
-      ? [activeProgressionSlot.selectedVoicing]
+      ? [activeProgressionSlot.selectedVoicing.label]
       : [];
   const effectiveActiveVoicings = appMode === 'progression' ? progressionActiveVoicings : activeVoicings;
 
@@ -345,7 +346,21 @@ function App() {
       ? { name: `${activeProgressionSlot!.root} ${activeProgressionSlot!.quality}`, positions: activeProgressionSlot!.positions }
       : null;
 
-  const effectiveHighlightGroup = progressionPinnedHighlightGroup ?? agentHighlightGroup;
+  // While progressionChordData is loading, show persisted selected voicing positions immediately
+  const progressionSelectedVoicingHighlightGroup =
+    appMode === 'progression' && !isActiveSlotPinned
+      && activeProgressionSlot?.selectedVoicing
+      && progressionChordLoading
+      ? {
+          name: `${activeProgressionSlot.root} ${activeProgressionSlot.quality}`,
+          positions: activeProgressionSlot.selectedVoicing.positions,
+        }
+      : null;
+
+  const effectiveHighlightGroup =
+    progressionPinnedHighlightGroup
+    ?? progressionSelectedVoicingHighlightGroup
+    ?? agentHighlightGroup;
 
   useEffect(() => {
     if (
