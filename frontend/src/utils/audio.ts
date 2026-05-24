@@ -4,7 +4,7 @@ export type GuitarType = 'acoustic' | 'electric'
 
 const VOICE_PARAMS: Record<GuitarType, { filterCoeff: number; decay: number; noiseAmp: number }> = {
   acoustic: { filterCoeff: 0.5, decay: 0.996, noiseAmp: 1.0 },
-  electric: { filterCoeff: 0.4, decay: 0.999, noiseAmp: 1.2 },
+  electric: { filterCoeff: 0.5, decay: 0.999, noiseAmp: 1.0 },
 }
 
 // Note frequencies (A4 = 440Hz)
