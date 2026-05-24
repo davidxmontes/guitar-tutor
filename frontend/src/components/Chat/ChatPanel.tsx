@@ -1,9 +1,11 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { QuickActions } from './QuickActions';
+import { ThreadHistoryDropdown } from './ThreadHistoryDropdown';
 import { useDebugMode } from '../../stores';
 import type { ChatMessage as ChatMessageType } from '../../types/chat';
+import type { ConversationThread } from '../../types';
 
 interface ChatPanelProps {
   messages: ChatMessageType[];
@@ -21,6 +23,9 @@ interface ChatPanelProps {
   selectedScaleRoot?: string | null;
   selectedScaleMode?: string | null;
   isMobile?: boolean;
+  threads?: ConversationThread[];
+  onSelectThread?: (threadId: string) => void;
+  onNewThread?: () => void;
 }
 
 export function ChatPanel({
@@ -39,9 +44,25 @@ export function ChatPanel({
   selectedScaleRoot = null,
   selectedScaleMode = null,
   isMobile = false,
+  threads,
+  onSelectThread,
+  onNewThread,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { debugMode, toggleDebugMode } = useDebugMode();
+  const [showHistory, setShowHistory] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showHistory) return;
+    function handle(e: MouseEvent) {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [showHistory]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -102,6 +123,31 @@ export function ChatPanel({
             <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>AI Guitar Tutor</h2>
           </div>
           <div className="flex items-center gap-2">
+            {onSelectThread && (
+              <div ref={historyRef} className="relative">
+                <button
+                  onClick={() => setShowHistory((v) => !v)}
+                  title="Conversation history"
+                  aria-label="Conversation history"
+                  className="p-1.5 rounded-md transition-colors"
+                  style={{
+                    color: showHistory ? 'var(--accent-600)' : 'var(--text-muted)',
+                    backgroundColor: showHistory ? 'var(--bg-hover)' : 'transparent',
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {showHistory && (
+                  <ThreadHistoryDropdown
+                    threads={threads ?? []}
+                    onSelectThread={(id) => { onSelectThread(id); setShowHistory(false); }}
+                    onNewThread={() => { onNewThread?.(); setShowHistory(false); }}
+                  />
+                )}
+              </div>
+            )}
             <button
               onClick={toggleDebugMode}
               title={debugMode ? 'Hide debug info' : 'Show debug info'}
