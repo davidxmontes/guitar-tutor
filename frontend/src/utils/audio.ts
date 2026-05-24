@@ -2,9 +2,9 @@
 
 export type GuitarType = 'acoustic' | 'electric'
 
-const VOICE_PARAMS: Record<GuitarType, { filterCoeff: number; decay: number; noiseAmp: number }> = {
-  acoustic: { filterCoeff: 0.5, decay: 0.996, noiseAmp: 1.0 },
-  electric: { filterCoeff: 0.5, decay: 0.999, noiseAmp: 1.0 },
+const VOICE_PARAMS: Record<GuitarType, { filterCoeff: number; decay: number; noiseAmp: number; preWarm: number }> = {
+  acoustic: { filterCoeff: 0.5, decay: 0.996, noiseAmp: 1.0, preWarm: 0 },
+  electric: { filterCoeff: 0.5, decay: 0.999, noiseAmp: 1.0, preWarm: 2 },
 }
 
 // Note frequencies (A4 = 440Hz)
@@ -83,7 +83,7 @@ function createKarplusString(
   volume: number = 0.5
 ): void {
   const sampleRate = ctx.sampleRate
-  const { filterCoeff, decay, noiseAmp } = VOICE_PARAMS[guitarType]
+  const { filterCoeff, decay, noiseAmp, preWarm } = VOICE_PARAMS[guitarType]
 
   // Delay line length = one period at this frequency
   const N = Math.round(sampleRate / frequency)
@@ -93,6 +93,15 @@ function createKarplusString(
   const delayLine = new Float32Array(N)
   for (let i = 0; i < N; i++) {
     delayLine[i] = (Math.random() * 2 - 1) * noiseAmp
+  }
+
+  // Pre-warm: run the filter for preWarm full cycles before outputting.
+  // This removes the initial wideband noise transient so the fundamental
+  // is already established when the first sample plays.
+  for (let i = 0; i < N * preWarm; i++) {
+    const idx = i % N
+    const nextIdx = (idx + 1) % N
+    delayLine[idx] = filterCoeff * (delayLine[idx] + delayLine[nextIdx]) * decay
   }
 
   // Generate output via one-pole lowpass feedback loop
