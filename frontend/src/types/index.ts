@@ -121,3 +121,42 @@ export type DisplayMode = 'notes' | 'intervals';
 
 // Song types
 export * from './song';
+
+// User profile types
+export interface SavedProgression {
+  id: string;
+  name: string;
+  key_root: string | null;
+  key_mode: string | null;
+  slots: ProgressionSlot[];
+  created_at: string;
+}
+
+export interface SaveProgressionRequest {
+  name: string;
+  key_root: string | null;
+  key_mode: string | null;
+  slots: ProgressionSlot[];
+}
+
+export interface FavoriteSong {
+  id: string;
+  songsterr_song_id: number;
+  title: string;
+  artist: string;
+  created_at: string;
+}
+
+export interface AddFavoriteRequest {
+  songsterr_song_id: number;
+  title: string;
+  artist: string;
+}
+
+export interface ConversationThread {
+  id: string;
+  title: string;
+  preview: string | null;
+  last_message_at: string;
+  created_at: string;
+}

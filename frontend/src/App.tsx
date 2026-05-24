@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { Fretboard } from './components/Fretboard';
 import { ChordDiagramRow } from './components/ChordDiagram';
 import { ChordPopup } from './components/ChordPopup';
@@ -15,6 +16,7 @@ import type { AgentAction, FretboardHighlightAction, ProgressionSetAction } from
 
 function App() {
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
+  const { getToken, isSignedIn } = useAuth();
 
   // ============================================================================
   // Zustand Store - only what App.tsx needs directly
@@ -94,6 +96,17 @@ function App() {
       html.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // ============================================================================
+  // Wire Clerk auth token into API client
+  // ============================================================================
+  useEffect(() => {
+    if (isSignedIn) {
+      apiClient.setTokenGetter(() => getToken());
+    } else {
+      apiClient.setTokenGetter(null);
+    }
+  }, [isSignedIn, getToken]);
 
   // ============================================================================
   // Fetch available tunings on mount

@@ -1,4 +1,4 @@
-import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse } from '../types';
+import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
@@ -30,16 +30,30 @@ export function nodeDebugLabel(node: string): string {
 
 class ApiClient {
   private baseUrl: string;
+  private tokenGetter: (() => Promise<string | null>) | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
 
+  setTokenGetter(getter: (() => Promise<string | null>) | null) {
+    this.tokenGetter = getter;
+  }
+
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    if (!this.tokenGetter) return {};
+    const token = await this.tokenGetter();
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
+  }
+
   private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const authHeaders = await this.getAuthHeaders();
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...options?.headers,
       },
     });
@@ -90,9 +104,10 @@ class ApiClient {
     onStatus?: (node: string) => void,
     onToken?: (text: string) => void,
   ): Promise<AgentResponse> {
+    const authHeaders = await this.getAuthHeaders();
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify(body),
     });
 
@@ -235,6 +250,42 @@ class ApiClient {
 
   async getChordPro(songId: number): Promise<ChordProResponse> {
     return this.fetch<ChordProResponse>(`/songs/${songId}/chords`);
+  }
+
+  // --- User profile endpoints ---
+
+  async getProgressions(): Promise<SavedProgression[]> {
+    return this.fetch<SavedProgression[]>('/user/progressions');
+  }
+
+  async saveProgression(data: SaveProgressionRequest): Promise<SavedProgression> {
+    return this.fetch<SavedProgression>('/user/progressions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProgression(id: string): Promise<void> {
+    await this.fetch<void>(`/user/progressions/${id}`, { method: 'DELETE' });
+  }
+
+  async getFavorites(): Promise<FavoriteSong[]> {
+    return this.fetch<FavoriteSong[]>('/user/favorites');
+  }
+
+  async addFavorite(data: AddFavoriteRequest): Promise<FavoriteSong> {
+    return this.fetch<FavoriteSong>('/user/favorites', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeFavorite(songId: number): Promise<void> {
+    await this.fetch<void>(`/user/favorites/${songId}`, { method: 'DELETE' });
+  }
+
+  async getThreads(): Promise<ConversationThread[]> {
+    return this.fetch<ConversationThread[]>('/user/threads');
   }
 }
 
