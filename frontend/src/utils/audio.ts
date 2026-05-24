@@ -7,9 +7,9 @@ const VOICE_PARAMS: Record<GuitarType, { filterCoeff: number; decay: number; noi
   electric: { filterCoeff: 0.5, decay: 0.999, noiseAmp: 1.0, preWarm: 2 },
 }
 
-// Soft-clip curve for electric overdrive (tanh, amount=5 = subtle crunch)
+// Soft-clip curve for electric overdrive (tanh, amount=2 = light saturation)
 const ELECTRIC_DISTORTION_CURVE: Float32Array<ArrayBuffer> = (() => {
-  const amount = 5
+  const amount = 2
   const n = 256
   const curve = new Float32Array(new ArrayBuffer(n * 4))
   for (let i = 0; i < n; i++) {
@@ -137,7 +137,7 @@ function createKarplusString(
     const presence = ctx.createBiquadFilter()
     presence.type = 'peaking'
     presence.frequency.value = 2500
-    presence.gain.value = 6
+    presence.gain.value = 4
     presence.Q.value = 1.5
     source.connect(waveshaper)
     waveshaper.connect(presence)
