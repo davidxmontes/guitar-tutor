@@ -4,8 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import DynamicCORSMiddleware, get_settings, setup_logging
 from app.exceptions import register_exception_handlers
 from app.routers import fretboard, tunings, scales, chords, agent, songs, user
+from app.telemetry import setup_telemetry
 
 setup_logging()
+setup_telemetry()
 
 app = FastAPI(
     title="Guitar Tutor API",
@@ -14,6 +16,12 @@ app = FastAPI(
 )
 
 register_exception_handlers(app)
+
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+except ImportError:
+    pass
 
 # CORS
 settings = get_settings()
