@@ -16,6 +16,9 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const [resolved, setResolved] = useState<ResolvedWorkspace | null>(null);
   const [tutorBusy, setTutorBusy] = useState(false);
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
+  const [preview, setPreview] = useState<{ messageId: string; snapshot: ConceptWorkspace; facts: ResolvedWorkspace; focus: TutorFocus | null } | null>(null);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [studyName, setStudyName] = useState(workspace.title);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -32,7 +35,10 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const stopAudio = useRef<(() => void) | null>(null);
   const playbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const previewHeading = useRef<HTMLHeadingElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => { (preview ? previewHeading : heading).current?.focus(); }, [preview]);
 
   useEffect(() => {
     let live = true;
@@ -92,6 +98,22 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     } catch (error) { setSaveError(`${String(error)} Your draft is still here. Retry Save, or save it as a new study. Reload this branch to check an interrupted save; open the latest saved version from My Stuff to compare.`); }
     finally { setBusy(false); onPendingChange(false); }
   };
+  const previewTurn = async (messageId: string, snapshot: ConceptWorkspace, focus: TutorFocus | null) => {
+    stop(); setBusy(true); onPendingChange(true); setError(null);
+    try { const facts = await apiClient.resolveConceptWorkspace(snapshot); setPreviewError(null); setPreview({ messageId, snapshot, facts, focus }); }
+    catch { setError('Could not preview that turn. Your current draft is unchanged. Try Preview again.'); }
+    finally { setBusy(false); onPendingChange(false); }
+  };
+  const restorePreview = async () => {
+    if (!preview) return;
+    setBusy(true); onPendingChange(true); setPreviewError(null);
+    try {
+      const result = await apiClient.restoreWorkspaceSnapshot(sessionId, branch.id, preview.messageId, workspace.version);
+      await receiveTutorResult(result); setStudyName(result.branch.working_draft!.title); setSaveMessage(null);
+      setTutorFocus(preview.focus); setHistoryVersion(value => value + 1); setPreview(null); setStatus('Earlier state restored as current draft');
+    } catch (error) { setPreviewError(`${String(error)} No restore was confirmed. Return to current to check your draft before trying again.`); }
+    finally { setBusy(false); onPendingChange(false); }
+  };
   const locked = busy || tutorBusy;
   const updateSettings = (block: WorkspaceBlock, patch: Partial<WorkspaceBlock['settings']>) => change({ ...workspace, blocks: workspace.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, ...patch } } : item) });
   const editScale = (id: string | null, patch: { root?: string; mode?: ScaleMode }) => change({ ...workspace, entities: workspace.entities.map(entity => !id || entity.id === id ? { ...entity, ...patch } : entity) });
@@ -110,7 +132,25 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const source = [...workspace.entities, ...workspace.relations].find(item => item.id === sourceId);
   const allowedViews = resolved && source ? Object.entries(resolved.block_sources).filter(([, kinds]) => kinds.includes(source.kind)).map(([kind]) => kind as WorkspaceBlock['kind']) : [];
 
-  return <div className="min-w-0 space-y-5">
+  return <>{preview && <section className="min-w-0 space-y-5" aria-label="Turn snapshot preview">
+    <header className="space-y-3">
+      <p role="status" className="font-semibold">Preview · earlier Tutor turn · read only</p>
+      <h2 ref={previewHeading} tabIndex={-1} className="text-2xl font-bold">{preview.snapshot.relations[0]?.entity_ids.map(id => preview.facts.scales[id].label).join(' vs ') ?? preview.snapshot.title}</h2>
+      <p>Your current draft is unchanged. Restore copies this entire snapshot into a new current draft; conversation and saved studies stay intact.</p>
+      <div className="flex flex-wrap gap-3"><button className={control} disabled={busy} onClick={() => setPreview(null)}>Return to current</button>
+        <button className={control} disabled={busy} onClick={restorePreview}>Restore this state</button></div>
+      {previewError && <p role="alert">{previewError}</p>}
+    </header>
+    <div className="cw-composition">{preview.snapshot.composition.flatMap((row, index) => row.items.map(item => {
+      const block = preview.snapshot.blocks.find(block => block.id === item.block_id)!;
+      return <section key={block.id} aria-label={names[block.kind]} className="cw-block min-w-0 space-y-3 rounded-xl border border-[var(--border-primary)] bg-[var(--card-bg)] p-3 sm:p-4" style={{ '--cw-span': item.span, '--cw-row': index + 1, '--cw-order': item.priority === 'primary' ? 0 : item.priority === 'supporting' ? 1 : 2 } as React.CSSProperties}>
+        <h3 className="font-bold">{names[block.kind]}</h3>
+        <ConceptWorkspaceBlock readOnly block={block} workspace={preview.snapshot} resolved={preview.facts} inspection={null} onInspect={() => {}} tutorFocus={preview.focus} />
+      </section>;
+    }))}</div>
+  </section>}
+
+  <div hidden={Boolean(preview)} className="min-w-0 space-y-5">
     <header className="space-y-3 border-b border-[var(--border-primary)] pb-4">
       <p className="text-xs font-bold uppercase text-[var(--accent-700)]">Explore · working draft</p>
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{title}</h2>
@@ -160,11 +200,11 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       <button className={control} onClick={() => { const id = crypto.randomUUID(); change({ ...workspace, blocks: [...workspace.blocks, { id, kind: viewKind, source_id: sourceId, settings: { labels: 'notes', shared_only: false, fret_start: 0, fret_end: 5 } }], composition: [...workspace.composition, { items: [{ block_id: id, span: 12, priority: 'supporting' }] }] }); setAdding(false); addButton.current?.focus(); }}>Add selected view</button>
     </fieldset>}
     <details open className="min-w-0 space-y-3"><summary className="min-h-11 cursor-pointer py-3 font-bold">Tutor</summary>
-      <TutorChat wide sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id}
-        onFocusChange={setTutorFocus} inspection={inspection} workspaceVersion={workspace.version}
+      <TutorChat wide historyVersion={historyVersion} sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id}
+        onFocusChange={setTutorFocus} onPreview={previewTurn} inspection={inspection} workspaceVersion={workspace.version}
         disabled={busy || workspace !== saved.current} onWorkspaceResult={receiveTutorResult}
         onSendingChange={sending => { setTutorBusy(sending); onPendingChange(sending); }}
         emptyMessage="Ask about this comparison or request a change." />
     </details>
-  </div>;
+  </div></>;
 }

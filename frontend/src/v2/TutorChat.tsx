@@ -1,4 +1,4 @@
-import type { Inspection } from '../types/conceptWorkspace';
+import type { ConceptWorkspace, Inspection } from '../types/conceptWorkspace';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { ExerciseComposer } from './ExerciseComposer';
 import { useEffect, useState } from 'react';
@@ -12,6 +12,7 @@ interface ChatEntry {
   text: string;
   focus?: TutorFocus | null;
   workspaceChange?: WorkspaceChange;
+  snapshot?: ConceptWorkspace | null;
   exerciseSuggestion?: ExerciseProposal | null;
   conceptSuggestion?: ConceptSuggestion | null;
   // Progression candidates (ticket #14) carried on an assistant turn --
@@ -34,6 +35,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
       text: typeof m.content.text === 'string' ? m.content.text : '',
       focus: m.content.focus,
       workspaceChange: m.content.workspace_change,
+      snapshot: m.content.workspace_after,
       exerciseSuggestion: m.content.exercise_suggestion,
       conceptSuggestion: m.content.concept_suggestion,
       candidates: m.content.candidates ?? null,
@@ -53,7 +55,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
 // selection/focus. The parent (SongStudyWorkspace) owns rendering it on the
 // fretboard and clears/replaces it itself on the next turn.
 export function TutorChat({
-  beforeSend,
+  beforeSend, onPreview, historyVersion = 0,
   inspection, workspaceVersion, onWorkspaceResult, onSendingChange, disabled = false, wide = false,
   sessionId,
   branchId,
@@ -65,6 +67,8 @@ export function TutorChat({
   emptyMessage = 'Ask a question about this passage.',
 }: {
   beforeSend?: () => Promise<void>;
+  historyVersion?: number;
+  onPreview?: (messageId: string, snapshot: ConceptWorkspace, focus: TutorFocus | null) => Promise<void>;
   inspection?: Inspection | null;
   workspaceVersion?: number;
   onWorkspaceResult?: (result: WorkspaceTurnResult) => Promise<void>;
@@ -98,7 +102,8 @@ export function TutorChat({
     let cancelled = false;
     setLoadingHistory(true);
     setHistoryError(null);
-    onFocusChange(null);
+    // Workspace preview/return keeps attention in its parent; other consumers reset on thread changes.
+    if (!onPreview) onFocusChange(null);
     apiClient
       .listTutorMessages(tutorThreadId)
       .then((history) => {
@@ -117,7 +122,7 @@ export function TutorChat({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tutorThreadId]);
+  }, [tutorThreadId, historyVersion]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +139,7 @@ export function TutorChat({
       setMessages((prev) => [...prev, {
         id: response.workspace_result?.message_id ?? `local-assistant-${Date.now()}`,
         workspaceChange: response.workspace_result ?? undefined,
+        snapshot: response.workspace_result?.branch.working_draft,
         role: 'assistant',
         text: response.message,
         focus: response.focus,
@@ -151,13 +157,13 @@ export function TutorChat({
     }
   };
 
-  const latestChange = [...messages].reverse().find(message => ['applied', 'undone'].includes(message.workspaceChange?.status ?? ''));
+  const latestChange = [...messages].reverse().find(message => ['applied', 'undone', 'restored'].includes(message.workspaceChange?.status ?? ''));
   const undoChange = async (messageId: string) => {
     if (workspaceVersion === undefined || sending || disabled) return;
     setSending(true); onSendingChange?.(true); setSendError(null);
     try {
       const result = await apiClient.undoWorkspaceChange(sessionId, branchId, messageId, workspaceVersion);
-      setMessages(previous => [...previous, { id: result.message_id, role: 'assistant', text: 'Restored the exact workspace from before the Tutor change. Conversation and saved studies are unchanged.', workspaceChange: result, candidates: null }]);
+      setMessages(previous => [...previous, { id: result.message_id, role: 'assistant', text: 'Restored the exact workspace from before the Tutor change. Conversation and saved studies are unchanged.', workspaceChange: result, snapshot: result.branch.working_draft, candidates: null }]);
       await onWorkspaceResult?.(result); onFocusChange(null);
     } catch (error) { setSendError(`${String(error)}. Your workspace is unchanged. Reload before trying Undo again.`); }
     finally { setSending(false); onSendingChange?.(false); }
@@ -250,8 +256,9 @@ export function TutorChat({
                 {m.text}
               </div>
             )}
+            {m.snapshot && onPreview && <button type="button" className="min-h-11 self-start rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm" disabled={sending || disabled} onClick={() => onPreview(m.id, m.snapshot!, m.focus ?? null)}>Preview turn workspace</button>}
             {m.workspaceChange && m.workspaceChange.status !== 'unchanged' && <div className="space-y-2 text-sm" role={m.workspaceChange.status === 'rejected' ? 'alert' : 'status'}>
-              <p>{m.workspaceChange.status === 'applied' ? 'Tutor change applied' : m.workspaceChange.status === 'undone' ? 'Tutor change undone' : m.workspaceChange.reason ?? 'No change was applied.'}</p>
+              <p>{m.workspaceChange.status === 'applied' ? 'Tutor change applied' : m.workspaceChange.status === 'undone' ? 'Tutor change undone' : m.workspaceChange.status === 'restored' ? 'Earlier state restored' : m.workspaceChange.reason ?? 'No change was applied.'}</p>
               {m.id === latestChange?.id && m.workspaceChange.status === 'applied' && onWorkspaceResult && <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2" disabled={sending || disabled} onClick={() => undoChange(m.id)} title="Restore the whole pre-turn workspace, including any subsequent manual edits">Undo Tutor change</button>}
             </div>}
             {m.role === 'assistant' && Boolean(m.focus?.groups?.length) && <section aria-label="Workspace comparison" className="flex flex-wrap gap-2">

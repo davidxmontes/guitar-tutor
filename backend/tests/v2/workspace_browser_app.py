@@ -27,7 +27,7 @@ class WorkspaceBrowserModel(ScriptedTutorModel):
         if 'slow' in request:
             time.sleep(1)
             message = 'This response used an older draft.'
-        self.outcomes = [{'message': message, 'workspace_patch': {'protocol_version': 1, 'base_version': workspace['version'], 'operations': operations}}]
+        self.outcomes = [{'message': message, 'focus': {'role':'target', 'notes':[{'string':1,'fret':3}], 'label':'G target'}, 'workspace_patch': {'protocol_version': 1, 'base_version': workspace['version'], 'operations': operations}}]
         return super()._generate(messages, **kwargs)
 
 

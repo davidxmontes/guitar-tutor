@@ -7,9 +7,9 @@ const noteStyle = (shared: boolean, selected: boolean) => ({
   outline: selected ? '3px solid var(--accent-700)' : undefined, outlineOffset: 2,
 });
 
-export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, tutorFocus }: {
+export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, tutorFocus, readOnly = false }: {
   block: WorkspaceBlock; workspace: ConceptWorkspace; resolved: ResolvedWorkspace;
-  tutorFocus?: TutorFocus | null;
+  tutorFocus?: TutorFocus | null; readOnly?: boolean;
   inspection: Inspection | null; onInspect: (inspection: Inspection) => void;
 }) {
   const relation = workspace.relations.find(item => item.id === block.source_id);
@@ -22,7 +22,7 @@ export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, 
   if (block.kind === 'degree_strip') return <div className="space-y-4">{ids.map(id => <div key={id}>
     <h4 className="mb-2 font-semibold">{resolved.scales[id].label}</h4>
     <div className="flex flex-wrap gap-2">{resolved.scales[id].notes.filter(note => !block.settings.shared_only || shared.includes(note.pitch_class)).map(note => <button
-      key={note.degree} type="button" aria-label={label(id, note)} aria-pressed={selected(note)} onClick={() => inspect(id, note)}
+      key={note.degree} type="button" disabled={readOnly} aria-label={label(id, note)} aria-pressed={selected(note)} onClick={() => inspect(id, note)}
       className="min-h-14 min-w-14 rounded-lg border px-3 py-2" style={noteStyle(shared.includes(note.pitch_class), selected(note))}>
       <strong className="block">{block.settings.labels === 'notes' ? note.note : note.degree}</strong>
       <small>{relation ? shared.includes(note.pitch_class) ? 'shared' : 'changed' : note.degree}</small>
@@ -41,7 +41,7 @@ export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, 
           const first = matches[0];
           const visible = first && (!block.settings.shared_only || shared.includes(first.note.pitch_class));
           return <div key={fret} className="flex min-h-14 items-center justify-center border-l border-b border-[var(--border-primary)]">
-            {visible && <button type="button" aria-label={`${matches.map(({ id, note }) => label(id, note)).join('; ')}, string ${index + 1}, fret ${fret}`}
+            {visible && <button type="button" disabled={readOnly} aria-label={`${matches.map(({ id, note }) => label(id, note)).join('; ')}, string ${index + 1}, fret ${fret}`}
               data-tutor-focus={tutorFocus?.notes.some(note => note.string === index + 1 && note.fret === fret) || undefined}
               aria-pressed={selected(first.note)} onClick={() => inspect(first.id, first.note)}
               className="min-h-11 min-w-11 rounded-full border px-1 text-xs font-bold data-[tutor-focus=true]:ring-4 data-[tutor-focus=true]:ring-amber-500" style={noteStyle(shared.includes(first.note.pitch_class), selected(first.note))}>
