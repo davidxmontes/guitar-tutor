@@ -44,6 +44,7 @@ from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_tools
+from app.v2.tutor.branch_comparison import branch_tools
 
 router = APIRouter()
 
@@ -500,7 +501,8 @@ async def create_tutor_turn(
             branch=branch,
             artifact=artifact,
             history=history,
-            lookup_tools=saved_work_tools(store, user_id),
+            lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id),
+            siblings=[{"id": b.id, "title": b.title, "artifact_kind": b.current_artifact_kind} for b in session.branches if not b.closed and b.id != branch.id],
             user_message=data.message,
             provider=settings.v2_tutor_provider,
             model=settings.v2_tutor_model_name,
@@ -518,6 +520,10 @@ async def create_tutor_turn(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Tutor provider call to {settings.v2_tutor_provider} failed",
         ) from exc
+
+    if response.focus:
+        open_titles = {b.id: b.title for b in store.get_session(session.id, user_id).branches if not b.closed}
+        response.focus.groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]}) for group in response.focus.groups if group.branch_id in open_titles]
 
     store.create_tutor_message(branch.tutor_thread_id, "user", {"text": data.message})
     store.create_tutor_message(

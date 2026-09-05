@@ -14,11 +14,11 @@ producing. `TutorTerminal.candidates` carries only symbolic chord ideas
 before it reaches `TutorResponse.candidates`.
 """
 
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.v2.models import ExerciseDraft, ConceptId, ProgressionPayload, ProgressionChord
+from app.v2.models import ExerciseDraft, ConceptId, ProgressionPayload, ProgressionChord, ProgressionVoicingPosition
 
 
 class FretPosition(BaseModel):
@@ -31,6 +31,20 @@ class FretPosition(BaseModel):
     fret: int
 
 
+class BranchFocusGroup(BaseModel):
+    branch_id: str
+    branch_title: str = ""
+    label: str = Field(min_length=1, max_length=120)
+    notes: list[ProgressionVoicingPosition] = Field(min_length=1, max_length=6)
+    tuning: list[Annotated[int, Field(ge=0, le=127, strict=True)]] = Field(min_length=6, max_length=6)
+
+    @model_validator(mode="after")
+    def one_fret_per_string(self):
+        if len({note.string for note in self.notes}) != len(self.notes):
+            raise ValueError("A comparison shape has one fret per string")
+        return self
+
+
 class TutorFocus(BaseModel):
     """Cross-view attention, not navigation (spec #10's "the user owns
     navigation; the tutor owns attention"). `role` is a free-form semantic
@@ -41,6 +55,7 @@ class TutorFocus(BaseModel):
     role: str
     notes: list[FretPosition] = Field(default_factory=list)
     label: Optional[str] = None
+    groups: list[BranchFocusGroup] = Field(default_factory=list, max_length=4)
 
 
 class ConceptSuggestion(BaseModel):

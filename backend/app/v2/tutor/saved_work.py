@@ -8,7 +8,7 @@ from typing import Annotated
 from langchain_core.tools import tool
 from pydantic import Field
 
-from app.v2.models import ArtifactKind
+from app.v2.models import Artifact, ArtifactKind
 from app.v2.store import NotFoundError, V2Store
 
 
@@ -73,21 +73,26 @@ def saved_work_tools(store: V2Store, user_id: str):
             return {"error": "Saved work not found"}
         if not artifact.saved_at:
             return {"error": "Saved work not found"}
-        payload = deepcopy(artifact.payload)
-        result = {"id": artifact.id, "kind": artifact.kind, "title": artifact.title,
-                  "updated_at": artifact.updated_at, "read_only": True, "payload": payload}
-        if artifact.kind == 'song_study':
-            tab = payload.get('tab_data') or {}
-            measures = tab.get('measures') or []
-            result['total_measures'] = len(measures)
-            result['start_measure'] = start_measure
-            result['next_measure'] = start_measure + 8 if start_measure + 8 < len(measures) else None
-            payload['tab_data'] = {'tuning': tab.get('tuning'), 'measures': measures[start_measure:start_measure + 8]}
-            # Derived shapes/enrichment and full lyrics are not needed to identify
-            # a saved song; fetch physical notes through the bounded raw window.
-            payload.pop('shape_events', None)
-            payload.pop('enrichment', None)
-            payload.pop('chordpro', None)
-        return result
+        return artifact_excerpt(artifact, start_measure)
 
     return [search_saved_work, read_saved_work]
+
+
+def artifact_excerpt(artifact: Artifact, start_measure: int = 0) -> dict:
+    """Detached musical data; bounded raw measures for song reads."""
+    payload = deepcopy(artifact.payload)
+    result = {"id": artifact.id, "kind": artifact.kind, "title": artifact.title,
+              "updated_at": artifact.updated_at, "read_only": True, "payload": payload}
+    if artifact.kind == 'song_study':
+        tab = payload.get('tab_data') or {}
+        measures = tab.get('measures') or []
+        result['total_measures'] = len(measures)
+        result['start_measure'] = start_measure
+        result['next_measure'] = start_measure + 8 if start_measure + 8 < len(measures) else None
+        payload['tab_data'] = {'tuning': tab.get('tuning'), 'measures': measures[start_measure:start_measure + 8]}
+        # Derived shapes/enrichment and full lyrics are not needed to identify
+        # a saved song; fetch physical notes through the bounded raw window.
+        payload.pop('shape_events', None)
+        payload.pop('enrichment', None)
+        payload.pop('chordpro', None)
+    return result

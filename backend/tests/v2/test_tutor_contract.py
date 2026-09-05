@@ -38,7 +38,7 @@ def test_focus_role_is_free_form_not_a_closed_enum() -> None:
 
 def test_focus_has_no_layout_or_navigation_fields() -> None:
     fields = set(TutorFocus.model_fields)
-    assert fields == {"role", "notes", "label"}
+    assert fields == {"role", "notes", "label", "groups"}
 
 
 def test_tutor_response_serializes_full_observability() -> None:
