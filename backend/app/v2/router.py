@@ -15,6 +15,7 @@ from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
+    CircleState,
     ApplyVoicingRequest,
     ExerciseDraft,
     ExercisePayload,
@@ -219,6 +220,8 @@ class CreateConceptStudyRequest(BaseModel):
     caged_quality: CagedQualityId = "major"
     selected_region: CagedShapeId = "C"
     comparison_region: Optional[CagedShapeId] = None
+    selected_chord: int = Field(0, ge=0, le=6)
+    selected_sequence: Literal["primary", "pop", "turnaround"] = "primary"
     promotion: Literal["save", "work_on_this"]
 
 
@@ -249,6 +252,8 @@ async def get_study_visualization(
     caged_quality: CagedQualityId = "major",
     selected_region: CagedShapeId = "C",
     comparison_region: Optional[CagedShapeId] = None,
+    selected_chord: int = 0,
+    selected_sequence: str = "primary",
     user_id: str = Depends(get_current_user),
 ):
     try:
@@ -263,6 +268,7 @@ async def get_study_visualization(
             caged_quality=caged_quality,
             selected_region=selected_region,
             comparison_region=comparison_region,
+            selected_chord=selected_chord, selected_sequence=selected_sequence,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -293,6 +299,7 @@ async def create_concept_study(
             caged_quality=data.caged_quality,
             selected_region=data.selected_region,
             comparison_region=data.comparison_region,
+            selected_chord=data.selected_chord, selected_sequence=data.selected_sequence,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -568,6 +575,7 @@ class ExploreProgressionRequest(BaseModel):
 class OpenProgressionResponse(BaseModel):
     artifact: Artifact
     branch: Branch
+    source_branch: Optional[Branch] = None
 
 
 @router.post("/progressions/explore", response_model=OpenProgressionResponse, status_code=status.HTTP_201_CREATED)
@@ -698,3 +706,32 @@ async def open_exercise(artifact_id: str, user_id: str = Depends(get_current_use
     store.update_branch(session.id, session.branches[0].id, user_id, title=artifact.title,
                         current_artifact_kind="exercise", current_artifact_id=artifact.id)
     return store.get_session(session.id, user_id)
+
+
+class ExploreCircleRequest(CircleState):
+    session_id: str
+    branch_id: str
+
+
+@router.post("/study/circle/explore", response_model=OpenProgressionResponse, status_code=201)
+async def explore_circle(data: ExploreCircleRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        session = store.get_session(data.session_id, user_id)
+        source = next((b for b in session.branches if b.id == data.branch_id), None)
+        if source is None:
+            raise NotFoundError("Branch not found")
+        state = CircleState.model_validate(data.model_dump()).model_dump()
+        payload = build_concept_study(concept_id="circle", **state)
+        sequence = next(s for s in payload.sequences if s.id == payload.selected_sequence)
+        # Semantic transient Study state belongs to this branch, not its source artifact.
+        source = store.update_branch(data.session_id, data.branch_id, user_id,
+            recent_ideas=[idea for idea in source.recent_ideas if idea.get("type") != "circle_study"] + [{"type": "circle_study", **state}])
+        opened = await explore_progression(ExploreProgressionRequest(session_id=data.session_id, branch_id=data.branch_id,
+            progression=ProgressionPayload(title=f"{payload.root} · {sequence.label}", chords=[payload.chords[i].chord for i in sequence.degrees],
+                inspired_by={"study": "circle", **state})), user_id, store)
+        opened.source_branch = source
+        return opened
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

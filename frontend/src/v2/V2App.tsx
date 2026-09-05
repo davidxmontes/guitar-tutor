@@ -1,3 +1,4 @@
+import { circleContext } from './circleState';
 import { ExerciseWorkspace, SavedExercises } from './ExerciseWorkspace';
 import { useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
@@ -53,8 +54,9 @@ export function V2App() {
     try {
       const session = await apiClient.getV2Session(sessionId);
       setActiveSession(session);
-      setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
-      setShowConceptPicker(false);
+      const resumed = session.branches.find((branch) => !branch.closed);
+      setActiveBranchId(resumed?.id ?? null);
+      setShowConceptPicker(Boolean(resumed && circleContext(resumed)));
     } catch (err) {
       setError(String(err));
     }
@@ -70,15 +72,16 @@ export function V2App() {
     });
   };
 
-  const handleBranchOpened = (opened: { branch: V2Branch }) => {
+  const handleBranchOpened = (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => {
     setActiveSession((previous) => {
       if (!previous) return previous;
-      const exists = previous.branches.some((branch) => branch.id === opened.branch.id);
+      const branches = previous.branches.map(branch => branch.id === opened.source_branch?.id ? opened.source_branch : branch);
+      const exists = branches.some((branch) => branch.id === opened.branch.id);
       return {
         ...previous,
         branches: exists
-          ? previous.branches.map((branch) => branch.id === opened.branch.id ? opened.branch : branch)
-          : [...previous.branches, opened.branch],
+          ? branches.map((branch) => branch.id === opened.branch.id ? opened.branch : branch)
+          : [...branches, opened.branch],
       };
     });
     setActiveBranchId(opened.branch.id);
@@ -109,7 +112,8 @@ export function V2App() {
 
   const handleSelectBranch = (branchId: string) => {
     setActiveBranchId(branchId);
-    setShowConceptPicker(false);
+    const selected = activeSession?.branches.find(b => b.id === branchId);
+    setShowConceptPicker(Boolean(selected && circleContext(selected)));
   };
 
   const handleCloseBranch = async (branchId: string) => {
@@ -162,17 +166,19 @@ export function V2App() {
             aria-labelledby={`workspace-tab-${branch.id}`}
           >
             {showConceptPicker ? (
-              <ConceptStudyPicker
+              <ConceptStudyPicker key={branch.id}
                 sessionId={activeSession.id}
                 branch={branch}
                 onOpened={handleBranchOpened}
-                onCancel={() => setShowConceptPicker(false)}
+                onCancel={async () => {
+                  try { handleBranchChange(await apiClient.updateV2Branch(activeSession.id, branch.id, { recent_ideas: branch.recent_ideas.filter(idea => idea.type !== 'circle_study') })); setShowConceptPicker(false); } catch (err) { setError(String(err)); }
+                }}
                 onWorkOnConcept={handleWorkOnConcept}
               />
             ) : branch.current_artifact_kind === 'exercise' ? (
               <ExerciseWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} />
             ) : branch.current_artifact_kind === 'concept_study' ? (
-              <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+              <ConceptStudyPanel onOpened={handleBranchOpened} key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
             ) : branch.current_artifact_kind === 'progression' ? (
               <ProgressionWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
             ) : (

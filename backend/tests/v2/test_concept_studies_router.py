@@ -80,7 +80,7 @@ def test_study_catalog_is_backend_owned_and_progressively_grouped(client):
     assert {concept["id"] for concept in groups["explore_more"]} >= {
         "dorian", "phrygian", "lydian", "mixolydian", "locrian", "harmonic_minor", "melodic_minor"
     }
-    assert {concept["id"] for concept in groups["systems"]} == {"intervals", "caged"}
+    assert {concept["id"] for concept in groups["systems"]} == {"intervals", "caged", "circle"}
     assert all(concept["display_name"] for group in catalog["groups"] for concept in group["concepts"])
 
 

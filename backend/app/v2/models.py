@@ -204,7 +204,7 @@ ChordConceptId = Literal[
     "chord_madd9", "chord_7sus4", "chord_6", "chord_m6", "chord_9",
     "chord_m9", "chord_maj9",
 ]
-ConceptId = ScaleConceptId | IntervalConceptId | CagedConceptId | ChordConceptId
+ConceptId = ScaleConceptId | IntervalConceptId | CagedConceptId | ChordConceptId | Literal["circle"]
 
 
 class ConceptNote(BaseModel):
@@ -303,8 +303,48 @@ class CagedStudyPayload(ConceptPayloadBase):
     overlap_positions: list[ConceptPosition] = Field(default_factory=list)
 
 
+class CircleState(BaseModel):
+    root: str
+    selected_chord: int = Field(default=0, ge=0, le=6)
+    selected_sequence: Literal["primary", "pop", "turnaround"] = "primary"
+    overlay: Literal["notes", "intervals"] = "notes"
+
+
+class CircleChord(BaseModel):
+    numeral: str
+    chord: ProgressionChord
+    notes: list[ConceptNote]
+
+
+class CircleSequence(BaseModel):
+    id: str
+    label: str
+    degrees: list[int]
+
+
+class CircleKey(BaseModel):
+    root: str
+    relative_minor: str
+
+
+class CircleStudyPayload(ConceptPayloadBase):
+    visualization: Literal["circle"] = "circle"
+    concept_id: Literal["circle"] = "circle"
+    relative_minor: str
+    accidentals: list[str]
+    neighbors: list[str]
+    neighbor_keys: list[str]
+    keys: list[CircleKey]
+    chords: list[CircleChord]
+    sequences: list[CircleSequence]
+    selected_chord: int
+    selected_sequence: str
+    notes: list[ConceptNote]
+    positions: list[ConceptPosition]
+
+
 ConceptStudyPayload = Annotated[
-    ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload,
+    ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload | CircleStudyPayload,
     Field(discriminator="visualization"),
 ]
 
@@ -313,7 +353,7 @@ class StudyCatalogConcept(BaseModel):
     id: ConceptId
     display_name: str
     description: str
-    visualization: Literal["scale", "interval", "chord", "caged"]
+    visualization: Literal["scale", "interval", "chord", "caged", "circle"]
 
 
 class StudyCatalogGroup(BaseModel):

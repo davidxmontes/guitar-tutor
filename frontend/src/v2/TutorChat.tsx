@@ -47,6 +47,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
 // selection/focus. The parent (SongStudyWorkspace) owns rendering it on the
 // fretboard and clears/replaces it itself on the next turn.
 export function TutorChat({
+  beforeSend,
   sessionId,
   branchId,
   tutorThreadId,
@@ -56,6 +57,7 @@ export function TutorChat({
   onVoicingCandidates,
   emptyMessage = 'Ask a question about this passage.',
 }: {
+  beforeSend?: () => Promise<void>;
   sessionId: string;
   branchId: string;
   tutorThreadId: string;
@@ -114,6 +116,7 @@ export function TutorChat({
     setSending(true);
     setSendError(null);
     try {
+      await beforeSend?.();
       const response = await apiClient.sendTutorTurn({ session_id: sessionId, branch_id: branchId, message: text });
       setMessages((prev) => [...prev, {
         id: `local-assistant-${Date.now()}`,

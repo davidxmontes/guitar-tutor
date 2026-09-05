@@ -16,7 +16,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from app.music.chords import CHORD_INTERVALS
 from app.services.chord_service import VALID_ROOTS
-from app.v2.models import Artifact, Branch, TutorMessage
+from app.v2.models import Artifact, Branch, TutorMessage, CircleState
+from app.v2.concepts import build_concept_study
 
 _VALID_ROOTS_TEXT = ", ".join(VALID_ROOTS)
 _VALID_QUALITIES_TEXT = ", ".join(sorted(CHORD_INTERVALS))
@@ -105,6 +106,8 @@ def _song_study_summary(artifact: Optional[Artifact]) -> str:
     if artifact is None:
         return "Current artifact: None"
     payload = artifact.payload
+    if artifact.kind == "concept_study" and payload.get("visualization") == "circle":
+        return "Current Circle Study: " + json.dumps(payload, sort_keys=True)
     if artifact.kind == "concept_study":
         notes = ", ".join(f"{note.get('note')} ({note.get('interval')})" for note in payload.get("notes", []))
         return (
@@ -131,10 +134,20 @@ def volatile_turn_message(*, branch: Branch, artifact: Optional[Artifact], user_
     after every reconstructed history message.
     """
 
+    circle_context = ""
+    for idea in branch.recent_ideas:
+        if idea.get("type") == "circle_study":
+            try:
+                state = CircleState.model_validate(idea)
+                circle = build_concept_study(concept_id="circle", **state.model_dump())
+                circle_context = "Current transient Circle Study: " + circle.model_dump_json()
+            except ValueError:
+                pass  # Unsupported transient state is not a validated Study surface.
     text = "\n\n".join(
         [
             _song_study_summary(artifact),
             _selection_and_focus_text(branch),
+            circle_context,
             f"User: {user_message}",
         ]
     )

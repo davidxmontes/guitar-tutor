@@ -1,3 +1,5 @@
+import { CircleStudy } from './CircleStudy';
+import { circleContext, rememberCircle } from './circleState';
 import { ExerciseComposer } from './ExerciseComposer';
 import { conceptDrill } from './exerciseMaterial';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,6 +9,8 @@ import { TutorChat } from './TutorChat';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { CagedStudy } from './CagedStudy';
 import type {
+  CircleState,
+  CircleStudyPayload,
   CagedQualityId,
   CagedShapeId,
   CagedStudyPayload,
@@ -16,7 +20,6 @@ import type {
   ConceptStudyArtifact,
   ConceptStudyPayload,
   ConceptSuggestion,
-  OpenConceptStudyResponse,
   ScaleConceptId,
   StudyCatalog,
   TutorFocus,
@@ -67,7 +70,7 @@ function hearConcept(payload: ConceptStudyPayload) {
   else playScale(payload.positions);
 }
 
-function Visualization({ payload, relationship, showIntervals, tutorFocus, onInterval, onVoicing, onRegion }: {
+function Visualization({ payload, relationship, showIntervals, tutorFocus, onInterval, onVoicing, onRegion, onCircle }: {
   payload: ConceptStudyPayload;
   relationship: ConceptRelationship | null;
   showIntervals: boolean;
@@ -75,7 +78,9 @@ function Visualization({ payload, relationship, showIntervals, tutorFocus, onInt
   onInterval?: (semitones: number) => void;
   onVoicing?: (index: number) => void;
   onRegion?: (shape: CagedShapeId) => void;
+  onCircle?: (patch: Partial<CircleState>) => void;
 }) {
+  if (payload.visualization === 'circle') return <><CircleStudy payload={payload} onChange={patch => onCircle?.(patch)} /><ConceptFretboard payload={payload} relationship={null} tutorFocus={tutorFocus} showIntervals={showIntervals} /></>;
   if (payload.visualization === 'chord') {
     return (
       <section data-testid="study-chord-visualization" className="space-y-4">
@@ -126,15 +131,18 @@ function Visualization({ payload, relationship, showIntervals, tutorFocus, onInt
 export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWorkOnConcept }: {
   sessionId: string;
   branch: V2Branch;
-  onOpened: (opened: OpenConceptStudyResponse) => void;
+  onOpened: (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => void;
   onCancel?: () => void;
   onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
 }) {
   const [catalog, setCatalog] = useState<StudyCatalog | null>(null);
-  const [root, setRoot] = useState('A');
-  const [conceptId, setConceptId] = useState<ConceptId>('pentatonic_minor');
+  const restored = circleContext(branch);
+  const [root, setRoot] = useState(restored?.root ?? 'A');
+  const [selectedChord, setSelectedChord] = useState(restored?.selected_chord ?? 0);
+  const [selectedSequence, setSelectedSequence] = useState<CircleState['selected_sequence']>(restored?.selected_sequence ?? 'primary');
+  const [conceptId, setConceptId] = useState<ConceptId>(restored ? 'circle' : 'pentatonic_minor');
   const [payload, setPayload] = useState<ConceptStudyPayload | null>(null);
-  const [overlay, setOverlay] = useState<'notes' | 'intervals'>('notes');
+  const [overlay, setOverlay] = useState<'notes' | 'intervals'>(restored?.overlay ?? 'notes');
   const [comparisonId, setComparisonId] = useState<ScaleConceptId | null>(null);
   const [comparisonQuality, setComparisonQuality] = useState<ChordQualityId | null>(null);
   const [selectedInterval, setSelectedInterval] = useState(7);
@@ -154,11 +162,11 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    apiClient.getStudyVisualization({ root, concept_id: conceptId, comparison_id: comparisonId, comparison_quality: comparisonQuality, overlay, selected_interval: selectedInterval, selected_voicing: selectedVoicing, caged_quality: cagedQuality, selected_region: selectedRegion, comparison_region: comparisonRegion })
+    apiClient.getStudyVisualization({ root, concept_id: conceptId, comparison_id: comparisonId, comparison_quality: comparisonQuality, overlay, selected_interval: selectedInterval, selected_voicing: selectedVoicing, caged_quality: cagedQuality, selected_region: selectedRegion, comparison_region: comparisonRegion, selected_chord: selectedChord, selected_sequence: selectedSequence })
       .then((next) => { if (!cancelled) setPayload(next); })
       .catch((err) => { if (!cancelled) setError(String(err)); });
     return () => { cancelled = true; };
-  }, [root, conceptId, comparisonId, comparisonQuality, overlay, selectedInterval, selectedVoicing, cagedQuality, selectedRegion, comparisonRegion]);
+  }, [root, conceptId, comparisonId, comparisonQuality, overlay, selectedInterval, selectedVoicing, cagedQuality, selectedRegion, comparisonRegion, selectedChord, selectedSequence]);
 
   const chooseConcept = (next: ConceptId) => {
     setSavedArtifact(null);
@@ -187,6 +195,10 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
     setBusy(true);
     setError(null);
     try {
+      if (promotion === 'work_on_this' && conceptId === 'circle') {
+        onOpened(await apiClient.exploreCircle(sessionId, branch.id, { root, selected_chord: selectedChord, selected_sequence: selectedSequence, overlay }));
+        return;
+      }
       if (promotion === 'work_on_this' && savedArtifact) {
         onOpened(await apiClient.workOnSavedConcept(savedArtifact.id, sessionId, branch.id));
         return;
@@ -204,6 +216,7 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
         caged_quality: cagedQuality,
         selected_region: selectedRegion,
         comparison_region: comparisonRegion,
+        selected_chord: selectedChord, selected_sequence: selectedSequence,
         promotion,
       });
       if (promotion === 'save') setSavedArtifact(opened.artifact);
@@ -245,16 +258,17 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
           {payload.visualization === 'chord' && <button type="button" data-testid="study-toggle-chord-comparison" aria-pressed={Boolean(comparisonQuality)} onClick={() => { setSavedArtifact(null); setComparisonQuality((current) => current ? null : payload.relationships[0].id as ChordQualityId); }} className="rounded-full border px-3 py-1.5 text-sm">{comparisonQuality ? 'Hide comparison' : payload.relationships[0].label}</button>}
           {payload.visualization === 'caged' && <><button type="button" data-testid="study-caged-quality-major" aria-pressed={cagedQuality === 'major'} onClick={() => chooseCagedQuality('major')} className="rounded-full border px-3 py-1.5 text-sm">Major</button><button type="button" data-testid="study-caged-quality-minor" aria-pressed={cagedQuality === 'minor'} onClick={() => chooseCagedQuality('minor')} className="rounded-full border px-3 py-1.5 text-sm">Minor</button></>}
         </div>
-        <Visualization payload={payload} relationship={relationship} showIntervals={overlay === 'intervals'} tutorFocus={tutorFocus} onInterval={chooseInterval} onVoicing={(index) => { setSavedArtifact(null); setSelectedVoicing(index); }} onRegion={chooseCagedRegion} />
+        <Visualization payload={payload} relationship={relationship} showIntervals={overlay === 'intervals'} tutorFocus={tutorFocus} onInterval={chooseInterval} onVoicing={(index) => { setSavedArtifact(null); setSelectedVoicing(index); }} onRegion={chooseCagedRegion} onCircle={patch => { setSavedArtifact(null); if (patch.root) setRoot(patch.root); if (patch.selected_chord !== undefined) setSelectedChord(patch.selected_chord); if (patch.selected_sequence) setSelectedSequence(patch.selected_sequence); }} />
         {relationship && <p data-testid="concept-relationship" className="text-sm rounded-lg border p-3" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}>{relationship.explanation}</p>}
       </main>
 
-      <TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setTutorFocus} onWorkOnConcept={onWorkOnConcept} emptyMessage="Ask about the concept you are exploring." />
+      <TutorChat beforeSend={conceptId === 'circle' ? () => rememberCircle(sessionId, branch, { root, selected_chord: selectedChord, selected_sequence: selectedSequence, overlay }).then(() => {}) : undefined} sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setTutorFocus} onWorkOnConcept={onWorkOnConcept} emptyMessage="Ask about the concept you are exploring." />
     </section>
   );
 }
 
-export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnConcept }: {
+export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnConcept, onOpened }: {
+  onOpened: (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => void;
   sessionId: string;
   branch: V2Branch;
   onBranchChange: (branch: V2Branch) => void;
@@ -314,6 +328,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
   if (error) return <p role="alert">{error}</p>;
   if (!artifact) return <p role="status">Loading ConceptStudy…</p>;
   const payload = artifact.payload;
+  if (payload.visualization === 'circle') return <SavedCircle initial={payload} sessionId={sessionId} branch={branch} onOpened={onOpened} />;
   const displayedPayload = payload.visualization === 'chord' ? { ...payload, selected_voicing: selectedVoicing } : focusedCagedPayload ?? payload;
 
   return (
@@ -329,4 +344,19 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
       <TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setTutorFocus} onWorkOnConcept={onWorkOnConcept} emptyMessage="Ask about this concept." />
     </div>
   );
+}
+
+
+function SavedCircle({ initial, sessionId, branch, onOpened }: { initial: CircleStudyPayload; sessionId: string; branch: V2Branch; onOpened: (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => void }) {
+  const [state, setState] = useState<CircleState>({ root: initial.root, selected_chord: initial.selected_chord, selected_sequence: initial.selected_sequence, overlay: initial.overlay });
+  const [payload, setPayload] = useState(initial);
+  const [focus, setFocus] = useState<TutorFocus | null>(null);
+  const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { let live = true; apiClient.getStudyVisualization({ ...state, concept_id: 'circle' }).then(next => { if (live) { setPayload(next as CircleStudyPayload); setError(false); } }).catch(() => { if (live) setError(true); }); return () => { live = false; }; }, [state]);
+  return <div className="flex flex-col gap-4 xl:flex-row"><main className="min-w-0 flex-1 space-y-4"><h2 className="text-2xl font-bold">{payload.display_name}</h2>
+    <button className="min-h-11 rounded-lg bg-[var(--accent-700)] px-3 py-2 text-white disabled:opacity-50" disabled={busy} onClick={async () => { setBusy(true); try { onOpened(await apiClient.exploreCircle(sessionId, branch.id, state)); } catch { setError(true); } finally { setBusy(false); } }}>Work on this progression</button>
+    {error && <p role="alert">Could not load or open this harmony.</p>}
+    <Visualization payload={payload} relationship={null} showIntervals={state.overlay === 'intervals'} tutorFocus={focus} onCircle={patch => setState(current => ({ ...current, ...patch }))} />
+    </main><TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setFocus} beforeSend={() => rememberCircle(sessionId, branch, state).then(() => {})} /></div>;
 }
