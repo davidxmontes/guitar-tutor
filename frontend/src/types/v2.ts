@@ -212,11 +212,24 @@ export interface ProgressionVoicingPosition {
   fret: number;
 }
 
+export interface ProgressionFingering extends ProgressionVoicingPosition {
+  finger: string | number;
+  provenance: 'source' | 'suggested';
+}
+
+export interface ProgressionBarre {
+  fret: number;
+  fromString: number;
+  toString: number;
+}
+
 export interface ProgressionChord {
   root: string;
   quality: string;
   voicing: ProgressionVoicingPosition[] | null;
   tuning: string | null;
+  barre?: ProgressionBarre | null;
+  fingering?: ProgressionFingering[];
 }
 
 export interface ProgressionPayload {
