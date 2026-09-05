@@ -50,6 +50,21 @@ Or `docker-compose up --build` per the README — note there's currently no
 `docker-compose.yml` or `.env.example` at the repo root despite the README
 referencing them; local dev (above) is the path that actually works today.
 
+## Base branch: `main-v2`
+
+The Guitar Tutor V2 effort (Spec issue #10 and its sub-issue tickets) branches
+off and lands on **`main-v2`**, not `main`, until V2 is proven and made the
+default (see ticket #26, "Make V2 the default, keep Classic as fallback").
+Treat `main-v2` as this repo's main for every V2 ticket:
+
+- Ticket branches: `feature/issue-<n>-<slug>`, based on `main-v2`.
+- PRs target `main-v2` (`gh pr create --base main-v2`).
+- `main-v2` is kept in sync with `main` by fast-forward merge whenever `main`
+  gets updates V2 should pick up (e.g. the Clerk auth / Supabase work merged
+  via PR #27) — don't let it drift into its own diverging history.
+- Non-V2 work (Classic bug fixes, doc/chore changes) still targets `main`
+  as usual.
+
 ## Project posture
 
 - **Personal/solo project.** No external contributors expected right now.
