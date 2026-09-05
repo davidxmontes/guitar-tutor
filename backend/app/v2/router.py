@@ -31,6 +31,7 @@ from app.v2.models import (
     TutorMessage,
 )
 from app.v2.song_enrichment import run_song_enrichment
+from app.v2.song_shapes import project_song_shapes
 from app.v2.store import NotFoundError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -145,6 +146,7 @@ async def create_song_study(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to fetch tab data: {exc}") from exc
 
     track = revision.tracks[data.track_index]
+    tuning = track.tuning or tab_data.get("tuning")
     payload = SongStudyPayload(
         song_id=revision.song_id,
         artist=revision.artist,
@@ -156,6 +158,7 @@ async def create_song_study(
             tuning=track.tuning,
         ),
         tab_data=tab_data,
+        shape_events=project_song_shapes(tab_data, tuning),
     )
 
     artifact = store.create_artifact(

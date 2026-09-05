@@ -302,6 +302,8 @@ export function MeasureGroup({
                         <div key={beatId}>
                           <button
                             type="button"
+                            aria-label={`Select beat ${beatIdx + 1} of measure ${measureIndex + 1}`}
+                            aria-pressed={isSelected}
                             onClick={() => onBeatClick(beat, beatId)}
                             className="absolute -top-5 -bottom-3 z-10 -translate-x-1/2 rounded-sm transition-colors"
                             style={{

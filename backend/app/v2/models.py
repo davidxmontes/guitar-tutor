@@ -88,6 +88,23 @@ class SongEnrichment(BaseModel):
     generated_at: str
 
 
+class SongShapeSource(BaseModel):
+    measure_index: int = Field(ge=0)
+    beat_index: int = Field(ge=0)
+
+
+class SongShapePosition(BaseModel):
+    string: int = Field(ge=1)
+    fret: int = Field(ge=0)
+
+
+class SongShapeEvent(BaseModel):
+    label: Optional[str] = None
+    positions: list[SongShapePosition]
+    tuning: list[int]
+    sources: list[SongShapeSource]
+
+
 class SongStudyPayload(BaseModel):
     """Raw source of truth for a song_study artifact: the entire selected
     track loaded once from Songsterr. Basic browsing/selection/fretboard
@@ -99,6 +116,7 @@ class SongStudyPayload(BaseModel):
     title: str
     track: SongStudyTrack
     tab_data: dict[str, Any]  # {measures, tuning, name, automations, ...} as Songsterr returned it
+    shape_events: list[SongShapeEvent] = Field(default_factory=list)
     chordpro: Optional[str] = None
     enrichment: Optional[SongEnrichment] = None
 

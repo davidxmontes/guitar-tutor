@@ -23,7 +23,7 @@ const SEARCH_RESPONSE = {
   ],
 }
 
-function songStudyArtifact() {
+function songStudyArtifact(tuning: number[] | null = DROP_STEP_TUNING) {
   return {
     id: 'artifact-1',
     user_id: 'dev-user',
@@ -33,27 +33,41 @@ function songStudyArtifact() {
       song_id: 7,
       artist: 'Oasis',
       title: 'Wonderwall',
-      track: { index: 0, name: 'Acoustic Guitar', instrument: 'Guitar', tuning: DROP_STEP_TUNING },
+      track: { index: 0, name: 'Acoustic Guitar', instrument: 'Guitar', tuning },
       tab_data: {
-        tuning: DROP_STEP_TUNING,
+        ...(tuning ? { tuning } : {}),
         measures: [
-          { voices: [{ beats: [{ notes: [{ string: 0, fret: 3 }] }] }] },
-          { voices: [{ beats: [{ notes: [{ string: 1, fret: 0 }] }] }] },
-          { voices: [{ beats: [{ notes: [{ string: 2, fret: 2 }] }] }] },
+          { voices: [{ beats: [{ notes: [{ string: 0, fret: 3 }, { string: 1, fret: 3 }] }] }] },
+          { voices: [{ beats: [{ notes: [{ string: 2, fret: 2 }, { string: 3, fret: 2 }, { string: 4, fret: 0 }] }] }] },
+          { voices: [{ beats: [{ notes: [{ string: 0, fret: 7 }] }] }] },
         ],
       },
+      shape_events: tuning ? [
+        {
+          label: null,
+          positions: [{ string: 1, fret: 3 }, { string: 2, fret: 3 }],
+          tuning: DROP_STEP_TUNING,
+          sources: [{ measure_index: 0, beat_index: 0 }],
+        },
+        {
+          label: 'D/F#',
+          positions: [{ string: 3, fret: 2 }, { string: 4, fret: 2 }, { string: 5, fret: 0 }],
+          tuning: DROP_STEP_TUNING,
+          sources: [{ measure_index: 1, beat_index: 0 }],
+        },
+      ] : [],
     },
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   }
 }
 
-async function openSongStudy(page: import('@playwright/test').Page) {
+async function openSongStudy(page: import('@playwright/test').Page, tuning: number[] | null = DROP_STEP_TUNING) {
   await page.route('**/api/songs/search**', (route) => route.fulfill({ json: SEARCH_RESPONSE }))
   await page.route('**/api/v2/song-studies', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     const { session_id, branch_id } = route.request().postDataJSON() as { session_id: string; branch_id: string }
-    const artifact = songStudyArtifact()
+    const artifact = songStudyArtifact(tuning)
     await page.request.patch(`/api/v2/sessions/${session_id}/branches/${branch_id}`, {
       data: { current_artifact_kind: 'song_study', current_artifact_id: artifact.id },
     })
@@ -67,6 +81,42 @@ async function openSongStudy(page: import('@playwright/test').Page) {
   await page.getByTestId('song-study-track-option').click()
   await expect(page.getByTestId('song-study-workspace')).toBeVisible()
 }
+
+test('song chord strip: raw shapes select the real tab beat and exact fretboard positions', async ({ page }) => {
+  await page.route('**/api/v2/tutor/threads/*/messages', (route) => route.fulfill({ json: [] }))
+  await openSongStudy(page)
+
+  await expect(page.getByTestId('song-shape-card')).toHaveCount(2)
+  await expect(page.getByTestId('song-shape-card').first().getByRole('img')).toHaveAccessibleName(
+    /Tuning D G C F A D.*String 1 fret 3; String 2 fret 3/,
+  )
+
+  await page.getByRole('button', { name: /D\/F#.*measure 2, beat 1/i }).click()
+
+  await expect(page.getByRole('button', { name: 'Select beat 1 of measure 2' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-testid="fretboard-active-note"][data-string="3"][data-fret="2"]')).toBeVisible()
+  await expect(page.locator('[data-testid="fretboard-active-note"][data-string="4"][data-fret="2"]')).toBeVisible()
+  await expect(page.locator('[data-testid="fretboard-active-note"][data-string="5"][data-fret="0"]')).toBeVisible()
+
+  const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
+  await expect.poll(async () => {
+    const session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
+    return session.branches[0].selection
+  }).toEqual({ type: 'beat', measureIndex: 1, beatIndex: 0 })
+
+  await page.getByTestId('song-study-overview-measure').nth(2).click()
+  await expect(page.getByTestId('song-shape-strip')).toContainText('No chord-like events in this passage')
+})
+
+test('song chord strip: unavailable tuning is explicit and invents no diagram', async ({ page }) => {
+  await page.route('**/api/v2/tutor/threads/*/messages', (route) => route.fulfill({ json: [] }))
+  await openSongStudy(page, null)
+
+  await expect(page.getByTestId('song-shape-card')).toHaveCount(0)
+  await expect(page.getByTestId('song-shape-strip')).toContainText(
+    'Shape diagrams are unavailable because this track has no tuning data',
+  )
+})
 
 test('tutor chat: history loads, a turn round-trips, and a focus response highlights the fretboard', async ({ page }) => {
   // No real backend tutor-message history yet for a freshly created thread —
@@ -131,7 +181,7 @@ test('tutor chat: history loads, a turn round-trips, and a focus response highli
   await expect(page.getByTestId('song-study-tutor-focus-caption')).toContainText('candidate')
   await expect(page.getByTestId('song-study-tutor-focus-caption')).toContainText('G major root')
   // Beat-derived highlighting is still present alongside it.
-  await expect(page.getByTestId('fretboard-active-note')).toBeVisible()
+  await expect(page.getByTestId('fretboard-active-note')).toHaveCount(2)
 
   // Tutor focus is ephemeral UI state, never written into Branch
   // selection/focus (that's user-driven navigation state only).

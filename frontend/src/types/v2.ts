@@ -66,12 +66,25 @@ export interface SongEnrichment {
   generated_at: string;
 }
 
+export interface SongShapeSource {
+  measure_index: number;
+  beat_index: number;
+}
+
+export interface SongShapeEvent {
+  label: string | null;
+  positions: Array<{ string: number; fret: number }>;
+  tuning: number[];
+  sources: SongShapeSource[];
+}
+
 export interface SongStudyPayload {
   song_id: number;
   artist: string;
   title: string;
   track: SongStudyTrack;
   tab_data: TabData;
+  shape_events: SongShapeEvent[];
   chordpro: string | null;
   enrichment: SongEnrichment | null;
 }

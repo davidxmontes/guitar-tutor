@@ -5,8 +5,9 @@ import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
 import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
 import { TutorChat } from './TutorChat';
 import { SongEnrichmentPanel } from './SongEnrichment';
+import { SongShapeStrip } from './SongShapeStrip';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
-import type { ConceptSuggestion, SongDerivedRange, SongFocus, SongSelection, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
+import type { ConceptSuggestion, SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 // Supporting element, not a primary block (mock #overview callout 3: "large
@@ -205,6 +206,8 @@ function SongStudyFretboard({
                   {label && (
                     <span
                       data-testid={isActive ? 'fretboard-active-note' : isUpcoming ? 'fretboard-upcoming-note' : 'fretboard-tutor-focus-note-label'}
+                      data-string={stringNumber}
+                      data-fret={fret}
                       style={{
                         width: 16,
                         height: 16,
@@ -615,6 +618,21 @@ function SongStudyWorkspace({
     [persistBranch],
   );
 
+  const selectShape = useCallback(
+    (source: SongShapeSource) => {
+      const nextSelection: SongSelection = {
+        type: 'beat',
+        measureIndex: source.measure_index,
+        beatIndex: source.beat_index,
+      };
+      const nextFocus: SongFocus = { measureIndex: source.measure_index, windowSize: focus.windowSize };
+      setSelection(nextSelection);
+      setFocus(nextFocus);
+      persistBranch({ selection: nextSelection, focus: nextFocus });
+    },
+    [focus.windowSize, persistBranch],
+  );
+
   // Flat measure/beat sequence — used to derive "active beat" (selected, or
   // else the first playable beat in the focused measure) and "upcoming beat"
   // (whatever plays next), so the fretboard always shows something relevant
@@ -642,6 +660,7 @@ function SongStudyWorkspace({
 
   const activeNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex].beat) : [];
   const upcomingNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex + 1]?.beat) : [];
+  const activeBeat = activeBeatIndex >= 0 ? beatSequence[activeBeatIndex] : null;
 
   const trackTuningMidi = payload.track.tuning ?? payload.tab_data.tuning ?? null;
   const tuningNotes = trackTuningMidi ? trackTuningMidi.map((midi) => midiToNoteName(midi)) : null;
@@ -652,6 +671,19 @@ function SongStudyWorkspace({
 
   const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
   const fullTabRows = useMemo(() => buildFullTabRows(overviewSections), [overviewSections]);
+
+  const shapeEvents = useMemo(() => {
+    const start = selection?.type === 'range' ? selection.startMeasureIndex : focus.measureIndex;
+    const end = selection?.type === 'range'
+      ? selection.endMeasureIndex
+      : Math.min(focus.measureIndex + focus.windowSize, measureCount) - 1;
+    return (payload.shape_events ?? [])
+      .map((event) => ({
+        ...event,
+        sources: event.sources.filter((source) => source.measure_index >= start && source.measure_index <= end),
+      }))
+      .filter((event) => event.sources.length > 0);
+  }, [payload.shape_events, selection, focus.measureIndex, focus.windowSize, measureCount]);
 
   // Measures spanned by a range selection — highlighted wherever they render
   // (Full Tab rows, and the focused detail window), so a selection made in
@@ -822,6 +854,14 @@ function SongStudyWorkspace({
               tuningNotes={tuningNotes ?? undefined}
             />
           </div>
+
+          <SongShapeStrip
+            events={shapeEvents}
+            selectedMeasureIndex={activeBeat?.measureIndex}
+            selectedBeatIndex={activeBeat?.beatIndex}
+            tuningAvailable={Boolean(trackTuningMidi)}
+            onSelect={selectShape}
+          />
 
           <div>
             <p
