@@ -118,6 +118,18 @@ def test_chord_studies_build_deterministic_tones_and_physical_shapes(concept_id,
     assert all(position.note in {note.note for note in study.notes} for position in study.positions)
 
 
+def test_chord_diagrams_receive_one_canonical_position_per_string():
+    study = build_concept_study("A", "chord_minor")
+
+    assert {(position.string, position.fret) for position in study.voicings[0].positions} == {
+        (1, 0), (2, 1), (3, 2), (4, 2), (5, 0),
+    }
+    assert all(
+        len({position.string for position in voicing.positions}) == len(voicing.positions)
+        for voicing in study.voicings
+    )
+
+
 def test_every_catalog_concept_has_a_validated_visualization():
     for group in get_study_catalog().groups:
         for concept in group.concepts:

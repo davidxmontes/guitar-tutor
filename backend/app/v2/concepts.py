@@ -237,7 +237,11 @@ def _build_chord(
         ChordStudyVoicing(
             label=voicing.label,
             name=voicing.name,
-            positions=[ConceptPosition(**position.model_dump()) for position in voicing.positions],
+            positions=[
+                ConceptPosition(**position.model_dump())
+                for position in voicing.positions
+                if position.fret == 0 or voicing.base_fret <= position.fret < voicing.base_fret + 4
+            ],
         )
         for voicing in resolved.voicings
     ]
