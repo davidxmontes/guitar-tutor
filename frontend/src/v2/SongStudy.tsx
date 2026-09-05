@@ -131,12 +131,13 @@ function SongStudyFretboard({
   activeNotes: FretNote[];
   upcomingNotes: FretNote[];
 }) {
-  // Default footprint is FRESH_FRETBOARD_FRET_COUNT, but never clip a real
-  // note out of view — extend past it when the current or next beat actually
-  // reaches further up the neck.
+  // FRESH_FRETBOARD_FRET_COUNT is the highest fret shown by default (fret 0
+  // is always rendered too, so the default column count is one more than
+  // this) — but never clip a real note out of view, extend past it when the
+  // current or next beat actually reaches further up the neck.
   const neededFretCount = useMemo(() => {
     const frets = [...activeNotes, ...upcomingNotes].map((n) => n.fret);
-    return Math.max(FRESH_FRETBOARD_FRET_COUNT, ...frets.map((f) => f + 1));
+    return Math.max(FRESH_FRETBOARD_FRET_COUNT + 1, ...frets.map((f) => f + 1));
   }, [activeNotes, upcomingNotes]);
   const frets = useMemo(() => Array.from({ length: neededFretCount }, (_, f) => f), [neededFretCount]);
 
