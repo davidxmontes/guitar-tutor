@@ -135,3 +135,10 @@ English action prefix in the learner's request. This is a conservative guard,
 not a natural-language intent classifier; ambiguous or localized requests may
 be rejected. Broaden to explicit product intent support when those journeys
 are needed (small/medium follow-up). Snapshot undo remains the recovery path.
+
+Before deploying #61, apply `docs/agents/v2-workspace-saves.sql`. It adds the
+branch's saved-artifact revision token and a service-role-only save transaction.
+The token survives reload, so a stale branch cannot overwrite a newer saved
+study. Save as a new study is the recovery path that preserves both versions.
+The existing disposable PostgreSQL check also verifies this transaction,
+including rollback after a branch-write failure. Production DDL is manual.

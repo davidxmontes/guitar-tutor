@@ -51,7 +51,7 @@ def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifac
     # ponytail: snapshots share the artifact JSON row for atomic compare-and-swap.
     # Move history to a separate table if large songs or long histories make rows costly.
     return artifact.model_copy(update={"payload": deepcopy(payload), "updated_at": now,
-        "title": payload.get("display_name", artifact.title) if artifact.kind == "concept_study" else artifact.title,
+        "title": payload.get("display_name", payload.get("title", artifact.title)) if artifact.kind == "concept_study" else artifact.title,
         "saved_at": artifact.saved_at or (now if save else None), "revisions": revisions})
 
 
@@ -65,6 +65,7 @@ class V2Store(Protocol):
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact: ...
+    def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch: ...
     def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any], undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
@@ -172,12 +173,38 @@ class InMemoryV2Store:
         return sorted(artifacts, key=lambda artifact: artifact.created_at, reverse=True)
 
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact:
-        artifact = self.get_artifact(artifact_id, user_id)
-        if expected_updated_at is not None and artifact.updated_at != expected_updated_at:
-            raise RevisionConflictError("Artifact changed; reload before saving or restoring")
-        updated = _revised(artifact, payload, save)
-        self._artifacts[artifact_id] = updated
-        return updated
+        with self._branch_lock:
+            artifact = self.get_artifact(artifact_id, user_id)
+            if expected_updated_at is not None and artifact.updated_at != expected_updated_at:
+                raise RevisionConflictError("Artifact changed; reload before saving or restoring")
+            updated = _revised(artifact, payload, save)
+            self._artifacts[artifact_id] = updated
+            return updated
+
+    def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch:
+        with self._branch_lock:
+            session = self.get_session(session_id, user_id)
+            branch = next((b for b in session.branches if b.id == branch_id), None)
+            if branch is None or branch.working_draft is None:
+                raise NotFoundError('Workspace not found')
+            if branch.working_draft.version != expected_version:
+                raise RevisionConflictError('Draft changed elsewhere. Reload this branch before saving.')
+            draft = branch.working_draft.model_copy(update={'title': title,
+                'version': expected_version + (title != branch.working_draft.title)})
+            if branch.current_artifact_id and not as_new:
+                artifact = self.get_artifact(branch.current_artifact_id, user_id)
+                if artifact.kind != 'concept_study' or artifact.updated_at != branch.saved_artifact_revision:
+                    raise RevisionConflictError('This study has a newer saved version. Your draft is intact. Save as a new study, or open the latest study from My Stuff.')
+                artifact = _revised(artifact, draft.model_dump(), True)
+            else:
+                now = _now()
+                artifact = Artifact(id=_new_id(), user_id=user_id, kind='concept_study', title=title,
+                    payload=draft.model_dump(), saved_at=now, created_at=now, updated_at=now)
+            updated = branch.model_copy(update={'title': title, 'working_draft': draft, 'current_artifact_kind': 'concept_study',
+                'current_artifact_id': artifact.id, 'saved_artifact_revision': artifact.updated_at, 'updated_at': _now()})
+            self._artifacts[artifact.id] = artifact
+            session.branches[session.branches.index(branch)] = updated
+            return updated
 
     def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
         workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
@@ -259,6 +286,7 @@ class SupabaseV2Store:
             current_artifact_kind=row.get("current_artifact_kind"),
             current_artifact_id=row.get("current_artifact_id"),
             working_draft=row.get("working_draft"),
+            saved_artifact_revision=row.get("saved_artifact_revision"),
             selection=row.get("selection"),
             focus=row.get("focus"),
             recent_ideas=row.get("recent_ideas") or [],
@@ -423,6 +451,15 @@ class SupabaseV2Store:
         if not rows:
             raise RevisionConflictError("Artifact changed; reload before saving or restoring")
         return self._row_to_artifact(rows[0])
+
+    def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch:
+        result = self._client.rpc('v2_save_workspace_study', {'p_session_id': session_id, 'p_branch_id': branch_id,
+            'p_user_id': user_id, 'p_expected_version': expected_version, 'p_title': title, 'p_as_new': as_new}).execute().data
+        if result.get('error') == 'not_found':
+            raise NotFoundError('Workspace or study not found')
+        if result.get('error') == 'conflict':
+            raise RevisionConflictError('The draft or saved study changed. Your draft is intact. Save as a new study, or open the latest study from My Stuff.')
+        return self._row_to_branch(result['branch'])
 
     def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
         workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],

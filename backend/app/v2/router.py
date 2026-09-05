@@ -842,9 +842,17 @@ async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_
 @router.post("/library/{artifact_id}/open", response_model=Session, status_code=201)
 async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     artifact = _saved_artifact(store, artifact_id, user_id)
+    fields = {}
+    if artifact.kind == 'concept_study' and 'schema_version' in artifact.payload:
+        try:
+            draft = ConceptWorkspace.model_validate(artifact.payload).model_copy(update={'version': 1})
+            resolve_workspace(draft)
+        except ValueError as exc:
+            raise HTTPException(422, 'This study is unsupported. Open a new exploration from Home.') from exc
+        fields = {'working_draft': draft.model_dump(), 'saved_artifact_revision': artifact.updated_at}
     session = store.create_session(user_id)
     store.update_branch(session.id, session.branches[0].id, user_id, title=artifact.title,
-        current_artifact_kind=artifact.kind, current_artifact_id=artifact.id)
+        current_artifact_kind=artifact.kind, current_artifact_id=artifact.id, **fields)
     return store.get_session(session.id, user_id)
 
 
@@ -937,6 +945,26 @@ async def undo_workspace_change(session_id: str, branch_id: str, data: UndoWorks
             assistant={'text': 'Undid the latest Tutor change. The pre-turn workspace is current again; conversation and saved studies are unchanged.', 'workspace_change': {'status': 'undone', 'reason': None}},
             undo_message_id=data.message_id)
         return WorkspaceTurnResult(**message.content['workspace_change'], branch=branch, message_id=message.id)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+class SaveWorkspaceStudyRequest(StrictModel):
+    expected_version: int = Field(ge=1, strict=True)
+    title: str = Field(min_length=1, max_length=120)
+    as_new: bool = False
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/workspace/save', response_model=Branch)
+async def save_workspace_study(session_id: str, branch_id: str, data: SaveWorkspaceStudyRequest,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    if not data.title.strip():
+        raise HTTPException(422, 'Give your study a name.')
+    try:
+        return store.save_workspace_study(session_id, branch_id, user_id, expected_version=data.expected_version,
+            title=data.title.strip(), as_new=data.as_new)
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     except RevisionConflictError as exc:

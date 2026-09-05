@@ -28,6 +28,7 @@ class Branch(BaseModel):
     current_artifact_kind: Optional[ArtifactKind] = None
     current_artifact_id: Optional[str] = None
     working_draft: Optional[ConceptWorkspace] = None
+    saved_artifact_revision: Optional[str] = None
     selection: Optional[dict[str, Any]] = None
     focus: Optional[dict[str, Any]] = None
     recent_ideas: list[dict[str, Any]] = Field(default_factory=list)
