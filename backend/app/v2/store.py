@@ -37,6 +37,7 @@ class V2Store(Protocol):
     def create_session(self, user_id: str) -> Session: ...
     def get_session(self, session_id: str, user_id: str) -> Session: ...
     def list_sessions(self, user_id: str) -> list[Session]: ...
+    def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch: ...
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
@@ -73,6 +74,22 @@ class InMemoryV2Store:
     def list_sessions(self, user_id: str) -> list[Session]:
         owned = [s for s in self._sessions.values() if s.user_id == user_id]
         return sorted(owned, key=lambda s: s.created_at, reverse=True)
+
+    def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
+        session = self.get_session(session_id, user_id)
+        _validate_artifact_kind(fields.get("current_artifact_kind"))
+        now = _now()
+        branch = Branch(
+            id=_new_id(),
+            session_id=session_id,
+            tutor_thread_id=_new_id(),
+            created_at=now,
+            updated_at=now,
+            **fields,
+        )
+        session.branches.append(branch)
+        session.updated_at = now
+        return branch
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         session = self.get_session(session_id, user_id)  # raises NotFoundError if not owned
@@ -217,6 +234,17 @@ class SupabaseV2Store:
             .data
         )
         return [self._load_session(r) for r in rows]
+
+    def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
+        self.get_session(session_id, user_id)
+        _validate_artifact_kind(fields.get("current_artifact_kind"))
+        row = (
+            self._client.table("v2_branches")
+            .insert({"session_id": session_id, "tutor_thread_id": _new_id(), **fields})
+            .execute()
+            .data[0]
+        )
+        return self._row_to_branch(row)
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         self.get_session(session_id, user_id)  # raises NotFoundError if not owned

@@ -1,9 +1,9 @@
 """V2 foundation routes — Session create/list/resume, Branch working-state
-updates, SongStudy artifact create/open (ticket #12), and the stateless
-tutor turn endpoint (ticket #13).
+updates, SongStudy/ConceptStudy artifact create/open, and the stateless tutor
+turn endpoint.
 
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
-user). Other artifact kinds (Progression, ConceptStudy, Exercise) land in
+user). Other artifact kinds (Progression and Exercise) land in
 their own later V2 tickets.
 """
 
@@ -15,7 +15,17 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
-from app.v2.models import Artifact, ArtifactKind, Branch, Session, SongStudyPayload, SongStudyTrack, TutorMessage
+from app.v2.concepts import build_concept_study
+from app.v2.models import (
+    Artifact,
+    ArtifactKind,
+    Branch,
+    ConceptId,
+    Session,
+    SongStudyPayload,
+    SongStudyTrack,
+    TutorMessage,
+)
 from app.v2.store import NotFoundError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -179,6 +189,76 @@ async def get_song_study(
     return artifact
 
 
+class CreateConceptStudyRequest(BaseModel):
+    session_id: str
+    branch_id: str
+    root: str = Field(min_length=1)
+    concept_id: ConceptId
+    open_in_new_branch: bool = False
+
+
+class OpenConceptStudyResponse(BaseModel):
+    artifact: Artifact
+    branch: Branch
+
+
+@router.post("/concept-studies", response_model=OpenConceptStudyResponse, status_code=status.HTTP_201_CREATED)
+async def create_concept_study(
+    data: CreateConceptStudyRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        session = store.get_session(data.session_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if not any(branch.id == data.branch_id for branch in session.branches):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+
+    try:
+        payload = build_concept_study(data.root, data.concept_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    artifact = store.create_artifact(user_id, "concept_study", payload.display_name, payload.model_dump())
+    try:
+        if data.open_in_new_branch:
+            branch = store.create_branch(
+                data.session_id,
+                user_id,
+                current_artifact_kind="concept_study",
+                current_artifact_id=artifact.id,
+            )
+        else:
+            branch = store.update_branch(
+                data.session_id,
+                data.branch_id,
+                user_id,
+                current_artifact_kind="concept_study",
+                current_artifact_id=artifact.id,
+                selection=None,
+                focus=None,
+            )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return OpenConceptStudyResponse(artifact=artifact, branch=branch)
+
+
+@router.get("/concept-studies/{artifact_id}", response_model=Artifact)
+async def get_concept_study(
+    artifact_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if artifact.kind != "concept_study":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a ConceptStudy artifact")
+    return artifact
+
+
 def get_tutor_model_factory() -> ModelFactory:
     """Overridable in tests (`app.dependency_overrides[get_tutor_model_factory]`)
     to inject a recording/scripted chat-model factory with no real network
@@ -216,7 +296,7 @@ async def create_tutor_turn(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
     artifact: Optional[Artifact] = None
-    if branch.current_artifact_kind == "song_study" and branch.current_artifact_id:
+    if branch.current_artifact_id:
         try:
             artifact = store.get_artifact(branch.current_artifact_id, user_id)
         except NotFoundError:

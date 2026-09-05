@@ -5,9 +5,8 @@ Branch = one independent working context (current artifact reference,
 selection, focus, recent ideas, tutor-thread identity).
 Artifact = a durable musical thing (SongStudy, Progression, ConceptStudy,
 Exercise) saved/reopened independently of the branch that created it —
-common columns plus a JSON payload, strictly typed per kind (only
-song_study's SongStudyPayload exists so far; the other three kinds get
-their own payload types in their own tickets).
+common columns plus a JSON payload, strictly typed per concrete artifact
+route. SongStudy and ConceptStudy payloads exist so far.
 """
 
 from typing import Any, Literal, Optional, get_args
@@ -64,11 +63,57 @@ class SongStudyPayload(BaseModel):
     tab_data: dict[str, Any]  # {measures, tuning, name, automations, ...} as Songsterr returned it
 
 
+ConceptId = Literal[
+    "pentatonic_minor",
+    "major_triad",
+    "minor_triad",
+    "perfect_fifth",
+    "dominant_resolution",
+]
+
+
+class ConceptNote(BaseModel):
+    note: str
+    interval: str
+
+
+class ConceptPosition(ConceptNote):
+    string: int = Field(ge=1, le=6)
+    fret: int = Field(ge=0, le=22)
+
+
+class ConceptRelationship(BaseModel):
+    id: str
+    label: str
+    explanation: str
+    notes: list[ConceptNote]
+    positions: list[ConceptPosition]
+
+
+class ConceptStudyPayload(BaseModel):
+    """Concrete persisted state for one theory workspace.
+
+    Facts and physical positions are resolved deterministically by V2. The
+    tutor can teach from them, but it does not own or mutate them.
+    """
+
+    concept_id: ConceptId
+    root: str
+    display_name: str
+    explanation: str
+    tuning: list[str]
+    fret_start: int
+    fret_end: int
+    notes: list[ConceptNote]
+    positions: list[ConceptPosition]
+    relationships: list[ConceptRelationship]
+
+
 class Artifact(BaseModel):
     """Common columns + a strict typed JSON payload per artifact kind.
-    Only song_study payloads are validated (SongStudyPayload) as of this
-    ticket; the other three kinds get their own payload types in their own
-    tickets rather than a speculative shared union now.
+    Concrete routes validate their payload before handing the plain JSON to
+    this persistence envelope; this stays deliberately free of a generic
+    artifact plugin/dispatch layer.
     """
 
     id: str

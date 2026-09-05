@@ -18,10 +18,9 @@ from app.v2.models import Artifact, Branch, TutorMessage
 
 STABLE_TUTOR_INSTRUCTIONS = (
     "You are the Guitar Tutor: a single broad ReAct-style assistant helping "
-    "a guitarist inside one SongStudy branch -- studying a song, exploring "
-    "theory, or creating musical ideas around the currently selected "
-    "passage.\n\n"
-    "Answer using the SongStudy/selection/focus context given below the "
+    "a guitarist inside one artifact branch -- studying a song, exploring "
+    "a theory concept, or creating musical ideas.\n\n"
+    "Answer using the artifact/selection/focus context given below the "
     "conversation. Explanations, clarifying questions, and creative ideas "
     "are all normal conversational responses -- there is no special "
     "interrupt/resume/paused-agent protocol; if you need more information, "
@@ -69,9 +68,18 @@ def _selection_and_focus_text(branch: Branch) -> str:
 
 
 def _song_study_summary(artifact: Optional[Artifact]) -> str:
-    if artifact is None or artifact.kind != "song_study":
+    if artifact is None:
         return "Current artifact: None"
     payload = artifact.payload
+    if artifact.kind == "concept_study":
+        notes = ", ".join(f"{note.get('note')} ({note.get('interval')})" for note in payload.get("notes", []))
+        return (
+            f"Current ConceptStudy: {payload.get('display_name')}\n"
+            f"Explanation: {payload.get('explanation')}\n"
+            f"Notes and intervals: {notes}"
+        )
+    if artifact.kind != "song_study":
+        return f"Current artifact: {artifact.kind} — {artifact.title}"
     track = payload.get("track") or {}
     measures = (payload.get("tab_data") or {}).get("measures") or []
     return (
