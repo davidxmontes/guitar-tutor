@@ -85,6 +85,36 @@ def test_tutor_turn_persists_the_user_and_assistant_messages() -> None:
     assert persisted[1].content["text"] == "An answer."
 
 
+def test_tutor_turn_persists_a_concept_suggestion_for_explicit_promotion() -> None:
+    store = InMemoryV2Store()
+    model = ScriptedTutorModel(
+        outcomes=[{
+            "message": "That phrase uses A minor pentatonic.",
+            "focus": None,
+            "concept_suggestion": {
+                "concept_id": "pentatonic_minor",
+                "root": "A",
+                "label": "A minor pentatonic",
+            },
+        }],
+        usage_metadatas=[None],
+    )
+    client = _app(store, _scripted_factory(model))
+    session_id, branch_id = _open_session_and_branch(client)
+    thread_id = store.get_session(session_id, "user_1").branches[0].tutor_thread_id
+
+    response = client.post(
+        "/api/v2/tutor/turns",
+        json={"session_id": session_id, "branch_id": branch_id, "message": "Is this A minor pentatonic?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["concept_suggestion"]["label"] == "A minor pentatonic"
+    persisted = store.list_tutor_messages(thread_id, "user_1")
+    assert persisted[-1].content["concept_suggestion"]["concept_id"] == "pentatonic_minor"
+    assert len(store.get_session(session_id, "user_1").branches) == 1
+
+
 def test_two_consecutive_turns_with_separately_constructed_agents_preserve_context() -> None:
     """Each HTTP call gets its own freshly-built ScriptedTutorModel (nothing
     shared but the store's persisted rows) — the second turn's model must

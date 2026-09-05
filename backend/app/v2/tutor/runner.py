@@ -87,6 +87,7 @@ def run_tutor_turn(
     return TutorResponse(
         message=terminal.message,
         focus=terminal.focus,
+        concept_suggestion=terminal.concept_suggestion,
         provider=provider,
         model=model,
         latency_ms=latency_ms,

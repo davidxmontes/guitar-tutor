@@ -41,6 +41,13 @@ def test_stable_system_message_carries_cache_control_only_for_anthropic() -> Non
     assert anthropic_message.content[0]["text"] == openai_message.content
 
 
+def test_stable_prompt_keeps_concept_promotion_explicit() -> None:
+    text = str(stable_system_message("openai").content)
+
+    assert "concept_suggestion" in text
+    assert "must never open" in text
+
+
 def test_reconstruct_history_maps_roles_to_langchain_message_types() -> None:
     messages = [
         TutorMessage(id="m1", tutor_thread_id="t1", role="user", content={"text": "hello"}, created_at="x"),

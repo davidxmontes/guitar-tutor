@@ -331,7 +331,13 @@ async def create_tutor_turn(
     store.create_tutor_message(
         branch.tutor_thread_id,
         "assistant",
-        {"text": response.message, "focus": response.focus.model_dump() if response.focus else None},
+        {
+            "text": response.message,
+            "focus": response.focus.model_dump() if response.focus else None,
+            "concept_suggestion": (
+                response.concept_suggestion.model_dump() if response.concept_suggestion else None
+            ),
+        },
     )
 
     return response

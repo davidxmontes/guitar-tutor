@@ -2,7 +2,7 @@
 shape accepts arbitrary valid string/fret groups and an open-ended semantic
 role, without any layout/navigation instruction fields."""
 
-from app.v2.tutor.contract import FretPosition, TutorFocus, TutorResponse, TutorUsage
+from app.v2.tutor.contract import ConceptSuggestion, FretPosition, TutorFocus, TutorResponse, TutorUsage
 
 
 def test_focus_accepts_arbitrary_string_fret_pairs_with_no_canonical_entry() -> None:
@@ -57,3 +57,32 @@ def test_tutor_response_focus_is_optional() -> None:
     )
 
     assert response.focus is None
+
+
+def test_concept_suggestion_is_semantic_and_never_a_navigation_command() -> None:
+    suggestion = ConceptSuggestion(concept_id="pentatonic_minor", root="A", label="A minor pentatonic")
+
+    assert suggestion.model_dump() == {
+        "concept_id": "pentatonic_minor",
+        "root": "A",
+        "label": "A minor pentatonic",
+    }
+    assert "navigate" not in ConceptSuggestion.model_fields
+
+
+def test_tutor_response_can_offer_a_concept_without_opening_it() -> None:
+    response = TutorResponse(
+        message="That phrase uses A minor pentatonic.",
+        concept_suggestion=ConceptSuggestion(
+            concept_id="pentatonic_minor",
+            root="A",
+            label="A minor pentatonic",
+        ),
+        provider="openai",
+        model="gpt-4o-mini",
+        latency_ms=10,
+        usage=TutorUsage(),
+        tool_call_count=0,
+    )
+
+    assert response.concept_suggestion.label == "A minor pentatonic"

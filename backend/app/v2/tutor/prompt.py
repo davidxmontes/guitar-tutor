@@ -33,8 +33,13 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "none of those fit. Focus is attention, not navigation or layout, and "
     "arbitrary valid string/fret positions are fine even when no canonical "
     "chord or voicing entry exists for them.\n\n"
+    "When a supported concept becomes a useful explicit tangent, you may "
+    "offer a `concept_suggestion` with its root, concept_id, and label. A "
+    "suggestion is content only: you must never open a ConceptStudy, create "
+    "a branch, or imply that mentioning a concept changed navigation. The "
+    "user must choose Work on this.\n\n"
     "Respond with exactly one structured result: `message` (your answer) "
-    "and an optional `focus`."
+    "plus optional `focus` and `concept_suggestion`."
 )
 
 

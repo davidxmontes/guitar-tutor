@@ -1,8 +1,8 @@
 """TutorResponse contract (ticket #13): the semantic output of one stateless
 tutor turn, plus exactly the observability fields the ticket's acceptance
 criteria require (provider/model, latency, usage, tool-call count, terminal
-status). Candidate/mutation-proposal/exercise-suggestion fields are explicit
-out-of-scope for this ticket — they belong to #14/#16/#20.
+status). Later tickets add their own narrowly scoped semantic fields; ticket
+#21 adds `concept_suggestion` for explicit ConceptStudy promotion.
 
 `TutorTerminal` is the schema handed to the model as its structured-output
 tool (see runner.py) — kept separate from `TutorResponse` so the LLM-facing
@@ -13,6 +13,8 @@ producing.
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+from app.v2.models import ConceptId
 
 
 class FretPosition(BaseModel):
@@ -37,6 +39,18 @@ class TutorFocus(BaseModel):
     label: Optional[str] = None
 
 
+class ConceptSuggestion(BaseModel):
+    """A concept the tutor mentioned that the UI may offer to open.
+
+    This is content, not navigation: only a later explicit user action may
+    create the ConceptStudy branch.
+    """
+
+    concept_id: ConceptId
+    root: str
+    label: str
+
+
 class TutorTerminal(BaseModel):
     """The exact structured shape the model must return via tool-calling
     (see runner.py's `ToolStrategy(TutorTerminal)`). A plain conversational
@@ -46,6 +60,7 @@ class TutorTerminal(BaseModel):
 
     message: str
     focus: Optional[TutorFocus] = None
+    concept_suggestion: Optional[ConceptSuggestion] = None
 
 
 class TutorUsage(BaseModel):
@@ -78,6 +93,7 @@ class TutorResponse(BaseModel):
 
     message: str
     focus: Optional[TutorFocus] = None
+    concept_suggestion: Optional[ConceptSuggestion] = None
     provider: str
     model: str
     latency_ms: int
