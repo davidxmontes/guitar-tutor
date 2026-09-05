@@ -40,6 +40,7 @@ class V2Store(Protocol):
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
 
@@ -108,6 +109,12 @@ class InMemoryV2Store:
         if artifact is None or artifact.user_id != user_id:
             raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
         return artifact
+
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
+        artifact = self.get_artifact(artifact_id, user_id)
+        updated = artifact.model_copy(update={"payload": payload, "updated_at": _now()})
+        self._artifacts[artifact_id] = updated
+        return updated
 
     def _assert_thread_owned(self, tutor_thread_id: str, user_id: str) -> None:
         for session in self._sessions.values():
@@ -256,6 +263,20 @@ class SupabaseV2Store:
         rows = (
             self._client.table("v2_artifacts")
             .select("*")
+            .eq("id", artifact_id)
+            .eq("clerk_user_id", user_id)
+            .execute()
+            .data
+        )
+        if not rows:
+            raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
+        return self._row_to_artifact(rows[0])
+
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
+        updated_at = _now()
+        rows = (
+            self._client.table("v2_artifacts")
+            .update({"payload": payload, "updated_at": updated_at})
             .eq("id", artifact_id)
             .eq("clerk_user_id", user_id)
             .execute()

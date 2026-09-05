@@ -1,6 +1,5 @@
-"""V2 foundation routes — Session create/list/resume, Branch working-state
-updates, SongStudy artifact create/open (ticket #12), and the stateless
-tutor turn endpoint (ticket #13).
+"""V2 routes — Session/Branch state, SongStudy raw data and enrichment,
+and stateless tutor turns.
 
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
 user). Other artifact kinds (Progression, ConceptStudy, Exercise) land in
@@ -25,6 +24,7 @@ from app.v2.models import (
     SongStudyTrack,
     TutorMessage,
 )
+from app.v2.song_enrichment import run_song_enrichment
 from app.v2.store import NotFoundError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -186,6 +186,75 @@ async def get_song_study(
     if artifact.kind != "song_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a SongStudy artifact")
     return artifact
+
+
+def get_enrichment_model_factory() -> ModelFactory:
+    return build_tutor_model
+
+
+def _owned_song_study(store: V2Store, artifact_id: str, user_id: str) -> tuple[Artifact, SongStudyPayload]:
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if artifact.kind != "song_study":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a SongStudy artifact")
+    return artifact, SongStudyPayload.model_validate(artifact.payload)
+
+
+@router.post("/song-studies/{artifact_id}/enrichment", response_model=Artifact)
+async def enhance_song_study(
+    artifact_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+    settings: Settings = Depends(get_settings),
+    model_factory: ModelFactory = Depends(get_enrichment_model_factory),
+):
+    artifact, payload = _owned_song_study(store, artifact_id, user_id)
+
+    if payload.chordpro is None:
+        try:
+            chordpro = await songsterr.get_chordpro(payload.song_id)
+        except Exception:
+            chordpro = None
+        if chordpro:
+            payload = payload.model_copy(update={"chordpro": chordpro})
+            artifact = store.update_artifact(artifact.id, user_id, payload.model_dump())
+
+    try:
+        enrichment = run_song_enrichment(
+            artifact_id=artifact.id,
+            tab_data=payload.tab_data,
+            chordpro=payload.chordpro,
+            provider=settings.v2_tutor_provider,
+            model=settings.v2_tutor_model_name,
+            openai_api_key=settings.openai_api_key,
+            anthropic_api_key=settings.anthropic_api_key,
+            openrouter_api_key=settings.openrouter_api_key,
+            model_factory=model_factory,
+        )
+    except TutorCapabilityError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Song enrichment provider call failed") from exc
+
+    payload = payload.model_copy(update={"enrichment": enrichment})
+    return store.update_artifact(artifact.id, user_id, payload.model_dump())
+
+
+@router.delete("/song-studies/{artifact_id}/enrichment", response_model=Artifact)
+async def remove_song_study_enrichment(
+    artifact_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    artifact, payload = _owned_song_study(store, artifact_id, user_id)
+    if payload.enrichment is None:
+        return artifact
+    payload = payload.model_copy(update={"enrichment": None})
+    return store.update_artifact(artifact.id, user_id, payload.model_dump())
 
 
 def get_tutor_model_factory() -> ModelFactory:

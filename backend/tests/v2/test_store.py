@@ -132,3 +132,33 @@ def test_get_artifact_raises_not_found_for_other_user(store):
 def test_get_artifact_raises_not_found_for_unknown_id(store):
     with pytest.raises(NotFoundError):
         store.get_artifact("does-not-exist", user_id="user_1")
+
+
+def test_update_artifact_replaces_payload_without_changing_identity(store):
+    created = store.create_artifact(
+        user_id="user_1",
+        kind="song_study",
+        title="Oasis - Wonderwall",
+        payload={"tab_data": {"measures": [{}]}},
+    )
+
+    updated = store.update_artifact(
+        created.id,
+        user_id="user_1",
+        payload={"tab_data": {"measures": [{}]}, "chordpro": "[Em]Today"},
+    )
+
+    assert updated.id == created.id
+    assert updated.kind == "song_study"
+    assert updated.title == created.title
+    assert updated.payload["chordpro"] == "[Em]Today"
+    assert store.get_artifact(created.id, "user_1") == updated
+
+
+def test_update_artifact_rejects_other_user(store):
+    created = store.create_artifact(user_id="user_1", kind="song_study", title="t", payload={})
+
+    with pytest.raises(NotFoundError):
+        store.update_artifact(created.id, user_id="someone_else", payload={"changed": True})
+
+    assert store.get_artifact(created.id, "user_1").payload == {}
