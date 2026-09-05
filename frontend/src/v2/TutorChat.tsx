@@ -1,3 +1,4 @@
+import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { ExerciseComposer } from './ExerciseComposer';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -8,6 +9,7 @@ interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  focus?: TutorFocus | null;
   exerciseSuggestion?: ExerciseProposal | null;
   conceptSuggestion?: ConceptSuggestion | null;
   // Progression candidates (ticket #14) carried on an assistant turn --
@@ -28,6 +30,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
       id: m.id,
       role: m.role,
       text: typeof m.content.text === 'string' ? m.content.text : '',
+      focus: m.content.focus,
       exerciseSuggestion: m.content.exercise_suggestion,
       conceptSuggestion: m.content.concept_suggestion,
       candidates: m.content.candidates ?? null,
@@ -122,6 +125,7 @@ export function TutorChat({
         id: `local-assistant-${Date.now()}`,
         role: 'assistant',
         text: response.message,
+        focus: response.focus,
         exerciseSuggestion: response.exercise_suggestion,
         conceptSuggestion: response.concept_suggestion,
         candidates: response.candidates ?? null,
@@ -222,6 +226,12 @@ export function TutorChat({
                 {m.text}
               </div>
             )}
+            {m.role === 'assistant' && Boolean(m.focus?.groups?.length) && <section aria-label="Workspace comparison" className="flex flex-wrap gap-2">
+              {m.focus!.groups!.map((group, index) => <figure key={index} data-testid="branch-comparison-shape" className="rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] p-2">
+                <figcaption className="max-w-48 text-xs"><strong className="block">{group.branch_title}</strong><span className="text-[var(--text-secondary)]">{group.label}</span></figcaption>
+                <PhysicalChordDiagram positions={group.notes} tuning={group.tuning} />
+              </figure>)}
+            </section>}
             {m.role === 'assistant' && m.exerciseSuggestion && <ExerciseComposer sourceId={m.exerciseSuggestion.source_artifact_id} revision={m.exerciseSuggestion.expected_updated_at} selection={m.exerciseSuggestion.source_selection} steps={m.exerciseSuggestion.steps} suggestion={m.exerciseSuggestion} />}
             {m.role === 'assistant' && m.conceptSuggestion && onWorkOnConcept && (
               <button

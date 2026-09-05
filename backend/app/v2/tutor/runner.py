@@ -106,6 +106,7 @@ def run_tutor_turn(
     openrouter_api_key: Optional[str] = None,
     model_factory: ModelFactory = build_tutor_model,
     lookup_tools: Optional[list[BaseTool]] = None,
+    siblings: Optional[list[dict[str, Any]]] = None,
 ) -> TutorResponse:
     # Cache-affinity key derived from application state (never itself
     # conversation memory) -- see providers.py.
@@ -122,7 +123,7 @@ def run_tutor_turn(
 
     request_messages = [stable_system_message(provider)]
     request_messages.extend(reconstruct_history(history))
-    request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message))
+    request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message, siblings=siblings))
 
     agent = create_agent(
         model=chat_model,
