@@ -160,6 +160,17 @@ def test_create_song_study_404_for_unknown_branch(client):
     assert response.status_code == 404
 
 
+def test_create_song_study_422_for_negative_track_index(client, session_and_branch):
+    session_id, branch_id = session_and_branch
+
+    response = client.post(
+        "/api/v2/song-studies",
+        json={"session_id": session_id, "branch_id": branch_id, "song_id": 7, "track_index": -1},
+    )
+
+    assert response.status_code == 422
+
+
 @patch("app.v2.router.songsterr.get_tab_data", new_callable=AsyncMock)
 @patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock)
 def test_get_song_study_returns_previously_created_artifact(

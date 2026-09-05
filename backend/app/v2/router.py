@@ -9,7 +9,7 @@ endpoints land in their own later V2 tickets.
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
@@ -78,7 +78,7 @@ class CreateSongStudyRequest(BaseModel):
     session_id: str
     branch_id: str
     song_id: int
-    track_index: int = 0
+    track_index: int = Field(0, ge=0)
 
 
 @router.post("/song-studies", response_model=Artifact, status_code=status.HTTP_201_CREATED)
