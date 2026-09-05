@@ -142,3 +142,71 @@ test('Chord Study changes voicing locally and reopens the exact promoted selecti
   await expect(page.getByTestId('study-voicing-1')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('concept-comparison-note').first()).toBeVisible()
 })
+
+test('CAGED selects connected regions, inspects overlap, promotes, and restores semantic state', async ({ page }) => {
+  let tutorCalls = 0
+  await page.route('**/api/v2/tutor/turns', async (route) => {
+    tutorCalls += 1
+    await route.continue()
+  })
+  await page.goto('/v2')
+  await page.getByTestId('v2-start-concept').click()
+
+  const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
+  const initialStudies = await page.request.get('/api/v2/concept-studies').then((response) => response.json())
+  await page.getByTestId('study-root-C').click()
+  await page.getByTestId('study-concept-caged').click()
+
+  await expect(page.getByRole('heading', { name: 'C major CAGED' })).toBeVisible()
+  await expect(page.getByTestId('study-caged-visualization')).toBeVisible()
+  await expect(page.getByTestId('study-caged-region')).toHaveCount(5)
+  await page.getByTestId('study-caged-quality-minor').click()
+  await expect(page.getByRole('heading', { name: 'C minor CAGED' })).toBeVisible()
+
+  await page.getByTestId('study-caged-region-E').click()
+  await expect(page.getByTestId('study-caged-region-E')).toHaveAttribute('aria-pressed', 'true')
+  await page.getByTestId('study-caged-region-D').click()
+  await expect(page.getByTestId('study-caged-region-D')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('caged-overlap-summary')).toContainText('E shape')
+  await expect(page.getByTestId('caged-overlap-note')).toHaveCount(1)
+  await expect(page.getByTestId('caged-selected-diagram')).toBeVisible()
+
+  await page.getByTestId('study-hear').click()
+  expect(tutorCalls).toBe(0)
+  const beforePromotion = await page.request.get('/api/v2/concept-studies').then((response) => response.json())
+  expect(beforePromotion).toHaveLength(initialStudies.length)
+
+  await page.getByTestId('study-work-on-this').click()
+  await expect(page.getByTestId('concept-study-workspace')).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'C minor CAGED' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('study-caged-region-D')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('caged-overlap-summary')).toContainText('E shape')
+
+  const session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
+  const artifact = await page.request.get(`/api/v2/concept-studies/${session.branches[1].current_artifact_id}`).then((response) => response.json())
+  expect(artifact.payload).toMatchObject({
+    visualization: 'caged',
+    root: 'C',
+    quality: 'minor',
+    selected_region: 'D',
+    comparison_region: 'E',
+  })
+  expect(artifact.payload).not.toHaveProperty('scroll_position')
+  expect(artifact.payload).not.toHaveProperty('panel_dimensions')
+  expect(artifact.payload).not.toHaveProperty('zoom')
+  expect(artifact.payload).not.toHaveProperty('layout')
+  expect(session.branches[1].title).toBe('C minor CAGED')
+
+  await page.reload()
+  await page.locator(`[data-testid="v2-continue-session"][data-session-id="${sessionId}"]`).click()
+  await page.getByRole('tab', { name: 'C minor CAGED' }).click()
+  await expect(page.getByRole('heading', { name: 'C minor CAGED' })).toBeVisible()
+  await expect(page.getByTestId('study-caged-region-D')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('caged-overlap-summary')).toContainText('E shape')
+
+  await page.screenshot({ path: 'test-results/caged-study-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 320, height: 800 })
+  await expect(page.getByRole('combobox', { name: 'Current workspace' })).toHaveValue(session.branches[1].id)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/caged-study-mobile.png', fullPage: true })
+})

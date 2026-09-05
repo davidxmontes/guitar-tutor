@@ -18,6 +18,8 @@ from app.v2.models import (
     Artifact,
     ArtifactKind,
     Branch,
+    CagedQualityId,
+    CagedShapeId,
     ConceptId,
     ConceptStudyPayload,
     ConceptStudyArtifact,
@@ -210,6 +212,9 @@ class CreateConceptStudyRequest(BaseModel):
     selected_interval: int = Field(7, ge=0, le=11)
     selected_voicing: int = Field(0, ge=0)
     comparison_quality: Optional[ChordQualityId] = None
+    caged_quality: CagedQualityId = "major"
+    selected_region: CagedShapeId = "C"
+    comparison_region: Optional[CagedShapeId] = None
     promotion: Literal["save", "work_on_this"]
 
 
@@ -237,6 +242,9 @@ async def get_study_visualization(
     selected_interval: int = 7,
     selected_voicing: int = 0,
     comparison_quality: Optional[ChordQualityId] = None,
+    caged_quality: CagedQualityId = "major",
+    selected_region: CagedShapeId = "C",
+    comparison_region: Optional[CagedShapeId] = None,
     user_id: str = Depends(get_current_user),
 ):
     try:
@@ -248,6 +256,9 @@ async def get_study_visualization(
             selected_interval=selected_interval,
             selected_voicing=selected_voicing,
             comparison_quality=comparison_quality,
+            caged_quality=caged_quality,
+            selected_region=selected_region,
+            comparison_region=comparison_region,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -275,6 +286,9 @@ async def create_concept_study(
             selected_interval=data.selected_interval,
             selected_voicing=data.selected_voicing,
             comparison_quality=data.comparison_quality,
+            caged_quality=data.caged_quality,
+            selected_region=data.selected_region,
+            comparison_region=data.comparison_region,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

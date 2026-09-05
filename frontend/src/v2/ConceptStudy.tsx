@@ -3,7 +3,11 @@ import { apiClient } from '../api/client';
 import { playChord, playScale } from '../utils/audio';
 import { TutorChat } from './TutorChat';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
+import { CagedStudy } from './CagedStudy';
 import type {
+  CagedQualityId,
+  CagedShapeId,
+  CagedStudyPayload,
   ChordQualityId,
   ConceptId,
   ConceptRelationship,
@@ -57,16 +61,18 @@ function ConceptFretboard({ payload, relationship, tutorFocus, showIntervals }: 
 
 function hearConcept(payload: ConceptStudyPayload) {
   if (payload.visualization === 'chord') playChord(payload.voicings[payload.selected_voicing].positions);
+  else if (payload.visualization === 'caged') playChord(payload.positions);
   else playScale(payload.positions);
 }
 
-function Visualization({ payload, relationship, showIntervals, tutorFocus, onInterval, onVoicing }: {
+function Visualization({ payload, relationship, showIntervals, tutorFocus, onInterval, onVoicing, onRegion }: {
   payload: ConceptStudyPayload;
   relationship: ConceptRelationship | null;
   showIntervals: boolean;
   tutorFocus: TutorFocus | null;
   onInterval?: (semitones: number) => void;
   onVoicing?: (index: number) => void;
+  onRegion?: (shape: CagedShapeId) => void;
 }) {
   if (payload.visualization === 'chord') {
     return (
@@ -86,6 +92,9 @@ function Visualization({ payload, relationship, showIntervals, tutorFocus, onInt
         <ConceptFretboard payload={payload} relationship={relationship} tutorFocus={tutorFocus} showIntervals={showIntervals} />
       </section>
     );
+  }
+  if (payload.visualization === 'caged') {
+    return <CagedStudy payload={payload} tutorFocus={tutorFocus} showIntervals={showIntervals} onRegion={onRegion} />;
   }
   if (payload.visualization === 'interval') {
     return (
@@ -128,6 +137,9 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
   const [comparisonQuality, setComparisonQuality] = useState<ChordQualityId | null>(null);
   const [selectedInterval, setSelectedInterval] = useState(7);
   const [selectedVoicing, setSelectedVoicing] = useState(0);
+  const [cagedQuality, setCagedQuality] = useState<CagedQualityId>('major');
+  const [selectedRegion, setSelectedRegion] = useState<CagedShapeId>('C');
+  const [comparisonRegion, setComparisonRegion] = useState<CagedShapeId | null>(null);
   const [savedArtifact, setSavedArtifact] = useState<ConceptStudyArtifact | null>(null);
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -140,22 +152,31 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    apiClient.getStudyVisualization({ root, concept_id: conceptId, comparison_id: comparisonId, comparison_quality: comparisonQuality, overlay, selected_interval: selectedInterval, selected_voicing: selectedVoicing })
+    apiClient.getStudyVisualization({ root, concept_id: conceptId, comparison_id: comparisonId, comparison_quality: comparisonQuality, overlay, selected_interval: selectedInterval, selected_voicing: selectedVoicing, caged_quality: cagedQuality, selected_region: selectedRegion, comparison_region: comparisonRegion })
       .then((next) => { if (!cancelled) setPayload(next); })
       .catch((err) => { if (!cancelled) setError(String(err)); });
     return () => { cancelled = true; };
-  }, [root, conceptId, comparisonId, comparisonQuality, overlay, selectedInterval, selectedVoicing]);
+  }, [root, conceptId, comparisonId, comparisonQuality, overlay, selectedInterval, selectedVoicing, cagedQuality, selectedRegion, comparisonRegion]);
 
   const chooseConcept = (next: ConceptId) => {
     setSavedArtifact(null);
     setComparisonId(null);
     setComparisonQuality(null);
     setSelectedVoicing(0);
+    setSelectedRegion('C');
+    setComparisonRegion(null);
     setConceptId(next);
   };
-  const chooseRoot = (next: string) => { setSavedArtifact(null); setSelectedVoicing(0); setRoot(next); };
+  const chooseRoot = (next: string) => { setSavedArtifact(null); setSelectedVoicing(0); setSelectedRegion('C'); setComparisonRegion(null); setRoot(next); };
   const chooseOverlay = (next: 'notes' | 'intervals') => { setSavedArtifact(null); setOverlay(next); };
   const chooseInterval = (next: number) => { setSavedArtifact(null); setSelectedInterval(next); };
+  const chooseCagedQuality = (next: CagedQualityId) => { setSavedArtifact(null); setComparisonRegion(null); setCagedQuality(next); };
+  const chooseCagedRegion = (next: CagedShapeId) => {
+    if (next === selectedRegion) return;
+    setSavedArtifact(null);
+    setComparisonRegion(selectedRegion);
+    setSelectedRegion(next);
+  };
   const relationship = payload?.visualization === 'scale' && comparisonId
     ? payload.relationships[0]
     : payload?.visualization === 'chord' && comparisonQuality ? payload.relationships[0] : null;
@@ -178,6 +199,9 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
         selected_interval: selectedInterval,
         selected_voicing: selectedVoicing,
         comparison_quality: comparisonQuality,
+        caged_quality: cagedQuality,
+        selected_region: selectedRegion,
+        comparison_region: comparisonRegion,
         promotion,
       });
       if (promotion === 'save') setSavedArtifact(opened.artifact);
@@ -205,7 +229,7 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
       <main className="p-4 min-w-0 space-y-4">
         <header className="flex flex-wrap justify-between gap-3">
           <div><p className="text-[10px] uppercase tracking-widest font-black" style={{ color: 'var(--accent-700)' }}>{payload.visualization} study</p><h2 className="text-2xl font-black">{payload.display_name}</h2><p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Exploring · nothing changes until you save it</p></div>
-          <div className="flex flex-wrap gap-2 items-start">{payload.visualization === 'chord' && <button type="button" data-testid="study-hear" onClick={() => hearConcept(payload)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Hear</button>}<button type="button" data-testid="study-save" disabled={busy} onClick={() => promote('save')} className="rounded-lg border px-3 py-2 text-sm font-semibold">Save</button><button type="button" data-testid="study-work-on-this" disabled={busy} onClick={() => promote('work_on_this')} className="rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ background: 'var(--accent-600)' }}>Work on this</button>{onCancel && <button type="button" onClick={onCancel} className="rounded-lg border px-3 py-2 text-sm">Close</button>}</div>
+          <div className="flex flex-wrap gap-2 items-start">{(payload.visualization === 'chord' || payload.visualization === 'caged') && <button type="button" data-testid="study-hear" onClick={() => hearConcept(payload)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Hear</button>}<button type="button" data-testid="study-save" disabled={busy} onClick={() => promote('save')} className="rounded-lg border px-3 py-2 text-sm font-semibold">Save</button><button type="button" data-testid="study-work-on-this" disabled={busy} onClick={() => promote('work_on_this')} className="rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ background: 'var(--accent-600)' }}>Work on this</button>{onCancel && <button type="button" onClick={onCancel} className="rounded-lg border px-3 py-2 text-sm">Close</button>}</div>
         </header>
         {savedArtifact && <p data-testid="study-saved-status" role="status" className="text-sm font-semibold" style={{ color: 'var(--accent-700)' }}>Saved to My Stuff · keep exploring or work on this</p>}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
@@ -217,8 +241,9 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
           <button type="button" data-testid="study-overlay-intervals" aria-pressed={overlay === 'intervals'} onClick={() => chooseOverlay('intervals')} className="rounded-full border px-3 py-1.5 text-sm">Intervals</button>
           {payload.visualization === 'scale' && <button type="button" data-testid="study-toggle-comparison" aria-pressed={Boolean(comparisonId)} onClick={() => { setSavedArtifact(null); setComparisonId((current) => current ? null : payload.relationships[0].id as ScaleConceptId); }} className="rounded-full border px-3 py-1.5 text-sm">{comparisonId ? 'Hide comparison' : payload.relationships[0].label}</button>}
           {payload.visualization === 'chord' && <button type="button" data-testid="study-toggle-chord-comparison" aria-pressed={Boolean(comparisonQuality)} onClick={() => { setSavedArtifact(null); setComparisonQuality((current) => current ? null : payload.relationships[0].id as ChordQualityId); }} className="rounded-full border px-3 py-1.5 text-sm">{comparisonQuality ? 'Hide comparison' : payload.relationships[0].label}</button>}
+          {payload.visualization === 'caged' && <><button type="button" data-testid="study-caged-quality-major" aria-pressed={cagedQuality === 'major'} onClick={() => chooseCagedQuality('major')} className="rounded-full border px-3 py-1.5 text-sm">Major</button><button type="button" data-testid="study-caged-quality-minor" aria-pressed={cagedQuality === 'minor'} onClick={() => chooseCagedQuality('minor')} className="rounded-full border px-3 py-1.5 text-sm">Minor</button></>}
         </div>
-        <Visualization payload={payload} relationship={relationship} showIntervals={overlay === 'intervals'} tutorFocus={tutorFocus} onInterval={chooseInterval} onVoicing={(index) => { setSavedArtifact(null); setSelectedVoicing(index); }} />
+        <Visualization payload={payload} relationship={relationship} showIntervals={overlay === 'intervals'} tutorFocus={tutorFocus} onInterval={chooseInterval} onVoicing={(index) => { setSavedArtifact(null); setSelectedVoicing(index); }} onRegion={chooseCagedRegion} />
         {relationship && <p data-testid="concept-relationship" className="text-sm rounded-lg border p-3" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}>{relationship.explanation}</p>}
       </main>
 
@@ -238,6 +263,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
   const [showIntervals, setShowIntervals] = useState(false);
   const [comparisonId, setComparisonId] = useState<string | null>(null);
   const [selectedVoicing, setSelectedVoicing] = useState(0);
+  const [focusedCagedPayload, setFocusedCagedPayload] = useState<CagedStudyPayload | null>(null);
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
   const practiceState = branch.selection?.type === 'concept_practice' ? branch.selection : null;
   const tempo = typeof practiceState?.tempo === 'number' ? practiceState.tempo : 80;
@@ -252,6 +278,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
         setShowIntervals(loaded.payload.overlay === 'intervals');
         setComparisonId(loaded.payload.visualization === 'scale' ? loaded.payload.comparison_id : null);
         setSelectedVoicing(loaded.payload.visualization === 'chord' ? loaded.payload.selected_voicing : 0);
+        setFocusedCagedPayload(loaded.payload.visualization === 'caged' ? loaded.payload : null);
       })
       .catch((err) => { if (!cancelled) setError(String(err)); });
     return () => { cancelled = true; };
@@ -264,11 +291,28 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
     try { onBranchChange(await apiClient.updateV2Branch(sessionId, branch.id, { selection: next })); }
     catch (err) { setError(String(err)); }
   };
+  const chooseCagedRegion = async (next: CagedShapeId) => {
+    const current = focusedCagedPayload ?? (artifact?.payload.visualization === 'caged' ? artifact.payload : null);
+    if (!current || next === current.selected_region) return;
+    try {
+      setError(null);
+      setFocusedCagedPayload(await apiClient.getStudyVisualization({
+        root: current.root,
+        concept_id: 'caged',
+        overlay: showIntervals ? 'intervals' : 'notes',
+        caged_quality: current.quality,
+        selected_region: next,
+        comparison_region: current.selected_region,
+      }) as CagedStudyPayload);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
 
   if (error) return <p role="alert">{error}</p>;
   if (!artifact) return <p role="status">Loading ConceptStudy…</p>;
   const payload = artifact.payload;
-  const displayedPayload = payload.visualization === 'chord' ? { ...payload, selected_voicing: selectedVoicing } : payload;
+  const displayedPayload = payload.visualization === 'chord' ? { ...payload, selected_voicing: selectedVoicing } : focusedCagedPayload ?? payload;
 
   return (
     <div data-testid="concept-study-workspace" className="flex flex-col xl:flex-row gap-4 items-start">
@@ -276,7 +320,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
         <header className="flex flex-wrap justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--border-primary)' }}><div><p className="text-[10px] uppercase tracking-wide font-bold" style={{ color: 'var(--accent-700)' }}>ConceptStudy · saved</p><h2 className="text-2xl font-bold">{payload.display_name}</h2><p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{payload.explanation}</p></div><div className="flex gap-2"><button type="button" data-testid="concept-hear" onClick={() => hearConcept(displayedPayload)} className="rounded-lg border px-3 py-2 text-sm">Hear</button>{!practiceState && <button type="button" data-testid="concept-enter-practice" onClick={() => setPractice({ type: 'concept_practice', tempo: 80 })} className="rounded-lg px-3 py-2 text-sm text-white" style={{ background: 'var(--accent-600)' }}>Practice</button>}</div></header>
         {practiceState && <section data-testid="concept-practice" className="rounded-xl border p-4" style={{ background: '#fff6db', borderColor: '#edd48d', color: '#422006' }}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Contextual practice</h3><p className="text-sm">{tempo} BPM · one ascending pass</p></div><div className="flex gap-2"><button type="button" onClick={() => setPractice({ ...practiceState, tempo: Math.max(40, tempo - 5) })} className="rounded border px-3 py-2" aria-label="Slow practice by 5 BPM">−5</button><button type="button" data-testid="concept-practice-faster" onClick={() => setPractice({ ...practiceState, tempo: Math.min(200, tempo + 5) })} className="rounded border px-3 py-2" aria-label="Speed practice by 5 BPM">+5</button><button type="button" data-testid="concept-practice-start" onClick={() => playScale(payload.positions, 60 / tempo)} className="rounded px-3 py-2 text-white" style={{ background: '#1b1e23' }}>Start</button><button type="button" data-testid="concept-exit-practice" onClick={() => setPractice(null)} className="rounded border px-3 py-2">Exit</button></div></div></section>}
         <div className="flex gap-2"><button type="button" aria-pressed={!showIntervals} onClick={() => setShowIntervals(false)} className="rounded-full border px-3 py-1.5 text-sm">Notes</button><button type="button" aria-pressed={showIntervals} onClick={() => setShowIntervals(true)} className="rounded-full border px-3 py-1.5 text-sm">Intervals</button></div>
-        <Visualization payload={displayedPayload} relationship={relationship} showIntervals={showIntervals} tutorFocus={tutorFocus} onVoicing={setSelectedVoicing} />
+        <Visualization payload={displayedPayload} relationship={relationship} showIntervals={showIntervals} tutorFocus={tutorFocus} onVoicing={setSelectedVoicing} onRegion={chooseCagedRegion} />
         {payload.visualization === 'scale' && <section className="rounded-xl border p-4" style={{ borderColor: 'var(--border-primary)' }}><h3 className="font-bold">What changes?</h3><button type="button" data-testid="concept-compare" aria-pressed={Boolean(comparisonId)} onClick={() => setComparisonId((current) => current ? null : payload.relationships[0].id)} className="rounded-lg border px-3 py-2 text-sm font-semibold mt-2">{comparisonId ? 'Hide comparison' : payload.relationships[0].label}</button>{relationship && <p data-testid="concept-relationship" className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>{relationship.explanation}</p>}</section>}
       </main>
       <TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setTutorFocus} onWorkOnConcept={onWorkOnConcept} emptyMessage="Ask about this concept." />

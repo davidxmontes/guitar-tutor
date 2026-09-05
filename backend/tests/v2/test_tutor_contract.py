@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.v2.models import ProgressionChord, ProgressionPayload
+from app.v2.concepts import build_concept_study
 from app.v2.tutor.contract import (
     ConceptSuggestion,
     FretPosition,
@@ -119,6 +120,14 @@ def test_tutor_can_offer_only_publicly_supported_chord_studies() -> None:
     assert suggestion.concept_id == "chord_m9"
     with pytest.raises(ValidationError):
         ConceptSuggestion(concept_id="chord_power", root="C", label="C power chord")
+
+
+def test_tutor_can_offer_caged_only_as_a_supported_physical_visualization() -> None:
+    suggestion = ConceptSuggestion(concept_id="caged", root="C", label="C major CAGED")
+    visualization = build_concept_study(suggestion.root, suggestion.concept_id)
+
+    assert len(visualization.regions) == 5
+    assert all(region.positions for region in visualization.regions)
 
 
 def test_tutor_terminal_candidates_hold_symbolic_chords_only() -> None:

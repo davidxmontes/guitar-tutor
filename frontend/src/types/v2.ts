@@ -134,6 +134,7 @@ export type ConceptId =
   | 'pentatonic_minor'
   | 'blues'
   | 'intervals'
+  | 'caged'
   | ChordConceptId;
 
 export type ChordQualityId =
@@ -142,7 +143,9 @@ export type ChordQualityId =
   | '7sus4' | '6' | 'm6' | '9' | 'm9' | 'maj9';
 
 export type ChordConceptId = `chord_${ChordQualityId}`;
-export type ScaleConceptId = Exclude<ConceptId, 'intervals' | ChordConceptId>;
+export type ScaleConceptId = Exclude<ConceptId, 'intervals' | 'caged' | ChordConceptId>;
+export type CagedQualityId = 'major' | 'minor';
+export type CagedShapeId = 'C' | 'A' | 'G' | 'E' | 'D';
 
 export interface ConceptNote {
   note: string;
@@ -212,13 +215,32 @@ export interface ChordStudyPayload extends ConceptPayloadBase {
   comparison_quality: ChordQualityId | null;
 }
 
-export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload;
+export interface CagedRegion {
+  shape: CagedShapeId;
+  label: string;
+  fret_start: number;
+  fret_end: number;
+  positions: ConceptPosition[];
+}
+
+export interface CagedStudyPayload extends ConceptPayloadBase {
+  visualization: 'caged';
+  concept_id: 'caged';
+  quality: CagedQualityId;
+  notes: ConceptNote[];
+  regions: CagedRegion[];
+  selected_region: CagedShapeId;
+  comparison_region: CagedShapeId | null;
+  overlap_positions: ConceptPosition[];
+}
+
+export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload;
 
 export interface StudyCatalogConcept {
   id: ConceptId;
   display_name: string;
   description: string;
-  visualization: 'scale' | 'interval' | 'chord';
+  visualization: 'scale' | 'interval' | 'chord' | 'caged';
 }
 
 export interface StudyCatalogGroup {
@@ -247,6 +269,9 @@ export interface CreateConceptStudyRequest {
   selected_interval?: number;
   selected_voicing?: number;
   comparison_quality?: ChordQualityId | null;
+  caged_quality?: CagedQualityId;
+  selected_region?: CagedShapeId;
+  comparison_region?: CagedShapeId | null;
   promotion: 'save' | 'work_on_this';
 }
 
@@ -258,6 +283,9 @@ export interface StudyVisualizationRequest {
   selected_interval?: number;
   selected_voicing?: number;
   comparison_quality?: ChordQualityId | null;
+  caged_quality?: CagedQualityId;
+  selected_region?: CagedShapeId;
+  comparison_region?: CagedShapeId | null;
 }
 
 export interface OpenConceptStudyResponse {

@@ -177,6 +177,9 @@ ScaleConceptId = Literal[
     "blues",
 ]
 IntervalConceptId = Literal["intervals"]
+CagedConceptId = Literal["caged"]
+CagedQualityId = Literal["major", "minor"]
+CagedShapeId = Literal["C", "A", "G", "E", "D"]
 ChordQualityId = Literal[
     "major", "minor", "diminished", "augmented", "dominant7", "major7",
     "minor7", "dim7", "m7b5", "sus2", "sus4", "add9", "madd9",
@@ -189,7 +192,7 @@ ChordConceptId = Literal[
     "chord_madd9", "chord_7sus4", "chord_6", "chord_m6", "chord_9",
     "chord_m9", "chord_maj9",
 ]
-ConceptId = ScaleConceptId | IntervalConceptId | ChordConceptId
+ConceptId = ScaleConceptId | IntervalConceptId | CagedConceptId | ChordConceptId
 
 
 class ConceptNote(BaseModel):
@@ -268,14 +271,37 @@ class ChordStudyPayload(ConceptPayloadBase):
     comparison_quality: Optional[ChordQualityId] = None
 
 
-ConceptStudyPayload = Annotated[ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload, Field(discriminator="visualization")]
+class CagedRegion(BaseModel):
+    shape: CagedShapeId
+    label: str
+    fret_start: int = Field(ge=0, le=22)
+    fret_end: int = Field(ge=0, le=22)
+    positions: list[ConceptPosition]
+
+
+class CagedStudyPayload(ConceptPayloadBase):
+    visualization: Literal["caged"] = "caged"
+    concept_id: CagedConceptId = "caged"
+    quality: CagedQualityId
+    notes: list[ConceptNote]
+    positions: list[ConceptPosition]
+    regions: list[CagedRegion]
+    selected_region: CagedShapeId
+    comparison_region: Optional[CagedShapeId] = None
+    overlap_positions: list[ConceptPosition] = Field(default_factory=list)
+
+
+ConceptStudyPayload = Annotated[
+    ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload,
+    Field(discriminator="visualization"),
+]
 
 
 class StudyCatalogConcept(BaseModel):
     id: ConceptId
     display_name: str
     description: str
-    visualization: Literal["scale", "interval", "chord"]
+    visualization: Literal["scale", "interval", "chord", "caged"]
 
 
 class StudyCatalogGroup(BaseModel):

@@ -80,7 +80,7 @@ def test_study_catalog_is_backend_owned_and_progressively_grouped(client):
     assert {concept["id"] for concept in groups["explore_more"]} >= {
         "dorian", "phrygian", "lydian", "mixolydian", "locrian", "harmonic_minor", "melodic_minor"
     }
-    assert {concept["id"] for concept in groups["systems"]} == {"intervals"}
+    assert {concept["id"] for concept in groups["systems"]} == {"intervals", "caged"}
     assert all(concept["display_name"] for group in catalog["groups"] for concept in group["concepts"])
 
 
@@ -145,6 +145,93 @@ def test_every_catalog_concept_has_a_validated_visualization():
         for concept in group.concepts:
             payload = build_concept_study("C", concept.id)
             assert payload.visualization == concept.visualization
+
+
+def test_c_major_caged_regions_have_exact_canonical_positions_and_roles():
+    study = build_concept_study("C", "caged", caged_quality="major")
+
+    assert study.visualization == "caged"
+    assert [region.shape for region in study.regions] == ["C", "A", "G", "E", "D"]
+    assert {
+        region.shape: {(position.string, position.fret, position.interval) for position in region.positions}
+        for region in study.regions
+    } == {
+        "C": {(1, 0, "3"), (2, 1, "1"), (3, 0, "5"), (4, 2, "3"), (5, 3, "1")},
+        "A": {(1, 3, "5"), (2, 5, "3"), (3, 5, "1"), (4, 5, "5"), (5, 3, "1")},
+        "G": {(1, 8, "1"), (2, 5, "3"), (3, 5, "1"), (4, 5, "5"), (5, 7, "3"), (6, 8, "1")},
+        "E": {(1, 8, "1"), (2, 8, "5"), (3, 9, "3"), (4, 10, "1"), (5, 10, "5"), (6, 8, "1")},
+        "D": {(1, 12, "3"), (2, 13, "1"), (3, 12, "5"), (4, 10, "1")},
+    }
+    assert all({position.interval for position in region.positions} == {"1", "3", "5"} for region in study.regions)
+
+
+def test_caged_regions_transpose_and_adjacent_overlap_is_physical():
+    c_major = build_concept_study(
+        "C", "caged", caged_quality="major", selected_region="A", comparison_region="G"
+    )
+    d_major = build_concept_study("D", "caged", caged_quality="major", selected_region="C")
+    a_minor = build_concept_study(
+        "A", "caged", caged_quality="minor", selected_region="G", comparison_region="E"
+    )
+
+    assert {(position.string, position.fret, position.note) for position in c_major.overlap_positions} == {
+        (2, 5, "E"), (3, 5, "C"), (4, 5, "G")
+    }
+    assert {(position.string, position.fret, position.note) for position in d_major.positions} == {
+        (1, 2, "Gb"), (2, 3, "D"), (3, 2, "A"), (4, 4, "Gb"), (5, 5, "D")
+    }
+    assert [region.shape for region in a_minor.regions] == ["A", "G", "E", "D", "C"]
+    assert {(position.string, position.fret, position.interval) for position in a_minor.overlap_positions} == {
+        (1, 5, "1"), (2, 5, "5"), (6, 5, "1")
+    }
+    assert all(
+        {position.interval for position in region.positions} == {"1", "b3", "5"}
+        for region in a_minor.regions
+    )
+
+
+def test_caged_transient_and_promotion_keep_only_semantic_region_state(client, store, session_and_branch):
+    session_id, branch_id = session_and_branch
+    transient = client.get(
+        "/api/v2/study/visualizations/caged",
+        params={
+            "root": "C",
+            "caged_quality": "minor",
+            "selected_region": "E",
+            "comparison_region": "D",
+        },
+    )
+
+    assert transient.status_code == 200
+    assert transient.json()["selected_region"] == "E"
+    assert transient.json()["comparison_region"] == "D"
+    assert store._artifacts == {}
+
+    promoted = client.post(
+        "/api/v2/concept-studies",
+        json={
+            "session_id": session_id,
+            "branch_id": branch_id,
+            "root": "C",
+            "concept_id": "caged",
+            "caged_quality": "minor",
+            "selected_region": "E",
+            "comparison_region": "D",
+            "promotion": "work_on_this",
+        },
+    )
+
+    assert promoted.status_code == 201
+    opened = promoted.json()
+    payload = opened["artifact"]["payload"]
+    assert opened["branch"]["title"] == "C minor CAGED"
+    assert payload["quality"] == "minor"
+    assert payload["selected_region"] == "E"
+    assert payload["comparison_region"] == "D"
+    assert payload["overlap_positions"] == [
+        {"string": 4, "fret": 10, "note": "C", "interval": "1"}
+    ]
+    assert not ({"scroll_position", "panel_dimensions", "zoom", "layout"} & payload.keys())
 
 
 def test_transient_visualization_builds_scale_and_interval_without_artifact(client, store, session_and_branch):
