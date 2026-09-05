@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useAppAuth } from '../../lib/authBypass';
 import { useAppStore, useSongSearch } from '../../stores/useAppStore';
 import type { SongSearchResult, FavoriteSong } from '../../types';
 import { pickPrimaryTuning } from '../../utils/tuning';
@@ -13,7 +13,7 @@ export function SongSearch() {
   const favorites = useAppStore((s) => s.favorites);
   const favoriteIds = useAppStore((s) => s.favoriteIds);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
-  const { isSignedIn } = useUser();
+  const { isSignedIn } = useAppAuth();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearch = useCallback(

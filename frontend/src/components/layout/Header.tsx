@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SignInButton, UserButton, useUser } from '@clerk/clerk-react';
+import { SignInButton, UserButton } from '@clerk/clerk-react';
+import { AUTH_DEV_BYPASS, useAppAuth } from '../../lib/authBypass';
 import headstockSrc from '../../assets/white_headstock.png';
 import { useAppStore } from '../../stores';
 import type { GuitarType } from '../../utils/audio';
 
 export function Header() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn } = useAppAuth();
   const {
     appMode,
     setAppMode,
@@ -276,7 +277,7 @@ export function Header() {
           </div>
 
           {/* Auth */}
-          {isSignedIn ? (
+          {AUTH_DEV_BYPASS ? null : isSignedIn ? (
             <UserButton />
           ) : (
             <SignInButton mode="modal">
