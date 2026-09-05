@@ -8,7 +8,8 @@ const frontendPort = Number(process.env.PLAYWRIGHT_FRONTEND_PORT ?? 5173)
 // browser acceptance harness for the defining V2 vertical slice is
 // justified, while broad component coverage is not"). Boots the real
 // backend + frontend dev servers with the local-only auth bypass so the
-// suite needs no live Clerk/Supabase credentials.
+// suite needs no live Clerk/Supabase credentials. A test-only scripted
+// model handles workspace turns; other journeys stub their provider boundary.
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -18,7 +19,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `../backend/.venv/bin/uvicorn app.main:app --port ${backendPort}`,
+      command: `../backend/.venv/bin/uvicorn tests.v2.workspace_browser_app:app --port ${backendPort}`,
       cwd: '../backend',
       port: backendPort,
       env: { AUTH_DEV_BYPASS: 'true', V2_STORAGE_BACKEND: 'memory' },

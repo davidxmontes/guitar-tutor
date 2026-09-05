@@ -1,3 +1,4 @@
+import type { TutorFocus } from '../types/v2';
 import type { ConceptWorkspace, Inspection, ResolvedWorkspace, WorkspaceBlock, WorkspaceNote } from '../types/conceptWorkspace';
 
 const noteStyle = (shared: boolean, selected: boolean) => ({
@@ -6,8 +7,9 @@ const noteStyle = (shared: boolean, selected: boolean) => ({
   outline: selected ? '3px solid var(--accent-700)' : undefined, outlineOffset: 2,
 });
 
-export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, onInspect }: {
+export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, tutorFocus }: {
   block: WorkspaceBlock; workspace: ConceptWorkspace; resolved: ResolvedWorkspace;
+  tutorFocus?: TutorFocus | null;
   inspection: Inspection | null; onInspect: (inspection: Inspection) => void;
 }) {
   const relation = workspace.relations.find(item => item.id === block.source_id);
@@ -29,6 +31,7 @@ export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, 
 
   const frets = Array.from({ length: block.settings.fret_end - block.settings.fret_start + 1 }, (_, index) => index + block.settings.fret_start);
   return <div className="overflow-x-auto rounded-lg border border-[var(--border-primary)] p-2" tabIndex={0} aria-label="Scrollable guitar fretboard">
+    {tutorFocus?.label && <p className="mb-2 text-sm">Tutor focus: {tutorFocus.label}</p>}
     <div style={{ minWidth: 48 * (frets.length + 1) }}>
       <div className="grid text-center text-xs" style={{ gridTemplateColumns: `44px repeat(${frets.length}, 1fr)` }}><span>String</span>{frets.map(fret => <span key={fret}>{fret === 0 ? 'Open' : fret}</span>)}</div>
       {workspace.tuning.map((midi, index) => <div key={index} className="grid items-center" style={{ gridTemplateColumns: `44px repeat(${frets.length}, 1fr)` }}>
@@ -39,8 +42,9 @@ export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, 
           const visible = first && (!block.settings.shared_only || shared.includes(first.note.pitch_class));
           return <div key={fret} className="flex min-h-14 items-center justify-center border-l border-b border-[var(--border-primary)]">
             {visible && <button type="button" aria-label={`${matches.map(({ id, note }) => label(id, note)).join('; ')}, string ${index + 1}, fret ${fret}`}
+              data-tutor-focus={tutorFocus?.notes.some(note => note.string === index + 1 && note.fret === fret) || undefined}
               aria-pressed={selected(first.note)} onClick={() => inspect(first.id, first.note)}
-              className="min-h-11 min-w-11 rounded-full border px-1 text-xs font-bold" style={noteStyle(shared.includes(first.note.pitch_class), selected(first.note))}>
+              className="min-h-11 min-w-11 rounded-full border px-1 text-xs font-bold data-[tutor-focus=true]:ring-4 data-[tutor-focus=true]:ring-amber-500" style={noteStyle(shared.includes(first.note.pitch_class), selected(first.note))}>
               {matches.map(({ note }) => block.settings.labels === 'notes' ? note.note : note.degree).filter((text, i, all) => all.indexOf(text) === i).join('/')}
             </button>}
           </div>;

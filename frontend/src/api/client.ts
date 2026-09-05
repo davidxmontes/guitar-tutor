@@ -1,7 +1,7 @@
 import type { ConceptWorkspace, ResolvedWorkspace } from '../types/conceptWorkspace';
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { Artifact, ArtifactRevision, LibraryItem, CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
+import type { WorkspaceTurnResult, Artifact, ArtifactRevision, LibraryItem, CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -65,6 +65,10 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  undoWorkspaceChange(sessionId: string, branchId: string, messageId: string, version: number): Promise<WorkspaceTurnResult> {
+    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/undo`, { method: 'POST', body: JSON.stringify({ message_id: messageId, expected_version: version }) });
   }
 
   openConceptWorkspace(sessionId: string): Promise<V2Branch> {

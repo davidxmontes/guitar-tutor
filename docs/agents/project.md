@@ -116,3 +116,22 @@ Treat `main-v2` as this repo's main for every V2 ticket:
 For Supabase deployments, apply the additive `working_draft` column in
 `docs/agents/v2-schema.sql` before deploying the #60 backend. No existing
 ConceptStudy payloads are converted. Memory storage needs no setup.
+
+Before deploying #62, also apply `docs/agents/v2-workspace-turns.sql` with
+an administrative database connection. Its service-role-only RPC commits the
+Working Draft, exact before/after snapshots, and Tutor messages in one
+transaction; Undo uses the same transaction. Deployments missing the RPC
+cannot apply workspace Tutor turns. No saved artifact revisions are changed.
+The SQL is prepared in-repo; applying production DDL remains a manual step.
+
+Run the database rollback/ownership check against a disposable local PostgreSQL
+cluster (PostgreSQL 16 tools on PATH) from `backend`:
+`.venv/bin/python tests/v2/check_workspace_transaction.py`.
+`npm run test:e2e` includes scripted workspace Tutor acceptance without live
+model calls; the model override exists only in the test server module.
+
+Known #62 simplification: destructive Tutor operations require a narrow
+English action prefix in the learner's request. This is a conservative guard,
+not a natural-language intent classifier; ambiguous or localized requests may
+be rejected. Broaden to explicit product intent support when those journeys
+are needed (small/medium follow-up). Snapshot undo remains the recovery path.

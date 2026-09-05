@@ -14,11 +14,11 @@ producing. `TutorTerminal.candidates` carries only symbolic chord ideas
 before it reaches `TutorResponse.candidates`.
 """
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.v2.models import ExerciseDraft, ConceptId, ProgressionPayload, ProgressionChord, ProgressionVoicingPosition
+from app.v2.models import Branch, ExerciseDraft, ConceptId, ProgressionPayload, ProgressionChord, ProgressionVoicingPosition
 
 
 class FretPosition(BaseModel):
@@ -118,6 +118,8 @@ class TutorTerminal(BaseModel):
     protocol."""
 
     message: str
+    # Parse the patch after retaining the explanation: malformed model changes must not erase text.
+    workspace_patch: Optional[dict[str, Any]] = None
     focus: Optional[TutorFocus] = None
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionCandidate]] = None
@@ -145,6 +147,13 @@ class TutorUsage(BaseModel):
 TutorRunStatus = Literal["completed"]
 
 
+class WorkspaceTurnResult(BaseModel):
+    status: Literal['applied', 'rejected', 'unchanged', 'undone']
+    reason: Optional[str] = None
+    message_id: str
+    branch: Branch
+
+
 class TutorResponse(BaseModel):
     """Full API response for one tutor turn: the semantic `TutorTerminal`
     output plus exactly the observability ticket #13 requires. A run that
@@ -153,6 +162,8 @@ class TutorResponse(BaseModel):
     API layer can fail clearly rather than returning a half-successful
     response."""
 
+    workspace_patch: Optional[dict[str, Any]] = Field(default=None, exclude=True)
+    workspace_result: Optional[WorkspaceTurnResult] = None
     message: str
     focus: Optional[TutorFocus] = None
     concept_suggestion: Optional[ConceptSuggestion] = None

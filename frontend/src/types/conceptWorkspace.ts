@@ -1,5 +1,5 @@
 export type ScaleMode = 'major' | 'natural_minor' | 'dorian' | 'phrygian' | 'lydian' | 'mixolydian' | 'locrian' | 'harmonic_minor' | 'melodic_minor' | 'pentatonic_major' | 'pentatonic_minor' | 'blues';
-export interface ScaleEntity { id: string; kind: 'scale'; root: string; mode: ScaleMode }
+export interface ScaleEntity { id: string; kind: 'scale'; label?: string | null; root: string; mode: ScaleMode }
 export interface CompareRelation { id: string; kind: 'compare'; entity_ids: string[] }
 export interface BlockSettings { labels: 'notes' | 'intervals'; shared_only: boolean; fret_start: number; fret_end: number }
 export interface WorkspaceBlock { id: string; kind: 'fretboard' | 'degree_strip'; source_id: string; settings: BlockSettings }
