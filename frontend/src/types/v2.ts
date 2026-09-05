@@ -128,9 +128,16 @@ export type ConceptId =
   | 'pentatonic_major'
   | 'pentatonic_minor'
   | 'blues'
-  | 'intervals';
+  | 'intervals'
+  | ChordConceptId;
 
-export type ScaleConceptId = Exclude<ConceptId, 'intervals'>;
+export type ChordQualityId =
+  | 'major' | 'minor' | 'diminished' | 'augmented' | 'dominant7' | 'major7'
+  | 'minor7' | 'dim7' | 'm7b5' | 'sus2' | 'sus4' | 'add9' | 'madd9'
+  | '7sus4' | '6' | 'm6' | '9' | 'm9' | 'maj9';
+
+export type ChordConceptId = `chord_${ChordQualityId}`;
+export type ScaleConceptId = Exclude<ConceptId, 'intervals' | ChordConceptId>;
 
 export interface ConceptNote {
   note: string;
@@ -183,13 +190,30 @@ export interface IntervalStudyPayload extends ConceptPayloadBase {
   intervals: StudyInterval[];
 }
 
-export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload;
+export interface ChordStudyVoicing {
+  label: string;
+  name: string;
+  positions: ConceptPosition[];
+}
+
+export interface ChordStudyPayload extends ConceptPayloadBase {
+  visualization: 'chord';
+  concept_id: ChordConceptId;
+  quality: ChordQualityId;
+  notes: ConceptNote[];
+  voicings: ChordStudyVoicing[];
+  selected_voicing: number;
+  relationships: ConceptRelationship[];
+  comparison_quality: ChordQualityId | null;
+}
+
+export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload;
 
 export interface StudyCatalogConcept {
   id: ConceptId;
   display_name: string;
   description: string;
-  visualization: 'scale' | 'interval';
+  visualization: 'scale' | 'interval' | 'chord';
 }
 
 export interface StudyCatalogGroup {
@@ -216,6 +240,8 @@ export interface CreateConceptStudyRequest {
   comparison_id?: ScaleConceptId | null;
   overlay?: 'notes' | 'intervals';
   selected_interval?: number;
+  selected_voicing?: number;
+  comparison_quality?: ChordQualityId | null;
   promotion: 'save' | 'work_on_this';
 }
 
@@ -225,6 +251,8 @@ export interface StudyVisualizationRequest {
   comparison_id?: ScaleConceptId | null;
   overlay?: 'notes' | 'intervals';
   selected_interval?: number;
+  selected_voicing?: number;
+  comparison_quality?: ChordQualityId | null;
 }
 
 export interface OpenConceptStudyResponse {

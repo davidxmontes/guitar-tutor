@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import { playScale } from '../utils/audio';
+import { playChord, playScale } from '../utils/audio';
 import { TutorChat } from './TutorChat';
+import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import type {
+  ChordQualityId,
   ConceptId,
   ConceptRelationship,
   ConceptStudyArtifact,
@@ -53,13 +55,38 @@ function ConceptFretboard({ payload, relationship, tutorFocus, showIntervals }: 
   );
 }
 
-function Visualization({ payload, relationship, showIntervals, tutorFocus, onInterval }: {
+function hearConcept(payload: ConceptStudyPayload) {
+  if (payload.visualization === 'chord') playChord(payload.voicings[payload.selected_voicing].positions);
+  else playScale(payload.positions);
+}
+
+function Visualization({ payload, relationship, showIntervals, tutorFocus, onInterval, onVoicing }: {
   payload: ConceptStudyPayload;
   relationship: ConceptRelationship | null;
   showIntervals: boolean;
   tutorFocus: TutorFocus | null;
   onInterval?: (semitones: number) => void;
+  onVoicing?: (index: number) => void;
 }) {
+  if (payload.visualization === 'chord') {
+    return (
+      <section data-testid="study-chord-visualization" className="space-y-4">
+        <div className="flex gap-2 flex-wrap">
+          {payload.notes.map((note) => <div key={note.note} data-testid="study-chord-tone" className="rounded-lg border px-3 py-2 text-center min-w-14" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}><strong>{note.note}</strong><small className="block" style={{ color: 'var(--text-secondary)' }}>{note.interval}</small></div>)}
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2" aria-label="Chord voicings">
+          {payload.voicings.map((voicing, index) => (
+            <button key={voicing.label} type="button" data-testid={`study-voicing-${index}`} aria-pressed={payload.selected_voicing === index} onClick={() => onVoicing?.(index)} className="shrink-0 rounded-xl border p-3 text-center min-w-36" style={{ borderColor: payload.selected_voicing === index ? 'var(--accent-600)' : 'var(--border-primary)', background: payload.selected_voicing === index ? 'var(--accent-50)' : 'var(--card-bg)' }}>
+              <strong className="block text-sm">{voicing.name}</strong>
+              <small style={{ color: 'var(--text-secondary)' }}>{voicing.label}</small>
+              <PhysicalChordDiagram positions={voicing.positions} tuning={payload.tuning} label={voicing.name} />
+            </button>
+          ))}
+        </div>
+        <ConceptFretboard payload={payload} relationship={relationship} tutorFocus={tutorFocus} showIntervals={showIntervals} />
+      </section>
+    );
+  }
   if (payload.visualization === 'interval') {
     return (
       <section data-testid="study-interval-visualization" className="space-y-3">
@@ -98,7 +125,9 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
   const [payload, setPayload] = useState<ConceptStudyPayload | null>(null);
   const [overlay, setOverlay] = useState<'notes' | 'intervals'>('notes');
   const [comparisonId, setComparisonId] = useState<ScaleConceptId | null>(null);
+  const [comparisonQuality, setComparisonQuality] = useState<ChordQualityId | null>(null);
   const [selectedInterval, setSelectedInterval] = useState(7);
+  const [selectedVoicing, setSelectedVoicing] = useState(0);
   const [savedArtifact, setSavedArtifact] = useState<ConceptStudyArtifact | null>(null);
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,21 +140,25 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    apiClient.getStudyVisualization({ root, concept_id: conceptId, comparison_id: comparisonId, overlay, selected_interval: selectedInterval })
+    apiClient.getStudyVisualization({ root, concept_id: conceptId, comparison_id: comparisonId, comparison_quality: comparisonQuality, overlay, selected_interval: selectedInterval, selected_voicing: selectedVoicing })
       .then((next) => { if (!cancelled) setPayload(next); })
       .catch((err) => { if (!cancelled) setError(String(err)); });
     return () => { cancelled = true; };
-  }, [root, conceptId, comparisonId, overlay, selectedInterval]);
+  }, [root, conceptId, comparisonId, comparisonQuality, overlay, selectedInterval, selectedVoicing]);
 
   const chooseConcept = (next: ConceptId) => {
     setSavedArtifact(null);
     setComparisonId(null);
+    setComparisonQuality(null);
+    setSelectedVoicing(0);
     setConceptId(next);
   };
-  const chooseRoot = (next: string) => { setSavedArtifact(null); setRoot(next); };
+  const chooseRoot = (next: string) => { setSavedArtifact(null); setSelectedVoicing(0); setRoot(next); };
   const chooseOverlay = (next: 'notes' | 'intervals') => { setSavedArtifact(null); setOverlay(next); };
   const chooseInterval = (next: number) => { setSavedArtifact(null); setSelectedInterval(next); };
-  const relationship = payload?.visualization === 'scale' && comparisonId ? payload.relationships[0] : null;
+  const relationship = payload?.visualization === 'scale' && comparisonId
+    ? payload.relationships[0]
+    : payload?.visualization === 'chord' && comparisonQuality ? payload.relationships[0] : null;
 
   const promote = async (promotion: 'save' | 'work_on_this') => {
     setBusy(true);
@@ -143,6 +176,8 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
         comparison_id: comparisonId,
         overlay,
         selected_interval: selectedInterval,
+        selected_voicing: selectedVoicing,
+        comparison_quality: comparisonQuality,
         promotion,
       });
       if (promotion === 'save') setSavedArtifact(opened.artifact);
@@ -162,15 +197,15 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
       <aside className="min-w-0 p-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: 'var(--border-primary)', background: 'var(--bg-secondary)' }}>
         <h2 className="text-xl font-black">Study</h2>
         <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>Browse first · save when it matters</p>
-        <div className="flex lg:block gap-3 overflow-x-auto pb-2">
-          {catalog.groups.map((group) => <section key={group.id} className="min-w-48 lg:min-w-0 mb-3"><h3 className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--text-secondary)' }}>{group.display_name}</h3>{group.concepts.map((concept) => <button key={concept.id} type="button" data-testid={`study-concept-${concept.id}`} aria-pressed={conceptId === concept.id} onClick={() => chooseConcept(concept.id)} className="block w-full rounded-lg px-2 py-2 text-left text-sm mb-1" style={{ background: conceptId === concept.id ? 'var(--accent-50)' : 'transparent', color: conceptId === concept.id ? 'var(--accent-700)' : 'var(--text-primary)' }}><strong className="block">{concept.display_name}</strong><small style={{ color: 'var(--text-secondary)' }}>{concept.description}</small></button>)}</section>)}
+        <div className="pb-2">
+          {catalog.groups.map((group) => <section key={group.id} className="mb-3"><h3 className="text-[10px] uppercase tracking-widest font-black mb-1" style={{ color: 'var(--text-secondary)' }}>{group.display_name}</h3><div className="flex lg:block gap-2 overflow-x-auto">{group.concepts.map((concept) => <button key={concept.id} type="button" data-testid={`study-concept-${concept.id}`} aria-pressed={conceptId === concept.id} onClick={() => chooseConcept(concept.id)} className="shrink-0 w-40 lg:w-full rounded-lg px-2 py-2 text-left text-sm mb-1" style={{ background: conceptId === concept.id ? 'var(--accent-50)' : 'transparent', color: conceptId === concept.id ? 'var(--accent-700)' : 'var(--text-primary)' }}><strong className="block">{concept.display_name}</strong><small style={{ color: 'var(--text-secondary)' }}>{concept.description}</small></button>)}</div></section>)}
         </div>
       </aside>
 
       <main className="p-4 min-w-0 space-y-4">
         <header className="flex flex-wrap justify-between gap-3">
           <div><p className="text-[10px] uppercase tracking-widest font-black" style={{ color: 'var(--accent-700)' }}>{payload.visualization} study</p><h2 className="text-2xl font-black">{payload.display_name}</h2><p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Exploring · nothing changes until you save it</p></div>
-          <div className="flex flex-wrap gap-2 items-start"><button type="button" data-testid="study-save" disabled={busy} onClick={() => promote('save')} className="rounded-lg border px-3 py-2 text-sm font-semibold">Save</button><button type="button" data-testid="study-work-on-this" disabled={busy} onClick={() => promote('work_on_this')} className="rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ background: 'var(--accent-600)' }}>Work on this</button>{onCancel && <button type="button" onClick={onCancel} className="rounded-lg border px-3 py-2 text-sm">Close</button>}</div>
+          <div className="flex flex-wrap gap-2 items-start">{payload.visualization === 'chord' && <button type="button" data-testid="study-hear" onClick={() => hearConcept(payload)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Hear</button>}<button type="button" data-testid="study-save" disabled={busy} onClick={() => promote('save')} className="rounded-lg border px-3 py-2 text-sm font-semibold">Save</button><button type="button" data-testid="study-work-on-this" disabled={busy} onClick={() => promote('work_on_this')} className="rounded-lg px-3 py-2 text-sm font-semibold text-white" style={{ background: 'var(--accent-600)' }}>Work on this</button>{onCancel && <button type="button" onClick={onCancel} className="rounded-lg border px-3 py-2 text-sm">Close</button>}</div>
         </header>
         {savedArtifact && <p data-testid="study-saved-status" role="status" className="text-sm font-semibold" style={{ color: 'var(--accent-700)' }}>Saved to My Stuff · keep exploring or work on this</p>}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
@@ -181,8 +216,9 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
           <button type="button" data-testid="study-overlay-notes" aria-pressed={overlay === 'notes'} onClick={() => chooseOverlay('notes')} className="rounded-full border px-3 py-1.5 text-sm">Notes</button>
           <button type="button" data-testid="study-overlay-intervals" aria-pressed={overlay === 'intervals'} onClick={() => chooseOverlay('intervals')} className="rounded-full border px-3 py-1.5 text-sm">Intervals</button>
           {payload.visualization === 'scale' && <button type="button" data-testid="study-toggle-comparison" aria-pressed={Boolean(comparisonId)} onClick={() => { setSavedArtifact(null); setComparisonId((current) => current ? null : payload.relationships[0].id as ScaleConceptId); }} className="rounded-full border px-3 py-1.5 text-sm">{comparisonId ? 'Hide comparison' : payload.relationships[0].label}</button>}
+          {payload.visualization === 'chord' && <button type="button" data-testid="study-toggle-chord-comparison" aria-pressed={Boolean(comparisonQuality)} onClick={() => { setSavedArtifact(null); setComparisonQuality((current) => current ? null : payload.relationships[0].id as ChordQualityId); }} className="rounded-full border px-3 py-1.5 text-sm">{comparisonQuality ? 'Hide comparison' : payload.relationships[0].label}</button>}
         </div>
-        <Visualization payload={payload} relationship={relationship} showIntervals={overlay === 'intervals'} tutorFocus={tutorFocus} onInterval={chooseInterval} />
+        <Visualization payload={payload} relationship={relationship} showIntervals={overlay === 'intervals'} tutorFocus={tutorFocus} onInterval={chooseInterval} onVoicing={(index) => { setSavedArtifact(null); setSelectedVoicing(index); }} />
         {relationship && <p data-testid="concept-relationship" className="text-sm rounded-lg border p-3" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}>{relationship.explanation}</p>}
       </main>
 
@@ -201,6 +237,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
   const [error, setError] = useState<string | null>(null);
   const [showIntervals, setShowIntervals] = useState(false);
   const [comparisonId, setComparisonId] = useState<string | null>(null);
+  const [selectedVoicing, setSelectedVoicing] = useState(0);
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
   const practiceState = branch.selection?.type === 'concept_practice' ? branch.selection : null;
   const tempo = typeof practiceState?.tempo === 'number' ? practiceState.tempo : 80;
@@ -214,12 +251,15 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
         setArtifact(loaded);
         setShowIntervals(loaded.payload.overlay === 'intervals');
         setComparisonId(loaded.payload.visualization === 'scale' ? loaded.payload.comparison_id : null);
+        setSelectedVoicing(loaded.payload.visualization === 'chord' ? loaded.payload.selected_voicing : 0);
       })
       .catch((err) => { if (!cancelled) setError(String(err)); });
     return () => { cancelled = true; };
   }, [branch.current_artifact_id]);
 
-  const relationship = useMemo(() => artifact?.payload.visualization === 'scale' ? artifact.payload.relationships.find((item) => item.id === comparisonId) ?? null : null, [artifact, comparisonId]);
+  const relationship = useMemo(() => artifact?.payload.visualization === 'scale'
+    ? artifact.payload.relationships.find((item) => item.id === comparisonId) ?? null
+    : artifact?.payload.visualization === 'chord' && artifact.payload.comparison_quality ? artifact.payload.relationships[0] : null, [artifact, comparisonId]);
   const setPractice = async (next: Record<string, unknown> | null) => {
     try { onBranchChange(await apiClient.updateV2Branch(sessionId, branch.id, { selection: next })); }
     catch (err) { setError(String(err)); }
@@ -228,14 +268,15 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
   if (error) return <p role="alert">{error}</p>;
   if (!artifact) return <p role="status">Loading ConceptStudy…</p>;
   const payload = artifact.payload;
+  const displayedPayload = payload.visualization === 'chord' ? { ...payload, selected_voicing: selectedVoicing } : payload;
 
   return (
     <div data-testid="concept-study-workspace" className="flex flex-col xl:flex-row gap-4 items-start">
       <main className="flex-1 min-w-0 space-y-5 w-full">
-        <header className="flex flex-wrap justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--border-primary)' }}><div><p className="text-[10px] uppercase tracking-wide font-bold" style={{ color: 'var(--accent-700)' }}>ConceptStudy · saved</p><h2 className="text-2xl font-bold">{payload.display_name}</h2><p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{payload.explanation}</p></div><div className="flex gap-2"><button type="button" data-testid="concept-hear" onClick={() => playScale(payload.positions)} className="rounded-lg border px-3 py-2 text-sm">Hear</button>{!practiceState && <button type="button" data-testid="concept-enter-practice" onClick={() => setPractice({ type: 'concept_practice', tempo: 80 })} className="rounded-lg px-3 py-2 text-sm text-white" style={{ background: 'var(--accent-600)' }}>Practice</button>}</div></header>
+        <header className="flex flex-wrap justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--border-primary)' }}><div><p className="text-[10px] uppercase tracking-wide font-bold" style={{ color: 'var(--accent-700)' }}>ConceptStudy · saved</p><h2 className="text-2xl font-bold">{payload.display_name}</h2><p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{payload.explanation}</p></div><div className="flex gap-2"><button type="button" data-testid="concept-hear" onClick={() => hearConcept(displayedPayload)} className="rounded-lg border px-3 py-2 text-sm">Hear</button>{!practiceState && <button type="button" data-testid="concept-enter-practice" onClick={() => setPractice({ type: 'concept_practice', tempo: 80 })} className="rounded-lg px-3 py-2 text-sm text-white" style={{ background: 'var(--accent-600)' }}>Practice</button>}</div></header>
         {practiceState && <section data-testid="concept-practice" className="rounded-xl border p-4" style={{ background: '#fff6db', borderColor: '#edd48d', color: '#422006' }}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Contextual practice</h3><p className="text-sm">{tempo} BPM · one ascending pass</p></div><div className="flex gap-2"><button type="button" onClick={() => setPractice({ ...practiceState, tempo: Math.max(40, tempo - 5) })} className="rounded border px-3 py-2" aria-label="Slow practice by 5 BPM">−5</button><button type="button" data-testid="concept-practice-faster" onClick={() => setPractice({ ...practiceState, tempo: Math.min(200, tempo + 5) })} className="rounded border px-3 py-2" aria-label="Speed practice by 5 BPM">+5</button><button type="button" data-testid="concept-practice-start" onClick={() => playScale(payload.positions, 60 / tempo)} className="rounded px-3 py-2 text-white" style={{ background: '#1b1e23' }}>Start</button><button type="button" data-testid="concept-exit-practice" onClick={() => setPractice(null)} className="rounded border px-3 py-2">Exit</button></div></div></section>}
         <div className="flex gap-2"><button type="button" aria-pressed={!showIntervals} onClick={() => setShowIntervals(false)} className="rounded-full border px-3 py-1.5 text-sm">Notes</button><button type="button" aria-pressed={showIntervals} onClick={() => setShowIntervals(true)} className="rounded-full border px-3 py-1.5 text-sm">Intervals</button></div>
-        <Visualization payload={payload} relationship={relationship} showIntervals={showIntervals} tutorFocus={tutorFocus} />
+        <Visualization payload={displayedPayload} relationship={relationship} showIntervals={showIntervals} tutorFocus={tutorFocus} onVoicing={setSelectedVoicing} />
         {payload.visualization === 'scale' && <section className="rounded-xl border p-4" style={{ borderColor: 'var(--border-primary)' }}><h3 className="font-bold">What changes?</h3><button type="button" data-testid="concept-compare" aria-pressed={Boolean(comparisonId)} onClick={() => setComparisonId((current) => current ? null : payload.relationships[0].id)} className="rounded-lg border px-3 py-2 text-sm font-semibold mt-2">{comparisonId ? 'Hide comparison' : payload.relationships[0].label}</button>{relationship && <p data-testid="concept-relationship" className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>{relationship.explanation}</p>}</section>}
       </main>
       <TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setTutorFocus} onWorkOnConcept={onWorkOnConcept} emptyMessage="Ask about this concept." />

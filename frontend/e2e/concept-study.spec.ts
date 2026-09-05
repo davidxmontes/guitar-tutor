@@ -95,3 +95,50 @@ test('Study surfaces an initial catalog failure', async ({ page }) => {
 
   await expect(page.getByRole('alert')).toContainText('API error: 500')
 })
+
+test('Chord Study changes voicing locally and reopens the exact promoted selection', async ({ page }) => {
+  await page.goto('/v2')
+  await page.getByTestId('v2-start-concept').click()
+
+  const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
+  await page.getByTestId('study-concept-chord_minor').click()
+  await expect(page.getByTestId('study-chord-visualization')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Am' })).toBeVisible()
+  await expect(page.getByTestId('study-chord-tone')).toContainText(['A', 'C', 'E'])
+
+  await page.getByTestId('study-voicing-1').click()
+  await expect(page.getByTestId('study-voicing-1')).toHaveAttribute('aria-pressed', 'true')
+  await page.getByTestId('study-toggle-chord-comparison').click()
+  await expect(page.getByTestId('concept-comparison-note').first()).toBeVisible()
+  await page.screenshot({ path: 'test-results/chord-study-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 320, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/chord-study-mobile.png', fullPage: true })
+  await page.setViewportSize({ width: 1280, height: 800 })
+
+  const beforePromotion = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
+  expect(beforePromotion.branches).toHaveLength(1)
+  expect(beforePromotion.branches[0].current_artifact_id).toBeNull()
+
+  await page.getByTestId('study-work-on-this').click()
+  await expect(page.getByTestId('concept-study-workspace')).toBeVisible()
+  await expect(page.getByTestId('study-voicing-1')).toHaveAttribute('aria-pressed', 'true')
+
+  const promoted = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
+  expect(promoted.branches).toHaveLength(2)
+  const artifact = await page.request.get(`/api/v2/concept-studies/${promoted.branches[1].current_artifact_id}`).then((response) => response.json())
+  expect(artifact.payload).toMatchObject({
+    visualization: 'chord',
+    root: 'A',
+    quality: 'minor',
+    selected_voicing: 1,
+    comparison_quality: 'major',
+  })
+
+  await page.reload()
+  await page.locator(`[data-testid="v2-continue-session"][data-session-id="${sessionId}"]`).click()
+  await page.getByTestId('v2-branch-tab').nth(1).click()
+  await expect(page.getByRole('heading', { name: 'Am' })).toBeVisible()
+  await expect(page.getByTestId('study-voicing-1')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('concept-comparison-note').first()).toBeVisible()
+})
