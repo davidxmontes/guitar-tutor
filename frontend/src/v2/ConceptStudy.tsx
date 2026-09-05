@@ -158,7 +158,7 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
   if (!catalog || !payload) return <p role="status">Loading Study…</p>;
 
   return (
-    <section className="grid min-w-0 lg:grid-cols-[220px_minmax(0,1fr)_260px] rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>
+    <section className="grid min-w-0 lg:grid-cols-[220px_minmax(0,1fr)_300px] rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>
       <aside className="min-w-0 p-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: 'var(--border-primary)', background: 'var(--bg-secondary)' }}>
         <h2 className="text-xl font-black">Study</h2>
         <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>Browse first · save when it matters</p>
