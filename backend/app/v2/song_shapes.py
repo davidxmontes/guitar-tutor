@@ -45,7 +45,10 @@ def project_song_shapes(
         measure = measures[measure_index]
         if not isinstance(measure, dict):
             continue
-        for beat_index, beat in enumerate(_displayed_beats(measure)):
+        beats = _displayed_beats(measure)
+        if not beats:
+            previous_shape = None
+        for beat_index, beat in enumerate(beats):
             positions = {
                 (note["string"] + 1, note["fret"])
                 for note in beat.get("notes") or []
@@ -57,6 +60,7 @@ def project_song_shapes(
                 and note["fret"] >= 0
             }
             if len({string for string, _fret in positions}) < 2:
+                previous_shape = None
                 continue
 
             shape = tuple(sorted(positions))

@@ -94,3 +94,17 @@ def test_missing_tuning_returns_no_shapes_instead_of_inventing_it():
     tab_data = {"measures": [{"voices": [{"beats": [beat((0, 1), (1, 2))]}]}]}
 
     assert project_song_shapes(tab_data, None, 0, 0) == []
+
+
+def test_same_shape_after_a_lead_beat_remains_a_later_recurrence():
+    shape = ((0, 3), (1, 3))
+    tab_data = {
+        "measures": [
+            {"voices": [{"beats": [beat(*shape), beat((0, 5)), beat(*shape)]}]},
+        ]
+    }
+
+    events = project_song_shapes(tab_data, DROP_D)
+
+    assert len(events) == 2
+    assert [source.beat_index for event in events for source in event.sources] == [0, 2]
