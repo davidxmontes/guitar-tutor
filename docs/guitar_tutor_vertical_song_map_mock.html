@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guitar Tutor V2 — SongStudy Layout Mock</title>
+<style>
+:root{--bg:#eef2f6;--p:#fff;--line:#dce2e9;--ink:#17202b;--muted:#738092;--a:#18a77c;--as:#e9f8f3;--dark:#1b2027}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,system-ui,sans-serif;color:var(--ink)}
+.wrap{max-width:1500px;margin:auto;padding:24px 18px 70px}.hero{background:#171a20;color:#fff;padding:26px 28px;border-radius:22px}
+.hero small{color:#91e5cc;text-transform:uppercase;letter-spacing:.12em;font-weight:800}.hero h1{margin:6px 0 7px;font-size:32px}.hero p{margin:0;color:#d6dbe1}
+.note{margin:16px 0;background:#fff;border-left:5px solid var(--a);padding:12px 14px;border-radius:12px;font-size:13px}
+.frame{background:#111318;border-radius:20px;padding:8px;box-shadow:0 18px 50px #0002}.app{background:#fff;border-radius:14px;overflow:hidden}
+.top{height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.title b{font-size:15px}.title span{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 9px;font-size:9px;font-weight:800}.btn.a{background:var(--a);border-color:var(--a);color:#fff}.btn.dark{background:var(--dark);border-color:var(--dark);color:#fff}
+.layout{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:780px}
+.rail{background:#f8fafb;border-right:1px solid var(--line);padding:12px}.sticky{position:sticky;top:10px}.label{font-size:8px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);font-weight:900}
+.section{border:1px solid var(--line);border-radius:9px;background:#fff;margin-top:7px;overflow:hidden}.section h4{font-size:8px;margin:0;padding:7px;display:flex;justify-content:space-between}.section h4 span{color:var(--muted)}
+.section.current{border-color:#9edbc8}.section.current h4{background:var(--as);color:#0d7558}.nums{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:6px;border-top:1px solid var(--line)}
+.n{height:24px;border:1px solid #e0e5eb;border-radius:5px;background:#fff;font-size:7px;font-weight:800;color:#596575}.n.sel{background:var(--a);color:#fff;border-color:var(--a)}
+.collapsed{padding:7px;border-top:1px solid var(--line);font-size:7px;color:var(--muted)}.rail p{font-size:8px;line-height:1.45;color:var(--muted)}
+.music{position:relative;min-width:0;padding:14px 16px 18px}.focushead{display:flex;justify-content:space-between;align-items:flex-start}.focushead h2{font-size:17px;margin:2px 0}.sub{font-size:9px;color:var(--muted)}
+.tab{margin-top:8px;border:1px solid var(--line);border-radius:13px;overflow:hidden}.tabbar{padding:8px 10px;background:#f7f9fb;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.measures{display:grid;grid-template-columns:repeat(4,1fr);min-height:220px}.measure{padding:11px;border-right:1px solid var(--line);position:relative}.measure:last-child{border:0}.measure.active{background:linear-gradient(#eefaf6,#fff)}
+.mh{font-size:8px;color:#7a8594;font-weight:900;margin-bottom:7px}.tabtxt{font:700 11px/1.8 ui-monospace,monospace;white-space:pre;color:#263141}
+.beat{position:absolute;top:34px;left:21%;width:23%;height:164px;background:#18a77c18;border:1px solid #18a77c44;border-radius:7px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{font-size:8px;font-weight:800;padding:5px 7px;border-radius:999px;background:#f1f4f7;border:1px solid #e0e4e9}.chip.green{background:var(--as);color:#157659;border-color:#bfe7d9}
+.fhead{margin:14px 0 7px;display:flex;justify-content:space-between}.fret{background:#1c2229;border-radius:14px;padding:12px 14px;color:white;border:1px solid #303844}
+.fnums,.string{display:grid;grid-template-columns:30px repeat(13,1fr)}.fnums{font-size:7px;color:#8f9aa6}.fnums span{text-align:center}.string{height:46px;align-items:center}.string>span:first-child{font-size:8px;color:#b7c0ca;font-weight:900}
+.cell{height:100%;border-left:1px solid #3a434d;position:relative;display:flex;justify-content:center;align-items:center}.cell:after{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid #56606b99}
+.dot{position:relative;z-index:2;width:25px;height:25px;border-radius:50%;background:var(--a);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900}.dot.next{background:#232a32;border:2px solid #47c69f;color:#aef0dc}
+.legend{font-size:7px;color:#9da7b1;margin-top:7px}.inspector{margin-top:10px;display:grid;grid-template-columns:1fr 310px;gap:10px}.box{border:1px solid var(--line);border-radius:12px;padding:10px}
+.shapes{display:flex;gap:7px;margin-top:7px}.shape{width:110px;border:1px solid var(--line);border-radius:9px;padding:8px;font-size:8px}.shape.sel{background:var(--as);border-color:#75ceb2}.shape small{display:block;color:var(--muted);margin-top:3px}
+.move p{font-size:9px;color:var(--muted);line-height:1.5}.drawerbtn{position:absolute;right:16px;top:14px}.drawer{position:absolute;top:0;right:0;bottom:0;width:335px;background:#fbfbfd;border-left:1px solid var(--line);box-shadow:-15px 0 40px #0002;padding:14px;transform:translateX(100%);transition:.2s;z-index:5}.drawer.open{transform:translateX(0)}
+.msg{padding:9px 10px;border-radius:10px;font-size:9px;line-height:1.5;margin-top:7px}.msg.u{background:#eef1f4}.msg.ai{background:#f2efff;border:1px solid #d9d0ff}.ask{margin-top:10px;border:1px solid var(--line);border-radius:9px;padding:9px;font-size:9px;color:#8a94a0}
+.mobile{margin-top:30px}.phone{max-width:390px;margin:auto;background:#101217;border-radius:34px;padding:8px}.screen{background:#f8fafb;border-radius:27px;overflow:hidden;min-height:690px}.mhead,.msec{padding:10px;border-bottom:1px solid var(--line)}.mhead{background:#fff}.branch{border:1px solid var(--line);border-radius:9px;padding:7px 8px;display:flex;justify-content:space-between;font-size:10px;font-weight:900}
+.map{display:flex;gap:6px;overflow:auto;margin-top:6px}.seg{min-width:105px;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;font-size:7px;font-weight:800}.seg.cur{background:var(--as);border-color:#9edbc8}
+.mtab{margin-top:6px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:8px}.mtab .tabtxt{font-size:8px}.mfret{margin-top:7px;background:#1d232a;border-radius:10px;padding:8px;color:white}.mfret .string{height:30px}.mfret .dot{width:19px;height:19px;font-size:6px}
+@media(max-width:700px){.desktop{display:none}.wrap{padding:14px 8px 50px}.hero h1{font-size:27px}.hero{padding:22px 18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero"><small>SongStudy layout mock</small><h1>Vertical song map + large fretboard</h1><p>The fretboard gets real teaching space. The song map becomes navigation, not a header. Tutor opens only when needed.</p></div>
+  <div class="note desktop"><b>The idea:</b> sticky ~190px song rail → focused tab → full-width 0–12 fretboard → compact hands/movement inspector. Tutor is a drawer so it doesn't permanently steal fretboard width.</div>
+
+  <div class="frame desktop"><div class="app">
+    <div class="top"><div class="title"><b>Don’t Look Back In Anger — Oasis</b><span>Noel Gallagher · Lead Guitar · Standard tuning · 97 measures</span></div><div class="actions"><button class="btn">Search</button><button class="btn">Enhance</button><button class="btn">Full Tab</button><button class="btn">Practice</button></div></div>
+    <div class="layout">
+      <aside class="rail"><div class="sticky">
+        <div class="label">Song map</div>
+        <div class="section"><h4>Intro <span>1–4</span></h4><div class="collapsed">collapsed</div></div>
+        <div class="section"><h4>Verse 1 <span>5–12</span></h4><div class="collapsed">collapsed</div></div>
+        <div class="section current"><h4>Pre-Chorus <span>13–24</span></h4><div class="nums">
+          <button class="n">13</button><button class="n">14</button><button class="n">15</button><button class="n">16</button>
+          <button class="n">17</button><button class="n">18</button><button class="n">19</button><button class="n">20</button>
+          <button class="n sel">21</button><button class="n sel">22</button><button class="n sel">23</button><button class="n sel">24</button>
+        </div></div>
+        <div class="section"><h4>Chorus <span>25–35</span></h4><div class="collapsed">collapsed</div></div>
+        <div class="section"><h4>Verse 2 <span>36–52</span></h4><div class="collapsed">collapsed</div></div>
+        <div class="section"><h4>Solo / Outro <span>53–97</span></h4><div class="collapsed">collapsed</div></div>
+        <p>Expand a section to see measures. Click to focus; shift-click / drag for a range.</p>
+      </div></aside>
+
+      <main class="music">
+        <button class="btn drawerbtn" onclick="openTutor()">Ask Tutor →</button>
+        <div class="focushead"><div><div class="label">Focused passage</div><h2>Pre-Chorus · measures 21–24</h2><div class="sub">Beat 3 of M24 active · AI alignment: medium</div></div><div class="actions"><button class="btn dark">▶ Play selection</button><button class="btn">Save range</button></div></div>
+        <div class="tab">
+          <div class="tabbar"><span class="label">Focused tab</span><div class="actions"><button class="btn">← Previous</button><button class="btn">Next →</button></div></div>
+          <div class="measures">
+            <div class="measure active"><div class="mh">M21</div><div class="tabtxt">e|────────────
+B|────────────
+G|────────────
+D|────────────
+A|──3──────2──
+E|────────────</div></div>
+            <div class="measure"><div class="mh">M22</div><div class="tabtxt">e|────────────
+B|────────────
+G|────────────
+D|────────────
+A|─0──0h──2───
+E|────────────</div></div>
+            <div class="measure"><div class="mh">M23</div><div class="tabtxt">e|────────────
+B|────────────
+G|────────0───
+D|────────────
+A|────────────
+E|──────3─────</div></div>
+            <div class="measure active"><div class="mh">M24 · active</div><div class="beat"></div><div class="tabtxt">e|────────────
+B|────────────
+G|──5──5─7b─7─
+D|──5h─7──5───
+A|────────────
+E|────────────</div></div>
+          </div>
+        </div>
+        <div class="chips"><span class="chip green">Pre-Chorus</span><span class="chip">F → Fm → C → G → Ab → E → Am → G2</span><span class="chip">selected m21–24</span></div>
+
+        <div class="fhead"><span class="label">Fretboard · relationship view</span><span class="sub">0–12 default · intentionally large</span></div>
+        <div class="fret">
+          <div class="fnums"><span></span><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div>
+          <div class="string"><span>E</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+          <div class="string"><span>B</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="dot">G</span></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+          <div class="string"><span>G</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="dot">C</span></div><div class="cell"></div><div class="cell"><span class="dot next">D</span></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+          <div class="string"><span>D</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="dot">G</span></div><div class="cell"></div><div class="cell"><span class="dot next">A</span></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+          <div class="string"><span>A</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+          <div class="string"><span>E</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+          <div class="legend">● active beat &nbsp;&nbsp; ○ upcoming target &nbsp;&nbsp; click a note to inspect</div>
+        </div>
+
+        <div class="inspector">
+          <div class="box"><div class="label">Hands · shapes in this passage</div><div class="shapes"><div class="shape">m24 · beat 1<small>2-note grip</small></div><div class="shape sel">m24 · beat 3<small>selected shape</small></div><div class="shape">m24 · repeat<small>same grip, shifted</small></div></div></div>
+          <div class="box move"><div class="label">What changes?</div><b>C/G → D/A</b><p>The two-note relationship stays intact while both notes move two frets. The large fretboard makes that motion visible immediately.</p><div class="actions"><button class="btn dark">▶ Hear</button><button class="btn">Practice</button><button class="btn" onclick="openTutor()">Ask why</button></div></div>
+        </div>
+
+        <aside class="drawer" id="drawer"><div class="actions" style="justify-content:space-between"><b style="font-size:11px">Tutor · m21–24</b><button class="btn" onclick="closeTutor()">← Close</button></div><div class="msg u">What changes in the last beat?</div><div class="msg ai">The grip moves together: C/G becomes D/A. Your hand can treat it as one shape moving two frets.</div><div class="actions"><button class="btn">Spotlight movement</button><button class="btn">Give me a drill</button></div><div class="ask">Ask about this passage…</div></aside>
+      </main>
+    </div>
+  </div></div>
+
+  <div class="mobile">
+    <div class="note"><b>Mobile:</b> the left rail becomes a horizontal section strip/drawer. The fretboard still gets serious width; Tutor becomes its own destination/sheet.</div>
+    <div class="phone"><div class="screen">
+      <div class="mhead"><div class="branch"><span>Don’t Look Back In Anger</span><span>▾</span></div><div class="sub" style="margin-top:4px">Pre-Chorus · m21–24 · Lead Guitar</div></div>
+      <div class="msec"><div class="label">Song map · swipe</div><div class="map"><div class="seg">Verse 1 · 5–12</div><div class="seg cur">Pre-Chorus · 13–24<br><b>21 22 23 24</b></div><div class="seg">Chorus · 25–35</div></div></div>
+      <div class="msec"><div class="label">Focused tab · M23–24</div><div class="mtab"><div class="tabtxt">M23              M24
+e|───────────  ───────────
+B|───────────  ───────────
+G|──────0────  ─5─5─7b─7──
+D|───────────  ─5h7──5────
+A|───────────  ───────────
+E|────3──────  ───────────</div></div></div>
+      <div class="msec"><div class="label">Fretboard · active / upcoming</div><div class="mfret">
+        <div class="string"><span>G</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="dot">C</span></div><div class="cell"></div><div class="cell"><span class="dot next">D</span></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="string"><span>D</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="dot">G</span></div><div class="cell"></div><div class="cell"><span class="dot next">A</span></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+      </div><div class="actions" style="margin-top:7px"><button class="btn dark">▶ Play</button><button class="btn">Practice</button><button class="btn">Tutor</button></div></div>
+    </div></div>
+  </div>
+</div>
+<script>
+function openTutor(){document.getElementById('drawer').classList.add('open')}
+function closeTutor(){document.getElementById('drawer').classList.remove('open')}
+</script>
+</body></html>

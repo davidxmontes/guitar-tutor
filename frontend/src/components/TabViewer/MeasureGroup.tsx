@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import type { TabBeat, TabMeasure, TabNote } from '../../types';
 
@@ -21,6 +22,14 @@ const LINE_GAP_PX = 16;
 const STAFF_HEIGHT_PX = LINE_GAP_PX * (NUM_STRINGS - 1);
 const MIN_MEASURE_WIDTH_PX = 180;
 const BEAT_SPACING_PX = 34;
+// Room reserved above the staff for the marker pill + measure number,
+// stacked vertically so a section marker never overlaps the measure number
+// (they used to sit at independent negative offsets that collided).
+const HEADER_ROOM_PX = { compact: 44, full: 48 };
+// Room reserved below the staff for beat annotations (picking direction,
+// "let ring", palm mute) — sized for two wrapped lines so long annotations
+// on narrow beats get ellipsis-free text instead of being clipped.
+const ANNOTATION_ROOM_PX = { compact: 24, full: 28 };
 const TAB_FONT_FAMILY =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const TECHNIQUE_SUFFIXES: Array<{ key: keyof TabNote; suffix: string }> = [
@@ -125,20 +134,47 @@ export function MeasureGroup({
   const leftSliceWidthPx = compact && showLeftBackSlice ? 24 : 0;
   const leftSliceGapPx = compact && showLeftBackSlice ? 6 : 0;
   const leftPaddingPx = 32 + leftSliceWidthPx + leftSliceGapPx;
+  const headerRoomPx = compact ? HEADER_ROOM_PX.compact : HEADER_ROOM_PX.full;
+  const annotationRoomPx = compact ? ANNOTATION_ROOM_PX.compact : ANNOTATION_ROOM_PX.full;
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard nav (←/→/↑/↓ in TabViewer/SongStudy) moves selectedBeatId
+  // without touching scroll position, so a step past the visible edge left
+  // the user staring at the old measures until they scrolled manually.
+  // Follow the selection into view instead.
+  useEffect(() => {
+    if (!selectedBeatId) return;
+    const container = scrollRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLElement>(`[data-beat-id="${selectedBeatId}"]`);
+    target?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedBeatId]);
 
   return (
-    <div className="overflow-x-auto">
-      <div
-        className={compact ? 'rounded-xl border px-2 py-3 md:px-3 md:py-4' : 'rounded-xl border px-3 py-4 md:px-5 md:py-5'}
-        style={{
-          borderColor: 'var(--border-primary)',
-          backgroundColor: 'var(--card-bg)',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
+    // overflow-x-auto lives on the SAME element as the border/background —
+    // they used to be on separate nested divs, and a plain block div sizes
+    // to its own container's width regardless of how wide its content is,
+    // so the white card stopped short of measures that overflowed it,
+    // making the card's own right edge look like a stray measure divider.
+    // A scrolling element's background paints across its full scrollable
+    // width, not just the initial viewport, so merging them fixes it.
+    <div
+      className={
+        compact
+          ? 'overflow-x-auto rounded-xl border px-2 py-3 md:px-3 md:py-4'
+          : 'overflow-x-auto rounded-xl border px-3 py-4 md:px-5 md:py-5'
+      }
+      style={{
+        borderColor: 'var(--border-primary)',
+        backgroundColor: 'var(--card-bg)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+      ref={scrollRef}
+    >
         <div
-          className="relative inline-block min-w-full pr-2 pt-6 pb-7"
-          style={{ paddingLeft: leftPaddingPx }}
+          className="relative inline-block min-w-full pr-2"
+          style={{ paddingLeft: leftPaddingPx, paddingTop: headerRoomPx, paddingBottom: annotationRoomPx }}
         >
           {compact && showLeftBackSlice && (
             <div
@@ -165,8 +201,8 @@ export function MeasureGroup({
           )}
 
           <div
-            className="absolute top-6"
-            style={{ left: leftSliceWidthPx + leftSliceGapPx, height: STAFF_HEIGHT_PX }}
+            className="absolute"
+            style={{ left: leftSliceWidthPx + leftSliceGapPx, top: headerRoomPx, height: STAFF_HEIGHT_PX }}
           >
             {tabStrings.map((label, stringIdx) => (
               <div
@@ -245,29 +281,34 @@ export function MeasureGroup({
                     />
                   )}
 
+                  {/* Marker pill + measure number stack from one anchor so
+                      they can never overlap regardless of pill width. */}
                   <div
-                    className="absolute left-3 text-[11px] font-semibold font-mono"
-                    style={{
-                      top: compact ? -24 : -26,
-                      color: isHighlightedMeasure ? 'var(--accent-500)' : 'var(--text-muted)',
-                      fontFamily: TAB_FONT_FAMILY,
-                    }}
+                    className="absolute left-2 flex flex-col items-start gap-1"
+                    style={{ top: -headerRoomPx }}
                   >
-                    M{measureIndex + 1}
-                  </div>
-
-                  {measure.marker?.text && (
+                    {measure.marker?.text && (
+                      <div
+                        className="rounded-full border px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+                        style={{
+                          borderColor: 'var(--accent-600)',
+                          color: 'var(--accent-600)',
+                          backgroundColor: 'rgba(16,185,129,0.1)',
+                        }}
+                      >
+                        {measure.marker.text}
+                      </div>
+                    )}
                     <div
-                      className="absolute -top-10 left-2 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                      className="pl-1 text-[11px] font-semibold font-mono whitespace-nowrap"
                       style={{
-                        borderColor: 'var(--accent-600)',
-                        color: 'var(--accent-600)',
-                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        color: isHighlightedMeasure ? 'var(--accent-500)' : 'var(--text-muted)',
+                        fontFamily: TAB_FONT_FAMILY,
                       }}
                     >
-                      {measure.marker.text}
+                      M{measureIndex + 1}
                     </div>
-                  )}
+                  </div>
 
                   {beats.length > 0 && hasAnyAnnotation && (
                     <div
@@ -277,7 +318,7 @@ export function MeasureGroup({
                       {compactAnnotations.map((annotation, beatIdx) => (
                         <div
                           key={`annotation:${measureIndex}:${beatIdx}`}
-                          className="px-0.5 leading-none text-center truncate"
+                          className="px-0.5 leading-tight text-center whitespace-normal break-words"
                           style={{
                             width: `${100 / beatColumns}%`,
                             color: 'var(--text-secondary)',
@@ -299,7 +340,7 @@ export function MeasureGroup({
                       const isSelected = beatId === selectedBeatId;
 
                       return (
-                        <div key={beatId}>
+                        <div key={beatId} data-beat-id={beatId}>
                           <button
                             type="button"
                             aria-label={`Select beat ${beatIdx + 1} of measure ${measureIndex + 1}`}
@@ -365,6 +406,5 @@ export function MeasureGroup({
           </div>
         </div>
       </div>
-    </div>
   );
 }
