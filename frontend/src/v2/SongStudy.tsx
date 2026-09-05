@@ -974,7 +974,7 @@ function SongStudyWorkspace({
 
       <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
-      {practice.active && <p data-testid="practice-song-position" className="text-sm">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
+      {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
       <div hidden={practice.focused}><SongEnrichmentPanel
         songStudy={songStudy}
         onChange={onSongStudyChange}
