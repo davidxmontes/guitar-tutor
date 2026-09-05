@@ -176,7 +176,13 @@ test('progression candidate: whole sequence renders, Hear stays local, Save pers
           {
             title: 'Wistful I-vi-IV-V',
             chords: [
-              { root: 'C', quality: 'major', voicing: [{ string: 1, fret: 0 }, { string: 2, fret: 1 }], tuning: 'standard' },
+              {
+                root: 'C',
+                quality: 'major',
+                voicing: [{ string: 1, fret: 0 }, { string: 2, fret: 1 }],
+                tuning: 'standard',
+                fingering: [{ string: 2, fret: 1, finger: 2 }],
+              },
               { root: 'A', quality: 'minor', voicing: [{ string: 1, fret: 0 }], tuning: 'standard' },
               { root: 'F', quality: 'major', voicing: null, tuning: null },
               {

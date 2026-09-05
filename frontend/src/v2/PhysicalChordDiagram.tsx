@@ -111,7 +111,11 @@ export function PhysicalChordDiagram({ positions, tuning, label, barre, fingerin
         />
       )}
       {positions.filter(({ fret }) => fret > 0).map((position) => {
-        const finger = fingering.find((item) => item.string === position.string && item.fret === position.fret);
+        const finger = fingering.find((item) =>
+          (item.provenance === 'source' || item.provenance === 'suggested')
+          && item.string === position.string
+          && item.fret === position.fret
+        );
         const x = getStringX(position.string);
         const y = getFretY(position.fret) + 12;
         return (
