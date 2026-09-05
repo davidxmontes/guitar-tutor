@@ -117,7 +117,31 @@ test('search a song, load the whole track, select a beat, and sync the fretboard
     .then((s) => s.branches.find((b: { id: string }) => b.id === branchId))
   expect(branchAfterRange.selection).toEqual({ type: 'range', startMeasureIndex: 0, endMeasureIndex: 2 })
 
-  // Conventional full-tab view remains available alongside overview + focus.
+  // Conventional full-tab view remains available alongside overview + focus,
+  // now as a dense, continuous reader (composition change: no permanent
+  // fretboard here, and section-labelled rows instead of one big block).
   await page.getByTestId('song-study-toggle-full-tab').click()
   await expect(page.getByTestId('song-study-full-tab')).toBeVisible()
+  await expect(page.getByTestId('song-study-fretboard')).toHaveCount(0)
+
+  // The still-persisted range selection (measures 1-3) surfaces a bridge
+  // back into Overview + Focus: clicking "Focus selection" should move focus
+  // to the start of that range and switch back out of Full Tab.
+  const dock = page.getByTestId('song-study-selection-dock')
+  await expect(dock).toBeVisible()
+  await expect(dock).toContainText('Measures 1–3 selected')
+  await dock.getByTestId('song-study-focus-selection').click()
+
+  await expect(page.getByTestId('song-study-full-tab')).toHaveCount(0)
+  const branchAfterFocusSelection = await page.request
+    .get(`/api/v2/sessions/${sessionId}`)
+    .then((r) => r.json())
+    .then((s) => s.branches.find((b: { id: string }) => b.id === branchId))
+  expect(branchAfterFocusSelection.focus.measureIndex).toBe(0)
+
+  // The compressed, section-grouped overview still surfaces every measure as
+  // a clickable tile (compression groups them, it doesn't hide any) and the
+  // focused detail window is still the readable 2-4 measure workspace.
+  await expect(page.getByTestId('song-study-overview-measure')).toHaveCount(3)
+  await expect(page.getByTestId('song-study-overview-section')).toHaveCount(1)
 })

@@ -6,6 +6,7 @@ interface MeasureGroupProps {
   startMeasureIndex: number;
   selectedBeatId: string | null;
   activeMeasureIndex?: number;
+  selectedMeasureIndices?: Set<number>;
   compact?: boolean;
   showLeftBackSlice?: boolean;
   canStepPrev?: boolean;
@@ -106,6 +107,7 @@ export function MeasureGroup({
   startMeasureIndex,
   selectedBeatId,
   activeMeasureIndex,
+  selectedMeasureIndices,
   compact = false,
   showLeftBackSlice = false,
   canStepPrev = false,
@@ -213,7 +215,8 @@ export function MeasureGroup({
                 (_, beatIdx) => `${measureIndex}:${beatIdx}` === selectedBeatId,
               );
               const isPlayheadMeasure = activeMeasureIndex === measureIndex;
-              const isHighlightedMeasure = measureHasSelectedBeat || isPlayheadMeasure;
+              const isInSelectedRange = selectedMeasureIndices?.has(measureIndex) ?? false;
+              const isHighlightedMeasure = measureHasSelectedBeat || isPlayheadMeasure || isInSelectedRange;
               const isLastInRow = localMeasureIdx === measures.length - 1;
               const measureStyle: CSSProperties = {
                 width: measureWidth,

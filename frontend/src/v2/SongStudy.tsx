@@ -7,7 +7,11 @@ import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
 import type { SongFocus, SongSelection, SongStudyArtifact, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
-const FRESH_FRETBOARD_FRET_COUNT = 15; // readable default window; horizontally scrollable
+// Supporting element, not a primary block (mock #overview callout 3: "large
+// enough to teach the current relationship, no larger by default") — 12
+// frets covers virtually every beat's shape; still horizontally scrollable
+// for outliers.
+const FRESH_FRETBOARD_FRET_COUNT = 12;
 
 interface FretNote {
   string: number; // 1-based, 1 = highest string
@@ -30,13 +34,6 @@ function toFretNotes(beat?: TabBeat): FretNote[] {
   return notes;
 }
 
-function firstMeasureChordLabel(measure: TabMeasure): string | null {
-  for (const beat of getBeatsFromMeasure(measure)) {
-    if (beat.chord?.text) return beat.chord.text;
-  }
-  return null;
-}
-
 function parseBeatId(beatId: string): { measureIndex: number; beatIndex: number } | null {
   const [m, b] = beatId.split(':');
   const measureIndex = Number(m);
@@ -45,10 +42,74 @@ function parseBeatId(beatId: string): { measureIndex: number; beatIndex: number 
   return { measureIndex, beatIndex };
 }
 
-function chunkMeasures<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
+// --- Section grouping: compresses the whole-song overview + gives Full Tab
+// row labels. Uses measure.marker.text (Songsterr's own section markers —
+// "Intro"/"Verse"/"Chorus"/etc, already surfaced on TabMeasure) when the tab
+// has any; falls back to fixed-size chunks when it doesn't. Chord-change
+// boundaries were the other option the ticket allowed, but they're a noisier
+// signal (chords repeat within a section) for no benefit once marker.text is
+// covered — add that heuristic later only if real tabs without markers turn
+// out to look bad chunked.
+const OVERVIEW_CHUNK_SIZE = 8;
+
+interface OverviewSection {
+  label: string;
+  startIndex: number;
+  endIndex: number; // inclusive
+}
+
+function buildOverviewSections(measures: TabMeasure[]): OverviewSection[] {
+  const markers = measures
+    .map((measure, index) => ({ index, label: measure.marker?.text }))
+    .filter((m): m is { index: number; label: string } => Boolean(m.label));
+
+  if (markers.length === 0) {
+    const sections: OverviewSection[] = [];
+    for (let start = 0; start < measures.length; start += OVERVIEW_CHUNK_SIZE) {
+      const endIndex = Math.min(start + OVERVIEW_CHUNK_SIZE, measures.length) - 1;
+      sections.push({ label: `Measures ${start + 1}–${endIndex + 1}`, startIndex: start, endIndex });
+    }
+    return sections;
+  }
+
+  const sections: OverviewSection[] = [];
+  if (markers[0].index > 0) {
+    sections.push({ label: `Measures 1–${markers[0].index}`, startIndex: 0, endIndex: markers[0].index - 1 });
+  }
+  markers.forEach((marker, i) => {
+    const endIndex = (markers[i + 1]?.index ?? measures.length) - 1;
+    sections.push({ label: marker.label, startIndex: marker.index, endIndex });
+  });
+  return sections;
+}
+
+const FULL_TAB_ROW_SIZE = DEFAULT_WINDOW_SIZE;
+
+interface FullTabRow {
+  sectionLabel: string;
+  startIndex: number;
+  endIndex: number; // inclusive
+}
+
+function buildFullTabRows(sections: OverviewSection[]): FullTabRow[] {
+  const rows: FullTabRow[] = [];
+  for (const section of sections) {
+    for (let start = section.startIndex; start <= section.endIndex; start += FULL_TAB_ROW_SIZE) {
+      const endIndex = Math.min(start + FULL_TAB_ROW_SIZE - 1, section.endIndex);
+      rows.push({ sectionLabel: section.label, startIndex: start, endIndex });
+    }
+  }
+  return rows;
+}
+
+function describeSelection(selection: SongSelection | null): string | null {
+  if (!selection) return null;
+  if (selection.type === 'beat') {
+    return `Measure ${selection.measureIndex + 1}, beat ${selection.beatIndex + 1} selected`;
+  }
+  return selection.startMeasureIndex === selection.endMeasureIndex
+    ? `Measure ${selection.startMeasureIndex + 1} selected`
+    : `Measures ${selection.startMeasureIndex + 1}–${selection.endMeasureIndex + 1} selected`;
 }
 
 // --- Fretboard: fresh V2 component. Draws styling cues (dark neck, green
@@ -77,15 +138,16 @@ function SongStudyFretboard({
       style={{
         background: 'linear-gradient(180deg,#20252b 0%,#171b20 100%)',
         border: '1px solid #343b44',
-        borderRadius: 16,
+        borderRadius: 12,
         overflowX: 'auto',
-        padding: 8,
+        padding: 6,
+        maxWidth: 560,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: `34px repeat(${frets.length},minmax(28px,1fr))` }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${frets.length},minmax(22px,1fr))` }}>
         <span />
         {frets.map((f) => (
-          <span key={f} style={{ fontSize: 9, color: '#8d98a5', textAlign: 'center', fontWeight: 800 }}>
+          <span key={f} style={{ fontSize: 8, color: '#8d98a5', textAlign: 'center', fontWeight: 800 }}>
             {f}
           </span>
         ))}
@@ -97,12 +159,12 @@ function SongStudyFretboard({
             key={stringNumber}
             style={{
               display: 'grid',
-              gridTemplateColumns: `34px repeat(${frets.length},minmax(28px,1fr))`,
+              gridTemplateColumns: `28px repeat(${frets.length},minmax(22px,1fr))`,
               alignItems: 'center',
-              height: 30,
+              height: 22,
             }}
           >
-            <div style={{ fontSize: 9, fontWeight: 900, color: '#b7c0c9', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, fontWeight: 900, color: '#b7c0c9', textAlign: 'center' }}>
               {tuningNotes[i] ?? '?'}
             </div>
             {frets.map((fret) => {
@@ -123,13 +185,13 @@ function SongStudyFretboard({
                     <span
                       data-testid={isActive ? 'fretboard-active-note' : 'fretboard-upcoming-note'}
                       style={{
-                        width: 20,
-                        height: 20,
+                        width: 16,
+                        height: 16,
                         borderRadius: '50%',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: 8,
+                        fontSize: 7,
                         fontWeight: 900,
                         background: isActive ? 'linear-gradient(180deg,#2aa878,#1f8f67)' : 'transparent',
                         color: isActive ? '#fff' : '#9fe0c8',
@@ -153,16 +215,20 @@ function SongStudyFretboard({
   );
 }
 
-// --- Overview: whole-track measure map, click to jump, shift-click to pick a range ---
+// --- Overview: section-grouped, compressed measure map. Click a measure tile
+// to jump, shift-click to pick a range, click a section header to jump to
+// its first measure. Kept deliberately small/scrollable (mock #overview
+// callout 1: "~15% of the screen, not the dominant widget") so it stays a
+// secondary navigation strip regardless of song length. ---
 
 function MeasureOverviewStrip({
-  measures,
+  sections,
   focusMeasureIndex,
   selection,
   onJump,
   onRangeSelect,
 }: {
-  measures: TabMeasure[];
+  sections: OverviewSection[];
   focusMeasureIndex: number;
   selection: SongSelection | null;
   onJump: (measureIndex: number) => void;
@@ -182,45 +248,84 @@ function MeasureOverviewStrip({
   return (
     <div
       data-testid="song-study-overview"
-      role="list"
       aria-label="Song overview"
-      style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}
+      style={{ display: 'flex', gap: 6, overflowX: 'auto', overflowY: 'auto', maxHeight: 160, paddingBottom: 2 }}
     >
-      {measures.map((measure, idx) => {
-        const inFocus = idx === focusMeasureIndex;
-        const inRange =
-          selection?.type === 'range' && idx >= selection.startMeasureIndex && idx <= selection.endMeasureIndex;
-        const chordLabel = firstMeasureChordLabel(measure);
-        const markerText = measure.marker?.text;
-        return (
+      {sections.map((section) => (
+        <div
+          key={section.startIndex}
+          data-testid="song-study-overview-section"
+          style={{
+            flex: '0 0 auto',
+            minWidth: 176,
+            border: '1px solid var(--border-primary)',
+            borderRadius: 8,
+            backgroundColor: 'var(--card-bg)',
+            overflow: 'hidden',
+          }}
+        >
           <button
-            key={idx}
             type="button"
-            role="listitem"
-            data-testid="song-study-overview-measure"
-            data-measure-index={idx}
-            onClick={(e) => handleClick(idx, e.shiftKey)}
-            title={`Jump to measure ${idx + 1}${markerText ? ` (${markerText})` : ''} — shift-click to select a range`}
+            onClick={() => handleClick(section.startIndex, false)}
+            title={`Jump to ${section.label}`}
             style={{
-              width: 46,
-              minHeight: 34,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              justifyContent: 'flex-start',
-              padding: 4,
-              border: '1px solid var(--border-primary)',
-              borderRadius: 6,
-              backgroundColor: inRange ? 'var(--accent-500)' : inFocus ? 'var(--accent-600)' : 'var(--card-bg)',
-              color: inRange || inFocus ? 'white' : 'var(--text-secondary)',
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              fontSize: 9,
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              padding: '4px 6px',
+              border: 0,
+              backgroundColor: 'var(--bg-secondary)',
+              borderBottom: '1px solid var(--border-primary)',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
             }}
           >
-            <span style={{ fontSize: 9, fontWeight: 800 }}>{idx + 1}</span>
-            {chordLabel && <span style={{ fontSize: 8 }}>{chordLabel}</span>}
+            {section.label}
           </button>
-        );
-      })}
+          <div
+            role="list"
+            aria-label={section.label}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 20px)', gap: 2, padding: 4 }}
+          >
+            {Array.from({ length: section.endIndex - section.startIndex + 1 }, (_, i) => section.startIndex + i).map(
+              (idx) => {
+                const inFocus = idx === focusMeasureIndex;
+                const inRange =
+                  selection?.type === 'range' && idx >= selection.startMeasureIndex && idx <= selection.endMeasureIndex;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    role="listitem"
+                    data-testid="song-study-overview-measure"
+                    data-measure-index={idx}
+                    onClick={(e) => handleClick(idx, e.shiftKey)}
+                    title={`Jump to measure ${idx + 1} — shift-click to select a range`}
+                    style={{
+                      width: 20,
+                      height: 16,
+                      padding: 0,
+                      fontSize: 7,
+                      fontWeight: 800,
+                      border: '1px solid var(--border-secondary)',
+                      borderRadius: 3,
+                      backgroundColor: inRange ? 'var(--accent-500)' : inFocus ? 'var(--accent-600)' : 'var(--bg-secondary)',
+                      color: inRange || inFocus ? 'white' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              },
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -475,6 +580,30 @@ function SongStudyWorkspace({
 
   const selectedBeatId = selection?.type === 'beat' ? `${selection.measureIndex}:${selection.beatIndex}` : null;
   const detailMeasures = measures.slice(focus.measureIndex, focus.measureIndex + focus.windowSize);
+  const detailEndIndex = Math.min(focus.measureIndex + focus.windowSize, measureCount) - 1;
+
+  const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
+  const fullTabRows = useMemo(() => buildFullTabRows(overviewSections), [overviewSections]);
+
+  // Measures spanned by a range selection — highlighted wherever they render
+  // (Full Tab rows, and the focused detail window), so a selection made in
+  // one view stays visible when the other view is showing the same measures.
+  const selectedMeasureIndices = useMemo(() => {
+    if (selection?.type !== 'range') return undefined;
+    const set = new Set<number>();
+    for (let i = selection.startMeasureIndex; i <= selection.endMeasureIndex; i += 1) set.add(i);
+    return set;
+  }, [selection]);
+
+  // Full Tab -> Overview + Focus bridge: jump focus to the start of whatever
+  // is selected and switch views, rather than leaving "focus selection" as a
+  // manual toggle + manual measure search.
+  const focusSelection = useCallback(() => {
+    if (!selection) return;
+    const startIndex = selection.type === 'range' ? selection.startMeasureIndex : selection.measureIndex;
+    jumpToMeasure(startIndex);
+    setShowFullTab(false);
+  }, [selection, jumpToMeasure]);
 
   if (measureCount === 0) {
     return (
@@ -546,48 +675,146 @@ function SongStudyWorkspace({
       </div>
 
       {!showFullTab ? (
+        // Overview + Focus: the compressed section map is a secondary strip
+        // above; the focused 2-4 measures are the dominant area below it
+        // (mock #overview callouts 1-2), with the fretboard as a small
+        // supporting element underneath (callout 3).
         <>
           <MeasureOverviewStrip
-            measures={measures}
+            sections={overviewSections}
             focusMeasureIndex={focus.measureIndex}
             selection={selection}
             onJump={jumpToMeasure}
             onRangeSelect={selectRange}
           />
-          <MeasureGroup
-            measures={detailMeasures}
-            startMeasureIndex={focus.measureIndex}
-            selectedBeatId={selectedBeatId}
-            activeMeasureIndex={focus.measureIndex}
-            onBeatClick={(_beat, beatId) => selectBeat(beatId)}
-            tuningNotes={tuningNotes ?? undefined}
-          />
-        </>
-      ) : (
-        <div data-testid="song-study-full-tab" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {chunkMeasures(measures, DEFAULT_WINDOW_SIZE).map((row, i) => (
+
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p
+                  className="text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Focused passage
+                </p>
+                <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Measures {focus.measureIndex + 1}–{detailEndIndex + 1}
+                </h3>
+                {activeBeatIndex >= 0 && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                    Beat {beatSequence[activeBeatIndex].beatIndex + 1} of M
+                    {beatSequence[activeBeatIndex].measureIndex + 1} active
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  data-testid="song-study-focus-prev"
+                  disabled={focus.measureIndex === 0}
+                  onClick={() => jumpToMeasure(focus.measureIndex - focus.windowSize)}
+                  className={headerButtonClass}
+                  style={headerButtonStyle}
+                >
+                  ← Previous
+                </button>
+                <button
+                  type="button"
+                  data-testid="song-study-focus-next"
+                  disabled={detailEndIndex >= measureCount - 1}
+                  onClick={() => jumpToMeasure(focus.measureIndex + focus.windowSize)}
+                  className={headerButtonClass}
+                  style={headerButtonStyle}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+
             <MeasureGroup
-              key={i}
-              measures={row}
-              startMeasureIndex={i * DEFAULT_WINDOW_SIZE}
+              measures={detailMeasures}
+              startMeasureIndex={focus.measureIndex}
               selectedBeatId={selectedBeatId}
               activeMeasureIndex={focus.measureIndex}
+              selectedMeasureIndices={selectedMeasureIndices}
               onBeatClick={(_beat, beatId) => selectBeat(beatId)}
               tuningNotes={tuningNotes ?? undefined}
             />
-          ))}
-        </div>
-      )}
+          </div>
 
-      {trackTuningMidi && tuningNotes ? (
-        <SongStudyFretboard
-          tuningMidi={trackTuningMidi}
-          tuningNotes={tuningNotes}
-          activeNotes={activeNotes}
-          upcomingNotes={upcomingNotes}
-        />
+          <div>
+            <p
+              className="text-[10px] font-bold uppercase tracking-wide mb-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Fretboard · relationship view
+            </p>
+            {trackTuningMidi && tuningNotes ? (
+              <SongStudyFretboard
+                tuningMidi={trackTuningMidi}
+                tuningNotes={tuningNotes}
+                activeNotes={activeNotes}
+                upcomingNotes={upcomingNotes}
+              />
+            ) : (
+              <p role="status">No tuning data for this track — showing tab only.</p>
+            )}
+          </div>
+        </>
       ) : (
-        <p role="status">No tuning data for this track — showing tab only.</p>
+        // Full Tab: dense, continuous whole-song reader. No permanent
+        // fretboard here (mock #full: "remove the permanent fretboard...
+        // give the tab the width"). A selection surfaces a dock with a
+        // bridge back into Overview + Focus on exactly that range.
+        <div className="flex flex-col gap-3">
+          <div data-testid="song-study-full-tab" className="flex flex-col gap-2">
+            {fullTabRows.map((row) => (
+              <div
+                key={`${row.startIndex}-${row.endIndex}`}
+                className="rounded-lg border overflow-hidden"
+                style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--card-bg)' }}
+              >
+                <div
+                  className="flex items-center justify-between px-2 py-1 text-[9px] font-bold border-b"
+                  style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+                >
+                  <span>
+                    {row.sectionLabel} · measures {row.startIndex + 1}–{row.endIndex + 1}
+                  </span>
+                </div>
+                <MeasureGroup
+                  measures={measures.slice(row.startIndex, row.endIndex + 1)}
+                  startMeasureIndex={row.startIndex}
+                  selectedBeatId={selectedBeatId}
+                  activeMeasureIndex={focus.measureIndex}
+                  selectedMeasureIndices={selectedMeasureIndices}
+                  onBeatClick={(_beat, beatId) => selectBeat(beatId)}
+                  tuningNotes={tuningNotes ?? undefined}
+                  compact
+                />
+              </div>
+            ))}
+          </div>
+
+          {selection && (
+            <div
+              data-testid="song-study-selection-dock"
+              className="sticky bottom-2 flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+              style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)' }}
+            >
+              <strong className="text-xs font-bold">{describeSelection(selection)}</strong>
+              <button
+                type="button"
+                data-testid="song-study-focus-selection"
+                onClick={focusSelection}
+                className="px-3 py-1.5 rounded-md text-xs font-medium"
+                style={{ backgroundColor: 'var(--accent-500)', color: 'white' }}
+              >
+                Focus selection
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
