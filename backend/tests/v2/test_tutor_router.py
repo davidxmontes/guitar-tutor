@@ -191,6 +191,101 @@ def test_ownership_is_validated_before_any_provider_call() -> None:
     assert calls == []
 
 
+def test_tutor_turn_resolves_and_returns_progression_candidates() -> None:
+    store = InMemoryV2Store()
+    model = ScriptedTutorModel(
+        outcomes=[
+            {
+                "message": "Here's an idea inspired by this passage.",
+                "focus": None,
+                "candidates": [{"title": "Wistful I-vi-IV-V", "chords": [{"root": "C", "quality": "major"}]}],
+            }
+        ],
+        usage_metadatas=[None],
+    )
+    client = _app(store, _scripted_factory(model))
+    session_id, branch_id = _open_session_and_branch(client)
+
+    response = client.post(
+        "/api/v2/tutor/turns",
+        json={"session_id": session_id, "branch_id": branch_id, "message": "make me something wistful"},
+    )
+
+    assert response.status_code == 200
+    candidates = response.json()["candidates"]
+    assert candidates[0]["title"] == "Wistful I-vi-IV-V"
+    assert candidates[0]["chords"][0]["voicing"]  # resolved server-side, deterministically
+
+
+def test_progression_candidates_remain_addressable_in_a_follow_up_turn() -> None:
+    """Acceptance criterion: "Progression candidates remain session state
+    until applied/saved/dismissed and remain addressable in follow-up
+    turns." Proven the same way every other statelessness test in this file
+    is: a second, separately-scripted model must still see the first turn's
+    candidate -- reconstructed purely from persisted TutorMessage rows."""
+    store = InMemoryV2Store()
+    first_model = ScriptedTutorModel(
+        outcomes=[
+            {
+                "message": "Here are two ideas.",
+                "focus": None,
+                "candidates": [
+                    {"title": "Wistful I-vi-IV-V", "chords": [{"root": "C", "quality": "major"}]},
+                    {"title": "Moody ii-V-I", "chords": [{"root": "D", "quality": "minor"}]},
+                ],
+            }
+        ],
+        usage_metadatas=[None],
+    )
+    client = _app(store, _scripted_factory(first_model))
+    session_id, branch_id = _open_session_and_branch(client)
+    client.post(
+        "/api/v2/tutor/turns",
+        json={"session_id": session_id, "branch_id": branch_id, "message": "make me something wistful"},
+    )
+
+    second_model = ScriptedTutorModel(outcomes=[{"message": "Saving the second one.", "focus": None}], usage_metadatas=[None])
+    client.app.dependency_overrides[get_tutor_model_factory] = lambda: _scripted_factory(second_model)
+
+    second = client.post(
+        "/api/v2/tutor/turns",
+        json={"session_id": session_id, "branch_id": branch_id, "message": "save the second one"},
+    )
+
+    assert second.status_code == 200
+    second_call_text = " ".join(str(m.content) for m in second_model.calls[0])
+    assert "Moody ii-V-I" in second_call_text
+    assert "Wistful I-vi-IV-V" in second_call_text
+
+
+def test_persisted_assistant_message_carries_structured_candidates_for_history_reload() -> None:
+    """The frontend reconstructs a prior turn's candidates from the same
+    persisted TutorMessage row (not just the model-facing text summary) so a
+    history reload can re-render them -- see router.py's persistence call
+    and prompt.py's reconstruct_history for the model-facing side."""
+    store = InMemoryV2Store()
+    model = ScriptedTutorModel(
+        outcomes=[
+            {
+                "message": "An idea.",
+                "focus": None,
+                "candidates": [{"title": "Idea", "chords": [{"root": "C", "quality": "major"}]}],
+            }
+        ],
+        usage_metadatas=[None],
+    )
+    client = _app(store, _scripted_factory(model))
+    session_id, branch_id = _open_session_and_branch(client)
+    thread_id = store.get_session(session_id, "user_1").branches[0].tutor_thread_id
+
+    client.post("/api/v2/tutor/turns", json={"session_id": session_id, "branch_id": branch_id, "message": "make me something"})
+
+    history = client.get(f"/api/v2/tutor/threads/{thread_id}/messages").json()
+    assistant_message = next(m for m in history if m["role"] == "assistant")
+    assert assistant_message["content"]["candidates"][0]["title"] == "Idea"
+    assert assistant_message["content"]["candidates"][0]["chords"][0]["voicing"]
+
+
 def test_capability_error_returns_422_and_persists_nothing() -> None:
     store = InMemoryV2Store()
     model = ScriptedTutorModel(unsupported_tools=True)

@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { V2Session, V2Branch, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest } from '../types/v2';
+import type { V2Session, V2Branch, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionPayload, ProgressionArtifact } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -339,6 +339,15 @@ class ApiClient {
 
   async sendTutorTurn(data: TutorTurnRequest): Promise<TutorResponse> {
     return this.fetch<TutorResponse>('/v2/tutor/turns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // --- V2: Progression artifact (ticket #14) ---
+
+  async createProgression(data: ProgressionPayload): Promise<ProgressionArtifact> {
+    return this.fetch<ProgressionArtifact>('/v2/progressions', {
       method: 'POST',
       body: JSON.stringify(data),
     });

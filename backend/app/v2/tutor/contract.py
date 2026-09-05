@@ -1,18 +1,23 @@
 """TutorResponse contract (ticket #13): the semantic output of one stateless
 tutor turn, plus exactly the observability fields the ticket's acceptance
 criteria require (provider/model, latency, usage, tool-call count, terminal
-status). Candidate/mutation-proposal/exercise-suggestion fields are explicit
-out-of-scope for this ticket — they belong to #14/#16/#20.
+status). Progression candidates are ticket #14; mutation-proposal/
+exercise-suggestion fields remain out-of-scope for #16/#20.
 
 `TutorTerminal` is the schema handed to the model as its structured-output
 tool (see runner.py) — kept separate from `TutorResponse` so the LLM-facing
 schema never grows API-only observability fields the model has no business
-producing.
+producing. `TutorTerminal.candidates` carries only symbolic chord ideas
+(root/quality) the model proposed; runner.py resolves each into a full
+`ProgressionPayload` (with a resolved voicing where chord_service has one)
+before it reaches `TutorResponse.candidates`.
 """
 
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+from app.v2.models import ProgressionPayload
 
 
 class FretPosition(BaseModel):
@@ -37,6 +42,29 @@ class TutorFocus(BaseModel):
     label: Optional[str] = None
 
 
+class ProgressionChordIdea(BaseModel):
+    """One symbolic chord in a tutor-proposed progression candidate (ticket
+    #14) — root + quality only. The tutor never invents physical string/fret
+    positions for a progression candidate here (arbitrary creative voicings
+    are ticket #16's job); runner.py resolves each idea's voicing
+    deterministically via chord_service after the model responds."""
+
+    root: str
+    quality: str
+
+
+class ProgressionCandidate(BaseModel):
+    """A tutor-proposed progression candidate (ticket #14), tied to the
+    current SongStudy context — symbolic chords only, exactly as the model
+    proposed them. Session state until saved/dismissed; not itself a
+    durable Artifact (see runner.py for voicing resolution into the
+    response's resolved `ProgressionPayload` candidates, and router.py's
+    save endpoint for persistence)."""
+
+    title: str
+    chords: list[ProgressionChordIdea]
+
+
 class TutorTerminal(BaseModel):
     """The exact structured shape the model must return via tool-calling
     (see runner.py's `ToolStrategy(TutorTerminal)`). A plain conversational
@@ -46,6 +74,7 @@ class TutorTerminal(BaseModel):
 
     message: str
     focus: Optional[TutorFocus] = None
+    candidates: Optional[list[ProgressionCandidate]] = None
 
 
 class TutorUsage(BaseModel):
@@ -78,6 +107,7 @@ class TutorResponse(BaseModel):
 
     message: str
     focus: Optional[TutorFocus] = None
+    candidates: Optional[list[ProgressionPayload]] = None
     provider: str
     model: str
     latency_ms: int

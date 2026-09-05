@@ -138,9 +138,38 @@ export interface TutorUsage {
   reasoning_tokens?: number | null;
 }
 
+// --- Progression (ticket #14). `voicing`/`tuning` are populated only when
+// the backend's chord_service had a curated voicing for that root/quality --
+// no entry is expected/normal, not an error; the diagram simply has nothing
+// to draw for that chord.
+
+export interface ProgressionVoicingPosition {
+  string: number;
+  fret: number;
+}
+
+export interface ProgressionChord {
+  root: string;
+  quality: string;
+  voicing: ProgressionVoicingPosition[] | null;
+  tuning: string | null;
+}
+
+export interface ProgressionPayload {
+  title: string;
+  chords: ProgressionChord[];
+  inspired_by: Record<string, unknown> | null;
+}
+
+export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
+  kind: 'progression';
+  payload: ProgressionPayload;
+};
+
 export interface TutorResponse {
   message: string;
   focus: TutorFocus | null;
+  candidates: ProgressionPayload[] | null;
   provider: string;
   model: string;
   latency_ms: number;
@@ -161,6 +190,6 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { text?: string; focus?: TutorFocus | null; [key: string]: unknown };
+  content: { text?: string; focus?: TutorFocus | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }
