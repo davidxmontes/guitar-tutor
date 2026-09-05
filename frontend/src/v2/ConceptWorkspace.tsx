@@ -17,6 +17,9 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const [tutorBusy, setTutorBusy] = useState(false);
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [studyName, setStudyName] = useState(workspace.title);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('Loading workspace…');
   const [busy, setBusy] = useState(true);
@@ -80,6 +83,15 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     try { setResolved(await apiClient.resolveConceptWorkspace(next)); }
     catch { setError('Your Tutor change is saved, but its views could not load. Reload to try again.'); }
   };
+  const saveStudy = async (asNew = false) => {
+    setBusy(true); onPendingChange(true); setSaveError(null); setSaveMessage(null);
+    try {
+      const updated = await apiClient.saveWorkspaceStudy(sessionId, branch.id, workspace.version, studyName.trim(), asNew);
+      saved.current = updated.working_draft!; setWorkspace(saved.current); setStudyName(saved.current.title);
+      onBranchChange(updated); setStatus('Draft autosaved'); setSaveMessage(asNew ? 'Saved as a new study in My Stuff.' : 'Study saved in My Stuff.');
+    } catch (error) { setSaveError(`${String(error)} Your draft is still here. Retry Save, or save it as a new study. Reload this branch to check an interrupted save; open the latest saved version from My Stuff to compare.`); }
+    finally { setBusy(false); onPendingChange(false); }
+  };
   const locked = busy || tutorBusy;
   const updateSettings = (block: WorkspaceBlock, patch: Partial<WorkspaceBlock['settings']>) => change({ ...workspace, blocks: workspace.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, ...patch } } : item) });
   const editScale = (id: string | null, patch: { root?: string; mode?: ScaleMode }) => change({ ...workspace, entities: workspace.entities.map(entity => !id || entity.id === id ? { ...entity, ...patch } : entity) });
@@ -112,6 +124,14 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
         } catch { setError('Audio could not start. Try Hear again. Your draft is unchanged.'); }
       }}>{playing ? 'Stop playback' : 'Hear comparison'}</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
     </header>
+    <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void saveStudy(); }}>
+      <label className="min-w-0">Study name<input required maxLength={120} value={studyName} disabled={locked}
+        onChange={event => setStudyName(event.target.value)} className={`${control} block w-full focus-visible:outline-2 focus-visible:outline-[var(--accent-700)]`} /></label>
+      <button className={control} disabled={locked || workspace !== saved.current || !studyName.trim()}>{branch.current_artifact_id ? 'Save version' : 'Save as study'}</button>
+      {branch.current_artifact_id && <button type="button" className={control} disabled={locked || workspace !== saved.current || !studyName.trim()} onClick={() => saveStudy(true)}>Save as a new study</button>}
+      {saveMessage && <p role="status">{saveMessage}</p>}
+    </form>
+    {saveError && <p role="alert">{saveError}</p>}
     {error && <div role="alert" className="space-y-2"><p>{error}</p>{workspace !== saved.current && <div className="flex flex-wrap gap-2"><button className={control} disabled={locked} onClick={() => persist(workspace)}>Retry autosave</button><button className={control} onClick={() => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'concept-workspace.json'; link.click(); URL.revokeObjectURL(url); onPendingChange(false);
     }}>Download draft</button></div>}</div>}

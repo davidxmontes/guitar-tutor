@@ -11,6 +11,7 @@ export interface V2Branch {
   current_artifact_kind: ArtifactKind | null;
   current_artifact_id: string | null;
   working_draft?: ConceptWorkspace | null;
+  saved_artifact_revision?: string | null;
   selection: Record<string, unknown> | null;
   focus: Record<string, unknown> | null;
   recent_ideas: Record<string, unknown>[];
