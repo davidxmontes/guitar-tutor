@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import DynamicCORSMiddleware, get_settings, setup_logging
 from app.exceptions import register_exception_handlers
 from app.routers import fretboard, tunings, scales, chords, agent, songs, user
+from app.v2.router import router as v2_router
 from app.telemetry import setup_telemetry
 
 setup_logging()
@@ -42,6 +43,7 @@ app.include_router(chords.router, prefix="/api", tags=["chords"])
 app.include_router(agent.router, prefix="/api", tags=["agent"])
 app.include_router(songs.router, prefix="/api", tags=["songs"])
 app.include_router(user.router, prefix="/api", tags=["user"])
+app.include_router(v2_router, prefix="/api/v2", tags=["v2"])
 
 
 @app.get("/")
