@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { playMetronomeClick } from '../utils/audio';
 import { practicePosition } from './practiceTiming';
 
-export function usePractice(durations: readonly number[]) {
+export function usePractice(durations: readonly number[], initialTempo = 80) {
   const [active, setActive] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [tempo, setTempo] = useState(80);
+  const [tempo, setTempo] = useState(initialTempo);
   const [loop, setLoop] = useState(true);
   const [countIn, setCountIn] = useState(4);
   const [metronome, setMetronome] = useState(true);

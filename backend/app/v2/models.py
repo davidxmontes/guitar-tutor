@@ -369,3 +369,39 @@ class TutorMessage(BaseModel):
     role: TutorMessageRole
     content: dict[str, Any]
     created_at: str
+
+
+class ExerciseStep(BaseModel):
+    """One timed physical event; an empty position list is an explicit rest."""
+    label: str = Field(min_length=1, max_length=120)
+    beats: float = Field(gt=0, le=64, allow_inf_nan=False)
+    positions: list[ProgressionVoicingPosition] = Field(max_length=6)
+    tuning: list[Annotated[int, Field(ge=0, le=127, strict=True)]] = Field(min_length=6, max_length=6)
+
+    @model_validator(mode="after")
+    def unique_strings(self):
+        if len({p.string for p in self.positions}) != len(self.positions):
+            raise ValueError("One fret per string is required")
+        return self
+
+
+class ExerciseDraft(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    intent: str = Field(min_length=1, max_length=500)
+    tempo: int = Field(default=80, ge=30, le=240)
+    steps: list[ExerciseStep] = Field(min_length=1, max_length=256)
+
+    @model_validator(mode="after")
+    def meaningful_intent(self):
+        if not self.title.strip() or not self.intent.strip():
+            raise ValueError("Give the drill a title and practice goal")
+        return self
+
+
+class ExercisePayload(ExerciseDraft):
+    created_from: dict[str, Any]
+
+
+class ExerciseArtifact(Artifact):
+    kind: Literal["exercise"]
+    payload: ExercisePayload

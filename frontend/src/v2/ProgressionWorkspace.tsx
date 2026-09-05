@@ -1,3 +1,5 @@
+import { ExerciseComposer } from './ExerciseComposer';
+import { progressionDrill } from './exerciseMaterial';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 import { hearVoicing } from './voicingAudio';
@@ -71,6 +73,7 @@ export function ProgressionWorkspace({ sessionId, branch, onBranchChange }: {
           {sourceTitle && <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Inspired by {sourceTitle}</p>}
         </header>
 
+        {!practice.active && <ExerciseComposer sourceId={artifact.id} revision={artifact.updated_at} selection={branch.selection} steps={progressionDrill(artifact.payload, beatsPerChord)} />}
         <PracticeControls practice={practice} available={durations.length > 0} label="progression" />
         {practice.active && <label className="block text-sm">Beats per chord <select aria-label="Beats per chord" disabled={practice.running} value={beatsPerChord} onChange={e => { practice.reset(); setBeatsPerChord(Number(e.target.value)); }} className="min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-input)] px-2 text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent-600)]"><option value="1">1</option><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>}
         {artifact.payload.chords.length === 0 ? (

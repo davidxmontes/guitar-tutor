@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
+import type { ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -405,6 +405,13 @@ class ApiClient {
       method: 'PATCH', body: JSON.stringify(proposal),
     });
   }
+
+  async saveExercise(data: ExerciseProposal): Promise<ExerciseArtifact> {
+    return this.fetch('/v2/exercises', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async listExercises(): Promise<ExerciseArtifact[]> { return this.fetch('/v2/exercises'); }
+  async getExercise(id: string): Promise<ExerciseArtifact> { return this.fetch(`/v2/exercises/${id}`); }
+  async openExercise(id: string): Promise<V2Session> { return this.fetch(`/v2/exercises/${id}/open`, { method: 'POST' }); }
 
   async getProgression(artifactId: string): Promise<ProgressionArtifact> {
     return this.fetch<ProgressionArtifact>(`/v2/progressions/${artifactId}`);

@@ -2,7 +2,7 @@
 tutor turn, plus exactly the observability fields the ticket's acceptance
 criteria require (provider/model, latency, usage, tool-call count, terminal
 status). Progression candidates are ticket #14; Ticket #16 adds physical voicing proposals bound to the loaded artifact revision.
-Exercise suggestions remain scoped to #20. Ticket #21 adds
+Ticket #20 adds deliberate Exercise suggestions requiring explicit user saves. Ticket #21 adds
 `concept_suggestion` for explicit ConceptStudy promotion.
 
 `TutorTerminal` is the schema handed to the model as its structured-output
@@ -18,7 +18,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from app.v2.models import ConceptId, ProgressionPayload, ProgressionChord
+from app.v2.models import ExerciseDraft, ConceptId, ProgressionPayload, ProgressionChord
 
 
 class FretPosition(BaseModel):
@@ -89,6 +89,12 @@ class VoicingProposal(VoicingCandidate):
     expected_updated_at: str
 
 
+class ExerciseProposal(ExerciseDraft):
+    source_artifact_id: str
+    expected_updated_at: str
+    source_selection: Optional[dict] = None
+
+
 class TutorTerminal(BaseModel):
     """The exact structured shape the model must return via tool-calling
     (see runner.py's `ToolStrategy(TutorTerminal)`). A plain conversational
@@ -101,6 +107,7 @@ class TutorTerminal(BaseModel):
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionCandidate]] = None
     voicing_candidates: Optional[list[VoicingCandidate]] = None
+    exercise_suggestion: Optional[ExerciseDraft] = None
 
 
 class TutorUsage(BaseModel):
@@ -136,6 +143,7 @@ class TutorResponse(BaseModel):
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionPayload]] = None
     voicing_candidates: Optional[list[VoicingProposal]] = None
+    exercise_suggestion: Optional[ExerciseProposal] = None
     provider: str
     model: str
     latency_ms: int

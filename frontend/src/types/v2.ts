@@ -398,6 +398,7 @@ export interface TutorResponse {
   focus: TutorFocus | null;
   concept_suggestion?: ConceptSuggestion | null;
   candidates: ProgressionPayload[] | null;
+  exercise_suggestion?: ExerciseProposal | null;
   voicing_candidates?: VoicingProposal[] | null;
   provider: string;
   model: string;
@@ -419,6 +420,28 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
+  content: { exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }
+
+export interface ExerciseStep {
+  label: string;
+  beats: number;
+  positions: { string: number; fret: number }[];
+  tuning: number[];
+}
+export interface ExerciseDraft {
+  title: string;
+  intent: string;
+  tempo: number;
+  steps: ExerciseStep[];
+}
+export interface ExerciseProposal extends ExerciseDraft {
+  source_artifact_id: string;
+  expected_updated_at: string;
+  source_selection: Record<string, unknown> | null;
+}
+export type ExerciseArtifact = Omit<Artifact, 'kind' | 'payload'> & {
+  kind: 'exercise';
+  payload: ExerciseDraft & { created_from: { artifact_id: string; title: string; kind: ArtifactKind; selection: Record<string, unknown> | null } };
+};
