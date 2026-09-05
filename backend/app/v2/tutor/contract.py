@@ -1,8 +1,8 @@
 """TutorResponse contract (ticket #13): the semantic output of one stateless
 tutor turn, plus exactly the observability fields the ticket's acceptance
 criteria require (provider/model, latency, usage, tool-call count, terminal
-status). Progression candidates are ticket #14; mutation-proposal/
-exercise-suggestion fields remain out-of-scope for #16/#20. Ticket #21 adds
+status). Progression candidates are ticket #14; Ticket #16 adds physical voicing proposals bound to the loaded artifact revision.
+Exercise suggestions remain scoped to #20. Ticket #21 adds
 `concept_suggestion` for explicit ConceptStudy promotion.
 
 `TutorTerminal` is the schema handed to the model as its structured-output
@@ -18,7 +18,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from app.v2.models import ConceptId, ProgressionPayload
+from app.v2.models import ConceptId, ProgressionPayload, ProgressionChord
 
 
 class FretPosition(BaseModel):
@@ -78,6 +78,17 @@ class ProgressionCandidate(BaseModel):
     chords: list[ProgressionChordIdea]
 
 
+class VoicingCandidate(BaseModel):
+    label: str
+    chord_index: int = Field(ge=0)
+    chord: ProgressionChord
+
+
+class VoicingProposal(VoicingCandidate):
+    artifact_id: str
+    expected_updated_at: str
+
+
 class TutorTerminal(BaseModel):
     """The exact structured shape the model must return via tool-calling
     (see runner.py's `ToolStrategy(TutorTerminal)`). A plain conversational
@@ -89,6 +100,7 @@ class TutorTerminal(BaseModel):
     focus: Optional[TutorFocus] = None
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionCandidate]] = None
+    voicing_candidates: Optional[list[VoicingCandidate]] = None
 
 
 class TutorUsage(BaseModel):
@@ -123,6 +135,7 @@ class TutorResponse(BaseModel):
     focus: Optional[TutorFocus] = None
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionPayload]] = None
+    voicing_candidates: Optional[list[VoicingProposal]] = None
     provider: str
     model: str
     latency_ms: int

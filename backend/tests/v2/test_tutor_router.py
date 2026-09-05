@@ -330,3 +330,18 @@ def test_capability_error_returns_422_and_persists_nothing() -> None:
 
     assert response.status_code == 422
     assert store.list_tutor_messages(thread_id, "user_1") == []
+
+
+def test_voicing_proposals_survive_history_reload_without_mutation():
+    chord = {"root": "D", "quality": "sparse", "voicing": [{"string": 6, "fret": 0}], "tuning": [64, 59, 55, 50, 45, 38]}
+    store = InMemoryV2Store()
+    model = ScriptedTutorModel(outcomes=[{"message": "Try this", "voicing_candidates": [{"label": "Sparse", "chord_index": 0, "chord": chord}]}], usage_metadatas=[None])
+    client = _app(store, _scripted_factory(model))
+    session_id, branch_id = _open_session_and_branch(client)
+    artifact = client.post("/api/v2/progressions", json={"title": "Idea", "chords": [chord]}).json()
+    branch = store.update_branch(session_id, branch_id, "user_1", current_artifact_id=artifact["id"], current_artifact_kind="progression")
+    response = client.post("/api/v2/tutor/turns", json={"session_id": session_id, "branch_id": branch_id, "message": "Give me a voicing"}).json()
+    history = client.get(f"/api/v2/tutor/threads/{branch.tutor_thread_id}/messages").json()
+    assert history[-1]["content"]["voicing_candidates"] == response["voicing_candidates"]
+    assert response["voicing_candidates"][0]["expected_updated_at"] == artifact["updated_at"]
+    assert client.get(f"/api/v2/progressions/{artifact['id']}").json() == artifact

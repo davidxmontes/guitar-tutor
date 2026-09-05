@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { apiClient } from '../api/client';
-import { playChord } from '../utils/audio';
+import { hearVoicing } from './voicingAudio';
 import type { ProgressionChord, ProgressionPayload } from '../types/v2';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 
@@ -14,7 +14,7 @@ function chordSymbol(chord: ProgressionChord): string {
 function hearProgression(chords: ProgressionChord[]) {
   const playable = chords.filter((c) => c.voicing && c.voicing.length > 0);
   playable.forEach((chord, index) => {
-    setTimeout(() => playChord(chord.voicing!.map((p) => ({ string: p.string, fret: p.fret }))), index * 1200);
+    setTimeout(() => hearVoicing(chord), index * 1200);
   });
 }
 

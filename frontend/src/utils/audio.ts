@@ -57,7 +57,8 @@ export function setGuitarType(type: GuitarType): void {
 }
 
 // Get frequency for a specific string and fret
-export function getFrequency(string: number, fret: number): number {
+export function getFrequency(string: number, fret: number, tuningMidi?: readonly number[]): number {
+  if (tuningMidi) return 440 * Math.pow(2, (tuningMidi[string - 1] + fret - 69) / 12)
   // String is 1-indexed (1 = high E, 6 = low E)
   const baseFreq = STRING_BASE_FREQUENCIES[6 - string]
   // Each fret is a semitone (multiply by 2^(1/12))
@@ -173,7 +174,8 @@ export function playNote(string: number, fret: number, duration: number = 1.0): 
 export function playChord(
   positions: NoteToPlay[],
   strumSpeed: number = 0.03,
-  duration: number = 2.0
+  duration: number = 2.0,
+  tuningMidi?: readonly number[]
 ): void {
   const ctx = getAudioContext()
   const currentTime = ctx.currentTime
@@ -182,7 +184,7 @@ export function playChord(
   const sorted = [...positions].sort((a, b) => b.string - a.string)
 
   sorted.forEach((pos, index) => {
-    const frequency = getFrequency(pos.string, pos.fret)
+    const frequency = getFrequency(pos.string, pos.fret, tuningMidi)
     const startTime = currentTime + index * strumSpeed
     const volume = 0.4 / Math.sqrt(sorted.length / 4)
     createKarplusString(ctx, frequency, startTime, duration, volume)

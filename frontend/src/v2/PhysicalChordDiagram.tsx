@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { midiToNoteName } from '../utils/tuning';
 
 export interface PhysicalChordPosition {
   string: number;
@@ -18,6 +19,7 @@ export interface ChordFingering extends PhysicalChordPosition {
 
 interface PhysicalChordDiagramProps {
   positions: readonly PhysicalChordPosition[];
+  // Arrays are string 1 through 6 (high to low), matching V2 physical data.
   tuning: string | readonly (string | number)[];
   label?: string;
   barre?: ChordBarre | null;
@@ -46,7 +48,7 @@ function detectBarre(positions: readonly PhysicalChordPosition[]): ChordBarre | 
 }
 
 function tuningLabel(tuning: PhysicalChordDiagramProps['tuning']): string {
-  return typeof tuning === 'string' ? tuning : tuning.join(' ');
+  return typeof tuning === 'string' ? tuning : [...tuning].reverse().map(note => typeof note === 'number' ? midiToNoteName(note) : note).join(' ');
 }
 
 export function PhysicalChordDiagram({ positions, tuning, label, barre, fingering = [] }: PhysicalChordDiagramProps) {
@@ -138,9 +140,9 @@ export function PhysicalChordDiagram({ positions, tuning, label, barre, fingerin
           </g>
         );
       })}
-      {Array.isArray(tuning) && STRINGS.map((string, index) => (
+      {Array.isArray(tuning) && STRINGS.map((string) => (
         <text key={`tuning-${string}`} x={getStringX(string)} y={diagramHeight + 23} textAnchor="middle" fontSize="8" fill="var(--text-muted)">
-          {tuning[index]}
+          {typeof tuning[string - 1] === 'number' ? midiToNoteName(tuning[string - 1] as number) : tuning[string - 1]}
         </text>
       ))}
     </svg>

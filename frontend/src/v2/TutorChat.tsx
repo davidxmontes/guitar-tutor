@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { ProgressionCandidate } from './ProgressionCandidate';
-import type { ConceptSuggestion, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
+import type { ConceptSuggestion, VoicingProposal, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
@@ -50,6 +50,7 @@ export function TutorChat({
   onFocusChange,
   onWorkOnConcept,
   onExploreProgression,
+  onVoicingCandidates,
   emptyMessage = 'Ask a question about this passage.',
 }: {
   sessionId: string;
@@ -58,6 +59,7 @@ export function TutorChat({
   onFocusChange: (focus: TutorFocus | null) => void;
   onWorkOnConcept?: (suggestion: ConceptSuggestion) => Promise<void>;
   onExploreProgression?: (candidate: ProgressionPayload) => Promise<void>;
+  onVoicingCandidates?: (candidates: VoicingProposal[]) => void;
   emptyMessage?: string;
 }) {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -78,7 +80,10 @@ export function TutorChat({
     apiClient
       .listTutorMessages(tutorThreadId)
       .then((history) => {
-        if (!cancelled) setMessages(toChatEntries(history));
+        if (!cancelled) {
+          setMessages(toChatEntries(history));
+          onVoicingCandidates?.(history.filter(m => m.content.voicing_candidates?.length).at(-1)?.content.voicing_candidates ?? []);
+        }
       })
       .catch((err) => {
         if (!cancelled) setHistoryError(String(err));
@@ -111,6 +116,7 @@ export function TutorChat({
         candidates: response.candidates ?? null,
       }]);
       onFocusChange(response.focus ?? null);
+      if (response.voicing_candidates?.length) onVoicingCandidates?.(response.voicing_candidates);
     } catch (err) {
       setSendError(String(err));
     } finally {

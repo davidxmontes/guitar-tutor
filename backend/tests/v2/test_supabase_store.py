@@ -349,3 +349,16 @@ def test_list_tutor_messages_raises_not_found_when_session_not_owned():
     store = SupabaseV2Store(client)
     with pytest.raises(NotFoundError):
         store.list_tutor_messages("thread-1", user_id="someone_else")
+
+
+def test_conditional_artifact_update_rejects_concurrent_change():
+    from app.v2.store import RevisionConflictError
+    client = MagicMock()
+    row = {"id": "p1", "clerk_user_id": "user_1", "kind": "progression", "title": "Idea", "payload": {}, "created_at": "t0", "updated_at": "t1"}
+    read = _chain([row])
+    write = _chain([])  # another writer changed updated_at before this update
+    client.table.side_effect = [read, write]
+    with pytest.raises(RevisionConflictError):
+        SupabaseV2Store(client).update_artifact("p1", "user_1", {"chords": []}, "t1")
+    assert ("updated_at", "t1") in [call.args for call in write.eq.call_args_list]
+    assert ("clerk_user_id", "user_1") in [call.args for call in write.eq.call_args_list]

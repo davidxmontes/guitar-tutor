@@ -15,6 +15,7 @@ from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
+    ApplyVoicingRequest,
     Artifact,
     ArtifactKind,
     Branch,
@@ -34,7 +35,7 @@ from app.v2.models import (
 )
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
-from app.v2.store import NotFoundError, V2Store, get_v2_store
+from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
@@ -517,6 +518,7 @@ async def create_tutor_turn(
             # text summary reconstruct_history renders for the model -- this
             # is what a history reload replays to the frontend so a candidate
             # from an earlier turn stays addressable/visible (ticket #14).
+            "voicing_candidates": [c.model_dump() for c in response.voicing_candidates] if response.voicing_candidates else None,
             "candidates": [c.model_dump() for c in response.candidates] if response.candidates else None,
         },
     )
@@ -617,3 +619,28 @@ async def get_progression(
     if artifact.kind != "progression":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a Progression artifact")
     return artifact
+
+
+@router.patch("/progressions/{artifact_id}/voicing", response_model=Artifact)
+async def apply_progression_voicing(
+    artifact_id: str,
+    data: ApplyVoicingRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+        if artifact.kind != "progression":
+            raise NotFoundError("Not a Progression artifact")
+        if data.expected_updated_at != artifact.updated_at:
+            raise RevisionConflictError("Progression changed; request fresh voicings before applying")
+        # Validate the replacement at the request boundary; preserve legacy slots.
+        chords = list(artifact.payload["chords"])
+        if data.chord_index >= len(chords):
+            raise HTTPException(status_code=422, detail="Chord slot no longer exists")
+        chords[data.chord_index] = data.chord.model_dump()
+        return store.update_artifact(artifact_id, user_id, {**artifact.payload, "chords": chords}, data.expected_updated_at)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

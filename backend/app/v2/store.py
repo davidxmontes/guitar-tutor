@@ -16,6 +16,10 @@ from typing import Any, Optional, Protocol
 from app.v2.models import ARTIFACT_KINDS, Artifact, Branch, Session, TutorMessage
 
 
+class RevisionConflictError(Exception):
+    pass
+
+
 class NotFoundError(Exception):
     """Raised when a session/branch doesn't exist or isn't owned by the caller."""
 
@@ -42,7 +46,7 @@ class V2Store(Protocol):
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
-    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact: ...
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None) -> Artifact: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
 
@@ -135,8 +139,10 @@ class InMemoryV2Store:
         ]
         return sorted(artifacts, key=lambda artifact: artifact.created_at, reverse=True)
 
-    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None) -> Artifact:
         artifact = self.get_artifact(artifact_id, user_id)
+        if expected_updated_at is not None and artifact.updated_at != expected_updated_at:
+            raise RevisionConflictError("Progression changed; request fresh voicings before applying")
         updated = artifact.model_copy(update={"payload": payload, "updated_at": _now()})
         self._artifacts[artifact_id] = updated
         return updated
@@ -320,17 +326,20 @@ class SupabaseV2Store:
         rows = query.order("created_at", desc=True).execute().data
         return [self._row_to_artifact(row) for row in rows]
 
-    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
-        updated_at = _now()
-        rows = (
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None) -> Artifact:
+        self.get_artifact(artifact_id, user_id)
+        query = (
             self._client.table("v2_artifacts")
-            .update({"payload": payload, "updated_at": updated_at})
+            .update({"payload": payload, "updated_at": _now()})
             .eq("id", artifact_id)
             .eq("clerk_user_id", user_id)
-            .execute()
-            .data
         )
+        if expected_updated_at is not None:
+            query = query.eq("updated_at", expected_updated_at)
+        rows = query.execute().data
         if not rows:
+            if expected_updated_at is not None:
+                raise RevisionConflictError("Progression changed; request fresh voicings before applying")
             raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
         return self._row_to_artifact(rows[0])
 
