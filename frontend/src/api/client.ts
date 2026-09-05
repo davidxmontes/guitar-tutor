@@ -1,5 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
+import type { V2Session, V2Branch, UpdateBranchRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -286,6 +287,27 @@ class ApiClient {
 
   async getThreads(): Promise<ConversationThread[]> {
     return this.fetch<ConversationThread[]>('/user/threads');
+  }
+
+  // --- V2: Session / Branch ---
+
+  async createV2Session(): Promise<V2Session> {
+    return this.fetch<V2Session>('/v2/sessions', { method: 'POST' });
+  }
+
+  async listV2Sessions(): Promise<V2Session[]> {
+    return this.fetch<V2Session[]>('/v2/sessions');
+  }
+
+  async getV2Session(sessionId: string): Promise<V2Session> {
+    return this.fetch<V2Session>(`/v2/sessions/${sessionId}`);
+  }
+
+  async updateV2Branch(sessionId: string, branchId: string, data: UpdateBranchRequest): Promise<V2Branch> {
+    return this.fetch<V2Branch>(`/v2/sessions/${sessionId}/branches/${branchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 }
 
