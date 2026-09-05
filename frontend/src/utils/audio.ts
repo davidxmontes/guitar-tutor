@@ -94,7 +94,7 @@ function createKarplusString(
   startTime: number,
   duration: number,
   volume: number = 0.5
-): void {
+): AudioBufferSourceNode {
   const sampleRate = ctx.sampleRate
   const { filterCoeff, decay, noiseAmp, preWarm } = VOICE_PARAMS[guitarType]
 
@@ -154,6 +154,7 @@ function createKarplusString(
   }
 
   source.start(startTime)
+  return source
 }
 
 // Position type for playing
@@ -176,19 +177,20 @@ export function playChord(
   strumSpeed: number = 0.03,
   duration: number = 2.0,
   tuningMidi?: readonly number[]
-): void {
+): () => void {
   const ctx = getAudioContext()
   const currentTime = ctx.currentTime
 
   // Sort by string (6 to 1, low to high for downstrum)
   const sorted = [...positions].sort((a, b) => b.string - a.string)
 
-  sorted.forEach((pos, index) => {
+  const sources = sorted.map((pos, index) => {
     const frequency = getFrequency(pos.string, pos.fret, tuningMidi)
     const startTime = currentTime + index * strumSpeed
     const volume = 0.4 / Math.sqrt(sorted.length / 4)
-    createKarplusString(ctx, frequency, startTime, duration, volume)
+    return createKarplusString(ctx, frequency, startTime, duration, volume)
   })
+  return () => sources.forEach(source => source.stop())
 }
 
 // Play chord arpeggiated (one note at a time)
