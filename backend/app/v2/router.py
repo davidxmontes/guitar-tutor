@@ -21,6 +21,7 @@ from app.v2.models import (
     ArtifactKind,
     Branch,
     ConceptId,
+    ConceptStudyArtifact,
     Session,
     SongStudyPayload,
     SongStudyTrack,
@@ -198,7 +199,7 @@ class CreateConceptStudyRequest(BaseModel):
 
 
 class OpenConceptStudyResponse(BaseModel):
-    artifact: Artifact
+    artifact: ConceptStudyArtifact
     branch: Branch
 
 
@@ -221,7 +222,11 @@ async def create_concept_study(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     artifact = store.create_artifact(user_id, "concept_study", payload.display_name, payload.model_dump())
+    concept_artifact = ConceptStudyArtifact.model_validate(artifact.model_dump())
     try:
+        # ponytail: artifact + branch are two writes because the Supabase
+        # client has no cross-table transaction API. Move this into one RPC
+        # if orphaned artifacts are ever observed after branch-write errors.
         if data.open_in_new_branch:
             branch = store.create_branch(
                 data.session_id,
@@ -241,10 +246,10 @@ async def create_concept_study(
             )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return OpenConceptStudyResponse(artifact=artifact, branch=branch)
+    return OpenConceptStudyResponse(artifact=concept_artifact, branch=branch)
 
 
-@router.get("/concept-studies/{artifact_id}", response_model=Artifact)
+@router.get("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
 async def get_concept_study(
     artifact_id: str,
     user_id: str = Depends(get_current_user),
@@ -256,7 +261,7 @@ async def get_concept_study(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if artifact.kind != "concept_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a ConceptStudy artifact")
-    return artifact
+    return ConceptStudyArtifact.model_validate(artifact.model_dump())
 
 
 def get_tutor_model_factory() -> ModelFactory:

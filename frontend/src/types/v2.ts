@@ -70,6 +70,70 @@ export interface CreateSongStudyRequest {
   track_index: number;
 }
 
+// --- ConceptStudy artifact (ticket #21) ---
+
+export type ConceptId =
+  | 'pentatonic_minor'
+  | 'major_triad'
+  | 'minor_triad'
+  | 'perfect_fifth'
+  | 'dominant_resolution';
+
+export interface ConceptNote {
+  note: string;
+  interval: string;
+}
+
+export interface ConceptPosition extends ConceptNote {
+  string: number;
+  fret: number;
+}
+
+export interface ConceptRelationship {
+  id: string;
+  label: string;
+  explanation: string;
+  notes: ConceptNote[];
+  positions: ConceptPosition[];
+}
+
+export interface ConceptStudyPayload {
+  concept_id: ConceptId;
+  root: string;
+  display_name: string;
+  explanation: string;
+  tuning: string[];
+  fret_start: number;
+  fret_end: number;
+  notes: ConceptNote[];
+  positions: ConceptPosition[];
+  relationships: ConceptRelationship[];
+}
+
+export type ConceptStudyArtifact = Omit<Artifact, 'payload' | 'kind'> & {
+  kind: 'concept_study';
+  payload: ConceptStudyPayload;
+};
+
+export interface CreateConceptStudyRequest {
+  session_id: string;
+  branch_id: string;
+  root: string;
+  concept_id: ConceptId;
+  open_in_new_branch?: boolean;
+}
+
+export interface OpenConceptStudyResponse {
+  artifact: ConceptStudyArtifact;
+  branch: V2Branch;
+}
+
+export interface ConceptSuggestion {
+  concept_id: ConceptId;
+  root: string;
+  label: string;
+}
+
 // Branch.selection/focus shapes this ticket writes/reads — a beat pick or a
 // contiguous measure range, and a focused measure window. Stored as an
 // opaque dict on the branch (hence the index signatures below, so these
@@ -113,6 +177,7 @@ export interface TutorUsage {
 export interface TutorResponse {
   message: string;
   focus: TutorFocus | null;
+  concept_suggestion?: ConceptSuggestion | null;
   provider: string;
   model: string;
   latency_ms: number;
@@ -133,6 +198,6 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { text?: string; focus?: TutorFocus | null; [key: string]: unknown };
+  content: { text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; [key: string]: unknown };
   created_at: string;
 }

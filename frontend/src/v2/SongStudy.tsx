@@ -5,7 +5,7 @@ import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
 import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
 import { TutorChat } from './TutorChat';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
-import type { SongFocus, SongSelection, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
+import type { ConceptSuggestion, SongFocus, SongSelection, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 // Supporting element, not a primary block (mock #overview callout 3: "large
@@ -515,12 +515,14 @@ function SongStudyWorkspace({
   songStudy,
   onBranchChange,
   onSearchAgain,
+  onWorkOnConcept,
 }: {
   sessionId: string;
   branch: V2Branch;
   songStudy: SongStudyArtifact;
   onBranchChange: (branch: V2Branch) => void;
   onSearchAgain: () => void;
+  onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
 }) {
   const payload = songStudy.payload;
   const measures = useMemo(() => payload.tab_data.measures ?? [], [payload.tab_data.measures]);
@@ -684,7 +686,7 @@ function SongStudyWorkspace({
     // area on the left; the Tutor is a permanent side rail on the right, not
     // a tab the user must navigate away to reach (spec #10: "artifacts do
     // not obstruct spontaneous questions").
-    <div data-testid="song-study-workspace" className="flex gap-4 items-start">
+    <div data-testid="song-study-workspace" className="flex flex-col xl:flex-row gap-4 items-start">
     <div className="flex flex-col gap-4 flex-1 min-w-0">
       <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -878,6 +880,7 @@ function SongStudyWorkspace({
         branchId={branch.id}
         tutorThreadId={branch.tutor_thread_id}
         onFocusChange={setTutorFocus}
+        onWorkOnConcept={onWorkOnConcept}
       />
     </div>
   );
@@ -889,10 +892,12 @@ export function SongStudyPanel({
   sessionId,
   branch,
   onBranchChange,
+  onWorkOnConcept,
 }: {
   sessionId: string;
   branch: V2Branch;
   onBranchChange: (branch: V2Branch) => void;
+  onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
 }) {
   const [songStudy, setSongStudy] = useState<SongStudyArtifact | null>(null);
   const [searchingAgain, setSearchingAgain] = useState(false);
@@ -942,6 +947,7 @@ export function SongStudyPanel({
       songStudy={songStudy}
       onBranchChange={onBranchChange}
       onSearchAgain={() => setSearchingAgain(true)}
+      onWorkOnConcept={onWorkOnConcept}
     />
   );
 }

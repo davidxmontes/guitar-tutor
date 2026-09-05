@@ -125,6 +125,11 @@ class Artifact(BaseModel):
     updated_at: str
 
 
+class ConceptStudyArtifact(Artifact):
+    kind: Literal["concept_study"]
+    payload: ConceptStudyPayload
+
+
 TutorMessageRole = Literal["user", "assistant", "tool"]
 
 

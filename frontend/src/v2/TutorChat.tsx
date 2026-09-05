@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { TutorFocus, TutorMessage } from '../types/v2';
+import type { ConceptSuggestion, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  conceptSuggestion?: ConceptSuggestion | null;
 }
 
 // TutorMessage.content is a plain dict (backend models.py) — `tool` role
@@ -16,7 +17,12 @@ interface ChatEntry {
 function toChatEntries(history: TutorMessage[]): ChatEntry[] {
   return history
     .filter((m): m is TutorMessage & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({ id: m.id, role: m.role, text: typeof m.content.text === 'string' ? m.content.text : '' }));
+    .map((m) => ({
+      id: m.id,
+      role: m.role,
+      text: typeof m.content.text === 'string' ? m.content.text : '',
+      conceptSuggestion: m.content.concept_suggestion,
+    }));
 }
 
 // --- Tutor chat panel (ticket #13). Lives beside the SongStudy workspace as
@@ -36,11 +42,15 @@ export function TutorChat({
   branchId,
   tutorThreadId,
   onFocusChange,
+  onWorkOnConcept,
+  emptyMessage = 'Ask a question about this passage.',
 }: {
   sessionId: string;
   branchId: string;
   tutorThreadId: string;
   onFocusChange: (focus: TutorFocus | null) => void;
+  onWorkOnConcept?: (suggestion: ConceptSuggestion) => Promise<void>;
+  emptyMessage?: string;
 }) {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -85,7 +95,12 @@ export function TutorChat({
     setSendError(null);
     try {
       const response = await apiClient.sendTutorTurn({ session_id: sessionId, branch_id: branchId, message: text });
-      setMessages((prev) => [...prev, { id: `local-assistant-${Date.now()}`, role: 'assistant', text: response.message }]);
+      setMessages((prev) => [...prev, {
+        id: `local-assistant-${Date.now()}`,
+        role: 'assistant',
+        text: response.message,
+        conceptSuggestion: response.concept_suggestion,
+      }]);
       onFocusChange(response.focus ?? null);
     } catch (err) {
       setSendError(String(err));
@@ -97,8 +112,8 @@ export function TutorChat({
   return (
     <div
       data-testid="tutor-chat"
-      className="flex flex-col gap-3 rounded-lg border p-3"
-      style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', width: 300, flex: '0 0 300px' }}
+      className="flex flex-col gap-3 rounded-lg border p-3 w-full xl:w-[300px] xl:flex-none"
+      style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
     >
       <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
         Tutor
@@ -122,7 +137,7 @@ export function TutorChat({
         )}
         {!loadingHistory && messages.length === 0 && !historyError && (
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Ask a question about this passage.
+            {emptyMessage}
           </p>
         )}
         {messages.map((m) => (
@@ -137,7 +152,17 @@ export function TutorChat({
               color: m.role === 'user' ? 'white' : 'var(--text-primary)',
             }}
           >
-            {m.text}
+            <p>{m.text}</p>
+            {m.role === 'assistant' && m.conceptSuggestion && onWorkOnConcept && (
+              <button
+                type="button"
+                onClick={() => onWorkOnConcept(m.conceptSuggestion!)}
+                className="mt-2 rounded-md border px-2 py-1 text-xs font-semibold"
+                style={{ borderColor: 'var(--accent-500)', color: 'var(--accent-700)' }}
+              >
+                Work on {m.conceptSuggestion.label}
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -153,7 +178,7 @@ export function TutorChat({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about this passage..."
+          placeholder={emptyMessage}
           data-testid="tutor-chat-input"
           className="flex-1 px-3 py-2 rounded-lg border text-xs outline-none transition-colors"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
