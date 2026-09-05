@@ -7,6 +7,7 @@ from app.music.notes import generate_fretboard
 from app.music.scales import SCALE_DEGREE_NAMES, get_scale_notes
 from app.services.chord_service import get_chord
 from app.v2.models import (
+    CircleState, CircleStudyPayload, CircleChord, CircleSequence, CircleKey, ProgressionChord,
     ChordConceptId,
     ChordQualityId,
     ChordStudyPayload,
@@ -126,6 +127,8 @@ def _catalog_concept(concept_id: ConceptId) -> StudyCatalogConcept:
             description=f"Chord · {', '.join(CHORD_INTERVALS[quality]['names'])}",
             visualization="chord",
         )
+    if concept_id == "circle":
+        return StudyCatalogConcept(id=concept_id, display_name="Circle of Fifths", description="Keys, relative minors and diatonic harmony.", visualization="circle")
     if concept_id == "intervals":
         return StudyCatalogConcept(id=concept_id, display_name="Intervals", description="See each distance from a root across the neck.", visualization="interval")
     if concept_id == "caged":
@@ -148,7 +151,7 @@ def get_study_catalog() -> StudyCatalog:
             StudyCatalogGroup(id="explore_more", display_name="Explore more", concepts=[_catalog_concept(item) for item in (
                 "ionian", "dorian", "phrygian", "lydian", "mixolydian", "aeolian", "locrian", "harmonic_minor", "melodic_minor"
             )] + [_catalog_concept(f"chord_{quality}") for quality in ADVANCED_CHORDS]),
-            StudyCatalogGroup(id="systems", display_name="Systems", concepts=[_catalog_concept("intervals"), _catalog_concept("caged")]),
+            StudyCatalogGroup(id="systems", display_name="Systems", concepts=[_catalog_concept("intervals"), _catalog_concept("caged"), _catalog_concept("circle")]),
         ],
     )
 
@@ -400,6 +403,8 @@ def build_concept_study(
     caged_quality: CagedQualityId = "major",
     selected_region: CagedShapeId = "C",
     comparison_region: CagedShapeId | None = None,
+    selected_chord: int = 0,
+    selected_sequence: str = "primary",
 ):
     """Build a validated visualization without persisting it."""
 
@@ -408,6 +413,8 @@ def build_concept_study(
         raise ValueError(f"Unknown overlay: {overlay}")
     if not 0 <= selected_interval <= 11:
         raise ValueError("selected_interval must be between 0 and 11")
+    if concept_id == "circle":
+        return _build_circle(root, selected_chord, selected_sequence, overlay)
     if concept_id == "intervals":
         return _build_intervals(root, selected_interval, overlay)
     if concept_id == "caged":
@@ -419,3 +426,50 @@ def build_concept_study(
     if comparison_id == concept_id:
         raise ValueError("A scale cannot be compared with itself")
     return _build_scale(root, concept_id, comparison_id, overlay)
+
+
+CIRCLE_KEYS = ["C", "G", "D", "A", "E", "B", "Gb", "Db", "Ab", "Eb", "Bb", "F"]
+
+
+def _major_spelling(root: str) -> list[str]:
+    letters = "CDEFGAB"
+    naturals = [0, 2, 4, 5, 7, 9, 11]
+    first = letters.index(root[0])
+    notes = []
+    for degree, semitones in enumerate(naturals):
+        letter = (first + degree) % 7
+        difference = (note_to_index(root) + semitones - naturals[letter]) % 12
+        notes.append(letters[letter] + {0: "", 1: "#", 11: "b"}[difference])
+    return notes
+
+
+def _build_circle(root: str, selected_chord: int, selected_sequence: str, overlay: str) -> CircleStudyPayload:
+    CircleState(root=root, selected_chord=selected_chord, selected_sequence=selected_sequence, overlay=overlay)
+    scale = _major_spelling(root)
+    numerals = ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
+    qualities = ["major", "minor", "minor", "major", "major", "minor", "diminished"]
+    chords = []
+    for degree, (name, quality) in enumerate(zip(scale, qualities)):
+        pitch = (note_to_index(root) + [0,2,4,5,7,9,11][degree]) % 12
+        notes = _notes([scale[(degree + offset) % 7] for offset in (0,2,4)], ["1", "3" if quality == "major" else "b3", "b5" if quality == "diminished" else "5"])
+        voicing = None
+        try:
+            resolved = get_chord(index_to_note(pitch), quality)
+            shape = resolved.voicings[0]
+            voicing = [{"string": p.string, "fret": p.fret} for p in shape.positions if p.fret == 0 or shape.base_fret <= p.fret < shape.base_fret + 4]
+        except LookupError:
+            pass  # A missing reference shape does not remove deterministic harmony.
+        chords.append(CircleChord(numeral=numerals[degree], notes=notes,
+            chord=ProgressionChord(root=name, quality=quality, voicing=voicing, tuning="standard" if voicing else None)))
+    selected = chords[selected_chord]
+    selected_pitches = [(note_to_index(root) + [0,2,4,5,7,9,11][(selected_chord + offset) % 7]) % 12 for offset in (0,2,4)]
+    positions = [ConceptPosition(string=p["string"], fret=p["fret"], **selected.notes[selected_pitches.index(note_to_index(p["note"]))].model_dump())
+        for string in generate_fretboard(TUNING, FRET_END) for p in string
+        if FRET_START <= p["fret"] <= FRET_END and note_to_index(p["note"]) in selected_pitches]
+    order = ["F#", "C#", "G#", "D#", "A#", "E#", "B#"] if any("#" in note for note in scale) else ["Bb", "Eb", "Ab", "Db", "Gb", "Cb", "Fb"]
+    return CircleStudyPayload(root=root, display_name=f"{root} major harmony", explanation="Choose a key, inspect its chords, then work on a sequence.",
+        tuning=TUNING, fret_start=FRET_START, fret_end=FRET_END, overlay=overlay,
+        relative_minor=scale[5], accidentals=[note for note in order if note in scale], neighbors=[scale[3],scale[4]],
+        keys=[CircleKey(root=key, relative_minor=_major_spelling(key)[5]) for key in CIRCLE_KEYS], chords=chords,
+        sequences=[CircleSequence(id="primary", label="I–IV–V", degrees=[0,3,4]), CircleSequence(id="pop", label="I–V–vi–IV", degrees=[0,4,5,3]), CircleSequence(id="turnaround", label="ii–V–I", degrees=[1,4,0])],
+        selected_chord=selected_chord, selected_sequence=selected_sequence, notes=selected.notes, positions=positions)
