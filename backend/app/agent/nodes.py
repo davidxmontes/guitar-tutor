@@ -11,7 +11,11 @@ Nodes:
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any, List, Optional
+
+# Matches inline fret notation like "str 5 · fret 3", "string 3, fret 0", "str 2: fret 1"
+_INLINE_FRET_RE = re.compile(r'str(?:ing)?\s+\d+\s*[·:,]?\s*fret\s+\d+', re.IGNORECASE)
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import Command, interrupt
@@ -55,6 +59,11 @@ def _is_context_identification_question(lower_question: str) -> bool:
             "name this chord",
         ]
     )
+
+
+def _has_inline_fret_context(question: str) -> bool:
+    """Return True when the user typed fret/string positions directly in their message."""
+    return bool(_INLINE_FRET_RE.search(question))
 
 
 def _has_strong_ui_context(ui_context: dict) -> bool:
@@ -150,9 +159,12 @@ def _classify_input(self: "GuitarTutorAgent", state: dict) -> dict:
     last_question_text = self._message_text(messages[-1]) if messages else ""
     lower_question = last_question_text.lower().strip()
 
-    # Fast-path: skip LLM classification for "what chord is this?" when the UI
-    # already provides highlighted notes — no ambiguity to resolve.
-    if _is_context_identification_question(lower_question) and _has_strong_ui_context(ui_context):
+    # Fast-path: skip LLM classification for chord identification questions when
+    # context is unambiguous — either the UI has highlighted notes or the user
+    # provided fret positions inline in the message.
+    if _is_context_identification_question(lower_question) and (
+        _has_strong_ui_context(ui_context) or _has_inline_fret_context(last_question_text)
+    ):
         return {
             "clarifying_question_for_user": None,
             "out_of_scope": False,

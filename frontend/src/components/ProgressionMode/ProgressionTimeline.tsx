@@ -71,6 +71,18 @@ export function ProgressionTimeline() {
     handleSetActive((activeSlotIndex + 1) % progressionSlots.length);
   };
 
+  useEffect(() => {
+    if (progressionSlots.length === 0) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); handlePrev(); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); handleNext(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [progressionSlots.length, activeSlotIndex]);
+
   const handleAddDefault = () => {
     if (diatonicChords.length > 0) {
       const first = diatonicChords[0];

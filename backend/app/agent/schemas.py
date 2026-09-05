@@ -55,6 +55,9 @@ class AnswerPostProcessSchema(TypedDict):
         description=(
             "When the answer presents a chord progression, list each chord as "
             "{root: str, quality: str, positions?: [{string: int, fret: int}]}. "
+            "quality must be an exact id: major, minor, diminished, augmented, sus2, sus4, 7sus4, "
+            "dominant7, major7, minor7, 9, maj9, m9, dim7, m7b5, 6, m6, add9, madd9. "
+            "Use add9 for Cadd9/Gadd9 etc — never substitute major7 for add9. "
             "Use this instead of highlight_groups when the answer is about a sequence of chords. "
             "Empty list when the answer is not about a chord progression."
         ),

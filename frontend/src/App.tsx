@@ -16,7 +16,7 @@ import type { AgentAction, FretboardHighlightAction, ProgressionSetAction } from
 
 function App() {
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useAuth();
 
   // ============================================================================
   // Zustand Store - only what App.tsx needs directly
@@ -522,6 +522,8 @@ function App() {
       }
     }
   }, [sendMessage, executeAgentActions, handleChatChordClick]);
+
+  if (!isLoaded) return null;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
