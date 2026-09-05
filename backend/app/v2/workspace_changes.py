@@ -9,7 +9,7 @@ from app.v2.workspace import Block, Compare, ConceptWorkspace, Identifier, Row, 
 
 class InspectionTarget(StrictModel):
     source_id: Identifier
-    kind: Literal['pitch', 'chord', 'voicing', 'transition']
+    kind: Literal['pitch', 'chord', 'voicing', 'transition', 'step']
     key: Annotated[int, Field(ge=0, le=11, strict=True)] | Identifier
 
 
@@ -93,6 +93,10 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
         else:
             if isinstance(operation, EntityWrite):
                 collection, obj = 'entities', operation.entity.model_dump()
+                if obj.get('key_id'):
+                    obj['key_id'] = resolve(obj['key_id'])
+                if obj.get('steps'):
+                    obj['steps'] = [step | {'chord_id': resolve(step['chord_id']), 'voicing_id': resolve(step['voicing_id']) if step['voicing_id'] else None} for step in obj['steps']]
                 if obj.get('chord_id'):
                     obj['chord_id'] = resolve(obj['chord_id'])
             elif isinstance(operation, RelationWrite):

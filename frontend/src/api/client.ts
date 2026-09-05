@@ -85,6 +85,10 @@ class ApiClient {
     return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces`, { method: 'POST', body: JSON.stringify({ recipe }) });
   }
 
+  transformWorkspaceProgression(workspace: ConceptWorkspace, blockId: string, action: import('../types/conceptWorkspace').ProgressionAction): Promise<ConceptWorkspace> {
+    return this.fetch('/v2/concept-workspaces/progression', { method:'POST', body:JSON.stringify({ workspace, block_id:blockId, ...action }) });
+  }
+
   resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<ResolvedWorkspace> {
     return this.fetch('/v2/concept-workspaces/resolve', { method: 'POST', body: JSON.stringify(workspace) });
   }
