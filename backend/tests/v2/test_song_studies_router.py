@@ -5,9 +5,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.dependencies.auth import get_current_user
+from app.config import Settings, get_settings
 from app.models.songsterr import SongsterrRevisionResponse
-from app.v2.router import router
+from app.v2.router import get_enrichment_model_factory, router
 from app.v2.store import InMemoryV2Store, get_v2_store
+from tests.v2.tutor_fakes import ScriptedTutorModel
 
 
 def _revision(track_index=0, tuning=None):
@@ -53,6 +55,7 @@ def client(store):
     app.include_router(router, prefix="/api/v2")
     app.dependency_overrides[get_current_user] = lambda: "user_1"
     app.dependency_overrides[get_v2_store] = lambda: store
+    app.dependency_overrides[get_settings] = lambda: Settings(v2_tutor_provider="openai", openai_api_key="k")
     return TestClient(app)
 
 
@@ -227,3 +230,107 @@ def test_get_song_study_404_for_other_user(get_song_revision, get_tab_data, clie
     response = client.get(f"/api/v2/song-studies/{created['id']}")
 
     assert response.status_code == 404
+
+
+def _create_raw_song_study(client, session_and_branch):
+    session_id, branch_id = session_and_branch
+    with patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock) as revision, patch(
+        "app.v2.router.songsterr.get_tab_data", new_callable=AsyncMock
+    ) as tab:
+        revision.return_value = _revision()
+        tab.return_value = TAB_DATA
+        artifact = client.post(
+            "/api/v2/song-studies",
+            json={"session_id": session_id, "branch_id": branch_id, "song_id": 7, "track_index": 0},
+        ).json()
+    return artifact
+
+
+def _enrichment_model(*ranges):
+    return ScriptedTutorModel(outcomes=[{"ranges": list(ranges)}])
+
+
+def _range(label="Intro", confidence="medium"):
+    return {
+        "start_measure": 1,
+        "end_measure": 2,
+        "section": label,
+        "lyrics": ["Today is gonna be the day"],
+        "broad_harmony": ["G"],
+        "detailed_harmony": ["Gsus4", "G"],
+        "confidence": confidence,
+    }
+
+
+@patch("app.v2.router.songsterr.get_chordpro", new_callable=AsyncMock)
+def test_enhance_song_study_preserves_raw_sources_and_persists_derived_ranges(get_chordpro, client, session_and_branch):
+    raw = _create_raw_song_study(client, session_and_branch)
+    raw_tab = raw["payload"]["tab_data"]
+    get_chordpro.return_value = "{section: Intro}\n[G]Today is gonna be the day"
+    model = _enrichment_model(_range())
+    client.app.dependency_overrides[get_enrichment_model_factory] = lambda: (lambda *_args, **_kwargs: model)
+
+    response = client.post(f"/api/v2/song-studies/{raw['id']}/enrichment")
+
+    assert response.status_code == 200
+    payload = response.json()["payload"]
+    assert payload["tab_data"] == raw_tab
+    assert payload["chordpro"] == get_chordpro.return_value
+    assert payload["enrichment"]["ranges"][0] == {
+        **_range(),
+        "provenance": "ai",
+    }
+    assert payload["enrichment"]["source_sections"] == []
+    assert client.get(f"/api/v2/song-studies/{raw['id']}").json()["payload"] == payload
+
+
+@patch("app.v2.router.songsterr.get_chordpro", new_callable=AsyncMock)
+def test_regenerate_replaces_only_enrichment_and_reuses_preserved_chordpro(get_chordpro, client, session_and_branch):
+    raw = _create_raw_song_study(client, session_and_branch)
+    get_chordpro.return_value = "{section: Intro}\n[G]Today"
+    first_model = _enrichment_model(_range("Intro", "low"))
+    client.app.dependency_overrides[get_enrichment_model_factory] = lambda: (lambda *_args, **_kwargs: first_model)
+    first = client.post(f"/api/v2/song-studies/{raw['id']}/enrichment").json()
+
+    second_model = _enrichment_model(_range("Verse", "high"))
+    client.app.dependency_overrides[get_enrichment_model_factory] = lambda: (lambda *_args, **_kwargs: second_model)
+    second = client.post(f"/api/v2/song-studies/{raw['id']}/enrichment")
+
+    assert second.status_code == 200
+    assert second.json()["payload"]["enrichment"]["ranges"][0]["section"] == "Verse"
+    assert second.json()["payload"]["tab_data"] == raw["payload"]["tab_data"]
+    assert second.json()["payload"]["chordpro"] == first["payload"]["chordpro"]
+    get_chordpro.assert_awaited_once()
+
+
+@patch("app.v2.router.songsterr.get_chordpro", new_callable=AsyncMock)
+def test_remove_enrichment_keeps_tab_and_chordpro_inspectable(get_chordpro, client, session_and_branch):
+    raw = _create_raw_song_study(client, session_and_branch)
+    get_chordpro.return_value = "{section: Intro}\n[G]Today"
+    model = _enrichment_model(_range())
+    client.app.dependency_overrides[get_enrichment_model_factory] = lambda: (lambda *_args, **_kwargs: model)
+    enhanced = client.post(f"/api/v2/song-studies/{raw['id']}/enrichment").json()
+
+    response = client.delete(f"/api/v2/song-studies/{raw['id']}/enrichment")
+
+    assert response.status_code == 200
+    payload = response.json()["payload"]
+    assert payload["enrichment"] is None
+    assert payload["tab_data"] == raw["payload"]["tab_data"]
+    assert payload["chordpro"] == enhanced["payload"]["chordpro"]
+
+
+@patch("app.v2.router.songsterr.get_chordpro", new_callable=AsyncMock)
+def test_failed_ai_enrichment_leaves_raw_sources_usable(get_chordpro, client, session_and_branch):
+    raw = _create_raw_song_study(client, session_and_branch)
+    get_chordpro.return_value = "{section: Intro}\n[G]Today"
+    unsupported = ScriptedTutorModel(outcomes=[], unsupported_tools=True)
+    client.app.dependency_overrides[get_enrichment_model_factory] = lambda: (lambda *_args, **_kwargs: unsupported)
+
+    response = client.post(f"/api/v2/song-studies/{raw['id']}/enrichment")
+
+    assert response.status_code == 422
+    payload = client.get(f"/api/v2/song-studies/{raw['id']}").json()["payload"]
+    assert payload["tab_data"] == raw["payload"]["tab_data"]
+    assert payload["chordpro"] == get_chordpro.return_value
+    assert payload["enrichment"] is None
