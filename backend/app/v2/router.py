@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
+from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
     CircleState,
@@ -852,6 +853,57 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
             selected_chord=getattr(p, "selected_chord", 0), selected_sequence=getattr(p, "selected_sequence", "primary"))
         payload = payload.model_copy(update={"created_from": original.payload.created_from})
         return store.update_artifact(artifact_id, user_id, payload.model_dump(), data.expected_updated_at, save=True)
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+# ConceptWorkspace draft routes intentionally do not create saved artifacts.
+
+
+class OpenWorkspaceRequest(StrictModel):
+    recipe: Literal['scale-comparison']
+
+
+@router.post('/sessions/{session_id}/concept-workspaces', response_model=Branch, status_code=201)
+async def open_concept_workspace(session_id: str, data: OpenWorkspaceRequest,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        workspace = scale_comparison()
+        return store.create_branch(session_id, user_id, title=workspace.title,
+            current_artifact_kind='concept_study', working_draft=workspace.model_dump())
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post('/concept-workspaces/resolve')
+async def resolve_concept_workspace(data: ConceptWorkspace, user_id: str = Depends(get_current_user)):
+    try:
+        return resolve_workspace(data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+class SaveWorkspaceRequest(StrictModel):
+    expected_version: int = Field(ge=1, strict=True)
+    workspace: ConceptWorkspace
+
+
+@router.put('/sessions/{session_id}/branches/{branch_id}/workspace', response_model=Branch)
+async def save_workspace(session_id: str, branch_id: str, data: SaveWorkspaceRequest,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        session = store.get_session(session_id, user_id)
+        branch = next((b for b in session.branches if b.id == branch_id), None)
+        if branch is None:
+            raise NotFoundError('Branch not found')
+        resolve_workspace(data.workspace)
+        workspace = data.workspace.model_copy(update={'version': data.expected_version + 1})
+        return store.update_branch(session_id, branch_id, user_id,
+            working_draft=workspace.model_dump(), expected_workspace_version=data.expected_version)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
     except RevisionConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:

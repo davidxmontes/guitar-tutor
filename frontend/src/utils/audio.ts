@@ -292,3 +292,13 @@ export function playMetronomeClick(): void {
   oscillator.stop(ctx.currentTime + 0.05)
   oscillator.onended = () => { oscillator.disconnect(); gain.disconnect() }
 }
+
+// Preserve the domain-projected order (including repeated tonic and scale boundary).
+export function playNoteSequence(positions: NoteToPlay[], tuning: readonly number[], delay = 0.3): () => void {
+  const ctx = getAudioContext()
+  const start = ctx.currentTime
+  const sources = positions.map((position, index) => createKarplusString(
+    ctx, getFrequency(position.string, position.fret, tuning), start + index * delay, 0.4, 0.5,
+  ))
+  return () => sources.forEach(source => source.stop())
+}

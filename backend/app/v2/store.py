@@ -12,6 +12,9 @@ import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
 from functools import lru_cache
+from threading import RLock
+
+from app.v2.workspace import ConceptWorkspace
 from typing import Any, Optional, Protocol
 
 from app.v2.models import ARTIFACT_KINDS, ArtifactRevision, Artifact, Branch, Session, TutorMessage
@@ -68,6 +71,7 @@ class V2Store(Protocol):
 
 class InMemoryV2Store:
     def __init__(self) -> None:
+        self._branch_lock = RLock()
         self._sessions: dict[str, Session] = {}
         self._artifacts: dict[str, Artifact] = {}
         self._tutor_messages: dict[str, list[TutorMessage]] = {}
@@ -113,6 +117,11 @@ class InMemoryV2Store:
         return branch
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
+        # ponytail: one memory-store lock; split by branch only if contention matters.
+        with self._branch_lock:
+            return self._update_branch(session_id, branch_id, user_id, **fields)
+
+    def _update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         session = self.get_session(session_id, user_id)  # raises NotFoundError if not owned
 
         if "current_artifact_kind" in fields:
@@ -121,6 +130,11 @@ class InMemoryV2Store:
         for i, branch in enumerate(session.branches):
             if branch.id != branch_id:
                 continue
+            expected = fields.pop("expected_workspace_version", None)
+            if expected is not None and (branch.working_draft is None or branch.working_draft.version != expected):
+                raise RevisionConflictError("Draft changed elsewhere; your edits have not been applied")
+            if "working_draft" in fields:
+                fields["working_draft"] = ConceptWorkspace.model_validate(fields["working_draft"])
             updated = branch.model_copy(update={**fields, "updated_at": _now()})
             session.branches[i] = updated
             return updated
@@ -203,6 +217,7 @@ class SupabaseV2Store:
             title=row.get("title") or "New workspace",
             current_artifact_kind=row.get("current_artifact_kind"),
             current_artifact_id=row.get("current_artifact_id"),
+            working_draft=row.get("working_draft"),
             selection=row.get("selection"),
             focus=row.get("focus"),
             recent_ideas=row.get("recent_ideas") or [],
@@ -294,10 +309,15 @@ class SupabaseV2Store:
         if "current_artifact_kind" in fields:
             _validate_artifact_kind(fields["current_artifact_kind"])
 
+        expected = fields.pop("expected_workspace_version", None)
         query = self._client.table("v2_branches")
         # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
         query = query.update(fields) if fields else query.select("*")
+        if expected is not None:
+            query = query.eq("working_draft->>version", str(expected))
         rows = query.eq("id", branch_id).eq("session_id", session_id).execute().data
+        if not rows and expected is not None:
+            raise RevisionConflictError("Draft changed elsewhere; your edits have not been applied")
         if not rows:
             raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
         return self._row_to_branch(rows[0])

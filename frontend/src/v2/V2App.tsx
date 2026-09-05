@@ -1,7 +1,8 @@
+import { ConceptWorkspacePanel } from './ConceptWorkspace';
 import { MyStuff } from './MyStuff';
 import { circleContext } from './circleState';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
@@ -16,6 +17,7 @@ export function V2App() {
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [draftPending, setDraftPending] = useState(false);
   const [showConceptPicker, setShowConceptPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,17 +30,6 @@ export function V2App() {
     apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err)));
   }, [isSignedIn, getToken]);
 
-  if (!isLoaded) return null;
-  if (!isSignedIn) {
-    return (
-      <div className="p-4 sm:p-6">
-        <h1>Guitar Tutor</h1>
-        <p>Sign in to start or resume a session.</p>
-        <SignInButton mode="modal" />
-      </div>
-    );
-  }
-
   const handleStart = async (startConcept = false) => {
     try {
       const session = await apiClient.createV2Session();
@@ -49,6 +40,15 @@ export function V2App() {
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const handleComparison = async () => {
+    try {
+      const session = activeSession ?? await apiClient.createV2Session();
+      const branch = await apiClient.openConceptWorkspace(session.id);
+      setActiveSession({ ...session, branches: [...session.branches, branch] });
+      setActiveBranchId(branch.id); setShowConceptPicker(false);
+    } catch (err) { setError(String(err)); }
   };
 
   const handleContinue = async (sessionId: string) => {
@@ -63,7 +63,7 @@ export function V2App() {
     }
   };
 
-  const handleBranchChange = (updatedBranch: V2Branch) => {
+  const handleBranchChange = useCallback((updatedBranch: V2Branch) => {
     setActiveSession((prev) => {
       if (!prev) return prev;
       return {
@@ -71,7 +71,7 @@ export function V2App() {
         branches: prev.branches.map((b) => (b.id === updatedBranch.id ? updatedBranch : b)),
       };
     });
-  };
+  }, []);
 
   const handleBranchOpened = (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => {
     setActiveSession((previous) => {
@@ -142,25 +142,37 @@ export function V2App() {
     }
   };
 
+  if (!isLoaded) return null;
+  if (!isSignedIn) {
+    return (
+      <div className="p-4 sm:p-6">
+        <h1>Guitar Tutor</h1>
+        <p>Sign in to start or resume a session.</p>
+        <SignInButton mode="modal" />
+      </div>
+    );
+  }
+
   if (activeSession) {
     const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
     return (
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <fieldset disabled={draftPending} className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h1 className="text-2xl font-black">Guitar Tutor</h1>
           <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); setShowConceptPicker(false); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
-        </div>
+        </fieldset>
+        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2" onClick={handleComparison}>Explore major vs minor</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
-        <BranchNavigation
+        <fieldset disabled={draftPending}><BranchNavigation
           branches={activeSession.branches}
           activeBranchId={branch?.id ?? null}
           onSelect={handleSelectBranch}
           onClose={handleCloseBranch}
           onReopen={handleReopenBranch}
-        />
+        /></fieldset>
         {branch && (
           <section
             id={`workspace-panel-${branch.id}`}
@@ -177,6 +189,8 @@ export function V2App() {
                 }}
                 onWorkOnConcept={handleWorkOnConcept}
               />
+            ) : branch.working_draft ? (
+              <ConceptWorkspacePanel onPendingChange={setDraftPending} key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
             ) : branch.current_artifact_kind === 'exercise' ? (
               <ExerciseWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} />
             ) : branch.current_artifact_kind === 'concept_study' ? (
@@ -220,6 +234,7 @@ export function V2App() {
           </div>
         </section>
       )}
+      <section className="my-5 space-y-2"><h2 className="text-lg font-bold">Explore</h2><p>What changes between major and minor?</p><button type="button" className="min-h-11 rounded-lg border px-3 py-2" onClick={handleComparison}>Explore major vs minor</button></section>
       <MyStuff onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
       <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>
