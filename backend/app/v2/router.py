@@ -41,11 +41,13 @@ router = APIRouter()
 
 
 class UpdateBranchRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=120)
     current_artifact_kind: Optional[ArtifactKind] = None
     current_artifact_id: Optional[str] = None
     selection: Optional[dict[str, Any]] = None
     focus: Optional[dict[str, Any]] = None
     recent_ideas: Optional[list[dict[str, Any]]] = None
+    closed: Optional[bool] = None
 
 
 @router.post("/sessions", response_model=Session, status_code=status.HTTP_201_CREATED)
@@ -173,6 +175,7 @@ async def create_song_study(
             data.session_id,
             data.branch_id,
             user_id,
+            title=payload.title,
             current_artifact_kind="song_study",
             current_artifact_id=artifact.id,
         )
@@ -286,6 +289,7 @@ async def create_concept_study(
             branch = store.create_branch(
                 data.session_id,
                 user_id,
+                title=payload.display_name,
                 current_artifact_kind="concept_study",
                 current_artifact_id=artifact.id,
             )
@@ -336,6 +340,7 @@ async def work_on_saved_concept(
         branch = store.create_branch(
             data.session_id,
             user_id,
+            title=artifact.title,
             current_artifact_kind="concept_study",
             current_artifact_id=artifact.id,
         )
@@ -532,3 +537,69 @@ async def create_progression(
     keep the SongStudy branch the user was working in current/active.
     """
     return store.create_artifact(user_id=user_id, kind="progression", title=data.title, payload=data.model_dump())
+
+
+class ExploreProgressionRequest(BaseModel):
+    session_id: str
+    branch_id: str
+    progression: ProgressionPayload
+
+
+class OpenProgressionResponse(BaseModel):
+    artifact: Artifact
+    branch: Branch
+
+
+@router.post("/progressions/explore", response_model=OpenProgressionResponse, status_code=status.HTTP_201_CREATED)
+async def explore_progression(
+    data: ExploreProgressionRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        session = store.get_session(data.session_id, user_id)
+        source = next((branch for branch in session.branches if branch.id == data.branch_id), None)
+        if source is None:
+            raise NotFoundError("Branch not found")
+
+        artifact = store.create_artifact(
+            user_id=user_id,
+            kind="progression",
+            title=data.progression.title,
+            payload=data.progression.model_dump(),
+        )
+        branch = store.create_branch(
+            data.session_id,
+            user_id,
+            title=data.progression.title,
+            current_artifact_kind="progression",
+            current_artifact_id=artifact.id,
+            selection={"type": "progression_chord", "index": 0},
+            focus={"type": "progression_chord", "index": 0},
+            fork_context={
+                "source_branch_id": source.id,
+                "source_artifact_kind": source.current_artifact_kind,
+                "source_artifact_id": source.current_artifact_id,
+                "source_selection": source.selection,
+                "source_focus": source.focus,
+                "intent": f"Explore {data.progression.title}",
+            },
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return OpenProgressionResponse(artifact=artifact, branch=branch)
+
+
+@router.get("/progressions/{artifact_id}", response_model=Artifact)
+async def get_progression(
+    artifact_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if artifact.kind != "progression":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a Progression artifact")
+    return artifact
