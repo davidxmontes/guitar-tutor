@@ -209,6 +209,11 @@ class OpenConceptStudyResponse(BaseModel):
     branch: Branch
 
 
+class WorkOnSavedConceptRequest(BaseModel):
+    session_id: str
+    branch_id: str
+
+
 @router.get("/study/catalog", response_model=StudyCatalog)
 async def get_concept_catalog(user_id: str = Depends(get_current_user)):
     return get_study_catalog()
@@ -279,6 +284,14 @@ async def create_concept_study(
     return OpenConceptStudyResponse(artifact=concept_artifact, branch=branch)
 
 
+@router.get("/concept-studies", response_model=list[ConceptStudyArtifact])
+async def list_concept_studies(
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    return [ConceptStudyArtifact.model_validate(item.model_dump()) for item in store.list_artifacts(user_id, "concept_study")]
+
+
 @router.get("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
 async def get_concept_study(
     artifact_id: str,
@@ -292,6 +305,34 @@ async def get_concept_study(
     if artifact.kind != "concept_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a ConceptStudy artifact")
     return ConceptStudyArtifact.model_validate(artifact.model_dump())
+
+
+@router.post("/concept-studies/{artifact_id}/work-on-this", response_model=OpenConceptStudyResponse, status_code=status.HTTP_201_CREATED)
+async def work_on_saved_concept(
+    artifact_id: str,
+    data: WorkOnSavedConceptRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        session = store.get_session(data.session_id, user_id)
+        if not any(branch.id == data.branch_id for branch in session.branches):
+            raise NotFoundError("Branch not found")
+        artifact = store.get_artifact(artifact_id, user_id)
+        if artifact.kind != "concept_study":
+            raise NotFoundError("Not a ConceptStudy artifact")
+        branch = store.create_branch(
+            data.session_id,
+            user_id,
+            current_artifact_kind="concept_study",
+            current_artifact_id=artifact.id,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return OpenConceptStudyResponse(
+        artifact=ConceptStudyArtifact.model_validate(artifact.model_dump()),
+        branch=branch,
+    )
 
 
 def get_enrichment_model_factory() -> ModelFactory:

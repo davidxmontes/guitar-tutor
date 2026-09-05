@@ -172,6 +172,41 @@ def test_work_on_concept_promotes_semantic_state_into_a_new_branch(client, sessi
     assert session["branches"][1]["tutor_thread_id"] != session["branches"][0]["tutor_thread_id"]
 
 
+def test_saved_concept_studies_can_be_listed_and_reopened_without_copying_layout_state(client, session_and_branch):
+    session_id, branch_id = session_and_branch
+    saved = client.post(
+        "/api/v2/concept-studies",
+        json={
+            "session_id": session_id,
+            "branch_id": branch_id,
+            "root": "E",
+            "concept_id": "intervals",
+            "selected_interval": 3,
+            "overlay": "intervals",
+            "promotion": "save",
+        },
+    ).json()["artifact"]
+
+    listed = client.get("/api/v2/concept-studies")
+    assert listed.status_code == 200
+    assert [artifact["id"] for artifact in listed.json()] == [saved["id"]]
+
+    opened = client.post(
+        f"/api/v2/concept-studies/{saved['id']}/work-on-this",
+        json={"session_id": session_id, "branch_id": branch_id},
+    )
+    assert opened.status_code == 201
+    body = opened.json()
+    assert body["artifact"] == saved
+    assert body["branch"]["current_artifact_id"] == saved["id"]
+    assert body["artifact"]["payload"]["selected_interval"] == 3
+
+
+def test_listing_concept_studies_excludes_other_users_artifacts(client, store):
+    store.create_artifact("someone_else", "concept_study", "Private", {"visualization": "scale"})
+    assert client.get("/api/v2/concept-studies").json() == []
+
+
 @pytest.mark.parametrize("payload", [
     {"root": "H", "concept_id": "pentatonic_minor"},
     {"root": "A", "concept_id": "not-a-concept"},

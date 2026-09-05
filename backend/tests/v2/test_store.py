@@ -134,6 +134,15 @@ def test_get_artifact_raises_not_found_for_unknown_id(store):
         store.get_artifact("does-not-exist", user_id="user_1")
 
 
+def test_list_artifacts_filters_by_owner_and_kind_newest_first(store):
+    older = store.create_artifact("user_1", "concept_study", "First", {})
+    store.create_artifact("user_1", "song_study", "Song", {})
+    store.create_artifact("user_2", "concept_study", "Private", {})
+    newer = store.create_artifact("user_1", "concept_study", "Second", {})
+
+    assert [artifact.id for artifact in store.list_artifacts("user_1", "concept_study")] == [newer.id, older.id]
+
+
 def test_update_artifact_replaces_payload_without_changing_identity(store):
     created = store.create_artifact(
         user_id="user_1",
