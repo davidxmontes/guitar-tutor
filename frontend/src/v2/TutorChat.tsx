@@ -119,7 +119,7 @@ export function TutorChat({
   return (
     <div
       data-testid="tutor-chat"
-      className="flex flex-col gap-3 rounded-lg border p-3 w-full xl:w-[300px] xl:flex-none"
+      className="flex min-w-0 flex-col gap-3 rounded-lg border p-3 w-full xl:w-[300px] xl:flex-none"
       style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
     >
       <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
@@ -199,7 +199,7 @@ export function TutorChat({
           onChange={(e) => setInput(e.target.value)}
           placeholder={emptyMessage}
           data-testid="tutor-chat-input"
-          className="flex-1 px-3 py-2 rounded-lg border text-xs outline-none transition-colors"
+          className="min-w-0 flex-1 px-3 py-2 rounded-lg border text-xs outline-none transition-colors"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
         />
         <button

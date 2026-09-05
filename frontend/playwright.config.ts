@@ -11,20 +11,20 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:15034',
   },
   webServer: [
     {
-      command: '../backend/.venv/bin/uvicorn app.main:app --port 8000',
+      command: '../backend/.venv/bin/uvicorn app.main:app --port 18034',
       cwd: '../backend',
-      port: 8000,
+      port: 18034,
       env: { AUTH_DEV_BYPASS: 'true', V2_STORAGE_BACKEND: 'memory' },
       reuseExistingServer: false,
     },
     {
-      command: 'npm run dev -- --port 5173',
-      port: 5173,
-      env: { VITE_AUTH_DEV_BYPASS: 'true' },
+      command: 'npm run dev -- --port 15034',
+      port: 15034,
+      env: { VITE_AUTH_DEV_BYPASS: 'true', VITE_DEV_PROXY_TARGET: 'http://localhost:18034' },
       reuseExistingServer: false,
     },
   ],
