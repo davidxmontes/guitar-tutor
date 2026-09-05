@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { TutorFocus, TutorMessage } from '../types/v2';
+import { ProgressionCandidate } from './ProgressionCandidate';
+import type { ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  // Progression candidates (ticket #14) carried on an assistant turn --
+  // structurally persisted on TutorMessage.content.candidates so a history
+  // reload replays them exactly as a live turn would (see router.py).
+  candidates: ProgressionPayload[] | null;
 }
 
 // TutorMessage.content is a plain dict (backend models.py) — `tool` role
@@ -16,7 +21,12 @@ interface ChatEntry {
 function toChatEntries(history: TutorMessage[]): ChatEntry[] {
   return history
     .filter((m): m is TutorMessage & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({ id: m.id, role: m.role, text: typeof m.content.text === 'string' ? m.content.text : '' }));
+    .map((m) => ({
+      id: m.id,
+      role: m.role,
+      text: typeof m.content.text === 'string' ? m.content.text : '',
+      candidates: m.content.candidates ?? null,
+    }));
 }
 
 // --- Tutor chat panel (ticket #13). Lives beside the SongStudy workspace as
@@ -79,13 +89,16 @@ export function TutorChat({
     const text = input.trim();
     if (!text || sending) return;
 
-    setMessages((prev) => [...prev, { id: `local-user-${Date.now()}`, role: 'user', text }]);
+    setMessages((prev) => [...prev, { id: `local-user-${Date.now()}`, role: 'user', text, candidates: null }]);
     setInput('');
     setSending(true);
     setSendError(null);
     try {
       const response = await apiClient.sendTutorTurn({ session_id: sessionId, branch_id: branchId, message: text });
-      setMessages((prev) => [...prev, { id: `local-assistant-${Date.now()}`, role: 'assistant', text: response.message }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: `local-assistant-${Date.now()}`, role: 'assistant', text: response.message, candidates: response.candidates ?? null },
+      ]);
       onFocusChange(response.focus ?? null);
     } catch (err) {
       setSendError(String(err));
@@ -126,18 +139,30 @@ export function TutorChat({
           </p>
         )}
         {messages.map((m) => (
-          <div
-            key={m.id}
-            data-testid={`tutor-chat-message-${m.role}`}
-            className="text-xs rounded-md px-2.5 py-1.5"
-            style={{
-              alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '90%',
-              backgroundColor: m.role === 'user' ? 'var(--accent-500)' : 'var(--bg-secondary)',
-              color: m.role === 'user' ? 'white' : 'var(--text-primary)',
-            }}
-          >
-            {m.text}
+          <div key={m.id} className="flex flex-col gap-2" style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+            {m.text && (
+              <div
+                data-testid={`tutor-chat-message-${m.role}`}
+                className="text-xs rounded-md px-2.5 py-1.5"
+                style={{
+                  backgroundColor: m.role === 'user' ? 'var(--accent-500)' : 'var(--bg-secondary)',
+                  color: m.role === 'user' ? 'white' : 'var(--text-primary)',
+                }}
+              >
+                {m.text}
+              </div>
+            )}
+            {/* Progression candidates (ticket #14): the whole chord sequence
+                rendered as a distinct card alongside the plain-text reply,
+                never replacing it -- same for a live turn or a reconstructed
+                history message. */}
+            {m.role === 'assistant' && m.candidates && m.candidates.length > 0 && (
+              <div data-testid="tutor-chat-candidates" className="flex flex-col gap-2">
+                {m.candidates.map((candidate, i) => (
+                  <ProgressionCandidate key={i} candidate={candidate} />
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
