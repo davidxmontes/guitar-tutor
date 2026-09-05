@@ -233,7 +233,7 @@ def resolve_physical(workspace: ConceptWorkspace) -> dict:
     for entity in workspace.entities:
         if isinstance(entity, Key):
             keys[entity.id] = {'label': f'{entity.root} major', 'root': entity.root,
-                'notes': spelled_notes(entity.root, [0,2,4,5,7,9,11], ['1','2','3','4','5','6','7']), 'circle': CIRCLE_KEYS}
+                'notes': spelled_notes(entity.root, [0,2,4,5,7,9,11], ['1','2','3','4','5','6','7']), 'circle': [entity.root if pitch_class(n) == pitch_class(entity.root) else n for n in CIRCLE_KEYS]}
         elif isinstance(entity, Chord):
             formula = CHORD_INTERVALS[entity.quality]
             chords[entity.id] = {'label': f'{entity.root} {entity.quality}', 'root': entity.root,

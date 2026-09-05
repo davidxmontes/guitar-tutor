@@ -34,11 +34,17 @@ def test_physical_resolution_derives_harmony_movement_and_actual_tuning():
     assert alt.status_code == 200, alt.text
     assert alt.json()['voicings'][g]['positions'][-1]['midi'] == 43
     assert alt.json()['voicings'][g]['tuning'][-1] == 38
+    recontext = deepcopy(draft)
+    recontext['entities'][0]['root'] = 'F#'
+    reanalyzed = client.post('/api/v2/concept-workspaces/resolve', json=recontext).json()
+    assert reanalyzed['transitions'][relation['id']]['functions'] == ['outside key', 'outside key']
+    assert 'F#' in reanalyzed['keys'][recontext['entities'][0]['id']]['circle']
+    assert reanalyzed['voicings'] == facts['voicings']
     for bad in [dict(string=1, fret=25), dict(string=1, fret=-1), dict(string=7, fret=1)]:
         invalid = deepcopy(draft)
         invalid['entities'][3]['positions'][0] = bad
         assert client.post('/api/v2/concept-workspaces/resolve', json=invalid).status_code == 422
-    for field, value in [('tuning', [64]*5), ('chord_id', 'missing'), ('positions', [{'string':1,'fret':1}]*2)]:
+    for field, value in [('tuning', [64]*5), ('tuning', [127]*6), ('tuning', [64,59,55,50,45,38]), ('chord_id', 'missing'), ('positions', [{'string':1,'fret':1}]*2)]:
         invalid = deepcopy(draft)
         invalid['entities'][3][field] = value
         assert client.post('/api/v2/concept-workspaces/resolve', json=invalid).status_code == 422
