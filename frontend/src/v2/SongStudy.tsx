@@ -351,6 +351,7 @@ function SongStudyWorkspace({
   );
   const [selection, setSelection] = useState<SongSelection | null>(() => (branch.selection as SongSelection | null) ?? null);
   const [showFullTab, setShowFullTab] = useState(false);
+  const [persistError, setPersistError] = useState<string | null>(null);
 
   // A different SongStudy was opened — reset local view state from its branch snapshot.
   useEffect(() => {
@@ -365,8 +366,16 @@ function SongStudyWorkspace({
       try {
         const updated = await apiClient.updateV2Branch(sessionId, branch.id, fields);
         onBranchChange(updated);
-      } catch {
-        // Best-effort persistence — local view state already reflects the change.
+        setPersistError(null);
+      } catch (err) {
+        // Local view state already reflects the change optimistically; make
+        // the failure visible so the user knows it hasn't reached the
+        // server (a stale server snapshot would otherwise silently
+        // overwrite it on next load).
+        // ponytail: no retry/queueing — surfacing the failure is the whole
+        // fix here. Add a retry queue (or optimistic-update rollback) if
+        // dropped persists turn out to happen in practice.
+        setPersistError(String(err));
       }
     },
     [sessionId, branch.id, onBranchChange],
@@ -462,6 +471,11 @@ function SongStudyWorkspace({
             {showFullTab ? 'Show overview + focus' : 'Show full tab'}
           </button>
         </div>
+        {persistError && (
+          <p role="status" data-testid="song-study-persist-error" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+            Not saved — {persistError}
+          </p>
+        )}
       </div>
 
       {!showFullTab ? (
