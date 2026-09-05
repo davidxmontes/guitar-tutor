@@ -2,6 +2,9 @@
 shape accepts arbitrary valid string/fret groups and an open-ended semantic
 role, without any layout/navigation instruction fields."""
 
+import pytest
+from pydantic import ValidationError
+
 from app.v2.models import ProgressionChord, ProgressionPayload
 from app.v2.tutor.contract import (
     ConceptSuggestion,
@@ -96,6 +99,14 @@ def test_tutor_response_can_offer_a_concept_without_opening_it() -> None:
     )
 
     assert response.concept_suggestion.label == "A minor pentatonic"
+
+
+def test_tutor_cannot_offer_an_unsupported_concept_visualization() -> None:
+    with pytest.raises(ValidationError):
+        TutorTerminal(
+            message="I can explain this without opening an empty study.",
+            concept_suggestion={"concept_id": "whole_tone", "root": "C", "label": "C whole tone"},
+        )
 
 
 def test_tutor_terminal_candidates_hold_symbolic_chords_only() -> None:

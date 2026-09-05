@@ -96,7 +96,7 @@ export function V2App() {
         branch_id: activeBranchId,
         root: suggestion.root,
         concept_id: suggestion.concept_id,
-        open_in_new_branch: true,
+        promotion: 'work_on_this',
       });
       handleConceptOpened(opened);
     } catch (err) {
@@ -112,8 +112,8 @@ export function V2App() {
           <h1 className="text-2xl font-black">Guitar Tutor V2</h1>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
         </div>
-        <p data-testid="v2-active-session">Session {activeSession.id}</p>
-        <p data-testid="v2-active-branch">Branch {branch?.id}</p>
+        <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
+        <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
         {activeSession.branches.length > 0 && <nav aria-label="Workspace branches" className="flex gap-2 overflow-x-auto border-b my-4" style={{ borderColor: 'var(--border-primary)' }}>
           {activeSession.branches.map((candidate, index) => <button key={candidate.id} type="button" data-testid="v2-branch-tab" aria-current={candidate.id === branch?.id ? 'page' : undefined} onClick={() => { setActiveBranchId(candidate.id); setShowConceptPicker(false); }} className="whitespace-nowrap rounded-t-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-primary)', background: candidate.id === branch?.id ? 'var(--card-bg)' : 'var(--bg-secondary)' }}>{candidate.current_artifact_kind === 'concept_study' ? `Concept ${index + 1}` : candidate.current_artifact_kind === 'song_study' ? `Song ${index + 1}` : `Workspace ${index + 1}`}</button>)}
@@ -122,10 +122,10 @@ export function V2App() {
           showConceptPicker ? (
             <ConceptStudyPicker
               sessionId={activeSession.id}
-              branchId={branch.id}
-              openInNewBranch={Boolean(branch.current_artifact_id)}
+              branch={branch}
               onOpened={handleConceptOpened}
               onCancel={() => setShowConceptPicker(false)}
+              onWorkOnConcept={handleWorkOnConcept}
             />
           ) : branch.current_artifact_kind === 'concept_study' ? (
             <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />

@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { V2Session, V2Branch, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact } from '../types/v2';
+import type { V2Session, V2Branch, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -325,6 +325,17 @@ class ApiClient {
 
   // --- V2: ConceptStudy artifact ---
 
+  async getStudyCatalog(): Promise<StudyCatalog> {
+    return this.fetch<StudyCatalog>('/v2/study/catalog');
+  }
+
+  async getStudyVisualization(data: StudyVisualizationRequest): Promise<ConceptStudyPayload> {
+    const params = new URLSearchParams({ root: data.root, overlay: data.overlay ?? 'notes' });
+    if (data.comparison_id) params.set('comparison_id', data.comparison_id);
+    if (data.selected_interval !== undefined) params.set('selected_interval', String(data.selected_interval));
+    return this.fetch<ConceptStudyPayload>(`/v2/study/visualizations/${data.concept_id}?${params}`);
+  }
+
   async createConceptStudy(data: CreateConceptStudyRequest): Promise<OpenConceptStudyResponse> {
     return this.fetch<OpenConceptStudyResponse>('/v2/concept-studies', {
       method: 'POST',
@@ -334,6 +345,17 @@ class ApiClient {
 
   async getConceptStudy(artifactId: string): Promise<ConceptStudyArtifact> {
     return this.fetch<ConceptStudyArtifact>(`/v2/concept-studies/${artifactId}`);
+  }
+
+  async listConceptStudies(): Promise<ConceptStudyArtifact[]> {
+    return this.fetch<ConceptStudyArtifact[]>('/v2/concept-studies');
+  }
+
+  async workOnSavedConcept(artifactId: string, sessionId: string, branchId: string): Promise<OpenConceptStudyResponse> {
+    return this.fetch<OpenConceptStudyResponse>(`/v2/concept-studies/${artifactId}/work-on-this`, {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId, branch_id: branchId }),
+    });
   }
 
   async enhanceSongStudy(artifactId: string): Promise<SongStudyArtifact> {

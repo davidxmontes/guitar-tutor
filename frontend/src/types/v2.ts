@@ -101,11 +101,23 @@ export interface CreateSongStudyRequest {
 // --- ConceptStudy artifact (ticket #21) ---
 
 export type ConceptId =
+  | 'major'
+  | 'ionian'
+  | 'dorian'
+  | 'phrygian'
+  | 'lydian'
+  | 'mixolydian'
+  | 'aeolian'
+  | 'natural_minor'
+  | 'locrian'
+  | 'harmonic_minor'
+  | 'melodic_minor'
+  | 'pentatonic_major'
   | 'pentatonic_minor'
-  | 'major_triad'
-  | 'minor_triad'
-  | 'perfect_fifth'
-  | 'dominant_resolution';
+  | 'blues'
+  | 'intervals';
+
+export type ScaleConceptId = Exclude<ConceptId, 'intervals'>;
 
 export interface ConceptNote {
   note: string;
@@ -125,17 +137,57 @@ export interface ConceptRelationship {
   positions: ConceptPosition[];
 }
 
-export interface ConceptStudyPayload {
-  concept_id: ConceptId;
+interface ConceptPayloadBase {
   root: string;
   display_name: string;
   explanation: string;
   tuning: string[];
   fret_start: number;
   fret_end: number;
-  notes: ConceptNote[];
+  overlay: 'notes' | 'intervals';
   positions: ConceptPosition[];
+}
+
+export interface ScaleStudyPayload extends ConceptPayloadBase {
+  visualization: 'scale';
+  concept_id: ScaleConceptId;
+  notes: ConceptNote[];
   relationships: ConceptRelationship[];
+  comparison_id: ScaleConceptId | null;
+}
+
+export interface StudyInterval {
+  note: string;
+  label: string;
+  name: string;
+  semitones: number;
+}
+
+export interface IntervalStudyPayload extends ConceptPayloadBase {
+  visualization: 'interval';
+  concept_id: 'intervals';
+  selected_interval: number;
+  intervals: StudyInterval[];
+}
+
+export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload;
+
+export interface StudyCatalogConcept {
+  id: ConceptId;
+  display_name: string;
+  description: string;
+  visualization: 'scale' | 'interval';
+}
+
+export interface StudyCatalogGroup {
+  id: 'essentials' | 'explore_more' | 'systems';
+  display_name: string;
+  concepts: StudyCatalogConcept[];
+}
+
+export interface StudyCatalog {
+  roots: string[];
+  groups: StudyCatalogGroup[];
 }
 
 export type ConceptStudyArtifact = Omit<Artifact, 'payload' | 'kind'> & {
@@ -148,7 +200,18 @@ export interface CreateConceptStudyRequest {
   branch_id: string;
   root: string;
   concept_id: ConceptId;
-  open_in_new_branch?: boolean;
+  comparison_id?: ScaleConceptId | null;
+  overlay?: 'notes' | 'intervals';
+  selected_interval?: number;
+  promotion: 'save' | 'work_on_this';
+}
+
+export interface StudyVisualizationRequest {
+  root: string;
+  concept_id: ConceptId;
+  comparison_id?: ScaleConceptId | null;
+  overlay?: 'notes' | 'intervals';
+  selected_interval?: number;
 }
 
 export interface OpenConceptStudyResponse {

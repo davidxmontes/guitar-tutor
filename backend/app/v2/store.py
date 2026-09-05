@@ -41,6 +41,7 @@ class V2Store(Protocol):
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
+    def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
@@ -126,6 +127,13 @@ class InMemoryV2Store:
         if artifact is None or artifact.user_id != user_id:
             raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
         return artifact
+
+    def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]:
+        artifacts = [
+            artifact for artifact in self._artifacts.values()
+            if artifact.user_id == user_id and (kind is None or artifact.kind == kind)
+        ]
+        return sorted(artifacts, key=lambda artifact: artifact.created_at, reverse=True)
 
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
         artifact = self.get_artifact(artifact_id, user_id)
@@ -301,6 +309,13 @@ class SupabaseV2Store:
         if not rows:
             raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
         return self._row_to_artifact(rows[0])
+
+    def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]:
+        query = self._client.table("v2_artifacts").select("*").eq("clerk_user_id", user_id)
+        if kind is not None:
+            query = query.eq("kind", kind)
+        rows = query.order("created_at", desc=True).execute().data
+        return [self._row_to_artifact(row) for row in rows]
 
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
         updated_at = _now()
