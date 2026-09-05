@@ -4,7 +4,8 @@ import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
 import { SongStudyPanel } from './SongStudy';
 import { ConceptStudyPanel, ConceptStudyPicker } from './ConceptStudy';
-import type { ConceptSuggestion, OpenConceptStudyResponse, V2Branch, V2Session } from '../types/v2';
+import { ProgressionWorkspace } from './ProgressionWorkspace';
+import type { ConceptSuggestion, ProgressionPayload, V2Branch, V2Session } from '../types/v2';
 
 const pageStyle = { padding: 24, fontFamily: 'sans-serif' };
 
@@ -73,7 +74,7 @@ export function V2App() {
     });
   };
 
-  const handleConceptOpened = (opened: OpenConceptStudyResponse) => {
+  const handleBranchOpened = (opened: { branch: V2Branch }) => {
     setActiveSession((previous) => {
       if (!previous) return previous;
       const exists = previous.branches.some((branch) => branch.id === opened.branch.id);
@@ -98,10 +99,16 @@ export function V2App() {
         concept_id: suggestion.concept_id,
         promotion: 'work_on_this',
       });
-      handleConceptOpened(opened);
+      handleBranchOpened(opened);
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const handleExploreProgression = async (candidate: ProgressionPayload) => {
+    if (!activeSession || !activeBranchId) return;
+    const opened = await apiClient.exploreProgression(activeSession.id, activeBranchId, candidate);
+    handleBranchOpened(opened);
   };
 
   if (activeSession) {
@@ -115,22 +122,24 @@ export function V2App() {
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
-        {activeSession.branches.length > 0 && <nav aria-label="Workspace branches" className="flex gap-2 overflow-x-auto border-b my-4" style={{ borderColor: 'var(--border-primary)' }}>
-          {activeSession.branches.map((candidate, index) => <button key={candidate.id} type="button" data-testid="v2-branch-tab" aria-current={candidate.id === branch?.id ? 'page' : undefined} onClick={() => { setActiveBranchId(candidate.id); setShowConceptPicker(false); }} className="whitespace-nowrap rounded-t-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-primary)', background: candidate.id === branch?.id ? 'var(--card-bg)' : 'var(--bg-secondary)' }}>{candidate.current_artifact_kind === 'concept_study' ? `Concept ${index + 1}` : candidate.current_artifact_kind === 'song_study' ? `Song ${index + 1}` : `Workspace ${index + 1}`}</button>)}
+        {activeSession.branches.length > 0 && <nav aria-label="Workspace branches" role="tablist" className="flex gap-2 overflow-x-auto border-b my-4" style={{ borderColor: 'var(--border-primary)' }}>
+          {activeSession.branches.map((candidate) => <button key={candidate.id} type="button" role="tab" data-testid="v2-branch-tab" aria-selected={candidate.id === branch?.id} onClick={() => { setActiveBranchId(candidate.id); setShowConceptPicker(false); }} className="whitespace-nowrap rounded-t-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-primary)', background: candidate.id === branch?.id ? 'var(--card-bg)' : 'var(--bg-secondary)' }}>{candidate.title}</button>)}
         </nav>}
         {branch && (
           showConceptPicker ? (
             <ConceptStudyPicker
               sessionId={activeSession.id}
               branch={branch}
-              onOpened={handleConceptOpened}
+              onOpened={handleBranchOpened}
               onCancel={() => setShowConceptPicker(false)}
               onWorkOnConcept={handleWorkOnConcept}
             />
           ) : branch.current_artifact_kind === 'concept_study' ? (
             <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+          ) : branch.current_artifact_kind === 'progression' ? (
+            <ProgressionWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
           ) : (
-            <SongStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+            <SongStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} onExploreProgression={handleExploreProgression} />
           )
         )}
       </div>

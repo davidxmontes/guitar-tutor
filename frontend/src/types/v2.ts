@@ -6,11 +6,14 @@ export interface V2Branch {
   id: string;
   session_id: string;
   tutor_thread_id: string;
+  title: string;
   current_artifact_kind: ArtifactKind | null;
   current_artifact_id: string | null;
   selection: Record<string, unknown> | null;
   focus: Record<string, unknown> | null;
   recent_ideas: Record<string, unknown>[];
+  fork_context: Record<string, unknown> | null;
+  closed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -24,11 +27,13 @@ export interface V2Session {
 }
 
 export interface UpdateBranchRequest {
+  title?: string;
   current_artifact_kind?: ArtifactKind;
   current_artifact_id?: string;
   selection?: Record<string, unknown> | null;
   focus?: Record<string, unknown> | null;
   recent_ideas?: Record<string, unknown>[];
+  closed?: boolean;
 }
 
 // --- SongStudy artifact (ticket #12) ---
@@ -346,6 +351,11 @@ export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
   kind: 'progression';
   payload: ProgressionPayload;
 };
+
+export interface OpenProgressionResponse {
+  artifact: ProgressionArtifact;
+  branch: V2Branch;
+}
 
 export interface TutorResponse {
   message: string;
