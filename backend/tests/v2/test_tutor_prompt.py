@@ -105,3 +105,54 @@ def test_volatile_turn_message_handles_no_artifact() -> None:
     assert "Current artifact: None" in message.content
     assert "Selection: None" in message.content
     assert "Focus: None" in message.content
+
+
+def test_reconstruct_history_makes_a_prior_turns_candidates_addressable() -> None:
+    """The trickiest part of ticket #14: a candidate proposed in an earlier
+    turn must still be visible to the model in a later turn, purely via
+    V2's own persisted TutorMessage row -- no separate candidate-id
+    protocol, no checkpointer."""
+
+    messages = [
+        TutorMessage(id="m1", tutor_thread_id="t1", role="user", content={"text": "make me something wistful"}, created_at="x"),
+        TutorMessage(
+            id="m2",
+            tutor_thread_id="t1",
+            role="assistant",
+            content={
+                "text": "Here are two ideas.",
+                "focus": None,
+                "candidates": [
+                    {
+                        "title": "Wistful I-vi-IV-V",
+                        "chords": [{"root": "C", "quality": "major", "voicing": None, "tuning": None}],
+                        "inspired_by": None,
+                    },
+                    {
+                        "title": "Moody ii-V-I",
+                        "chords": [{"root": "D", "quality": "minor", "voicing": None, "tuning": None}],
+                        "inspired_by": None,
+                    },
+                ],
+            },
+            created_at="x",
+        ),
+    ]
+
+    reconstructed = reconstruct_history(messages)
+
+    assistant_text = reconstructed[1].content
+    assert "Here are two ideas." in assistant_text
+    assert "Wistful I-vi-IV-V" in assistant_text
+    assert "Moody ii-V-I" in assistant_text
+    assert "Cmajor" in assistant_text  # symbolic chord identity survives the round-trip
+
+
+def test_reconstruct_history_assistant_message_with_no_candidates_is_unchanged() -> None:
+    messages = [
+        TutorMessage(id="m1", tutor_thread_id="t1", role="assistant", content={"text": "Just an answer.", "focus": None}, created_at="x"),
+    ]
+
+    reconstructed = reconstruct_history(messages)
+
+    assert reconstructed[0].content == "Just an answer."

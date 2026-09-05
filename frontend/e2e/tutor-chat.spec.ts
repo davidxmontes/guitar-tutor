@@ -152,3 +152,93 @@ test('tutor chat: history loads, a turn round-trips, and a focus response highli
   await expect(page.getByRole('heading', { name: 'A minor pentatonic' })).toBeVisible()
   await expect(page.getByTestId('v2-branch-tab')).toHaveCount(2)
 })
+
+// Ticket #14: a progression candidate returned by the (stubbed) tutor turn
+// renders as a whole visible chord sequence, Hear/Save/Explore all work
+// without opening a real Branch, and Hear never touches the network.
+test('progression candidate: whole sequence renders, Hear stays local, Save persists, Explore is inert', async ({ page }) => {
+  await page.route('**/api/v2/tutor/threads/*/messages', (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    return route.fulfill({ json: [] })
+  })
+
+  await openSongStudy(page)
+
+  let tutorTurnRequests = 0
+  await page.route('**/api/v2/tutor/turns', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    tutorTurnRequests += 1
+    return route.fulfill({
+      json: {
+        message: "Here's an idea inspired by this passage.",
+        focus: null,
+        candidates: [
+          {
+            title: 'Wistful I-vi-IV-V',
+            chords: [
+              { root: 'C', quality: 'major', voicing: [{ string: 1, fret: 0 }, { string: 2, fret: 1 }], tuning: 'standard' },
+              { root: 'A', quality: 'minor', voicing: [{ string: 1, fret: 0 }], tuning: 'standard' },
+              { root: 'F', quality: 'major', voicing: null, tuning: null },
+              { root: 'G', quality: 'major', voicing: [{ string: 6, fret: 3 }], tuning: 'standard' },
+            ],
+            inspired_by: { artifact_id: 'artifact-1', artifact_kind: 'song_study' },
+          },
+        ],
+        provider: 'openai',
+        model: 'stub-model',
+        latency_ms: 12,
+        usage: { input_tokens: 10, output_tokens: 5 },
+        tool_call_count: 0,
+        status: 'completed',
+      },
+    })
+  })
+
+  let progressionSaveRequest: unknown = null
+  await page.route('**/api/v2/progressions', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    progressionSaveRequest = route.request().postDataJSON()
+    return route.fulfill({
+      status: 201,
+      json: {
+        id: 'progression-1',
+        user_id: 'dev-user',
+        kind: 'progression',
+        title: 'Wistful I-vi-IV-V',
+        payload: progressionSaveRequest,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    })
+  })
+
+  await page.getByTestId('tutor-chat-input').fill('make me something wistful')
+  await page.getByTestId('tutor-chat-send').click()
+
+  // The whole 4-chord sequence is visible at once — not one chord at a time.
+  await expect(page.getByTestId('progression-candidate-title')).toHaveText('Wistful I-vi-IV-V')
+  await expect(page.getByTestId('progression-candidate-chord')).toHaveCount(4)
+  // Three of the four chords resolved a voicing and get a diagram; the
+  // fourth (F major here, stubbed with no voicing) is expected, not broken.
+  await expect(page.getByTestId('progression-chord-diagram')).toHaveCount(3)
+
+  // Hear is deterministic and must never invoke the tutor.
+  const turnsBeforeHear = tutorTurnRequests
+  await page.getByTestId('progression-candidate-hear').click()
+  await page.waitForTimeout(200)
+  expect(tutorTurnRequests).toBe(turnsBeforeHear)
+
+  // Save persists a Progression artifact and stays in the SongStudy view.
+  await page.getByTestId('progression-candidate-save').click()
+  await expect(page.getByTestId('progression-candidate-save-success')).toBeVisible()
+  expect(progressionSaveRequest).toMatchObject({ title: 'Wistful I-vi-IV-V' })
+  await expect(page.getByTestId('song-study-workspace')).toBeVisible()
+
+  // Explore is present but inert — no new session/branch gets created.
+  const explore = page.getByTestId('progression-candidate-explore')
+  await expect(explore).toBeVisible()
+  await expect(explore).toBeDisabled()
+  const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
+  const session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((r) => r.json())
+  expect(session.branches).toHaveLength(1)
+})

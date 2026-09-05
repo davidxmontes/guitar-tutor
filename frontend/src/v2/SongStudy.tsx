@@ -4,8 +4,9 @@ import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
 import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
 import { TutorChat } from './TutorChat';
+import { SongEnrichmentPanel } from './SongEnrichment';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
-import type { ConceptSuggestion, SongFocus, SongSelection, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
+import type { ConceptSuggestion, SongDerivedRange, SongFocus, SongSelection, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 // Supporting element, not a primary block (mock #overview callout 3: "large
@@ -271,12 +272,14 @@ function MeasureOverviewStrip({
   selection,
   onJump,
   onRangeSelect,
+  enrichedRanges,
 }: {
   sections: OverviewSection[];
   focusMeasureIndex: number;
   selection: SongSelection | null;
   onJump: (measureIndex: number) => void;
   onRangeSelect: (start: number, end: number) => void;
+  enrichedRanges: SongDerivedRange[];
 }) {
   const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
 
@@ -340,6 +343,9 @@ function MeasureOverviewStrip({
                 const inFocus = idx === focusMeasureIndex;
                 const inRange =
                   selection?.type === 'range' && idx >= selection.startMeasureIndex && idx <= selection.endMeasureIndex;
+                const enrichment = enrichedRanges?.find(
+                  (range) => idx + 1 >= range.start_measure && idx + 1 <= range.end_measure,
+                );
                 return (
                   <button
                     key={idx}
@@ -348,7 +354,7 @@ function MeasureOverviewStrip({
                     data-testid="song-study-overview-measure"
                     data-measure-index={idx}
                     onClick={(e) => handleClick(idx, e.shiftKey)}
-                    title={`Jump to measure ${idx + 1} — shift-click to select a range`}
+                    title={`Jump to measure ${idx + 1} — shift-click to select a range${enrichment ? ` — ${enrichment.section ?? 'AI learning annotation'}` : ''}`}
                     style={{
                       width: 20,
                       height: 16,
@@ -360,9 +366,17 @@ function MeasureOverviewStrip({
                       backgroundColor: inRange ? 'var(--accent-500)' : inFocus ? 'var(--accent-600)' : 'var(--bg-secondary)',
                       color: inRange || inFocus ? 'white' : 'var(--text-muted)',
                       cursor: 'pointer',
+                      position: 'relative',
                     }}
                   >
                     {idx + 1}
+                    {enrichment && (
+                      <span
+                        data-testid="song-study-enrichment-marker"
+                        aria-hidden="true"
+                        style={{ position: 'absolute', right: 1, bottom: 1, width: 3, height: 3, borderRadius: '50%', background: '#6d5bd0' }}
+                      />
+                    )}
                   </button>
                 );
               },
@@ -516,6 +530,7 @@ function SongStudyWorkspace({
   onBranchChange,
   onSearchAgain,
   onWorkOnConcept,
+  onSongStudyChange,
 }: {
   sessionId: string;
   branch: V2Branch;
@@ -523,6 +538,7 @@ function SongStudyWorkspace({
   onBranchChange: (branch: V2Branch) => void;
   onSearchAgain: () => void;
   onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
+  onSongStudyChange: (artifact: SongStudyArtifact) => void;
 }) {
   const payload = songStudy.payload;
   const measures = useMemo(() => payload.tab_data.measures ?? [], [payload.tab_data.measures]);
@@ -731,6 +747,13 @@ function SongStudyWorkspace({
         )}
       </div>
 
+      <SongEnrichmentPanel
+        songStudy={songStudy}
+        onChange={onSongStudyChange}
+        visibleStartMeasure={focus.measureIndex + 1}
+        visibleEndMeasure={detailEndIndex + 1}
+      />
+
       {!showFullTab ? (
         // Overview + Focus: the compressed section map is a secondary strip
         // above; the focused 2-4 measures are the dominant area below it
@@ -743,6 +766,7 @@ function SongStudyWorkspace({
             selection={selection}
             onJump={jumpToMeasure}
             onRangeSelect={selectRange}
+            enrichedRanges={payload.enrichment?.ranges ?? []}
           />
 
           <div className="flex flex-col gap-3">
@@ -948,6 +972,7 @@ export function SongStudyPanel({
       onBranchChange={onBranchChange}
       onSearchAgain={() => setSearchingAgain(true)}
       onWorkOnConcept={onWorkOnConcept}
+      onSongStudyChange={setSongStudy}
     />
   );
 }

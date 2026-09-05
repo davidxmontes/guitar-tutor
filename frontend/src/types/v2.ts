@@ -40,12 +40,40 @@ export interface SongStudyTrack {
   tuning: number[] | null;
 }
 
+export interface SongSourceSection {
+  label: string;
+  start_measure: number;
+  end_measure: number;
+  source: 'tab' | 'chordpro';
+}
+
+export interface SongDerivedRange {
+  start_measure: number;
+  end_measure: number;
+  section: string | null;
+  lyrics: string[];
+  broad_harmony: string[];
+  detailed_harmony: string[];
+  confidence: 'low' | 'medium' | 'high';
+  provenance: 'ai';
+}
+
+export interface SongEnrichment {
+  tab_fingerprint: string;
+  chordpro_fingerprint: string | null;
+  source_sections: SongSourceSection[];
+  ranges: SongDerivedRange[];
+  generated_at: string;
+}
+
 export interface SongStudyPayload {
   song_id: number;
   artist: string;
   title: string;
   track: SongStudyTrack;
   tab_data: TabData;
+  chordpro: string | null;
+  enrichment: SongEnrichment | null;
 }
 
 export interface Artifact {
@@ -174,10 +202,39 @@ export interface TutorUsage {
   reasoning_tokens?: number | null;
 }
 
+// --- Progression (ticket #14). `voicing`/`tuning` are populated only when
+// the backend's chord_service had a curated voicing for that root/quality --
+// no entry is expected/normal, not an error; the diagram simply has nothing
+// to draw for that chord.
+
+export interface ProgressionVoicingPosition {
+  string: number;
+  fret: number;
+}
+
+export interface ProgressionChord {
+  root: string;
+  quality: string;
+  voicing: ProgressionVoicingPosition[] | null;
+  tuning: string | null;
+}
+
+export interface ProgressionPayload {
+  title: string;
+  chords: ProgressionChord[];
+  inspired_by: Record<string, unknown> | null;
+}
+
+export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
+  kind: 'progression';
+  payload: ProgressionPayload;
+};
+
 export interface TutorResponse {
   message: string;
   focus: TutorFocus | null;
   concept_suggestion?: ConceptSuggestion | null;
+  candidates: ProgressionPayload[] | null;
   provider: string;
   model: string;
   latency_ms: number;
@@ -198,6 +255,6 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; [key: string]: unknown };
+  content: { text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }

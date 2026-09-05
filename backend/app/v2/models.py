@@ -6,12 +6,12 @@ selection, focus, recent ideas, tutor-thread identity).
 Artifact = a durable musical thing (SongStudy, Progression, ConceptStudy,
 Exercise) saved/reopened independently of the branch that created it —
 common columns plus a JSON payload, strictly typed per concrete artifact
-route. SongStudy and ConceptStudy payloads exist so far.
+route. SongStudy, Progression, and ConceptStudy payloads exist so far.
 """
 
 from typing import Any, Literal, Optional, get_args
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 ArtifactKind = Literal["song_study", "progression", "concept_study", "exercise"]
 
@@ -50,17 +50,93 @@ class SongStudyTrack(BaseModel):
     tuning: Optional[list[int]] = None
 
 
+class SongSourceSection(BaseModel):
+    label: str
+    start_measure: int = Field(ge=1)
+    end_measure: int = Field(ge=1)
+    source: Literal["tab", "chordpro"]
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "SongSourceSection":
+        if self.end_measure < self.start_measure:
+            raise ValueError("end_measure must not precede start_measure")
+        return self
+
+
+class SongDerivedRange(BaseModel):
+    start_measure: int = Field(ge=1)
+    end_measure: int = Field(ge=1)
+    section: Optional[str] = None
+    lyrics: list[str] = Field(default_factory=list)
+    broad_harmony: list[str] = Field(default_factory=list)
+    detailed_harmony: list[str] = Field(default_factory=list)
+    confidence: Literal["low", "medium", "high"]
+    provenance: Literal["ai"] = "ai"
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "SongDerivedRange":
+        if self.end_measure < self.start_measure:
+            raise ValueError("end_measure must not precede start_measure")
+        return self
+
+
+class SongEnrichment(BaseModel):
+    tab_fingerprint: str
+    chordpro_fingerprint: Optional[str] = None
+    source_sections: list[SongSourceSection] = Field(default_factory=list)
+    ranges: list[SongDerivedRange] = Field(default_factory=list)
+    generated_at: str
+
+
 class SongStudyPayload(BaseModel):
     """Raw source of truth for a song_study artifact: the entire selected
     track loaded once from Songsterr. Basic browsing/selection/fretboard
-    mapping must work from this alone — AI enrichment (later tickets) is
-    additive, never required."""
+    mapping must work from this alone. Optional enrichment is additive and
+    never required."""
 
     song_id: int
     artist: str
     title: str
     track: SongStudyTrack
     tab_data: dict[str, Any]  # {measures, tuning, name, automations, ...} as Songsterr returned it
+    chordpro: Optional[str] = None
+    enrichment: Optional[SongEnrichment] = None
+
+
+class ProgressionVoicingPosition(BaseModel):
+    """One string/fret position within a saved chord's exact voicing —
+    deliberately just string+fret (no note/interval labels): those are
+    derivable, and the physical position + tuning below are what the spec
+    calls authoritative for reproducing a chosen voicing."""
+
+    string: int
+    fret: int
+
+
+class ProgressionChord(BaseModel):
+    """One chord slot in a Progression: symbolic identity (root/quality) is
+    always present; `voicing`/`tuning` are populated only when
+    chord_service.get_chord found a curated voicing for this root/quality
+    (see app.v2.tutor.runner) — no entry is expected and normal, not an
+    error (spec #10: don't require every chord to exist in a canonical DB
+    before it can be displayed/saved)."""
+
+    root: str
+    quality: str
+    voicing: Optional[list[ProgressionVoicingPosition]] = None
+    tuning: Optional[str] = None  # tuning id (e.g. "standard") the voicing was resolved against
+
+
+class ProgressionPayload(BaseModel):
+    """Progression artifact payload (ticket #14): an ordered chord sequence
+    plus lightweight historical provenance. `inspired_by` never creates a
+    live dependency on the source SongStudy (spec #10: "no live dependency
+    propagation") — it's a snapshot dict good enough to show where the idea
+    came from."""
+
+    title: str
+    chords: list[ProgressionChord]
+    inspired_by: Optional[dict[str, Any]] = None
 
 
 ConceptId = Literal[

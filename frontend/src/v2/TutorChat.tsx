@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { ConceptSuggestion, TutorFocus, TutorMessage } from '../types/v2';
+import { ProgressionCandidate } from './ProgressionCandidate';
+import type { ConceptSuggestion, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   conceptSuggestion?: ConceptSuggestion | null;
+  // Progression candidates (ticket #14) carried on an assistant turn --
+  // structurally persisted on TutorMessage.content.candidates so a history
+  // reload replays them exactly as a live turn would (see router.py).
+  candidates: ProgressionPayload[] | null;
 }
 
 // TutorMessage.content is a plain dict (backend models.py) — `tool` role
@@ -22,6 +27,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
       role: m.role,
       text: typeof m.content.text === 'string' ? m.content.text : '',
       conceptSuggestion: m.content.concept_suggestion,
+      candidates: m.content.candidates ?? null,
     }));
 }
 
@@ -89,7 +95,7 @@ export function TutorChat({
     const text = input.trim();
     if (!text || sending) return;
 
-    setMessages((prev) => [...prev, { id: `local-user-${Date.now()}`, role: 'user', text }]);
+    setMessages((prev) => [...prev, { id: `local-user-${Date.now()}`, role: 'user', text, candidates: null }]);
     setInput('');
     setSending(true);
     setSendError(null);
@@ -100,6 +106,7 @@ export function TutorChat({
         role: 'assistant',
         text: response.message,
         conceptSuggestion: response.concept_suggestion,
+        candidates: response.candidates ?? null,
       }]);
       onFocusChange(response.focus ?? null);
     } catch (err) {
@@ -141,27 +148,39 @@ export function TutorChat({
           </p>
         )}
         {messages.map((m) => (
-          <div
-            key={m.id}
-            data-testid={`tutor-chat-message-${m.role}`}
-            className="text-xs rounded-md px-2.5 py-1.5"
-            style={{
-              alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '90%',
-              backgroundColor: m.role === 'user' ? 'var(--accent-500)' : 'var(--bg-secondary)',
-              color: m.role === 'user' ? 'white' : 'var(--text-primary)',
-            }}
-          >
-            <p>{m.text}</p>
+          <div key={m.id} className="flex flex-col gap-2" style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+            {m.text && (
+              <div
+                data-testid={`tutor-chat-message-${m.role}`}
+                className="text-xs rounded-md px-2.5 py-1.5"
+                style={{
+                  backgroundColor: m.role === 'user' ? 'var(--accent-500)' : 'var(--bg-secondary)',
+                  color: m.role === 'user' ? 'white' : 'var(--text-primary)',
+                }}
+              >
+                {m.text}
+              </div>
+            )}
             {m.role === 'assistant' && m.conceptSuggestion && onWorkOnConcept && (
               <button
                 type="button"
                 onClick={() => onWorkOnConcept(m.conceptSuggestion!)}
-                className="mt-2 rounded-md border px-2 py-1 text-xs font-semibold"
+                className="rounded-md border px-2 py-1 text-xs font-semibold"
                 style={{ borderColor: 'var(--accent-500)', color: 'var(--accent-700)' }}
               >
                 Work on {m.conceptSuggestion.label}
               </button>
+            )}
+            {/* Progression candidates (ticket #14): the whole chord sequence
+                rendered as a distinct card alongside the plain-text reply,
+                never replacing it -- same for a live turn or a reconstructed
+                history message. */}
+            {m.role === 'assistant' && m.candidates && m.candidates.length > 0 && (
+              <div data-testid="tutor-chat-candidates" className="flex flex-col gap-2">
+                {m.candidates.map((candidate, i) => (
+                  <ProgressionCandidate key={i} candidate={candidate} />
+                ))}
+              </div>
             )}
           </div>
         ))}

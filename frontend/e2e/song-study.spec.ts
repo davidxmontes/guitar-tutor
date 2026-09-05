@@ -53,6 +53,8 @@ function songStudyArtifact() {
           { voices: [{ beats: [{ notes: [{ string: 2, fret: 2 }] }] }] },
         ],
       },
+      chordpro: null,
+      enrichment: null,
     },
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -60,19 +62,61 @@ function songStudyArtifact() {
 }
 
 test('search a song, load the whole track, select a beat, and sync the fretboard', async ({ page }) => {
+  let currentArtifact = songStudyArtifact()
+  let enrichmentCalls = 0
+  let noteEnhancementRequested!: () => void
+  let releaseEnhancement!: () => void
+  const enhancementRequested = new Promise<void>((resolve) => { noteEnhancementRequested = resolve })
+  const enhancementCanFinish = new Promise<void>((resolve) => { releaseEnhancement = resolve })
+
   await page.route('**/api/songs/search**', (route) => route.fulfill({ json: SEARCH_RESPONSE }))
   await page.route('**/api/v2/song-studies', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     const { session_id, branch_id } = route.request().postDataJSON() as { session_id: string; branch_id: string }
-    const artifact = songStudyArtifact()
     // Mirror the real endpoint's side effect (setting the branch's current
     // artifact) against the real local backend, without hitting the live
     // Songsterr API this stub is standing in for. page.request is a separate
     // client from the page's own network stack, so it isn't re-intercepted.
     await page.request.patch(`/api/v2/sessions/${session_id}/branches/${branch_id}`, {
-      data: { current_artifact_kind: 'song_study', current_artifact_id: artifact.id },
+      data: { current_artifact_kind: 'song_study', current_artifact_id: currentArtifact.id },
     })
-    return route.fulfill({ status: 201, json: artifact })
+    return route.fulfill({ status: 201, json: currentArtifact })
+  })
+  await page.route('**/api/v2/song-studies/artifact-1/enrichment', async (route) => {
+    if (route.request().method() === 'POST') {
+      enrichmentCalls += 1
+      noteEnhancementRequested()
+      await enhancementCanFinish
+      currentArtifact = {
+        ...currentArtifact,
+        payload: {
+          ...currentArtifact.payload,
+          chordpro: '{section: Intro}\n[G]Today is gonna be the day',
+          enrichment: {
+            tab_fingerprint: 'tab-fingerprint',
+            chordpro_fingerprint: 'chordpro-fingerprint',
+            generated_at: '2026-01-01T00:01:00Z',
+            source_sections: [],
+            ranges: [{
+              start_measure: 1,
+              end_measure: 2,
+              section: 'Intro',
+              lyrics: ['Today is gonna be the day'],
+              broad_harmony: ['G'],
+              detailed_harmony: ['Gsus4', 'G'],
+              confidence: 'medium',
+              provenance: 'ai',
+            }],
+          },
+        },
+      }
+      return route.fulfill({ json: currentArtifact })
+    }
+    currentArtifact = {
+      ...currentArtifact,
+      payload: { ...currentArtifact.payload, enrichment: null },
+    }
+    return route.fulfill({ json: currentArtifact })
   })
 
   await page.goto('/v2')
@@ -144,4 +188,36 @@ test('search a song, load the whole track, select a beat, and sync the fretboard
   // focused detail window is still the readable 2-4 measure workspace.
   await expect(page.getByTestId('song-study-overview-measure')).toHaveCount(3)
   await expect(page.getByTestId('song-study-overview-section')).toHaveCount(1)
+
+  // Enrichment is opt-in: loading and browsing the raw song does not call it.
+  expect(enrichmentCalls).toBe(0)
+  const enhanceButton = page.getByTestId('song-study-enhance')
+  await enhanceButton.click()
+  await enhancementRequested
+
+  // Raw browsing stays mounted and usable while the optional model call runs.
+  await expect(page.getByTestId('song-study-workspace')).toBeVisible()
+  await expect(enhanceButton).toHaveText('Enhancing…')
+  await page.getByTestId('song-study-toggle-full-tab').click()
+  await expect(page.getByTestId('song-study-full-tab')).toBeVisible()
+  releaseEnhancement()
+
+  await expect(page.getByTestId('song-study-enrichment-range')).toContainText('Intro · measures 1–2')
+  await expect(page.getByTestId('song-study-enrichment-range')).toContainText('AI alignment · medium confidence')
+  await expect(page.getByTestId('song-study-enrichment-range')).toContainText('Broad harmony: G')
+  await expect(page.getByTestId('song-study-enrichment-range')).toContainText('Guitar detail: Gsus4 → G')
+  await page.getByTestId('song-study-toggle-full-tab').click()
+  await expect(page.getByTestId('song-study-enrichment-marker')).toHaveCount(2)
+  await page.getByTestId('song-study-toggle-full-tab').click()
+
+  // Each raw source remains independently inspectable after enhancement.
+  await page.getByTestId('song-study-chordpro-toggle').click()
+  await expect(page.getByTestId('song-study-chordpro-source')).toContainText('{section: Intro}')
+  await expect(page.getByTestId('song-study-full-tab')).toBeVisible()
+
+  // Removing only the derived layer leaves both raw views intact.
+  await page.getByTestId('song-study-remove-enrichment').click()
+  await expect(page.getByTestId('song-study-enrichment-range')).toHaveCount(0)
+  await expect(page.getByTestId('song-study-chordpro-source')).toContainText('[G]Today is gonna be the day')
+  await expect(page.getByTestId('song-study-full-tab')).toBeVisible()
 })

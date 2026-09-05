@@ -10,11 +10,16 @@ rebuilds prior turns purely from V2's own persisted `TutorMessage` rows
 """
 
 import json
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from app.music.chords import CHORD_INTERVALS
+from app.services.chord_service import VALID_ROOTS
 from app.v2.models import Artifact, Branch, TutorMessage
+
+_VALID_ROOTS_TEXT = ", ".join(VALID_ROOTS)
+_VALID_QUALITIES_TEXT = ", ".join(sorted(CHORD_INTERVALS))
 
 STABLE_TUTOR_INSTRUCTIONS = (
     "You are the Guitar Tutor: a single broad ReAct-style assistant helping "
@@ -38,8 +43,19 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "suggestion is content only: you must never open a ConceptStudy, create "
     "a branch, or imply that mentioning a concept changed navigation. The "
     "user must choose Work on this.\n\n"
-    "Respond with exactly one structured result: `message` (your answer) "
-    "plus optional `focus` and `concept_suggestion`."
+    "When the user asks for a progression idea (for example 'make me "
+    "something with this vibe'), respond with `candidates`: 1-3 named "
+    "progression ideas inspired by the current SongStudy context. Each "
+    "candidate has a `title` and an ordered `chords` list of symbolic "
+    "chords -- `root` and `quality` only, never physical string/fret "
+    "positions here; the application resolves an exact voicing for each "
+    "chord deterministically afterward. Use one of these roots: "
+    f"{_VALID_ROOTS_TEXT}. Use one of these qualities: {_VALID_QUALITIES_TEXT}. "
+    "This is an exploratory request, so it returns candidates rather than "
+    "mutating anything -- the user reviews, hears, and saves or explores a "
+    "candidate on their own.\n\n"
+    "Respond with exactly one structured result: `message` (your answer), "
+    "an optional `focus`, optional `concept_suggestion`, and optional `candidates`."
 )
 
 
@@ -110,6 +126,23 @@ def volatile_turn_message(*, branch: Branch, artifact: Optional[Artifact], user_
     return HumanMessage(content=text)
 
 
+def _render_candidates_for_history(candidates: list[dict[str, Any]]) -> str:
+    """Turn a turn's persisted (already voicing-resolved) progression
+    candidates back into plain text so a later turn's model can address one
+    conversationally ("save the second one") -- no separate candidate-id
+    protocol, same "clarification is just a message" posture as the rest of
+    this module. The frontend gets the same candidates structurally, from
+    `TutorMessage.content["candidates"]` directly (see router.py) -- this
+    text form is for the model only.
+    """
+
+    lines = []
+    for index, candidate in enumerate(candidates, start=1):
+        chords = " - ".join(f"{c['root']}{c['quality']}" for c in candidate.get("chords", []))
+        lines.append(f"{index}. \"{candidate.get('title')}\" -- {chords}")
+    return "Progression candidates proposed this turn:\n" + "\n".join(lines)
+
+
 def reconstruct_history(messages: list[TutorMessage]) -> list[BaseMessage]:
     """Rebuild the Branch's prior conversation as LangChain messages purely
     from V2's own persisted rows -- never from a checkpointer or provider
@@ -123,6 +156,9 @@ def reconstruct_history(messages: list[TutorMessage]) -> list[BaseMessage]:
         if message.role == "user":
             reconstructed.append(HumanMessage(content=text))
         elif message.role == "assistant":
+            candidates = message.content.get("candidates")
+            if candidates:
+                text = f"{text}\n\n{_render_candidates_for_history(candidates)}" if text else _render_candidates_for_history(candidates)
             reconstructed.append(AIMessage(content=text))
         else:
             reconstructed.append(

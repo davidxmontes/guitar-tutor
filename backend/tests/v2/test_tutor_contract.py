@@ -2,7 +2,17 @@
 shape accepts arbitrary valid string/fret groups and an open-ended semantic
 role, without any layout/navigation instruction fields."""
 
-from app.v2.tutor.contract import ConceptSuggestion, FretPosition, TutorFocus, TutorResponse, TutorUsage
+from app.v2.models import ProgressionChord, ProgressionPayload
+from app.v2.tutor.contract import (
+    ConceptSuggestion,
+    FretPosition,
+    ProgressionCandidate,
+    ProgressionChordIdea,
+    TutorFocus,
+    TutorResponse,
+    TutorTerminal,
+    TutorUsage,
+)
 
 
 def test_focus_accepts_arbitrary_string_fret_pairs_with_no_canonical_entry() -> None:
@@ -86,3 +96,55 @@ def test_tutor_response_can_offer_a_concept_without_opening_it() -> None:
     )
 
     assert response.concept_suggestion.label == "A minor pentatonic"
+
+
+def test_tutor_terminal_candidates_hold_symbolic_chords_only() -> None:
+    """LLM-facing schema: a candidate is title + root/quality chords, no
+    voicing/tuning fields at all -- the model has no way to invent physical
+    positions here (see runner.py for who resolves them)."""
+
+    terminal = TutorTerminal(
+        message="Here are a couple of ideas.",
+        candidates=[
+            ProgressionCandidate(
+                title="Wistful I-vi-IV-V",
+                chords=[
+                    ProgressionChordIdea(root="C", quality="major"),
+                    ProgressionChordIdea(root="A", quality="minor"),
+                ],
+            )
+        ],
+    )
+
+    assert set(ProgressionChordIdea.model_fields) == {"root", "quality"}
+    assert terminal.candidates[0].chords[0].root == "C"
+
+
+def test_tutor_response_candidates_default_to_none_and_carry_resolved_progressions() -> None:
+    response = TutorResponse(
+        message="Here's an idea inspired by this passage.",
+        candidates=[
+            ProgressionPayload(
+                title="Wistful I-vi-IV-V",
+                chords=[
+                    ProgressionChord(root="C", quality="major", voicing=[{"string": 1, "fret": 0}], tuning="standard"),
+                    ProgressionChord(root="X", quality="not-a-real-quality"),
+                ],
+                inspired_by={"artifact_id": "a1", "artifact_kind": "song_study"},
+            )
+        ],
+        provider="openai",
+        model="gpt-4o-mini",
+        latency_ms=10,
+        usage=TutorUsage(),
+        tool_call_count=0,
+    )
+
+    assert response.candidates[0].chords[0].voicing[0].fret == 0
+    # A chord with no curated voicing is expected, not an error.
+    assert response.candidates[0].chords[1].voicing is None
+
+    no_candidates = TutorResponse(
+        message="Just an answer.", provider="openai", model="gpt-4o-mini", latency_ms=1, usage=TutorUsage(), tool_call_count=0
+    )
+    assert no_candidates.candidates is None
