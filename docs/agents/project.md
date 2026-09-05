@@ -80,6 +80,26 @@ Treat `main-v2` as this repo's main for every V2 ticket:
 - **Tech-debt ledger:** none kept. Known gaps get a section in this file (see
   above) rather than a separate tracking issue.
 - **Primary context docs:** `README.md` (architecture, API surface, design
-  decisions) and `docs/superpowers/specs/` + `docs/superpowers/plans/` for
-  past feature specs/plans. No `CONTEXT.md` / ADRs yet — created lazily by
+  decisions), `docs/guitar_tutor_v2_ux_reference.html` (V2 UX/layout
+  reference mocks — read before building any V2 screen), and
+  `docs/superpowers/specs/` + `docs/superpowers/plans/` for past feature
+  specs/plans. No `CONTEXT.md` / ADRs yet — created lazily by
   `/domain-modeling` when terms or decisions actually need recording.
+  The UX reference doc is a reference, not a spec to follow strictly — if
+  implementation surfaces a better layout/interaction than what's mocked,
+  explore that instead and note the deviation rather than forcing the mock's
+  shape.
+- **V1 UI inspiration:** V1's styling/presentation is fair game to draw from
+  where it already looks right, even though the V2 components won't be a
+  one-to-one port — new data shapes and, per the spec, a semantic
+  role/group vocabulary (active/candidate/comparison/etc.) mean the V2
+  component is a new implementation either way. Chord diagrams
+  (`frontend/src/components/ChordDiagram/`) are the known example: its
+  dot-grid presentation reads better than what's mocked in the UX reference
+  doc above, so build the V2 version to look like that, but write it fresh
+  against the new V2 data shapes (e.g. a `Progression`/SongStudy artifact's
+  voicing payload) rather than trying to adapt V1's component or its
+  chord-service response shape in place. Fretboard
+  (`frontend/src/components/Fretboard/`) is a second example — take
+  presentation cues from it, but expect its interaction/visuals to be
+  refined in this pass rather than carried over unchanged.

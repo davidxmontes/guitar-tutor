@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Guitar Tutor V2 — UX Reference</title>
+<style>
+:root{
+  --bg:#f5f6f8;--panel:#fff;--ink:#17191c;--muted:#6d7480;--line:#dde2e8;
+  --accent:#208760;--accent-soft:#eaf8f2;--green:#208760;--green-soft:#eaf8f2;
+  --blue:#2b6fca;--blue-soft:#eef5ff;--gold:#946500;--gold-soft:#fff6db;
+  --danger:#a53b3b;--danger-soft:#fff0f0;--shadow:0 14px 38px rgba(0,0,0,.08);
+  --wood1:#dab68a;--wood2:#c9935d;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+main{max-width:1280px;margin:0 auto;padding:34px 18px calc(90px + env(safe-area-inset-bottom))}
+.hero{background:linear-gradient(135deg,#15171c,#30343b);color:#fff;border-radius:26px;padding:38px;box-shadow:var(--shadow)}
+.kicker{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:#9fe0c8;font-weight:900}
+h1{font-size:44px;line-height:1.03;letter-spacing:-1.6px;margin:8px 0 14px}
+.hero p{font-size:18px;max-width:920px;color:#d7dce3;margin:0}
+section{margin-top:40px}
+h2{font-size:29px;line-height:1.1;letter-spacing:-.55px;margin:0 0 13px}
+h3{font-size:18px;margin:0 0 7px}
+p{margin:0 0 10px}.muted{color:var(--muted)}
+.core{background:var(--accent-soft);border-left:5px solid var(--accent);border-radius:16px;padding:19px 21px;font-size:21px;font-weight:850}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow)}
+.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef1f4;color:#59616a;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;margin-bottom:9px}
+.tag.good{background:var(--green-soft);color:var(--green)} .tag.partial{background:var(--gold-soft);color:var(--gold)} .tag.gap{background:var(--danger-soft);color:var(--danger)}
+.principles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.principle{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+.principle strong{display:block;font-size:13px;margin-bottom:4px}
+.mock-label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:900;margin:0 0 8px}
+.desktop{border:1px solid #cbd1d9;border-radius:22px;background:#fff;overflow:hidden;box-shadow:var(--shadow)}
+.desktop-head{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;border-bottom:1px solid var(--line);background:#fafbfc}
+.brand{font-weight:900;font-size:14px}.head-actions{display:flex;gap:8px}
+.pill{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 9px;font-size:10px;font-weight:800}
+.pill.active{background:#1b1e23;color:#fff;border-color:#1b1e23}
+.desktop-body{display:grid;grid-template-columns:220px 1fr 300px;min-height:560px}
+.left{background:#fbfcfd;border-right:1px solid var(--line);padding:13px}
+.center{padding:14px}.right{background:#fbfbfc;border-left:1px solid var(--line);padding:13px}
+.continue-card,.choice,.branch-card,.candidate,.exercise,.info{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.continue-card.active,.branch-card.active{background:var(--accent-soft);border-color:#b9dfd0}
+.choice strong,.continue-card strong,.branch-card strong,.candidate strong{display:block;font-size:11px}.choice small,.continue-card small,.branch-card small,.candidate small{color:var(--muted);font-size:9px}
+.prompt{border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:#f2f4f6;color:#59606a;font-size:10px}
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding:8px 10px;background:#fff}
+.tab{border:1px solid var(--line);border-radius:10px 10px 0 0;padding:7px 10px;font-size:10px;font-weight:850;background:#f7f8fa}
+.tab.active{background:#fff;border-bottom-color:#fff;color:#176a4d}
+.song-map{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;margin-top:8px}
+.mini-measure{height:40px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:5px;font-size:8px;position:relative}
+.mini-measure.sel{background:var(--accent-soft);border-color:#b9dfd0}
+.mini-measure .n{font-weight:900}.mini-measure .ch{color:#176a4d;margin-top:3px;font-weight:800}
+.annotation{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--gold);top:4px;right:4px}
+.detail-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.measure{border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px;min-height:104px}
+.measure strong{font-size:10px}.tabline{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8px;line-height:1.45;color:#31353b;margin-top:7px;white-space:pre}
+.harmony{font-size:9px;font-weight:800;color:#176a4d;margin-top:5px}
+.lyric{font-size:8px;color:var(--muted);margin-top:2px}
+.fretboard-wrap{margin-top:10px}
+.fretboard-meta{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:7px;font-size:9px;color:var(--muted)}
+.fretboard-meta strong{color:var(--ink);font-size:10px;letter-spacing:.01em}
+.fretboard{
+  background:linear-gradient(180deg,#20252b 0%,#171b20 100%);
+  border:1px solid #343b44;border-radius:16px;overflow:hidden;position:relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    inset 0 -1px 0 rgba(0,0,0,.45),
+    0 8px 22px rgba(0,0,0,.12)
+}
+.fret-numbers{
+  display:grid;grid-template-columns:34px repeat(10,1fr);
+  background:#14181d;border-bottom:1px solid #303740;
+  color:#8d98a5;font-size:8px;font-weight:800;text-align:center
+}
+.fret-numbers span{padding:5px 0;border-left:1px solid rgba(255,255,255,.05)}
+.fret-numbers span:first-child{border-left:0}
+.string{
+  height:32px;display:grid;grid-template-columns:34px repeat(10,1fr);
+  position:relative
+}
+.string + .string{border-top:1px solid rgba(255,255,255,.025)}
+.string:nth-child(2) .fret{--string-thickness:1px}
+.string:nth-child(3) .fret{--string-thickness:1px}
+.string:nth-child(4) .fret{--string-thickness:1.25px}
+.string:nth-child(5) .fret{--string-thickness:1.5px}
+.string:nth-child(6) .fret{--string-thickness:1.75px}
+.string:nth-child(7) .fret{--string-thickness:2px}
+.string-label{
+  display:flex;align-items:center;justify-content:center;
+  background:#12161b;border-right:1px solid #3a424c;
+  font-size:9px;font-weight:900;color:#b7c0c9;
+  letter-spacing:.02em
+}
+.fret{
+  display:flex;align-items:center;justify-content:center;
+  border-left:1px solid #59626d;position:relative;
+  background:linear-gradient(90deg,rgba(255,255,255,.012),rgba(255,255,255,0))
+}
+.fret:after{
+  content:"";position:absolute;left:0;right:0;top:50%;
+  height:var(--string-thickness,1px);
+  background:linear-gradient(180deg,#d6dde4,#7f8994);
+  transform:translateY(-50%);z-index:0;
+  box-shadow:0 1px 0 rgba(0,0,0,.38)
+}
+.fret.inlay:before{
+  content:"";position:absolute;width:5px;height:5px;border-radius:50%;
+  background:#6d7782;bottom:3px;left:50%;transform:translateX(-50%);
+  opacity:.55;box-shadow:0 0 0 1px rgba(255,255,255,.05)
+}
+.note{
+  width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:#3a424b;color:#f4f7f9;font-size:8px;font-weight:900;position:relative;z-index:2;
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 3px 8px rgba(0,0,0,.28)
+}
+.note.focus{
+  background:linear-gradient(180deg,#2aa878,#1f8f67);
+  color:#fff;border-color:#46ba8f;
+  box-shadow:0 0 0 3px rgba(32,135,96,.15),0 4px 12px rgba(0,0,0,.34)
+}
+.note.next{
+  background:#151a1f;color:#9fe0c8;border:2px solid #38a67b;
+  box-shadow:0 0 0 2px rgba(32,135,96,.08)
+}
+.note.dim{
+  opacity:.42;background:#303740;color:#aab3bd;border-color:#49515b
+}
+.fretboard-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:8px;color:var(--muted)}
+.legend-key{display:inline-flex;align-items:center;gap:4px}
+.legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.legend-dot.active{background:var(--accent)}
+.legend-dot.upcoming{background:#151a1f;border:2px solid #38a67b}
+.legend-dot.context{background:#59636e;opacity:.55}
+.msg{border-radius:11px;padding:9px 10px;background:#eef0f3;font-size:10px;margin-bottom:8px}.msg.ai{background:#eef9f4;border:1px solid #c9e9dc}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 8px;font-size:9px;font-weight:850}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.dark{background:#1b1e23;color:#fff;border-color:#1b1e23}
+.chord-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.chord{border:1px solid var(--line);border-radius:12px;background:#fff;padding:9px;text-align:center}
+.chord strong{font-size:11px}.diagram{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;width:72px;margin:7px auto}
+.dot{width:8px;height:8px;border-radius:50%;background:#222;margin:1px auto}.dot.open{background:transparent;border:1px solid #222}
+.practice-bar{background:var(--gold-soft);border:1px solid #edd48d;border-radius:13px;padding:11px;margin-top:10px}
+.practice-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}.practice-cell{border-radius:8px;background:#fff;border:1px solid #eadcae;padding:6px;text-align:center;font-size:9px}.practice-cell.current{background:#f7d67d}
+.enrich{background:var(--blue-soft);border:1px solid #c9ddf5;border-radius:13px;padding:11px;margin-top:10px}
+.source-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.source{border:1px solid #cfdced;border-radius:10px;background:#fff;padding:9px;font-size:9px}
+.phone-wrap{display:grid;grid-template-columns:repeat(2,minmax(0,390px));justify-content:center;gap:20px}
+.phone{background:#111318;border-radius:34px;padding:9px;box-shadow:0 20px 55px rgba(0,0,0,.18)}
+.screen{background:#f8f9fb;border-radius:27px;overflow:hidden;min-height:720px;position:relative;padding-bottom:66px}
+.status{height:25px;padding:4px 13px 0;display:flex;justify-content:space-between;font-size:9px;font-weight:850}
+.mobile-head{background:#fff;border-bottom:1px solid var(--line);padding:10px 12px}.mobile-head strong{font-size:14px}.mobile-head small{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+.mobile-section{padding:12px;border-bottom:1px solid var(--line)}
+.scroll-row{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}.scroll-card{min-width:112px;border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px}.scroll-card.active{background:var(--accent-soft);border-color:#b9dfd0}.scroll-card strong{display:block;font-size:10px}.scroll-card small{font-size:8px;color:var(--muted)}
+.switcher{border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:850}
+.bottom{position:absolute;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,1fr);font-size:9px;text-align:center;color:var(--muted);font-weight:800}
+.sheet{border:1px solid var(--line);background:#fff;border-radius:17px;padding:11px;box-shadow:0 10px 26px rgba(0,0,0,.1)}.handle{width:34px;height:4px;border-radius:999px;background:#d6dae0;margin:0 auto 9px}
+.flow{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.step{flex:1;min-width:130px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px}.step strong{display:block;font-size:12px;margin-bottom:3px}.arrow{color:#8c939c;font-size:20px}
+table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:15px;overflow:hidden}th,td{padding:12px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef1f4;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#59616a}tr:last-child td{border-bottom:0}
+@media(max-width:960px){.principles,.grid3{grid-template-columns:1fr 1fr}.desktop-body{grid-template-columns:180px 1fr}.right{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}}
+@media(max-width:720px){main{padding:18px 12px 70px}.hero{padding:24px 18px;border-radius:20px}h1{font-size:31px}h2{font-size:23px}.grid2,.grid3,.principles,.phone-wrap,.desktop-body{grid-template-columns:1fr}.left,.right{border:0;border-bottom:1px solid var(--line)}.detail-row{grid-template-columns:1fr 1fr}.song-map{grid-template-columns:repeat(6,1fr)}.desktop{overflow-x:auto}.source-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<div class="hero">
+  <div class="kicker">Guitar Tutor V2 UX reference</div>
+  <h1>One musical workspace. Branch when ideas become worth exploring.</h1>
+  <p>This reference turns the product spec into concrete screen hierarchy and interaction flow for desktop and iPhone. It is intentionally not pixel-perfect styling; it defines the major regions, responsive behavior, and transitions the frontend should preserve.</p>
+</div>
+
+<section>
+  <div class="core">The user owns navigation. The tutor owns attention.</div>
+</section>
+
+<section>
+<div class="card">
+  <div class="tag good">Fretboard convention</div>
+  <p><strong>All fretboard mocks use six strings and an explicit fret window.</strong> String labels, fret numbers, and position markers make it clear where on the neck the learner is working. Active, upcoming/comparison, and context notes use a consistent green-led visual language.</p>
+</div>
+</section>
+
+<section>
+<h2>Product rules the UI should make obvious</h2>
+<div class="principles">
+  <div class="principle"><strong>Artifact first</strong><span class="muted">Always make the current musical thing obvious: song, progression, concept, or exercise.</span></div>
+  <div class="principle"><strong>Show sequences</strong><span class="muted">Songs and progressions remain visible as a whole; detail views explain the selected part.</span></div>
+  <div class="principle"><strong>Branch explicitly</strong><span class="muted">AI suggestions stay candidates until the user chooses Save, Apply, or Explore.</span></div>
+  <div class="principle"><strong>AI is additive</strong><span class="muted">Raw tab/ChordPro remain source truth. AI focus and enrichment sit on top.</span></div>
+</div>
+</section>
+
+<section>
+<h2>1. Home → start or resume</h2>
+<div class="grid2">
+<div>
+<div class="mock-label">Desktop</div>
+<div class="desktop">
+  <div class="desktop-head"><div class="brand">Guitar Tutor V2</div><div class="head-actions"><span class="pill active">Workspace</span><span class="pill">Classic</span></div></div>
+  <div class="desktop-body" style="grid-template-columns:260px 1fr">
+    <div class="left">
+      <div class="tag">Continue</div>
+      <div class="continue-card active"><strong>Little Wing</strong><small>Transition · measures 3–6</small></div>
+      <div class="continue-card"><strong>Dreamy progression</strong><small>Dmaj7 → F#m7 → Bm9 → Gmaj7</small></div>
+    </div>
+    <div class="center">
+      <div class="tag">Start something</div>
+      <div class="grid2">
+        <div class="choice"><strong>Learn a song</strong><small>Search and study a real track.</small></div>
+        <div class="choice"><strong>Create something</strong><small>Progressions, voicings, ideas.</small></div>
+        <div class="choice"><strong>Practice something</strong><small>Turn material into repetition.</small></div>
+        <div class="choice"><strong>Explore / ask</strong><small>Open the fretboard and follow a question.</small></div>
+      </div>
+      <div class="prompt">Ask Guitar Tutor… “Help me learn Little Wing” / “Give me something dreamy in D”</div>
+    </div>
+  </div>
+</div>
+</div>
+<div>
+<div class="mock-label">iPhone</div>
+<div class="phone">
+<div class="screen" style="min-height:610px">
+  <div class="status"><span>9:41</span><span>5G ▰</span></div>
+  <div class="mobile-head"><strong>Guitar Tutor</strong><small>What are you working on?</small></div>
+  <div class="mobile-section">
+    <div class="tag">Continue</div>
+    <div class="scroll-row">
+      <div class="scroll-card active"><strong>Little Wing</strong><small>m3–6</small></div>
+      <div class="scroll-card"><strong>Dreamy progression</strong><small>4 chords</small></div>
+    </div>
+  </div>
+  <div class="mobile-section">
+    <div class="choice"><strong>Learn a song</strong><small>Search a track and start studying.</small></div>
+    <div class="choice"><strong>Create something</strong><small>Progressions and voicings.</small></div>
+    <div class="choice"><strong>Practice something</strong><small>Loop and drill material.</small></div>
+    <div class="choice"><strong>Explore / ask</strong><small>Start with a question.</small></div>
+    <div class="prompt">Ask Guitar Tutor…</div>
+  </div>
+  <div class="bottom"><div>Home</div><div>My Stuff</div><div>Classic</div></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<h2>2. SongStudy — overview + focus, not pagination-only</h2>
+<div class="mock-label">Desktop</div>
+<div class="desktop">
+  <div class="tabs"><div class="tab active">Little Wing</div><div class="tab">+</div></div>
+  <div class="desktop-head"><div><div class="brand">Little Wing · Guitar 1</div><div class="muted" style="font-size:10px">Standard tuning · 42 measures</div></div><div class="head-actions"><span class="pill">Full tab</span><span class="pill">Enhance for learning</span></div></div>
+  <div class="desktop-body">
+    <div class="left">
+      <div class="tag">Song map</div>
+      <div class="branch-card active"><strong>Intro</strong><small>m1–6 · selected m3–6</small></div>
+      <div class="branch-card"><strong>Verse</strong><small>m7–20</small></div>
+      <div class="branch-card"><strong>Chorus</strong><small>m21–30</small></div>
+      <div class="branch-card"><strong>Later</strong><small>m31–42</small></div>
+    </div>
+    <div class="center">
+      <div class="tag">Whole-track overview</div>
+      <div class="song-map">
+        <div class="mini-measure"><span class="n">1</span><div class="ch">Em7</div></div>
+        <div class="mini-measure"><span class="n">2</span><div class="ch">G</div></div>
+        <div class="mini-measure sel"><span class="n">3</span><div class="ch">Em7</div></div>
+        <div class="mini-measure sel"><span class="n">4</span><div class="ch">G</div><span class="annotation"></span></div>
+        <div class="mini-measure sel"><span class="n">5</span><div class="ch">A</div></div>
+        <div class="mini-measure sel"><span class="n">6</span><div class="ch">C</div></div>
+        <div class="mini-measure"><span class="n">7</span><div class="ch">G/B</div></div>
+        <div class="mini-measure"><span class="n">8</span><div class="ch">Am</div></div>
+        <div class="mini-measure"><span class="n">9</span></div>
+        <div class="mini-measure"><span class="n">10</span></div>
+        <div class="mini-measure"><span class="n">11</span></div>
+        <div class="mini-measure"><span class="n">12</span></div>
+      </div>
+
+      <div class="tag" style="margin-top:12px">Focused measures · m3–6</div>
+      <div class="detail-row">
+        <div class="measure"><strong>m3</strong><div class="harmony">Em7</div><div class="tabline">e|--------<br>B|--3--5--<br>G|--4-----</div><div class="lyric">…lyric context…</div></div>
+        <div class="measure"><strong>m4</strong><div class="harmony">G / embellishment</div><div class="tabline">e|--------<br>B|--3-----<br>G|--4--2--</div><div class="lyric">…lyric context…</div></div>
+        <div class="measure"><strong>m5</strong><div class="harmony">A</div><div class="tabline">e|--------<br>B|--2--3--<br>G|--2-----</div></div>
+        <div class="measure"><strong>m6</strong><div class="harmony">C</div><div class="tabline">e|--0-----<br>B|--1-----<br>G|--0-----</div></div>
+      </div>
+
+      <div class="tag" style="margin-top:12px">Fretboard · selected beat</div>
+      <div class="fretboard-wrap"><div class="fretboard-meta"><strong>Frets 3–12 · selected song phrase</strong><span>6 strings · visible neck position</span></div><div class="fretboard"><div class="fret-numbers"><span></span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div><div class="string"><div class="string-label">e</div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">B</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">E</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">F#</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">G</div><div class="fret inlay"></div><div class="fret"><div class="note focus">B</div></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">D</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">D</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">A</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note dim">E</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">E</div><div class="fret inlay"><div class="note dim">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div></div><div class="fretboard-legend"><span class="legend-key"><i class="legend-dot active"></i>Active</span><span class="legend-key"><i class="legend-dot upcoming"></i>Upcoming / compare</span><span class="legend-key"><i class="legend-dot context"></i>Context</span></div></div>
+      <div class="actions"><span class="btn">Explain</span><span class="btn">Practice selection</span><span class="btn">Ask Tutor</span></div>
+    </div>
+    <div class="right">
+      <div class="tag">Tutor</div>
+      <div class="msg">What is happening in m3–6?</div>
+      <div class="msg ai">This is mostly an Em7 → G movement. The guitar keeps common tones while adding an embellishment in m4.<div class="actions"><span class="btn primary">Point it out</span><span class="btn">Compare</span></div></div>
+      <div class="prompt">Ask about this selection…</div>
+    </div>
+  </div>
+</div>
+
+<div class="phone-wrap" style="margin-top:18px">
+<div>
+<div class="mock-label">iPhone · SongStudy</div>
+<div class="phone">
+<div class="screen">
+  <div class="status"><span>9:41</span><span>5G ▰</span></div>
+  <div class="mobile-head"><strong>Little Wing · Guitar 1</strong><small>m3–6 selected</small></div>
+  <div class="mobile-section">
+    <div class="switcher"><span>Workspace: Little Wing</span><span>⌄</span></div>
+  </div>
+  <div class="mobile-section">
+    <div class="tag">Song map</div>
+    <div class="scroll-row">
+      <div class="scroll-card"><strong>m1</strong><small>Em7</small></div>
+      <div class="scroll-card"><strong>m2</strong><small>G</small></div>
+      <div class="scroll-card active"><strong>m3–6</strong><small>selected</small></div>
+      <div class="scroll-card"><strong>m7</strong><small>G/B</small></div>
+    </div>
+  </div>
+  <div class="mobile-section">
+    <div class="tag">Focused detail</div>
+    <div class="detail-row">
+      <div class="measure"><strong>m3</strong><div class="harmony">Em7</div><div class="tabline">B|--3--5--<br>G|--4-----</div></div>
+      <div class="measure"><strong>m4</strong><div class="harmony">G</div><div class="tabline">B|--3-----<br>G|--4--2--</div></div>
+    </div>
+  </div>
+  <div class="mobile-section">
+    <div class="tag">Fretboard</div>
+    <div class="fretboard-wrap"><div class="fretboard-meta"><strong>Frets 3–12 · selected song phrase</strong><span>6 strings · visible neck position</span></div><div class="fretboard"><div class="fret-numbers"><span></span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div><div class="string"><div class="string-label">e</div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">B</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">E</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">F#</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">G</div><div class="fret inlay"></div><div class="fret"><div class="note focus">B</div></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">D</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">D</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">A</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note dim">E</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">E</div><div class="fret inlay"><div class="note dim">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div></div><div class="fretboard-legend"><span class="legend-key"><i class="legend-dot active"></i>Active</span><span class="legend-key"><i class="legend-dot upcoming"></i>Upcoming / compare</span><span class="legend-key"><i class="legend-dot context"></i>Context</span></div></div>
+    <div class="actions"><span class="btn">Explain</span><span class="btn">Practice</span><span class="btn primary">Ask</span></div>
+  </div>
+  <div class="bottom"><div>Song</div><div>Tutor</div><div>Practice</div></div>
+</div>
+</div>
+</div>
+
+<div>
+<div class="mock-label">iPhone · Tutor bottom sheet</div>
+<div class="phone">
+<div class="screen">
+  <div class="status"><span>9:41</span><span>5G ▰</span></div>
+  <div class="mobile-head"><strong>Little Wing</strong><small>m3–6 · Tutor focus</small></div>
+  <div class="mobile-section">
+    <div class="fretboard-wrap"><div class="fretboard-meta"><strong>Frets 3–12 · selected song phrase</strong><span>6 strings · visible neck position</span></div><div class="fretboard"><div class="fret-numbers"><span></span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div><div class="string"><div class="string-label">e</div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">B</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">E</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">F#</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">G</div><div class="fret inlay"></div><div class="fret"><div class="note focus">B</div></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">D</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">D</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">A</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note dim">E</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">E</div><div class="fret inlay"><div class="note dim">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div></div><div class="fretboard-legend"><span class="legend-key"><i class="legend-dot active"></i>Active</span><span class="legend-key"><i class="legend-dot upcoming"></i>Upcoming / compare</span><span class="legend-key"><i class="legend-dot context"></i>Context</span></div></div>
+  </div>
+  <div class="mobile-section">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="msg ai">The G is the minor 3rd of Em. Notice that it stays close while the phrase moves into the next shape.</div>
+      <div class="actions"><span class="btn">Compare</span><span class="btn">Make a drill</span><span class="btn primary">Make something with this vibe</span></div>
+      <div class="prompt">Ask a follow-up…</div>
+    </div>
+  </div>
+  <div class="bottom"><div>Song</div><div>Tutor</div><div>Practice</div></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<h2>3. AI candidate stays inside the song until the user branches</h2>
+<div class="grid2">
+<div class="card">
+  <div class="tag">Tutor candidate</div>
+  <h3>Dreamy progression</h3>
+  <div class="chord-row">
+    <div class="chord"><strong>Dmaj7</strong><div class="diagram"><i class="dot"></i><i class="dot open"></i><i class="dot"></i><i class="dot"></i><i class="dot open"></i><i class="dot"></i></div></div>
+    <div class="chord"><strong>F#m7</strong><div class="diagram"><i class="dot"></i><i class="dot"></i><i class="dot open"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></div></div>
+    <div class="chord"><strong>Bm9</strong><div class="diagram"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot open"></i><i class="dot"></i><i class="dot"></i></div></div>
+    <div class="chord"><strong>Gmaj7</strong><div class="diagram"><i class="dot open"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot open"></i><i class="dot"></i></div></div>
+  </div>
+  <div class="actions"><span class="btn">Hear</span><span class="btn">Save</span><span class="btn primary">Explore</span></div>
+</div>
+<div class="card">
+  <div class="tag">Behavior</div>
+  <p><strong>Hear</strong> auditions the candidate locally. <strong>Save</strong> stores it without leaving Little Wing. <strong>Explore</strong> is the only action that creates a new branch.</p>
+  <p class="muted">The candidate is content inside the current branch until the user chooses otherwise.</p>
+</div>
+</div>
+</section>
+
+<section>
+<h2>4. Explore → new branch, not a mode switch</h2>
+<div class="mock-label">Desktop</div>
+<div class="desktop">
+  <div class="tabs"><div class="tab">Little Wing</div><div class="tab active">Dreamy progression</div><div class="tab">+</div></div>
+  <div class="desktop-head"><div><div class="brand">Dreamy progression</div><div class="muted" style="font-size:10px">Inspired by Little Wing · m3–6</div></div><div class="head-actions"><span class="pill">Hear</span><span class="pill">Save</span></div></div>
+  <div class="desktop-body">
+    <div class="left">
+      <div class="tag">Sequence</div>
+      <div class="branch-card active"><strong>Dmaj7</strong><small>selected</small></div>
+      <div class="branch-card"><strong>F#m7</strong></div>
+      <div class="branch-card"><strong>Bm9</strong></div>
+      <div class="branch-card"><strong>Gmaj7</strong></div>
+    </div>
+    <div class="center">
+      <div class="tag">Chord shapes</div>
+      <div class="chord-row">
+        <div class="chord"><strong>Dmaj7</strong><div class="diagram"><i class="dot"></i><i class="dot open"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></div></div>
+        <div class="chord"><strong>F#m7</strong><div class="diagram"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot open"></i><i class="dot"></i></div></div>
+        <div class="chord"><strong>Bm9</strong><div class="diagram"><i class="dot"></i><i class="dot"></i><i class="dot open"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></div></div>
+        <div class="chord"><strong>Gmaj7</strong><div class="diagram"><i class="dot open"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot open"></i></div></div>
+      </div>
+      <div class="tag" style="margin-top:12px">Relational fretboard · Dmaj7 → F#m7</div>
+      <div class="fretboard-wrap"><div class="fretboard-meta"><strong>Frets 5–14 · Dmaj7 → F#m7 relationship</strong><span>6 strings · visible neck position</span></div><div class="fretboard"><div class="fret-numbers"><span></span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div><div class="string"><div class="string-label">e</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">C#</div></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">B</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">F#</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"><div class="note next">A</div></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">G</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"><div class="note focus">C#</div></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">E</div></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">D</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"><div class="note next">F#</div></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">A</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note dim">F#</div></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">E</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"><div class="note dim">D</div></div><div class="fret"></div><div class="fret inlay"></div></div></div><div class="fretboard-legend"><span class="legend-key"><i class="legend-dot active"></i>Active</span><span class="legend-key"><i class="legend-dot upcoming"></i>Upcoming / compare</span><span class="legend-key"><i class="legend-dot context"></i>Context</span></div></div>
+      <div class="actions"><span class="btn">Compare movement</span><span class="btn">Practice</span></div>
+    </div>
+    <div class="right">
+      <div class="tag">Tutor</div>
+      <div class="msg">Give me stranger Bm9 voicings.</div>
+      <div class="msg ai">Here are three options. Two are conventional; one is a sparse voicing I built directly from fret positions.<div class="actions"><span class="btn primary">Show candidates</span></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="phone-wrap" style="margin-top:18px">
+<div>
+<div class="mock-label">iPhone · workspace switcher</div>
+<div class="phone">
+<div class="screen" style="min-height:600px">
+  <div class="status"><span>9:41</span><span>5G ▰</span></div>
+  <div class="mobile-head"><strong>Dreamy progression</strong><small>Inspired by Little Wing</small></div>
+  <div class="mobile-section">
+    <div class="switcher"><span>Dreamy progression</span><span>⌄</span></div>
+    <div class="sheet" style="margin-top:8px">
+      <div class="handle"></div>
+      <div class="branch-card"><strong>Little Wing</strong><small>m3–6 · source</small></div>
+      <div class="branch-card active"><strong>Dreamy progression</strong><small>current</small></div>
+      <div class="actions"><span class="btn">Close current</span><span class="btn">+ New workspace</span></div>
+    </div>
+  </div>
+  <div class="bottom"><div>Workspace</div><div>Tutor</div><div>Practice</div></div>
+</div>
+</div>
+</div>
+
+<div>
+<div class="mock-label">iPhone · progression detail</div>
+<div class="phone">
+<div class="screen">
+  <div class="status"><span>9:41</span><span>5G ▰</span></div>
+  <div class="mobile-head"><strong>Dreamy progression</strong><small>Dmaj7 → F#m7 → Bm9 → Gmaj7</small></div>
+  <div class="mobile-section">
+    <div class="scroll-row">
+      <div class="scroll-card active"><strong>Dmaj7</strong><small>shape</small></div>
+      <div class="scroll-card"><strong>F#m7</strong><small>shape</small></div>
+      <div class="scroll-card"><strong>Bm9</strong><small>shape</small></div>
+      <div class="scroll-card"><strong>Gmaj7</strong><small>shape</small></div>
+    </div>
+  </div>
+  <div class="mobile-section">
+    <div class="tag">Relational fretboard</div>
+    <div class="fretboard-wrap"><div class="fretboard-meta"><strong>Frets 5–14 · Dmaj7 → F#m7 relationship</strong><span>6 strings · visible neck position</span></div><div class="fretboard"><div class="fret-numbers"><span></span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div><div class="string"><div class="string-label">e</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">C#</div></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">B</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">F#</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"><div class="note next">A</div></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">G</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"><div class="note focus">C#</div></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">E</div></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">D</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"><div class="note next">F#</div></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">A</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note dim">F#</div></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">E</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"><div class="note dim">D</div></div><div class="fret"></div><div class="fret inlay"></div></div></div><div class="fretboard-legend"><span class="legend-key"><i class="legend-dot active"></i>Active</span><span class="legend-key"><i class="legend-dot upcoming"></i>Upcoming / compare</span><span class="legend-key"><i class="legend-dot context"></i>Context</span></div></div>
+    <div class="actions"><span class="btn">Hear</span><span class="btn">Compare</span><span class="btn primary">Ask tutor</span></div>
+  </div>
+  <div class="bottom"><div>Workspace</div><div>Tutor</div><div>Practice</div></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<h2>5. Voicing candidates — multiple diagrams, one relational fretboard</h2>
+<div class="card">
+  <div class="tag">Bm9 candidates</div>
+  <div class="grid3">
+    <div class="candidate"><strong>Option A · compact</strong><small>Conventional voicing</small><div class="actions"><span class="btn">Hear</span><span class="btn">Show</span><span class="btn">Use</span></div></div>
+    <div class="candidate"><strong>Option B · open</strong><small>More spread</small><div class="actions"><span class="btn">Hear</span><span class="btn">Show</span><span class="btn">Use</span></div></div>
+    <div class="candidate"><strong>Option C · sparse</strong><small>AI-created string/fret group</small><div class="actions"><span class="btn">Hear</span><span class="btn">Show</span><span class="btn primary">Use</span></div></div>
+  </div>
+  <p class="muted" style="margin-top:10px">The agent supplies semantic musical candidates. React decides row vs carousel. The selected candidate becomes the focus/comparison group on the fretboard.</p>
+</div>
+</section>
+
+<section>
+<h2>6. Practice stays in context, with optional Focus</h2>
+<div class="grid2">
+<div class="card">
+  <div class="tag">Inline practice</div>
+  <h3>Little Wing · m3–6</h3>
+  <div class="practice-bar">
+    <strong style="font-size:11px">65 BPM · Loop on · Count-in 4 · Metronome on</strong>
+    <div class="practice-grid">
+      <div class="practice-cell current">m3</div><div class="practice-cell">m4</div><div class="practice-cell">m5</div><div class="practice-cell">m6</div><div class="practice-cell">↻</div>
+    </div>
+    <div class="actions"><span class="btn dark">Start</span><span class="btn">−5</span><span class="btn">+5</span><span class="btn primary">Focus</span></div>
+  </div>
+  <p class="muted">Practice augments the current SongStudy or Progression. It does not create a new mode or artifact automatically.</p>
+</div>
+<div class="card">
+  <div class="tag">Focus view</div>
+  <h3>Only what matters while playing</h3>
+  <div class="practice-grid">
+    <div class="practice-cell current">m3</div><div class="practice-cell">m4</div><div class="practice-cell">m5</div><div class="practice-cell">m6</div><div class="practice-cell">↻</div>
+  </div>
+  <div class="fretboard-wrap"><div class="fretboard-meta"><strong>Frets 3–12 · practice focus</strong><span>6 strings · visible neck position</span></div><div class="fretboard"><div class="fret-numbers"><span></span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div><div class="string"><div class="string-label">e</div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">A</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">B</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">E</div></div><div class="fret"></div><div class="fret inlay"><div class="note next">F#</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">G</div><div class="fret inlay"></div><div class="fret"><div class="note focus">B</div></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note next">D</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">D</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note focus">G</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">A</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"><div class="note dim">E</div></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div><div class="string"><div class="string-label">E</div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret inlay"></div><div class="fret"></div><div class="fret"></div><div class="fret inlay"></div></div></div><div class="fretboard-legend"><span class="legend-key"><i class="legend-dot active"></i>Active</span><span class="legend-key"><i class="legend-dot upcoming"></i>Upcoming / compare</span><span class="legend-key"><i class="legend-dot context"></i>Context</span></div></div>
+  <div class="actions"><span class="btn dark">Stop</span><span class="btn">Exit Focus</span></div>
+</div>
+</div>
+</section>
+
+<section>
+<h2>7. Enhance for learning — fuse sources, never overwrite them</h2>
+<div class="card">
+  <div class="tag">Before enhancement</div>
+  <div class="source-row">
+    <div class="source"><strong>Raw detailed tab</strong><br>Measures, beats, frets, timing, tuning.</div>
+    <div class="source"><strong>ChordPro</strong><br>Sections, lyrics, broad chord labels.</div>
+    <div class="source"><strong>SongStudy state</strong><br>Track, selection, saved ranges.</div>
+  </div>
+  <div class="enrich">
+    <strong style="font-size:11px">Enhance for learning</strong>
+    <p style="font-size:10px;margin-top:5px">AI derives section alignment, approximate lyric ↔ measure alignment, broad harmony, phrase groups, repeats, interesting transitions, and learning annotations.</p>
+  </div>
+  <div class="tag" style="margin-top:12px">After enhancement</div>
+  <div class="detail-row">
+    <div class="measure"><strong>m3–4 · Intro phrase</strong><div class="harmony">Broad: Em7 → G</div><div class="lyric">Lyric alignment: high confidence</div></div>
+    <div class="measure"><strong>m5–6 · Transition</strong><div class="harmony">Broad: A → C</div><div class="lyric">Tutor: harder hand movement</div></div>
+    <div class="measure"><strong>m13–14 · Repeat</strong><div class="harmony">↻ similar to m3–4</div><div class="lyric">Repeat confidence: medium</div></div>
+    <div class="measure"><strong>Detail preserved</strong><div class="harmony">ChordPro says G</div><div class="lyric">Detailed track: Gsus4 → G embellishment</div></div>
+  </div>
+</div>
+</section>
+
+<section>
+<h2>8. End-to-end interaction map</h2>
+<div class="flow">
+  <div class="step"><strong>Home</strong><span class="muted">Resume or Learn a song</span></div><div class="arrow">→</div>
+  <div class="step"><strong>SongStudy</strong><span class="muted">Whole-song map + focused measures</span></div><div class="arrow">→</div>
+  <div class="step"><strong>Ask tutor</strong><span class="muted">Focus stays in song</span></div><div class="arrow">→</div>
+  <div class="step"><strong>Candidate</strong><span class="muted">Progression shown in place</span></div><div class="arrow">→</div>
+  <div class="step"><strong>Explore</strong><span class="muted">New branch/tab</span></div><div class="arrow">→</div>
+  <div class="step"><strong>Progression</strong><span class="muted">Voicings + fretboard relationships</span></div><div class="arrow">→</div>
+  <div class="step"><strong>Return</strong><span class="muted">Little Wing context restored</span></div>
+</div>
+</section>
+
+<section>
+<h2>9. Mobile coverage in the current tickets</h2>
+<table>
+<thead><tr><th>Area</th><th>Current ticket coverage</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td>Branch navigation</td><td><span class="tag good">Defined</span><br>Desktop tabs / mobile workspace switcher is explicitly in the branching ticket.</td><td>Keep as-is; use the mobile switcher shown above as the UX reference.</td></tr>
+<tr><td>Voicing candidates</td><td><span class="tag good">Defined</span><br>Ticket already says desktop can show several candidates and mobile should use a compact/swipeable representation.</td><td>Reference horizontal swipe/card behavior explicitly.</td></tr>
+<tr><td>Practice Focus</td><td><span class="tag good">Defined</span><br>Practice + optional Focus presentation is in the ticket.</td><td>Add that Focus must be comfortable for iPhone/music-stand use.</td></tr>
+<tr><td>SongStudy mobile layout</td><td><span class="tag partial">Partial</span><br>Responsive behavior is implied, but whole-song map + focused measures is not described specifically for mobile.</td><td>Add: horizontally scrollable overview, 1–2 focused measures, fretboard below, tutor as sheet/panel.</td></tr>
+<tr><td>Tutor presentation on mobile</td><td><span class="tag gap">Gap</span><br>The tickets define semantic tutor behavior but not its mobile presentation.</td><td>Add: tutor uses a bottom sheet/drawer so it does not permanently steal vertical space from tab/fretboard.</td></tr>
+<tr><td>Progression mobile layout</td><td><span class="tag partial">Partial</span><br>Candidate responsiveness is covered, but the whole progression workspace hierarchy is not.</td><td>Add: horizontal progression strip → selected chord/transition → fretboard → tutor actions.</td></tr>
+<tr><td>Enhancement UI on mobile</td><td><span class="tag gap">Gap</span><br>Enrichment behavior is defined, but not how annotations fit a small viewport.</td><td>Add: annotations live mainly in the song map / selected measure detail, not as permanent large panels.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section>
+<div class="core">Implementation target: preserve this hierarchy and these transitions. Styling can evolve; the user should never have to infer where they are, what changed, or how to get back.</div>
+</section>
+
+</main>
+</body>
+</html>
