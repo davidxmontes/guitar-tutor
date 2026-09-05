@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { V2Session } from '../types/v2';
 
+const pageStyle = { padding: 24, fontFamily: 'sans-serif' };
+
 // V2 foundation screen — proves Session/Branch create → leave → resume works
 // end to end. The real artifact-first workspace (Home entry points, branch
 // tabs, SongStudy/Progression/ConceptStudy/Exercise UIs) lands in tickets
@@ -37,7 +39,7 @@ export function V2App() {
   if (activeSession) {
     const branch = activeSession.branches[0];
     return (
-      <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
+      <div style={pageStyle}>
         <h1>Guitar Tutor V2</h1>
         <p data-testid="v2-active-session">Session {activeSession.id}</p>
         <p data-testid="v2-active-branch">Branch {branch?.id}</p>

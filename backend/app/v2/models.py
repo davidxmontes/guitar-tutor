@@ -9,13 +9,13 @@ Artifact CRUD itself lands in later tickets; this ticket only needs the
 kind vocabulary validated on a branch's current-artifact reference.
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field
 
 ArtifactKind = Literal["song_study", "progression", "concept_study", "exercise"]
 
-ARTIFACT_KINDS: tuple[str, ...] = ("song_study", "progression", "concept_study", "exercise")
+ARTIFACT_KINDS: tuple[str, ...] = get_args(ArtifactKind)
 
 
 class Branch(BaseModel):

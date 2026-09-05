@@ -3,19 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.v2.store import NotFoundError, SupabaseV2Store
-
-
-def _chain(data):
-    chain = MagicMock()
-    execute_result = MagicMock()
-    execute_result.data = data
-    chain.execute.return_value = execute_result
-    chain.select.return_value = chain
-    chain.eq.return_value = chain
-    chain.order.return_value = chain
-    chain.insert.return_value = chain
-    chain.update.return_value = chain
-    return chain
+from conftest import make_supabase_chain as _chain
 
 
 def _session_row(session_id="sess-1", user_id="user_1"):
