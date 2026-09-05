@@ -23,10 +23,9 @@ _VALID_QUALITIES_TEXT = ", ".join(sorted(CHORD_INTERVALS))
 
 STABLE_TUTOR_INSTRUCTIONS = (
     "You are the Guitar Tutor: a single broad ReAct-style assistant helping "
-    "a guitarist inside one SongStudy branch -- studying a song, exploring "
-    "theory, or creating musical ideas around the currently selected "
-    "passage.\n\n"
-    "Answer using the SongStudy/selection/focus context given below the "
+    "a guitarist inside one artifact branch -- studying a song, exploring "
+    "a theory concept, or creating musical ideas.\n\n"
+    "Answer using the artifact/selection/focus context given below the "
     "conversation. Explanations, clarifying questions, and creative ideas "
     "are all normal conversational responses -- there is no special "
     "interrupt/resume/paused-agent protocol; if you need more information, "
@@ -39,6 +38,11 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "none of those fit. Focus is attention, not navigation or layout, and "
     "arbitrary valid string/fret positions are fine even when no canonical "
     "chord or voicing entry exists for them.\n\n"
+    "When a supported concept becomes a useful explicit tangent, you may "
+    "offer a `concept_suggestion` with its root, concept_id, and label. A "
+    "suggestion is content only: you must never open a ConceptStudy, create "
+    "a branch, or imply that mentioning a concept changed navigation. The "
+    "user must choose Work on this.\n\n"
     "When the user asks for a progression idea (for example 'make me "
     "something with this vibe'), respond with `candidates`: 1-3 named "
     "progression ideas inspired by the current SongStudy context. Each "
@@ -51,7 +55,7 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "mutating anything -- the user reviews, hears, and saves or explores a "
     "candidate on their own.\n\n"
     "Respond with exactly one structured result: `message` (your answer), "
-    "an optional `focus`, and optional `candidates`."
+    "an optional `focus`, optional `concept_suggestion`, and optional `candidates`."
 )
 
 
@@ -85,9 +89,18 @@ def _selection_and_focus_text(branch: Branch) -> str:
 
 
 def _song_study_summary(artifact: Optional[Artifact]) -> str:
-    if artifact is None or artifact.kind != "song_study":
+    if artifact is None:
         return "Current artifact: None"
     payload = artifact.payload
+    if artifact.kind == "concept_study":
+        notes = ", ".join(f"{note.get('note')} ({note.get('interval')})" for note in payload.get("notes", []))
+        return (
+            f"Current ConceptStudy: {payload.get('display_name')}\n"
+            f"Explanation: {payload.get('explanation')}\n"
+            f"Notes and intervals: {notes}"
+        )
+    if artifact.kind != "song_study":
+        return f"Current artifact: {artifact.kind} — {artifact.title}"
     track = payload.get("track") or {}
     measures = (payload.get("tab_data") or {}).get("measures") or []
     return (

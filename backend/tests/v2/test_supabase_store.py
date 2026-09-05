@@ -61,6 +61,65 @@ def test_get_session_loads_branches():
     assert session.branches[0].id == "branch-1"
 
 
+def test_create_branch_checks_session_ownership_before_insert():
+    client = MagicMock()
+    session_chain = _chain([])
+    client.table.return_value = session_chain
+
+    store = SupabaseV2Store(client)
+    with pytest.raises(NotFoundError):
+        store.create_branch("sess-1", user_id="someone_else")
+
+    client.table.assert_called_once_with("v2_sessions")
+    assert session_chain.eq.call_args_list[1].args == ("clerk_user_id", "someone_else")
+    session_chain.insert.assert_not_called()
+
+
+def test_create_branch_inserts_independent_thread_and_current_artifact_fields():
+    client = MagicMock()
+    session_chain = _chain([_session_row()])
+    existing_branches = _chain([_branch_row()])
+    created_row = _branch_row(branch_id="branch-2") | {
+        "tutor_thread_id": "thread-2",
+        "current_artifact_kind": "concept_study",
+        "current_artifact_id": "art-2",
+    }
+    inserted_branch = _chain([created_row])
+    branch_queries = iter([existing_branches, inserted_branch])
+    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else next(branch_queries)
+
+    store = SupabaseV2Store(client)
+    branch = store.create_branch(
+        "sess-1",
+        user_id="user_1",
+        current_artifact_kind="concept_study",
+        current_artifact_id="art-2",
+    )
+
+    inserted = inserted_branch.insert.call_args.args[0]
+    assert inserted["session_id"] == "sess-1"
+    assert inserted["tutor_thread_id"]
+    assert inserted["tutor_thread_id"] != "thread-1"
+    assert inserted["current_artifact_kind"] == "concept_study"
+    assert inserted["current_artifact_id"] == "art-2"
+    assert branch.tutor_thread_id == "thread-2"
+    assert branch.current_artifact_kind == "concept_study"
+    assert branch.current_artifact_id == "art-2"
+
+
+def test_create_branch_reports_missing_inserted_row_cleanly():
+    client = MagicMock()
+    session_chain = _chain([_session_row()])
+    existing_branches = _chain([_branch_row()])
+    empty_insert = _chain([])
+    branch_queries = iter([existing_branches, empty_insert])
+    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else next(branch_queries)
+
+    store = SupabaseV2Store(client)
+    with pytest.raises(RuntimeError, match="did not return the created branch"):
+        store.create_branch("sess-1", user_id="user_1")
+
+
 def test_update_branch_rejects_invalid_kind():
     client = MagicMock()
     session_chain = _chain([_session_row()])

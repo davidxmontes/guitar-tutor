@@ -2,7 +2,8 @@
 tutor turn, plus exactly the observability fields the ticket's acceptance
 criteria require (provider/model, latency, usage, tool-call count, terminal
 status). Progression candidates are ticket #14; mutation-proposal/
-exercise-suggestion fields remain out-of-scope for #16/#20.
+exercise-suggestion fields remain out-of-scope for #16/#20. Ticket #21 adds
+`concept_suggestion` for explicit ConceptStudy promotion.
 
 `TutorTerminal` is the schema handed to the model as its structured-output
 tool (see runner.py) — kept separate from `TutorResponse` so the LLM-facing
@@ -17,7 +18,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from app.v2.models import ProgressionPayload
+from app.v2.models import ConceptId, ProgressionPayload
 
 
 class FretPosition(BaseModel):
@@ -40,6 +41,18 @@ class TutorFocus(BaseModel):
     role: str
     notes: list[FretPosition] = Field(default_factory=list)
     label: Optional[str] = None
+
+
+class ConceptSuggestion(BaseModel):
+    """A concept the tutor mentioned that the UI may offer to open.
+
+    This is content, not navigation: only a later explicit user action may
+    create the ConceptStudy branch.
+    """
+
+    concept_id: ConceptId
+    root: str
+    label: str
 
 
 class ProgressionChordIdea(BaseModel):
@@ -74,6 +87,7 @@ class TutorTerminal(BaseModel):
 
     message: str
     focus: Optional[TutorFocus] = None
+    concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionCandidate]] = None
 
 
@@ -107,6 +121,7 @@ class TutorResponse(BaseModel):
 
     message: str
     focus: Optional[TutorFocus] = None
+    concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionPayload]] = None
     provider: str
     model: str

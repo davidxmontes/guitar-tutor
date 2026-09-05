@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { ProgressionCandidate } from './ProgressionCandidate';
-import type { ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
+import type { ConceptSuggestion, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  conceptSuggestion?: ConceptSuggestion | null;
   // Progression candidates (ticket #14) carried on an assistant turn --
   // structurally persisted on TutorMessage.content.candidates so a history
   // reload replays them exactly as a live turn would (see router.py).
@@ -25,6 +26,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
       id: m.id,
       role: m.role,
       text: typeof m.content.text === 'string' ? m.content.text : '',
+      conceptSuggestion: m.content.concept_suggestion,
       candidates: m.content.candidates ?? null,
     }));
 }
@@ -46,11 +48,15 @@ export function TutorChat({
   branchId,
   tutorThreadId,
   onFocusChange,
+  onWorkOnConcept,
+  emptyMessage = 'Ask a question about this passage.',
 }: {
   sessionId: string;
   branchId: string;
   tutorThreadId: string;
   onFocusChange: (focus: TutorFocus | null) => void;
+  onWorkOnConcept?: (suggestion: ConceptSuggestion) => Promise<void>;
+  emptyMessage?: string;
 }) {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -95,10 +101,13 @@ export function TutorChat({
     setSendError(null);
     try {
       const response = await apiClient.sendTutorTurn({ session_id: sessionId, branch_id: branchId, message: text });
-      setMessages((prev) => [
-        ...prev,
-        { id: `local-assistant-${Date.now()}`, role: 'assistant', text: response.message, candidates: response.candidates ?? null },
-      ]);
+      setMessages((prev) => [...prev, {
+        id: `local-assistant-${Date.now()}`,
+        role: 'assistant',
+        text: response.message,
+        conceptSuggestion: response.concept_suggestion,
+        candidates: response.candidates ?? null,
+      }]);
       onFocusChange(response.focus ?? null);
     } catch (err) {
       setSendError(String(err));
@@ -110,8 +119,8 @@ export function TutorChat({
   return (
     <div
       data-testid="tutor-chat"
-      className="flex flex-col gap-3 rounded-lg border p-3"
-      style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', width: 300, flex: '0 0 300px' }}
+      className="flex flex-col gap-3 rounded-lg border p-3 w-full xl:w-[300px] xl:flex-none"
+      style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
     >
       <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
         Tutor
@@ -135,7 +144,7 @@ export function TutorChat({
         )}
         {!loadingHistory && messages.length === 0 && !historyError && (
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Ask a question about this passage.
+            {emptyMessage}
           </p>
         )}
         {messages.map((m) => (
@@ -151,6 +160,16 @@ export function TutorChat({
               >
                 {m.text}
               </div>
+            )}
+            {m.role === 'assistant' && m.conceptSuggestion && onWorkOnConcept && (
+              <button
+                type="button"
+                onClick={() => onWorkOnConcept(m.conceptSuggestion!)}
+                className="rounded-md border px-2 py-1 text-xs font-semibold"
+                style={{ borderColor: 'var(--accent-500)', color: 'var(--accent-700)' }}
+              >
+                Work on {m.conceptSuggestion.label}
+              </button>
             )}
             {/* Progression candidates (ticket #14): the whole chord sequence
                 rendered as a distinct card alongside the plain-text reply,
@@ -178,7 +197,7 @@ export function TutorChat({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about this passage..."
+          placeholder={emptyMessage}
           data-testid="tutor-chat-input"
           className="flex-1 px-3 py-2 rounded-lg border text-xs outline-none transition-colors"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}

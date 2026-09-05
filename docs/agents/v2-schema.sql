@@ -26,9 +26,8 @@ CREATE TABLE v2_branches (
 );
 CREATE INDEX ON v2_branches (session_id);
 
--- Artifact CRUD (ticket #12): common columns + a JSON payload, strictly typed
--- per kind at the application layer (only song_study's SongStudyPayload
--- exists so far — see backend/app/v2/models.py).
+-- Artifact CRUD: common columns + a JSON payload, strictly typed by each
+-- concrete artifact route at the application layer.
 CREATE TABLE v2_artifacts (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   clerk_user_id text NOT NULL,

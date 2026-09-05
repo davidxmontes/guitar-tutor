@@ -140,6 +140,7 @@ def run_tutor_turn(
     return TutorResponse(
         message=terminal.message,
         focus=terminal.focus,
+        concept_suggestion=terminal.concept_suggestion,
         candidates=resolved_candidates,
         provider=provider,
         model=model,

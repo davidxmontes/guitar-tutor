@@ -1,9 +1,8 @@
 """V2 routes — Session/Branch state, SongStudy raw data and enrichment,
-and stateless tutor turns.
+ConceptStudy artifact create/open, and stateless tutor turns.
 
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
-user). Other artifact kinds (Progression, ConceptStudy, Exercise) land in
-their own later V2 tickets.
+user). Exercise lands in its own later V2 ticket.
 """
 
 from typing import Any, Optional
@@ -14,10 +13,13 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
+from app.v2.concepts import build_concept_study
 from app.v2.models import (
     Artifact,
     ArtifactKind,
     Branch,
+    ConceptId,
+    ConceptStudyArtifact,
     ProgressionPayload,
     Session,
     SongStudyPayload,
@@ -188,6 +190,80 @@ async def get_song_study(
     return artifact
 
 
+class CreateConceptStudyRequest(BaseModel):
+    session_id: str
+    branch_id: str
+    root: str = Field(min_length=1)
+    concept_id: ConceptId
+    open_in_new_branch: bool = False
+
+
+class OpenConceptStudyResponse(BaseModel):
+    artifact: ConceptStudyArtifact
+    branch: Branch
+
+
+@router.post("/concept-studies", response_model=OpenConceptStudyResponse, status_code=status.HTTP_201_CREATED)
+async def create_concept_study(
+    data: CreateConceptStudyRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        session = store.get_session(data.session_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if not any(branch.id == data.branch_id for branch in session.branches):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+
+    try:
+        payload = build_concept_study(data.root, data.concept_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    artifact = store.create_artifact(user_id, "concept_study", payload.display_name, payload.model_dump())
+    concept_artifact = ConceptStudyArtifact.model_validate(artifact.model_dump())
+    try:
+        # ponytail: artifact + branch are two writes because the Supabase
+        # client has no cross-table transaction API. Move this into one RPC
+        # if orphaned artifacts are ever observed after branch-write errors.
+        if data.open_in_new_branch:
+            branch = store.create_branch(
+                data.session_id,
+                user_id,
+                current_artifact_kind="concept_study",
+                current_artifact_id=artifact.id,
+            )
+        else:
+            branch = store.update_branch(
+                data.session_id,
+                data.branch_id,
+                user_id,
+                current_artifact_kind="concept_study",
+                current_artifact_id=artifact.id,
+                selection=None,
+                focus=None,
+            )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return OpenConceptStudyResponse(artifact=concept_artifact, branch=branch)
+
+
+@router.get("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
+async def get_concept_study(
+    artifact_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if artifact.kind != "concept_study":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a ConceptStudy artifact")
+    return ConceptStudyArtifact.model_validate(artifact.model_dump())
+
+
 def get_enrichment_model_factory() -> ModelFactory:
     return build_tutor_model
 
@@ -294,7 +370,7 @@ async def create_tutor_turn(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
     artifact: Optional[Artifact] = None
-    if branch.current_artifact_kind == "song_study" and branch.current_artifact_id:
+    if branch.current_artifact_id:
         try:
             artifact = store.get_artifact(branch.current_artifact_id, user_id)
         except NotFoundError:
@@ -332,6 +408,9 @@ async def create_tutor_turn(
         {
             "text": response.message,
             "focus": response.focus.model_dump() if response.focus else None,
+            "concept_suggestion": (
+                response.concept_suggestion.model_dump() if response.concept_suggestion else None
+            ),
             # Structured (already voicing-resolved) candidates, not just the
             # text summary reconstruct_history renders for the model -- this
             # is what a history reload replays to the frontend so a candidate
