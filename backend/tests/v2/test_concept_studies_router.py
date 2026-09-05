@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.dependencies.auth import get_current_user
 from app.music.scales import get_diatonic_chords, get_scale_degree
-from app.v2.concepts import build_concept_study
+from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.router import router
 from app.v2.store import InMemoryV2Store, get_v2_store
 
@@ -82,6 +82,13 @@ def test_study_catalog_is_backend_owned_and_progressively_grouped(client):
     }
     assert {concept["id"] for concept in groups["systems"]} == {"intervals"}
     assert all(concept["display_name"] for group in catalog["groups"] for concept in group["concepts"])
+
+
+def test_every_catalog_concept_has_a_validated_visualization():
+    for group in get_study_catalog().groups:
+        for concept in group.concepts:
+            payload = build_concept_study("C", concept.id)
+            assert payload.visualization == concept.visualization
 
 
 def test_transient_visualization_builds_scale_and_interval_without_artifact(client, store, session_and_branch):
