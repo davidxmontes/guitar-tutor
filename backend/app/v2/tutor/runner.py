@@ -28,6 +28,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
 from app.services.chord_service import get_chord
+from app.v2.workspace_changes import InspectionTarget
 from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
 from app.v2.tutor.contract import ExerciseProposal, ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage, VoicingProposal
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
@@ -107,6 +108,7 @@ def run_tutor_turn(
     model_factory: ModelFactory = build_tutor_model,
     lookup_tools: Optional[list[BaseTool]] = None,
     siblings: Optional[list[dict[str, Any]]] = None,
+    inspection: Optional[InspectionTarget] = None,
 ) -> TutorResponse:
     # Cache-affinity key derived from application state (never itself
     # conversation memory) -- see providers.py.
@@ -123,7 +125,7 @@ def run_tutor_turn(
 
     request_messages = [stable_system_message(provider)]
     request_messages.extend(reconstruct_history(history))
-    request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message, siblings=siblings))
+    request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message, siblings=siblings, inspection=inspection))
 
     agent = create_agent(
         model=chat_model,
@@ -169,23 +171,24 @@ def run_tutor_turn(
 
     resolved_candidates = (
         [_resolve_candidate(c, branch=branch, artifact=artifact) for c in terminal.candidates]
-        if terminal.candidates
+        if terminal.candidates and branch.working_draft is None
         else None
     )
 
     return TutorResponse(
         message=terminal.message,
+        workspace_patch=terminal.workspace_patch,
         focus=terminal.focus,
-        concept_suggestion=terminal.concept_suggestion,
+        concept_suggestion=terminal.concept_suggestion if branch.working_draft is None else None,
         exercise_suggestion=ExerciseProposal(**terminal.exercise_suggestion.model_dump(), source_artifact_id=artifact.id,
             expected_updated_at=artifact.updated_at, source_selection=branch.selection)
-            if terminal.exercise_suggestion and artifact and artifact.kind in ("song_study", "progression", "concept_study") else None,
+            if branch.working_draft is None and terminal.exercise_suggestion and artifact and artifact.kind in ("song_study", "progression", "concept_study") else None,
         candidates=resolved_candidates,
         voicing_candidates=[
             VoicingProposal(**candidate.model_dump(), artifact_id=artifact.id, expected_updated_at=artifact.updated_at)
             for candidate in (terminal.voicing_candidates or [])
             if candidate.chord.voicing and candidate.chord_index < len(artifact.payload.get("chords", []))
-        ] if artifact and artifact.kind == "progression" else None,
+        ] if branch.working_draft is None and artifact and artifact.kind == "progression" else None,
         provider=provider,
         model=model,
         latency_ms=latency_ms,

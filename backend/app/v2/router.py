@@ -9,10 +9,12 @@ from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
+from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
 from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
@@ -42,7 +44,7 @@ from app.v2.models import (
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
-from app.v2.tutor.contract import TutorResponse
+from app.v2.tutor.contract import TutorResponse, WorkspaceTurnResult
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_tools
@@ -486,7 +488,8 @@ def get_tutor_model_factory() -> ModelFactory:
 class TutorTurnRequest(BaseModel):
     session_id: str
     branch_id: str
-    message: str = Field(min_length=1)
+    message: str = Field(min_length=1, max_length=12000)
+    inspection: Optional[InspectionTarget] = None
 
 
 @router.post("/tutor/turns", response_model=TutorResponse)
@@ -512,6 +515,12 @@ async def create_tutor_turn(
     if branch is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
+    if data.inspection is not None:
+        facts = resolve_workspace(branch.working_draft) if branch.working_draft else {'scales': {}}
+        scale = facts['scales'].get(data.inspection.source_id)
+        if not scale or data.inspection.key not in {note['pitch_class'] for note in scale['notes']}:
+            raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select a note again.")
+
     artifact: Optional[Artifact] = None
     if branch.current_artifact_id:
         try:
@@ -522,13 +531,14 @@ async def create_tutor_turn(
     history = store.list_tutor_messages(branch.tutor_thread_id, user_id)
 
     try:
-        response = run_tutor_turn(
+        response = await run_in_threadpool(run_tutor_turn,
             branch=branch,
             artifact=artifact,
             history=history,
             lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id),
             siblings=[{"id": b.id, "title": b.title, "artifact_kind": b.current_artifact_kind} for b in session.branches if not b.closed and b.id != branch.id],
             user_message=data.message,
+            inspection=data.inspection,
             provider=settings.v2_tutor_provider,
             model=settings.v2_tutor_model_name,
             openai_api_key=settings.openai_api_key,
@@ -550,25 +560,28 @@ async def create_tutor_turn(
         open_titles = {b.id: b.title for b in store.get_session(session.id, user_id).branches if not b.closed}
         response.focus.groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]}) for group in response.focus.groups if group.branch_id in open_titles]
 
-    store.create_tutor_message(branch.tutor_thread_id, "user", {"text": data.message})
-    store.create_tutor_message(
-        branch.tutor_thread_id,
-        "assistant",
-        {
-            "text": response.message,
-            "focus": response.focus.model_dump() if response.focus else None,
-            "concept_suggestion": (
-                response.concept_suggestion.model_dump() if response.concept_suggestion else None
-            ),
-            # Structured (already voicing-resolved) candidates, not just the
-            # text summary reconstruct_history renders for the model -- this
-            # is what a history reload replays to the frontend so a candidate
-            # from an earlier turn stays addressable/visible (ticket #14).
-            "exercise_suggestion": response.exercise_suggestion.model_dump() if response.exercise_suggestion else None,
-            "voicing_candidates": [c.model_dump() for c in response.voicing_candidates] if response.voicing_candidates else None,
-            "candidates": [c.model_dump() for c in response.candidates] if response.candidates else None,
-        },
-    )
+    content = {
+        'text': response.message, 'focus': response.focus.model_dump() if response.focus else None,
+        'concept_suggestion': response.concept_suggestion.model_dump() if response.concept_suggestion else None,
+        'exercise_suggestion': response.exercise_suggestion.model_dump() if response.exercise_suggestion else None,
+        'voicing_candidates': [c.model_dump() for c in response.voicing_candidates] if response.voicing_candidates else None,
+        'candidates': [c.model_dump() for c in response.candidates] if response.candidates else None,
+    }
+    if branch.working_draft is not None:
+        workspace = None
+        content['workspace_change'] = {'status': 'unchanged', 'reason': None}
+        if response.workspace_patch is not None:
+            try:
+                workspace = apply_workspace_patch(branch.working_draft, response.workspace_patch, data.message)
+                content['workspace_change']['status'] = 'applied'
+            except ValueError:
+                content['workspace_change'] = {'status': 'rejected', 'reason': 'No change was applied: the patch is invalid, unsupported, or based on an older draft. Ask again using the current workspace.'}
+        updated, message = store.commit_workspace_turn(session.id, branch.id, user_id,
+            expected_version=branch.working_draft.version, workspace=workspace, user_text=data.message, assistant=content)
+        response.workspace_result = WorkspaceTurnResult(**message.content['workspace_change'], message_id=message.id, branch=updated)
+    else:
+        store.create_tutor_message(branch.tutor_thread_id, 'user', {'text': data.message})
+        store.create_tutor_message(branch.tutor_thread_id, 'assistant', content)
 
     return response
 
@@ -908,3 +921,23 @@ async def save_workspace(session_id: str, branch_id: str, data: SaveWorkspaceReq
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+class UndoWorkspaceRequest(StrictModel):
+    message_id: str = Field(min_length=1, max_length=80)
+    expected_version: int = Field(ge=1, strict=True)
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/workspace/undo', response_model=WorkspaceTurnResult)
+async def undo_workspace_change(session_id: str, branch_id: str, data: UndoWorkspaceRequest,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        branch, message = store.commit_workspace_turn(session_id, branch_id, user_id,
+            expected_version=data.expected_version, workspace=None, user_text=None,
+            assistant={'text': 'Undid the latest Tutor change. The pre-turn workspace is current again; conversation and saved studies are unchanged.', 'workspace_change': {'status': 'undone', 'reason': None}},
+            undo_message_id=data.message_id)
+        return WorkspaceTurnResult(**message.content['workspace_change'], branch=branch, message_id=message.id)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc

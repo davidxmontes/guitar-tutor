@@ -19,6 +19,7 @@ class StrictModel(BaseModel):
 class Scale(StrictModel):
     id: Identifier
     kind: Literal['scale'] = 'scale'
+    label: str | None = Field(default=None, min_length=1, max_length=120)
     root: Pitch
     mode: Mode
 
@@ -132,7 +133,7 @@ def resolve_workspace(workspace: ConceptWorkspace) -> dict:
             if not choices:
                 raise ValueError('This tuning cannot play the scale in one octave; choose a closer tuning')
             playback.append(min(choices, key=lambda p: (p['fret'], -p['string'])))
-        scales[entity.id] = {'label': f"{entity.root} {entity.mode.replace('natural_minor', 'minor').replace('_', ' ')}", 'notes': notes, 'positions': positions, 'playback': playback}
+        scales[entity.id] = {'label': entity.label or f"{entity.root} {entity.mode.replace('natural_minor', 'minor').replace('_', ' ')}", 'notes': notes, 'positions': positions, 'playback': playback}
     comparisons = {}
     for relation in workspace.relations:
         first, second = [scales[id]['notes'] for id in relation.entity_ids]

@@ -65,6 +65,7 @@ class V2Store(Protocol):
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact: ...
+    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any], undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
 
@@ -91,10 +92,11 @@ class InMemoryV2Store:
         return session
 
     def get_session(self, session_id: str, user_id: str) -> Session:
-        session = self._sessions.get(session_id)
-        if session is None or session.user_id != user_id:
-            raise NotFoundError(f"Session {session_id!r} not found for this user")
-        return session
+        with self._branch_lock:
+            session = self._sessions.get(session_id)
+            if session is None or session.user_id != user_id:
+                raise NotFoundError(f"Session {session_id!r} not found for this user")
+            return session
 
     def list_sessions(self, user_id: str) -> list[Session]:
         owned = [s for s in self._sessions.values() if s.user_id == user_id]
@@ -177,6 +179,44 @@ class InMemoryV2Store:
         self._artifacts[artifact_id] = updated
         return updated
 
+    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
+        workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
+        undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
+        with self._branch_lock:
+            session = self.get_session(session_id, user_id)
+            index = next((i for i, b in enumerate(session.branches) if b.id == branch_id), None)
+            if index is None or session.branches[index].working_draft is None:
+                raise NotFoundError('Workspace not found')
+            branch = session.branches[index]
+            before = branch.working_draft
+            history = self._tutor_messages.get(branch.tutor_thread_id, [])
+            content = deepcopy(assistant)
+            change = content.setdefault('workspace_change', {'status': 'unchanged', 'reason': None})
+            if undo_message_id:
+                latest = next((m for m in reversed(history) if m.content.get('workspace_change', {}).get('status') in ('applied', 'undone')), None)
+                if before.version != expected_version or latest is None or latest.id != undo_message_id or latest.content['workspace_change']['status'] != 'applied' or not latest.content.get('workspace_before'):
+                    raise RevisionConflictError('Undo is no longer current. Reload the workspace before trying again.')
+                workspace = ConceptWorkspace.model_validate(latest.content['workspace_before'])
+                change.update(status='undone', undo_of=undo_message_id)
+            elif workspace is not None and before.version != expected_version:
+                workspace = None
+                change.update(status='rejected', reason='The draft changed while the Tutor was responding. No change was applied; ask again.')
+            updated = branch
+            if workspace is not None:
+                workspace = workspace.model_copy(update={'version': before.version + 1})
+                updated = branch.model_copy(update={'working_draft': workspace, 'updated_at': _now()})
+                content['workspace_before'] = before.model_dump()
+            else:
+                content['workspace_before'] = None
+            content['workspace_after'] = updated.working_draft.model_dump()
+            now = _now()
+            messages = [] if user_text is None else [TutorMessage(id=_new_id(), tutor_thread_id=branch.tutor_thread_id, role='user', content={'text': user_text}, created_at=now)]
+            message = TutorMessage(id=_new_id(), tutor_thread_id=branch.tutor_thread_id, role='assistant', content=content, created_at=_now())
+            # Build every value first; readers use the same lock as this two-value commit.
+            session.branches[index] = updated
+            self._tutor_messages[branch.tutor_thread_id] = [*history, *messages, message]
+            return updated, message
+
     def _assert_thread_owned(self, tutor_thread_id: str, user_id: str) -> None:
         for session in self._sessions.values():
             if session.user_id != user_id:
@@ -197,8 +237,9 @@ class InMemoryV2Store:
         return message
 
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]:
-        self._assert_thread_owned(tutor_thread_id, user_id)
-        return list(self._tutor_messages.get(tutor_thread_id, []))
+        with self._branch_lock:
+            self._assert_thread_owned(tutor_thread_id, user_id)
+            return deepcopy(self._tutor_messages.get(tutor_thread_id, []))
 
 
 class SupabaseV2Store:
@@ -382,6 +423,21 @@ class SupabaseV2Store:
         if not rows:
             raise RevisionConflictError("Artifact changed; reload before saving or restoring")
         return self._row_to_artifact(rows[0])
+
+    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
+        workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
+        undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
+        # Ownership, row lock, CAS, snapshots and both messages share one Postgres transaction.
+        result = self._client.rpc('v2_commit_workspace_turn', {
+            'p_session_id': session_id, 'p_branch_id': branch_id, 'p_user_id': user_id,
+            'p_expected_version': expected_version, 'p_workspace': workspace.model_dump() if workspace else None,
+            'p_user_text': user_text, 'p_assistant': assistant, 'p_undo_message_id': undo_message_id,
+        }).execute().data
+        if result.get('error') == 'not_found':
+            raise NotFoundError('Workspace not found')
+        if result.get('error') == 'conflict':
+            raise RevisionConflictError('Undo is no longer current. Reload the workspace before trying again.')
+        return self._row_to_branch(result['branch']), self._row_to_tutor_message(result['message'])
 
     def _row_to_tutor_message(self, row: dict[str, Any]) -> TutorMessage:
         return TutorMessage(
