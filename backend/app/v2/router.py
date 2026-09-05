@@ -1,9 +1,10 @@
 """V2 foundation routes — Session create/list/resume, Branch working-state
-updates, and SongStudy artifact create/open (ticket #12).
+updates, SongStudy artifact create/open (ticket #12), and the stateless
+tutor turn endpoint (ticket #13).
 
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
-user). Other artifact kinds (Progression, ConceptStudy, Exercise) and tutor
-endpoints land in their own later V2 tickets.
+user). Other artifact kinds (Progression, ConceptStudy, Exercise) land in
+their own later V2 tickets.
 """
 
 from typing import Any, Optional
@@ -11,10 +12,14 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.models import Artifact, ArtifactKind, Branch, Session, SongStudyPayload, SongStudyTrack
 from app.v2.store import NotFoundError, V2Store, get_v2_store
+from app.v2.tutor.contract import TutorResponse
+from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
+from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 
 router = APIRouter()
 
@@ -172,3 +177,81 @@ async def get_song_study(
     if artifact.kind != "song_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a SongStudy artifact")
     return artifact
+
+
+def get_tutor_model_factory() -> ModelFactory:
+    """Overridable in tests (`app.dependency_overrides[get_tutor_model_factory]`)
+    to inject a recording/scripted chat-model factory with no real network
+    call, same as `get_v2_store` above."""
+    return build_tutor_model
+
+
+class TutorTurnRequest(BaseModel):
+    session_id: str
+    branch_id: str
+    message: str = Field(min_length=1)
+
+
+@router.post("/tutor/turns", response_model=TutorResponse)
+async def create_tutor_turn(
+    data: TutorTurnRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+    settings: Settings = Depends(get_settings),
+    model_factory: ModelFactory = Depends(get_tutor_model_factory),
+):
+    """One stateless tutor turn (ticket #13): reconstructs the Branch's
+    persisted conversation plus current SongStudy/selection/focus, runs a
+    fresh disposable agent execution, persists the new user/assistant
+    messages, and returns the semantic TutorResponse. Session/branch
+    ownership is validated up front — before any provider call — same
+    discipline as create_song_study above.
+    """
+    try:
+        session = store.get_session(data.session_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    branch = next((b for b in session.branches if b.id == data.branch_id), None)
+    if branch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+
+    artifact: Optional[Artifact] = None
+    if branch.current_artifact_kind == "song_study" and branch.current_artifact_id:
+        try:
+            artifact = store.get_artifact(branch.current_artifact_id, user_id)
+        except NotFoundError:
+            artifact = None
+
+    history = store.list_tutor_messages(branch.tutor_thread_id, user_id)
+
+    try:
+        response = run_tutor_turn(
+            branch=branch,
+            artifact=artifact,
+            history=history,
+            user_message=data.message,
+            provider=settings.v2_tutor_provider,
+            model=settings.v2_tutor_model_name,
+            openai_api_key=settings.openai_api_key,
+            anthropic_api_key=settings.anthropic_api_key,
+            openrouter_api_key=settings.openrouter_api_key,
+            model_factory=model_factory,
+        )
+    except TutorCapabilityError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except Exception as exc:
+        # Provider network/timeout/other API failures — fail clearly without
+        # echoing the raw provider exception (it can carry key fragments).
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Tutor provider call to {settings.v2_tutor_provider} failed",
+        ) from exc
+
+    store.create_tutor_message(branch.tutor_thread_id, "user", {"text": data.message})
+    store.create_tutor_message(
+        branch.tutor_thread_id,
+        "assistant",
+        {"text": response.message, "focus": response.focus.model_dump() if response.focus else None},
+    )
+
+    return response

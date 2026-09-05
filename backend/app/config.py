@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     # V2 (Session/Branch/Artifact) persistence
     v2_storage_backend: str = "memory"  # memory | supabase
 
+    # V2 tutor (ticket #13) — owns its own provider/model selection,
+    # deliberately separate from V1's llm_provider/model_name above (no
+    # mixed V1/V2 architecture, per the V2 spec). anthropic_api_key is new
+    # here — V1 never used Anthropic despite langchain-anthropic already
+    # being a dependency.
+    v2_tutor_provider: str = "openai"  # openai | anthropic | openrouter
+    v2_tutor_model: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+
     # Clerk
     clerk_issuer_url: Optional[str] = None  # e.g. https://your-app.clerk.accounts.dev
     auth_dev_bypass: bool = False  # local/test only — skips Clerk verification, returns a fixed dev user
@@ -75,6 +84,18 @@ class Settings(BaseSettings):
         if self.model_name:
             return self.model_name
         return self._PROVIDER_DEFAULTS.get(self.llm_provider, {}).get("default_model", "gpt-4o-mini")
+
+    _V2_TUTOR_MODEL_DEFAULTS: dict = {
+        "openai": "gpt-4o-mini",
+        "anthropic": "claude-3-5-haiku-20241022",
+        "openrouter": "minimax/minimax-m2.5",
+    }
+
+    @property
+    def v2_tutor_model_name(self) -> str:
+        if self.v2_tutor_model:
+            return self.v2_tutor_model
+        return self._V2_TUTOR_MODEL_DEFAULTS.get(self.v2_tutor_provider, "gpt-4o-mini")
 
     @property
     def origins_list(self) -> list[str]:
