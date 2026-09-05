@@ -20,17 +20,17 @@ cd frontend && npm install
 cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
-## Known gate gaps (as of 2026-09-04)
+## Known gate gaps (verified 2026-09-05)
 
 These are pre-existing, not introduced by any agent session — logged here per
 the workflow doc instead of a ledger issue (none is kept, see posture below).
 Fix opportunistically or as their own ticket; don't let them block unrelated
 PRs, but don't let new PRs add to them either.
 
-- `npm run lint` (frontend): 14 errors / 3 warnings, concentrated in
+- `npm run lint` (frontend): 16 errors / 4 warnings at `e760ce4` (verified from a clean archive with the same lockfile), concentrated in
   `src/stores/useAppStore.ts` (`no-explicit-any` x2) and
   `src/components/TabViewer/TabViewer.tsx` (`react-hooks/set-state-in-effect`
-  x2, plus an `exhaustive-deps` warning).
+  x2, `preserve-manual-memoization`, plus an `exhaustive-deps` warning).
 - `python -m pytest -q` (backend): 1 failure —
   `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`
   references `chords_router.get_voicing_positions`, which no longer exists on
@@ -110,3 +110,9 @@ Treat `main-v2` as this repo's main for every V2 ticket:
   (`frontend/src/components/Fretboard/`) is a second example — take
   presentation cues from it, but expect its interaction/visuals to be
   refined in this pass rather than carried over unchanged.
+
+## ConceptWorkspace storage
+
+For Supabase deployments, apply the additive `working_draft` column in
+`docs/agents/v2-schema.sql` before deploying the #60 backend. No existing
+ConceptStudy payloads are converted. Memory storage needs no setup.

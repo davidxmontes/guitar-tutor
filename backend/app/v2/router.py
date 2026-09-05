@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
+from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
     CircleState,
@@ -859,7 +860,6 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
 
 
 # ConceptWorkspace draft routes intentionally do not create saved artifacts.
-from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison
 
 
 class OpenWorkspaceRequest(StrictModel):

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { V2Branch } from '../types/v2';
 import type { ConceptWorkspace, Inspection, ResolvedWorkspace, ScaleMode, WorkspaceBlock } from '../types/conceptWorkspace';
@@ -10,7 +10,7 @@ const roots = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A',
 const modes: ScaleMode[] = ['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues'];
 const names = { fretboard: 'Fretboard', degree_strip: 'Degree strip' };
 
-export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange }: { sessionId: string; branch: V2Branch; onBranchChange: (branch: V2Branch) => void }) {
+export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPendingChange }: { sessionId: string; branch: V2Branch; onBranchChange: (branch: V2Branch) => void; onPendingChange: (pending: boolean) => void }) {
   const [workspace, setWorkspace] = useState(branch.working_draft!);
   const [resolved, setResolved] = useState<ResolvedWorkspace | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -22,6 +22,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange }: { s
   const [viewKind, setViewKind] = useState<WorkspaceBlock['kind']>('fretboard');
   const [playing, setPlaying] = useState(false);
   const saved = useRef(workspace);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopAudio = useRef<(() => void) | null>(null);
   const playbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -42,25 +43,30 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange }: { s
   }, [workspace]);
 
   const stop = () => { stopAudio.current?.(); stopAudio.current = null; if (playbackTimer.current) clearTimeout(playbackTimer.current); setPlaying(false); };
-  const persist = async (next: ConceptWorkspace) => {
+  const persist = useCallback(async (next: ConceptWorkspace) => {
     setBusy(true); setStatus('Saving draft…');
     try {
       const updated = await apiClient.saveConceptWorkspace(sessionId, branch.id, next);
       saved.current = updated.working_draft!;
-      setWorkspace(saved.current); onBranchChange(updated); setStatus('Draft autosaved'); setError(null);
+      setWorkspace(saved.current); onBranchChange(updated); setStatus('Draft autosaved'); setError(null); onPendingChange(false);
     } catch (err) { setStatus('Draft not saved'); setError(`${String(err)}. Your edits are still here. Retry, or download your draft before reloading if it changed elsewhere.`); }
     finally { setBusy(false); }
-  };
+  }, [sessionId, branch.id, onBranchChange, onPendingChange]);
+
+  useEffect(() => {
+    if (workspace === saved.current) return;
+    autosaveTimer.current = setTimeout(() => { void persist(workspace); }, 250);
+    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+  }, [workspace, persist]);
 
   const change = async (next: ConceptWorkspace) => {
-    stop(); setBusy(true); setError(null); setStatus('Updating views…');
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    stop(); setBusy(true); onPendingChange(true); setError(null); setStatus('Updating views…');
     try {
       const facts = await apiClient.resolveConceptWorkspace(next);
       setWorkspace(next); setResolved(facts); setInspection(null);
-      // Coalesce presentation updates before writing the branch; controls stay locked through the save.
-      await new Promise(resolve => setTimeout(resolve, 250));
-      await persist(next);
-    } catch { setError('That combination is not supported. Your previous draft is unchanged.'); setStatus('Change not applied'); setBusy(false); }
+      setStatus('Draft changed…'); setBusy(false);
+    } catch { setError('That combination is not supported. Your previous draft is unchanged.'); setStatus('Change not applied'); setBusy(false); onPendingChange(workspace !== saved.current); }
   };
   const updateSettings = (block: WorkspaceBlock, patch: Partial<WorkspaceBlock['settings']>) => change({ ...workspace, blocks: workspace.blocks.map(item => item.id === block.id ? { ...item, settings: { ...item.settings, ...patch } } : item) });
   const editScale = (id: string | null, patch: { root?: string; mode?: ScaleMode }) => change({ ...workspace, entities: workspace.entities.map(entity => !id || entity.id === id ? { ...entity, ...patch } : entity) });
@@ -75,7 +81,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange }: { s
     <header className="space-y-3 border-b border-[var(--border-primary)] pb-4">
       <p className="text-xs font-bold uppercase text-[var(--accent-700)]">Explore · working draft</p>
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{title}</h2>
-      {summary && <p>{summary.shared.length} notes stay the same. {summary.removed.length ? `${summary.removed.map(n => n.note).join(', ')} change to ${summary.added.map(n => n.note).join(', ') || 'notes already shared'}.` : 'These scales use the same pitches.'} Hear both scales, then select a changed note to find it on the guitar.</p>}
+      {summary && <p>{summary.shared.length} notes stay the same. {summary.removed.length > 0 && `Only in the first scale: ${summary.removed.map(n => n.note).join(', ')}. `}{summary.added.length > 0 && `Only in the second: ${summary.added.map(n => n.note).join(', ')}. `}{summary.removed.length === 0 && summary.added.length === 0 && 'These scales use the same pitches. '} Hear both scales, then select a changed note to find it on the guitar.</p>}
       <div className="flex flex-wrap items-center gap-3"><button type="button" className={control} disabled={!resolved || busy} onClick={() => {
         if (playing) { stop(); return; }
         try {
@@ -86,12 +92,12 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange }: { s
       }}>{playing ? 'Stop playback' : 'Hear comparison'}</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
     </header>
     {error && <div role="alert" className="space-y-2"><p>{error}</p>{workspace !== saved.current && <div className="flex flex-wrap gap-2"><button className={control} disabled={busy} onClick={() => persist(workspace)}>Retry autosave</button><button className={control} onClick={() => {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'concept-workspace.json'; link.click(); URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'concept-workspace.json'; link.click(); URL.revokeObjectURL(url); onPendingChange(false);
     }}>Download draft</button></div>}</div>}
     <fieldset disabled={busy} className="space-y-3"><legend className="font-semibold">Change the music</legend>
       <label className="flex flex-wrap items-center gap-2">Both roots<select aria-label="Both roots" className={control} value={workspace.entities.every(e => e.root === workspace.entities[0].root) ? workspace.entities[0].root : ''} onChange={e => editScale(null, { root: e.target.value })}><option value="" disabled>Different roots</option>{roots.map(root => <option key={root}>{root}</option>)}</select></label>
       <details><summary className="cursor-pointer py-2">Edit each scale and tuning</summary><div className="flex flex-wrap gap-4 pt-2">{workspace.entities.map((entity, index) => <div key={entity.id} className="flex flex-wrap gap-2"><label>Scale {index + 1} root<select aria-label={`Scale ${index + 1} root`} className={`${control} block`} value={entity.root} onChange={e => editScale(entity.id, { root: e.target.value })}>{roots.map(root => <option key={root}>{root}</option>)}</select></label><label>Scale {index + 1} mode<select aria-label={`Scale ${index + 1} mode`} className={`${control} block max-w-full`} value={entity.mode} onChange={e => editScale(entity.id, { mode: e.target.value as ScaleMode })}>{modes.map(mode => <option key={mode} value={mode}>{mode.replaceAll('_', ' ')}</option>)}</select></label></div>)}</div>
-        <label className="mt-3 block">Tuning<select className={`${control} ml-2`} value={JSON.stringify(workspace.tuning)} onChange={e => change({ ...workspace, tuning: JSON.parse(e.target.value) })}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]', '[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
+        <label className="mt-3 block">Tuning<select aria-label="Tuning" className={`${control} ml-2`} value={JSON.stringify(workspace.tuning)} onChange={e => change({ ...workspace, tuning: JSON.parse(e.target.value) })}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]', '[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
       </details>
     </fieldset>
     <div className="flex min-h-11 flex-wrap items-center gap-3" role="status">{inspection ? <><button className={control} onClick={() => { setInspection(null); heading.current?.focus(); }}>Back</button><span>Inspecting {resolved?.scales[inspection.source_id]?.notes.find(n => n.pitch_class === inspection.key)?.note} across compatible views</span></> : <span>Select a note to inspect it across views.</span>}</div>

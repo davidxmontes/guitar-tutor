@@ -61,3 +61,20 @@ def test_invalid_composition_and_unowned_updates_leave_draft_intact(client):
     from app.dependencies.auth import get_current_user
     client.app.dependency_overrides[get_current_user] = lambda: 'other'
     assert client.put(url, json={'expected_version': 1, 'workspace': original}).status_code == 404
+
+
+def test_view_changes_keep_music_and_atomic_concurrent_saves(client):
+    from concurrent.futures import ThreadPoolExecutor
+    _, branch, url = open_workspace(client)
+    original = branch['working_draft']
+    draft = deepcopy(original)
+    draft['blocks'][0]['settings']['shared_only'] = True
+    draft['blocks'].pop()
+    draft['composition'].pop()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: client.put(url, json={'expected_version': 1, 'workspace': draft}), range(2)))
+    assert sorted(result.status_code for result in results) == [200, 409]
+    saved = next(result.json()['working_draft'] for result in results if result.status_code == 200)
+    assert saved['entities'] == original['entities']
+    assert saved['relations'] == original['relations']
+    assert len(saved['blocks']) == 1

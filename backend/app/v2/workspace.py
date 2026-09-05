@@ -122,7 +122,7 @@ def resolve_workspace(workspace: ConceptWorkspace) -> dict:
             notes.append({'note': spelling, 'degree': degree, 'pitch_class': pitch, 'offset': offset})
         by_pitch = {note['pitch_class']: note for note in notes}
         positions = [{'string': string, 'fret': fret, 'midi': midi + fret, **by_pitch[(midi + fret) % 12]}
-                     for string, midi in enumerate(workspace.tuning, 1) for fret in range(25) if (midi + fret) % 12 in by_pitch]
+                     for string, midi in enumerate(workspace.tuning, 1) for fret in range(25) if midi + fret <= 127 and (midi + fret) % 12 in by_pitch]
         # Same register for both scales makes the comparison audible; choose real positions in the active tuning.
         tonic = min(workspace.tuning) + (root - min(workspace.tuning)) % 12
         playback = []

@@ -386,3 +386,22 @@ def test_revision_metadata_survives_store_reconstruction_without_leaking_into_pa
     assert restored.revisions[0].payload == {'chords': ['D']}
     assert restored.saved_at == 't0'
     assert 'revisions' not in restored.model_dump()
+
+
+def test_workspace_roundtrip_and_compare_and_swap_uses_draft_version():
+    from app.v2.workspace import scale_comparison
+    from app.v2.store import RevisionConflictError
+    draft = scale_comparison().model_dump()
+    client = MagicMock()
+    session_chain = _chain([_session_row()])
+    branch_chain = _chain([_branch_row() | {'working_draft': draft}])
+    client.table.side_effect = lambda name: session_chain if name == 'v2_sessions' else branch_chain
+    store = SupabaseV2Store(client)
+    assert store.get_session('sess-1', 'user_1').branches[0].working_draft.model_dump() == draft
+    next_draft = draft | {'version': 2}
+    store.update_branch('sess-1', 'branch-1', 'user_1', working_draft=next_draft, expected_workspace_version=1)
+    branch_chain.eq.assert_any_call('working_draft->>version', '1')
+    branch_chain.update.assert_called_with({'working_draft': next_draft})
+    branch_chain.execute.return_value.data = []
+    with pytest.raises(RevisionConflictError):
+        store.update_branch('sess-1', 'branch-1', 'user_1', working_draft=next_draft, expected_workspace_version=1)
