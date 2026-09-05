@@ -26,9 +26,22 @@ SCALE_INTERVALS: Dict[str, List[int]] = {
 }
 
 # Scale degree names for display
-SCALE_DEGREE_NAMES = ["1", "2", "3", "4", "5", "6", "7"]
-PENTATONIC_DEGREE_NAMES = ["1", "2", "3", "5", "6"]
-BLUES_DEGREE_NAMES = ["1", "b3", "4", "b5", "5", "b7"]
+SCALE_DEGREE_NAMES = {
+    "major": ["1", "2", "3", "4", "5", "6", "7"],
+    "ionian": ["1", "2", "3", "4", "5", "6", "7"],
+    "dorian": ["1", "2", "b3", "4", "5", "6", "b7"],
+    "phrygian": ["1", "b2", "b3", "4", "5", "b6", "b7"],
+    "lydian": ["1", "2", "3", "#4", "5", "6", "7"],
+    "mixolydian": ["1", "2", "3", "4", "5", "6", "b7"],
+    "aeolian": ["1", "2", "b3", "4", "5", "b6", "b7"],
+    "natural_minor": ["1", "2", "b3", "4", "5", "b6", "b7"],
+    "locrian": ["1", "b2", "b3", "4", "b5", "b6", "b7"],
+    "harmonic_minor": ["1", "2", "b3", "4", "5", "b6", "7"],
+    "melodic_minor": ["1", "2", "b3", "4", "5", "6", "7"],
+    "pentatonic_major": ["1", "2", "3", "5", "6"],
+    "pentatonic_minor": ["1", "b3", "4", "5", "b7"],
+    "blues": ["1", "b3", "4", "b5", "5", "b7"],
+}
 
 # Diatonic chord qualities for major scale
 MAJOR_DIATONIC_CHORDS = [
@@ -92,14 +105,7 @@ def get_scale_degree(note: str, root: str, mode: str) -> Tuple[int, str]:
     if normalized in scale_notes:
         degree = scale_notes.index(normalized) + 1
         
-        # Get appropriate degree label based on scale type
-        if mode in ["pentatonic_major", "pentatonic_minor"]:
-            labels = PENTATONIC_DEGREE_NAMES
-        elif mode == "blues":
-            labels = BLUES_DEGREE_NAMES
-        else:
-            labels = SCALE_DEGREE_NAMES
-        
+        labels = SCALE_DEGREE_NAMES[mode]
         label = labels[scale_notes.index(normalized)] if scale_notes.index(normalized) < len(labels) else str(degree)
         return degree, label
     
@@ -110,7 +116,7 @@ def get_diatonic_chords(root: str, mode: str) -> List[Dict]:
     """Get diatonic chords for a scale."""
     if mode in ["major", "ionian", "lydian", "mixolydian"]:
         chord_template = MAJOR_DIATONIC_CHORDS
-    elif mode in ["natural_minor", "aeolian", "dorian", "phrygian"]:
+    elif mode in ["natural_minor", "aeolian", "dorian", "phrygian", "locrian"]:
         chord_template = MINOR_DIATONIC_CHORDS
     else:
         # For scales without traditional diatonic chords, return empty
@@ -167,7 +173,7 @@ def get_diatonic_chords(root: str, mode: str) -> List[Dict]:
             ("iii", "minor"),
             ("iv", "minor"),
             ("V", "major"),
-            ("vi", "minor"),
+            ("VI", "major"),
             ("vii", "minor"),
         ]
     

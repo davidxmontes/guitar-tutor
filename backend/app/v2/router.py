@@ -5,7 +5,7 @@ Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
 user). Exercise lands in its own later V2 ticket.
 """
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -13,17 +13,20 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
-from app.v2.concepts import build_concept_study
+from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
     Artifact,
     ArtifactKind,
     Branch,
     ConceptId,
+    ConceptStudyPayload,
     ConceptStudyArtifact,
     ProgressionPayload,
+    ScaleConceptId,
     Session,
     SongStudyPayload,
     SongStudyTrack,
+    StudyCatalog,
     TutorMessage,
 )
 from app.v2.song_enrichment import run_song_enrichment
@@ -195,12 +198,41 @@ class CreateConceptStudyRequest(BaseModel):
     branch_id: str
     root: str = Field(min_length=1)
     concept_id: ConceptId
-    open_in_new_branch: bool = False
+    comparison_id: Optional[ScaleConceptId] = None
+    overlay: Literal["notes", "intervals"] = "notes"
+    selected_interval: int = Field(7, ge=0, le=11)
+    promotion: Literal["save", "work_on_this"]
 
 
 class OpenConceptStudyResponse(BaseModel):
     artifact: ConceptStudyArtifact
     branch: Branch
+
+
+@router.get("/study/catalog", response_model=StudyCatalog)
+async def get_concept_catalog(user_id: str = Depends(get_current_user)):
+    return get_study_catalog()
+
+
+@router.get("/study/visualizations/{concept_id}", response_model=ConceptStudyPayload)
+async def get_study_visualization(
+    concept_id: ConceptId,
+    root: str,
+    comparison_id: Optional[ScaleConceptId] = None,
+    overlay: Literal["notes", "intervals"] = "notes",
+    selected_interval: int = 7,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        return build_concept_study(
+            root,
+            concept_id,
+            comparison_id=comparison_id,
+            overlay=overlay,
+            selected_interval=selected_interval,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
 @router.post("/concept-studies", response_model=OpenConceptStudyResponse, status_code=status.HTTP_201_CREATED)
@@ -217,17 +249,23 @@ async def create_concept_study(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
     try:
-        payload = build_concept_study(data.root, data.concept_id)
+        payload = build_concept_study(
+            data.root,
+            data.concept_id,
+            comparison_id=data.comparison_id,
+            overlay=data.overlay,
+            selected_interval=data.selected_interval,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     artifact = store.create_artifact(user_id, "concept_study", payload.display_name, payload.model_dump())
     concept_artifact = ConceptStudyArtifact.model_validate(artifact.model_dump())
     try:
-        # ponytail: artifact + branch are two writes because the Supabase
-        # client has no cross-table transaction API. Move this into one RPC
-        # if orphaned artifacts are ever observed after branch-write errors.
-        if data.open_in_new_branch:
+        if data.promotion == "work_on_this":
+            # ponytail: artifact + branch are two writes because the Supabase
+            # client has no cross-table transaction API. Move this into one RPC
+            # if orphaned artifacts are ever observed after branch-write errors.
             branch = store.create_branch(
                 data.session_id,
                 user_id,
@@ -235,15 +273,7 @@ async def create_concept_study(
                 current_artifact_id=artifact.id,
             )
         else:
-            branch = store.update_branch(
-                data.session_id,
-                data.branch_id,
-                user_id,
-                current_artifact_kind="concept_study",
-                current_artifact_id=artifact.id,
-                selection=None,
-                focus=None,
-            )
+            branch = next(branch for branch in session.branches if branch.id == data.branch_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return OpenConceptStudyResponse(artifact=concept_artifact, branch=branch)
@@ -449,3 +479,4 @@ async def create_progression(
     keep the SongStudy branch the user was working in current/active.
     """
     return store.create_artifact(user_id=user_id, kind="progression", title=data.title, payload=data.model_dump())
+    ScaleConceptId,

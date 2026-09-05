@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.dependencies.auth import get_current_user
+from app.music.scales import get_diatonic_chords, get_scale_degree
 from app.v2.concepts import build_concept_study
 from app.v2.router import router
 from app.v2.store import InMemoryV2Store, get_v2_store
@@ -46,8 +47,69 @@ def test_minor_pentatonic_facts_and_comparison_are_deterministic():
     assert all(5 <= position.fret <= 8 for position in study.positions)
 
 
-def test_create_concept_study_saves_artifact_and_opens_it_on_current_branch(client, session_and_branch):
+def test_scale_degree_regressions_cover_modes_pentatonic_and_locrian_harmony():
+    expected = {
+        "dorian": ["1", "2", "b3", "4", "5", "6", "b7"],
+        "phrygian": ["1", "b2", "b3", "4", "5", "b6", "b7"],
+        "lydian": ["1", "2", "3", "#4", "5", "6", "7"],
+        "mixolydian": ["1", "2", "3", "4", "5", "6", "b7"],
+        "locrian": ["1", "b2", "b3", "4", "b5", "b6", "b7"],
+        "pentatonic_minor": ["1", "b3", "4", "5", "b7"],
+    }
+
+    for mode, labels in expected.items():
+        study = build_concept_study("C", mode)
+        assert [note.interval for note in study.notes] == labels
+        assert [get_scale_degree(note.note, "C", mode)[1] for note in study.notes] == labels
+
+    assert [chord["numeral"] for chord in get_diatonic_chords("B", "locrian")] == [
+        "i°", "II", "iii", "iv", "V", "VI", "vii"
+    ]
+
+
+def test_study_catalog_is_backend_owned_and_progressively_grouped(client):
+    response = client.get("/api/v2/study/catalog")
+
+    assert response.status_code == 200
+    catalog = response.json()
+    groups = {group["id"]: group["concepts"] for group in catalog["groups"]}
+    assert catalog["roots"] == ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+    assert {concept["id"] for concept in groups["essentials"]} >= {
+        "major", "natural_minor", "pentatonic_major", "pentatonic_minor", "blues"
+    }
+    assert {concept["id"] for concept in groups["explore_more"]} >= {
+        "dorian", "phrygian", "lydian", "mixolydian", "locrian", "harmonic_minor", "melodic_minor"
+    }
+    assert {concept["id"] for concept in groups["systems"]} == {"intervals"}
+    assert all(concept["display_name"] for group in catalog["groups"] for concept in group["concepts"])
+
+
+def test_transient_visualization_builds_scale_and_interval_without_artifact(client, store, session_and_branch):
     session_id, branch_id = session_and_branch
+
+    scale = client.get("/api/v2/study/visualizations/dorian", params={"root": "D"})
+    interval = client.get("/api/v2/study/visualizations/intervals", params={"root": "A"})
+
+    assert scale.status_code == 200
+    assert scale.json()["visualization"] == "scale"
+    assert scale.json()["display_name"] == "D Dorian"
+    assert [note["interval"] for note in scale.json()["notes"]] == ["1", "2", "b3", "4", "5", "6", "b7"]
+    assert interval.status_code == 200
+    assert interval.json()["visualization"] == "interval"
+    assert interval.json()["display_name"] == "Intervals from A"
+    assert interval.json()["intervals"][7]["label"] == "5"
+    assert store._artifacts == {}
+    branch = client.get(f"/api/v2/sessions/{session_id}").json()["branches"][0]
+    assert branch["id"] == branch_id
+    assert branch["current_artifact_id"] is None
+
+
+def test_save_concept_study_creates_snapshot_without_replacing_current_branch(client, session_and_branch):
+    session_id, branch_id = session_and_branch
+    client.patch(
+        f"/api/v2/sessions/{session_id}/branches/{branch_id}",
+        json={"current_artifact_kind": "song_study", "current_artifact_id": "song-1"},
+    )
 
     response = client.post(
         "/api/v2/concept-studies",
@@ -56,6 +118,9 @@ def test_create_concept_study_saves_artifact_and_opens_it_on_current_branch(clie
             "branch_id": branch_id,
             "root": "A",
             "concept_id": "pentatonic_minor",
+            "comparison_id": "natural_minor",
+            "overlay": "intervals",
+            "promotion": "save",
         },
     )
 
@@ -65,17 +130,20 @@ def test_create_concept_study_saves_artifact_and_opens_it_on_current_branch(clie
     assert artifact["kind"] == "concept_study"
     assert artifact["title"] == "A minor pentatonic"
     assert artifact["payload"]["tuning"] == ["E", "B", "G", "D", "A", "E"]
+    assert artifact["payload"]["comparison_id"] == "natural_minor"
+    assert artifact["payload"]["overlay"] == "intervals"
+    assert not ({"scroll_position", "panel_dimensions", "zoom"} & artifact["payload"].keys())
 
     branch = opened["branch"]
-    assert branch["current_artifact_kind"] == "concept_study"
-    assert branch["current_artifact_id"] == artifact["id"]
+    assert branch["current_artifact_kind"] == "song_study"
+    assert branch["current_artifact_id"] == "song-1"
 
     reopened = client.get(f"/api/v2/concept-studies/{artifact['id']}")
     assert reopened.status_code == 200
     assert reopened.json() == artifact
 
 
-def test_work_on_concept_explicitly_opens_a_new_branch(client, session_and_branch):
+def test_work_on_concept_promotes_semantic_state_into_a_new_branch(client, session_and_branch):
     session_id, source_branch_id = session_and_branch
 
     response = client.post(
@@ -84,14 +152,17 @@ def test_work_on_concept_explicitly_opens_a_new_branch(client, session_and_branc
             "session_id": session_id,
             "branch_id": source_branch_id,
             "root": "D",
-            "concept_id": "major_triad",
-            "open_in_new_branch": True,
+            "concept_id": "dorian",
+            "comparison_id": "major",
+            "overlay": "notes",
+            "promotion": "work_on_this",
         },
     )
 
     assert response.status_code == 201
     opened = response.json()
-    assert opened["artifact"]["title"] == "D major triad"
+    assert opened["artifact"]["title"] == "D Dorian"
+    assert opened["artifact"]["payload"]["comparison_id"] == "major"
     assert opened["branch"]["id"] != source_branch_id
     assert opened["branch"]["current_artifact_id"] == opened["artifact"]["id"]
 
@@ -123,6 +194,7 @@ def test_create_concept_study_validates_branch_before_writing(client, store, ses
             "branch_id": "missing",
             "root": "A",
             "concept_id": "pentatonic_minor",
+            "promotion": "save",
         },
     )
     assert response.status_code == 404

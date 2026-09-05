@@ -9,7 +9,7 @@ common columns plus a JSON payload, strictly typed per concrete artifact
 route. SongStudy, Progression, and ConceptStudy payloads exist so far.
 """
 
-from typing import Any, Literal, Optional, get_args
+from typing import Annotated, Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -139,13 +139,24 @@ class ProgressionPayload(BaseModel):
     inspired_by: Optional[dict[str, Any]] = None
 
 
-ConceptId = Literal[
+ScaleConceptId = Literal[
+    "major",
+    "ionian",
+    "dorian",
+    "phrygian",
+    "lydian",
+    "mixolydian",
+    "aeolian",
+    "natural_minor",
+    "locrian",
+    "harmonic_minor",
+    "melodic_minor",
+    "pentatonic_major",
     "pentatonic_minor",
-    "major_triad",
-    "minor_triad",
-    "perfect_fifth",
-    "dominant_resolution",
+    "blues",
 ]
+IntervalConceptId = Literal["intervals"]
+ConceptId = ScaleConceptId | IntervalConceptId
 
 
 class ConceptNote(BaseModel):
@@ -166,23 +177,65 @@ class ConceptRelationship(BaseModel):
     positions: list[ConceptPosition]
 
 
-class ConceptStudyPayload(BaseModel):
+class ConceptPayloadBase(BaseModel):
     """Concrete persisted state for one theory workspace.
 
     Facts and physical positions are resolved deterministically by V2. The
     tutor can teach from them, but it does not own or mutate them.
     """
 
-    concept_id: ConceptId
     root: str
     display_name: str
     explanation: str
     tuning: list[str]
     fret_start: int
     fret_end: int
+    overlay: Literal["notes", "intervals"] = "notes"
+
+
+class ScaleStudyPayload(ConceptPayloadBase):
+    visualization: Literal["scale"] = "scale"
+    concept_id: ScaleConceptId
     notes: list[ConceptNote]
     positions: list[ConceptPosition]
     relationships: list[ConceptRelationship]
+    comparison_id: Optional[ScaleConceptId] = None
+
+
+class StudyInterval(BaseModel):
+    note: str
+    label: str
+    name: str
+    semitones: int = Field(ge=0, le=11)
+
+
+class IntervalStudyPayload(ConceptPayloadBase):
+    visualization: Literal["interval"] = "interval"
+    concept_id: IntervalConceptId = "intervals"
+    selected_interval: int = Field(ge=0, le=11)
+    intervals: list[StudyInterval]
+    positions: list[ConceptPosition]
+
+
+ConceptStudyPayload = Annotated[ScaleStudyPayload | IntervalStudyPayload, Field(discriminator="visualization")]
+
+
+class StudyCatalogConcept(BaseModel):
+    id: ConceptId
+    display_name: str
+    description: str
+    visualization: Literal["scale", "interval"]
+
+
+class StudyCatalogGroup(BaseModel):
+    id: Literal["essentials", "explore_more", "systems"]
+    display_name: str
+    concepts: list[StudyCatalogConcept]
+
+
+class StudyCatalog(BaseModel):
+    roots: list[str]
+    groups: list[StudyCatalogGroup]
 
 
 class Artifact(BaseModel):
