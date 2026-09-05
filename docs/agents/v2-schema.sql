@@ -16,15 +16,25 @@ CREATE TABLE v2_branches (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id             uuid NOT NULL REFERENCES v2_sessions(id) ON DELETE CASCADE,
   tutor_thread_id        uuid NOT NULL,
+  title                  text NOT NULL DEFAULT 'New workspace',
   current_artifact_kind  text CHECK (current_artifact_kind IN ('song_study', 'progression', 'concept_study', 'exercise')),
   current_artifact_id    text,
   selection              jsonb,
   focus                  jsonb,
   recent_ideas           jsonb NOT NULL DEFAULT '[]'::jsonb,
+  fork_context           jsonb,
+  closed                 boolean NOT NULL DEFAULT false,
   created_at             timestamptz NOT NULL DEFAULT now(),
   updated_at             timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ON v2_branches (session_id);
+
+-- Existing V2 databases created before branch navigation shipped need the
+-- same additive columns. IF NOT EXISTS also makes this safe after a fresh
+-- CREATE TABLE run above.
+ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'New workspace';
+ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS fork_context jsonb;
+ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS closed boolean NOT NULL DEFAULT false;
 
 -- Artifact CRUD: common columns + a JSON payload, strictly typed by each
 -- concrete artifact route at the application layer.

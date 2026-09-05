@@ -205,8 +205,8 @@ test('tutor chat: history loads, a turn round-trips, and a focus response highli
 
 // Ticket #14: a progression candidate returned by the (stubbed) tutor turn
 // renders as a whole visible chord sequence, Hear/Save/Explore all work
-// without opening a real Branch, and Hear never touches the network.
-test('progression candidate: whole sequence renders, Hear stays local, Save persists, Explore is inert', async ({ page }) => {
+// before opening a real Branch, and Hear never touches the network.
+test('progression candidate: whole sequence renders, Hear stays local, Save persists, Explore is available', async ({ page }) => {
   await page.route('**/api/v2/tutor/threads/*/messages', (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
     return route.fulfill({ json: [] })
@@ -310,10 +310,11 @@ test('progression candidate: whole sequence renders, Hear stays local, Save pers
   expect(progressionSaveRequest).toMatchObject({ title: 'Wistful I-vi-IV-V' })
   await expect(page.getByTestId('song-study-workspace')).toBeVisible()
 
-  // Explore is present but inert — no new session/branch gets created.
+  // Explore is explicit and ready to open a new branch; merely receiving the
+  // candidate still does not create one.
   const explore = page.getByTestId('progression-candidate-explore')
   await expect(explore).toBeVisible()
-  await expect(explore).toBeDisabled()
+  await expect(explore).toBeEnabled()
   const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
   const session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((r) => r.json())
   expect(session.branches).toHaveLength(1)

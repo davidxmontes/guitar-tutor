@@ -49,6 +49,7 @@ export function TutorChat({
   tutorThreadId,
   onFocusChange,
   onWorkOnConcept,
+  onExploreProgression,
   emptyMessage = 'Ask a question about this passage.',
 }: {
   sessionId: string;
@@ -56,6 +57,7 @@ export function TutorChat({
   tutorThreadId: string;
   onFocusChange: (focus: TutorFocus | null) => void;
   onWorkOnConcept?: (suggestion: ConceptSuggestion) => Promise<void>;
+  onExploreProgression?: (candidate: ProgressionPayload) => Promise<void>;
   emptyMessage?: string;
 }) {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -178,7 +180,7 @@ export function TutorChat({
             {m.role === 'assistant' && m.candidates && m.candidates.length > 0 && (
               <div data-testid="tutor-chat-candidates" className="flex flex-col gap-2">
                 {m.candidates.map((candidate, i) => (
-                  <ProgressionCandidate key={i} candidate={candidate} />
+                  <ProgressionCandidate key={i} candidate={candidate} onExplore={onExploreProgression} />
                 ))}
               </div>
             )}

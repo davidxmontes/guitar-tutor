@@ -51,7 +51,11 @@ def test_get_session_raises_not_found_when_no_rows():
 def test_get_session_loads_branches():
     client = MagicMock()
     session_chain = _chain([_session_row()])
-    branch_chain = _chain([_branch_row()])
+    branch_chain = _chain([_branch_row() | {
+        "title": "Dreamy progression",
+        "fork_context": {"source_artifact_id": "song-1"},
+        "closed": True,
+    }])
     client.table.side_effect = lambda name: {"v2_sessions": session_chain, "v2_branches": branch_chain}[name]
 
     store = SupabaseV2Store(client)
@@ -59,6 +63,9 @@ def test_get_session_loads_branches():
 
     assert session.id == "sess-1"
     assert session.branches[0].id == "branch-1"
+    assert session.branches[0].title == "Dreamy progression"
+    assert session.branches[0].fork_context == {"source_artifact_id": "song-1"}
+    assert session.branches[0].closed is True
 
 
 def test_create_branch_checks_session_ownership_before_insert():
@@ -75,14 +82,17 @@ def test_create_branch_checks_session_ownership_before_insert():
     session_chain.insert.assert_not_called()
 
 
-def test_create_branch_inserts_independent_thread_and_current_artifact_fields():
+def test_create_branch_inserts_independent_thread_and_workspace_fields():
     client = MagicMock()
     session_chain = _chain([_session_row()])
     existing_branches = _chain([_branch_row()])
     created_row = _branch_row(branch_id="branch-2") | {
         "tutor_thread_id": "thread-2",
+        "title": "Dreamy progression",
         "current_artifact_kind": "concept_study",
         "current_artifact_id": "art-2",
+        "fork_context": {"source_artifact_id": "song-1"},
+        "closed": False,
     }
     inserted_branch = _chain([created_row])
     branch_queries = iter([existing_branches, inserted_branch])
@@ -92,19 +102,28 @@ def test_create_branch_inserts_independent_thread_and_current_artifact_fields():
     branch = store.create_branch(
         "sess-1",
         user_id="user_1",
+        title="Dreamy progression",
         current_artifact_kind="concept_study",
         current_artifact_id="art-2",
+        fork_context={"source_artifact_id": "song-1"},
+        closed=False,
     )
 
     inserted = inserted_branch.insert.call_args.args[0]
     assert inserted["session_id"] == "sess-1"
     assert inserted["tutor_thread_id"]
     assert inserted["tutor_thread_id"] != "thread-1"
+    assert inserted["title"] == "Dreamy progression"
     assert inserted["current_artifact_kind"] == "concept_study"
     assert inserted["current_artifact_id"] == "art-2"
+    assert inserted["fork_context"] == {"source_artifact_id": "song-1"}
+    assert inserted["closed"] is False
     assert branch.tutor_thread_id == "thread-2"
+    assert branch.title == "Dreamy progression"
     assert branch.current_artifact_kind == "concept_study"
     assert branch.current_artifact_id == "art-2"
+    assert branch.fork_context == {"source_artifact_id": "song-1"}
+    assert branch.closed is False
 
 
 def test_create_branch_reports_missing_inserted_row_cleanly():
@@ -144,6 +163,38 @@ def test_update_branch_with_no_fields_selects_instead_of_updating():
     assert branch.id == "branch-1"
     branch_chain.update.assert_not_called()
     branch_chain.select.assert_called_with("*")
+
+
+def test_update_branch_persists_workspace_navigation_fields():
+    client = MagicMock()
+    session_chain = _chain([_session_row()])
+    existing_branches = _chain([_branch_row()])
+    updated_branch = _chain([_branch_row() | {
+        "title": "Dreamy progression",
+        "fork_context": {"source_artifact_id": "song-1"},
+        "closed": True,
+    }])
+    branch_queries = iter([existing_branches, updated_branch])
+    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else next(branch_queries)
+
+    store = SupabaseV2Store(client)
+    branch = store.update_branch(
+        "sess-1",
+        "branch-1",
+        user_id="user_1",
+        title="Dreamy progression",
+        fork_context={"source_artifact_id": "song-1"},
+        closed=True,
+    )
+
+    updated_branch.update.assert_called_once_with({
+        "title": "Dreamy progression",
+        "fork_context": {"source_artifact_id": "song-1"},
+        "closed": True,
+    })
+    assert branch.title == "Dreamy progression"
+    assert branch.fork_context == {"source_artifact_id": "song-1"}
+    assert branch.closed is True
 
 
 def test_update_branch_raises_not_found_when_branch_missing():
