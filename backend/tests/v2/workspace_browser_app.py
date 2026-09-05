@@ -13,6 +13,10 @@ class WorkspaceBrowserModel(ScriptedTutorModel):
         request = context.rsplit('User: ', 1)[1]
         operations = [{'op': 'update_entity', 'entity': workspace['entities'][0] | {'mode': 'dorian'}}]
         message = 'The first scale is now G Dorian. Its third and seventh are lowered.'
+        if workspace['provenance'] == 'physical-resolution':
+            target = next(e for e in workspace['entities'] if e['kind'] == 'voicing' and e['id'] == workspace['relations'][0]['entity_ids'][1])
+            operations = [{'op':'update_entity', 'entity':target | {'label':'G over D · compact', 'positions':[{'string':1,'fret':30 if 'invalid' in request else 3}, {'string':2,'fret':3}, {'string':3,'fret':4}]}}]
+            message = 'Keep D on the second string; move F# up to G.'
         if 'alternatives' in request:
             operations = [
                 {'op': 'add_entity', 'entity': {'id': '$bright', 'root': 'G', 'mode': 'lydian', 'label': 'Brighter option'}},
@@ -21,7 +25,7 @@ class WorkspaceBrowserModel(ScriptedTutorModel):
                 {'op': 'add_block', 'block': {'id': '$view', 'kind': 'degree_strip', 'source_id': '$compare'}},
             ]
             message = 'Added brighter and darker scales to compare, edit, or remove.'
-        if 'invalid' in request:
+        if 'invalid' in request and workspace['provenance'] != 'physical-resolution':
             operations.append({'op': 'add_block', 'block': {'id': '$bad', 'kind': 'untrusted_html', 'source_id': workspace['entities'][0]['id']}})
             message = 'This explanation remains visible even though my change is invalid.'
         if 'slow' in request:

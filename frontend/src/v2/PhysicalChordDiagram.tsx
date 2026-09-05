@@ -19,6 +19,7 @@ export interface ChordFingering extends PhysicalChordPosition {
 
 interface PhysicalChordDiagramProps {
   positions: readonly PhysicalChordPosition[];
+  highlightedPositions?: readonly PhysicalChordPosition[];
   // Arrays are string 1 through 6 (high to low), matching V2 physical data.
   tuning: string | readonly (string | number)[];
   label?: string;
@@ -51,7 +52,7 @@ function tuningLabel(tuning: PhysicalChordDiagramProps['tuning']): string {
   return typeof tuning === 'string' ? tuning : [...tuning].reverse().map(note => typeof note === 'number' ? midiToNoteName(note) : note).join(' ');
 }
 
-export function PhysicalChordDiagram({ positions, tuning, label, barre, fingering = [] }: PhysicalChordDiagramProps) {
+export function PhysicalChordDiagram({ positions, tuning, label, barre, fingering = [], highlightedPositions = [] }: PhysicalChordDiagramProps) {
   const fretted = positions.filter(({ fret }) => fret > 0).map(({ fret }) => fret);
   const hasOpenStrings = positions.some(({ fret }) => fret === 0);
   const startFret = hasOpenStrings || fretted.length === 0 ? 0 : Math.min(...fretted);
@@ -75,9 +76,9 @@ export function PhysicalChordDiagram({ positions, tuning, label, barre, fingerin
     const position = positionsByString.get(string);
     const marker = !position ? '×' : position.fret === 0 ? '○' : '';
     return marker ? (
-      <text key={string} x={getStringX(string)} y="9" textAnchor="middle" fontSize="10" fontWeight="700">
+      <g key={string}>{highlightedPositions.some(p => p.string === string && p.fret === 0) && <circle cx={getStringX(string)} cy="5" r="7" fill="none" stroke="var(--text-primary)" strokeWidth="2" />}<text x={getStringX(string)} y="9" textAnchor="middle" fontSize="10" fontWeight="700">
         {marker}
-      </text>
+      </text></g>
     ) : null;
   });
 
@@ -122,7 +123,7 @@ export function PhysicalChordDiagram({ positions, tuning, label, barre, fingerin
         const y = getFretY(position.fret) + 12;
         return (
           <g key={`${position.string}-${position.fret}`}>
-            <circle cx={x} cy={y} r={DOT_RADIUS} fill="var(--accent-500)" />
+            <circle cx={x} cy={y} r={DOT_RADIUS} fill="var(--accent-500)" stroke={highlightedPositions.some(p => p.string === position.string && p.fret === position.fret) ? "var(--text-primary)" : undefined} strokeWidth="3" />
             {finger && (
               <text
                 data-testid="chord-diagram-finger"

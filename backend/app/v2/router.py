@@ -15,7 +15,7 @@ from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
-from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison
+from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison, physical_resolution
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
     CircleState,
@@ -517,10 +517,12 @@ async def create_tutor_turn(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
     if data.inspection is not None:
-        facts = resolve_workspace(branch.working_draft) if branch.working_draft else {'scales': {}}
-        scale = facts['scales'].get(data.inspection.source_id)
-        if not scale or data.inspection.key not in {note['pitch_class'] for note in scale['notes']}:
-            raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select a note again.")
+        facts = resolve_workspace(branch.working_draft) if branch.working_draft else {}
+        inspection = data.inspection
+        source = next((facts.get(group, {}).get(inspection.source_id) for group in ('scales','chords','voicings','transitions') if inspection.source_id in facts.get(group, {})), None)
+        valid = source and (inspection.key in {note['pitch_class'] for note in source.get('notes', source.get('positions', []))} if inspection.kind == 'pitch' else inspection.key == inspection.source_id and inspection.source_id in facts.get(inspection.kind + 's', {}))
+        if not valid:
+            raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select again.")
 
     artifact: Optional[Artifact] = None
     if branch.current_artifact_id:
@@ -891,14 +893,14 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
 
 
 class OpenWorkspaceRequest(StrictModel):
-    recipe: Literal['scale-comparison']
+    recipe: Literal['scale-comparison', 'physical-resolution']
 
 
 @router.post('/sessions/{session_id}/concept-workspaces', response_model=Branch, status_code=201)
 async def open_concept_workspace(session_id: str, data: OpenWorkspaceRequest,
     user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
-        workspace = scale_comparison()
+        workspace = physical_resolution() if data.recipe == 'physical-resolution' else scale_comparison()
         return store.create_branch(session_id, user_id, title=workspace.title,
             current_artifact_kind='concept_study', working_draft=workspace.model_dump())
     except NotFoundError as exc:

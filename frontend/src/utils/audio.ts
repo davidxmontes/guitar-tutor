@@ -302,3 +302,13 @@ export function playNoteSequence(positions: NoteToPlay[], tuning: readonly numbe
   ))
   return () => sources.forEach(source => source.stop())
 }
+
+// One audio clock keeps both exact voicings together; stopping cancels future notes too.
+export function playChordSequence(chords: { positions: NoteToPlay[]; tuning: readonly number[] }[], spacing = 1.2): () => void {
+  const ctx = getAudioContext()
+  const start = ctx.currentTime
+  const sources = chords.flatMap((chord, index) => [...chord.positions].sort((a, b) => b.string - a.string).map((p, string) =>
+    createKarplusString(ctx, getFrequency(p.string, p.fret, chord.tuning), start + index * spacing + string * 0.03, 1, 0.4),
+  ))
+  return () => sources.forEach(source => source.stop())
+}

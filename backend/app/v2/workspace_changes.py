@@ -4,23 +4,23 @@ from typing import Annotated, Literal
 from uuid import uuid4
 
 from pydantic import Field
-from app.v2.workspace import Block, Compare, ConceptWorkspace, Identifier, Row, Scale, StrictModel, ViewSettings, resolve_workspace
+from app.v2.workspace import Block, Compare, ConceptWorkspace, Identifier, Row, Entity, Transition, StrictModel, ViewSettings, resolve_workspace
 
 
 class InspectionTarget(StrictModel):
     source_id: Identifier
-    kind: Literal['pitch']
-    key: int = Field(ge=0, le=11, strict=True)
+    kind: Literal['pitch', 'chord', 'voicing', 'transition']
+    key: Annotated[int, Field(ge=0, le=11, strict=True)] | Identifier
 
 
 class EntityWrite(StrictModel):
     op: Literal['add_entity', 'update_entity']
-    entity: Scale
+    entity: Entity
 
 
 class RelationWrite(StrictModel):
     op: Literal['add_relation', 'update_relation']
-    relation: Compare
+    relation: Compare | Transition
 
 
 class BlockAdd(StrictModel):
@@ -93,9 +93,13 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
         else:
             if isinstance(operation, EntityWrite):
                 collection, obj = 'entities', operation.entity.model_dump()
+                if obj.get('chord_id'):
+                    obj['chord_id'] = resolve(obj['chord_id'])
             elif isinstance(operation, RelationWrite):
                 collection, obj = 'relations', operation.relation.model_dump()
                 obj['entity_ids'] = [resolve(id) for id in obj['entity_ids']]
+                if obj.get('key_id'):
+                    obj['key_id'] = resolve(obj['key_id'])
             else:
                 collection, obj = 'blocks', operation.block.model_dump()
                 obj['source_id'] = resolve(obj['source_id'])
