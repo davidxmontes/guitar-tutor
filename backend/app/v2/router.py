@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
+from app.v2.workspace_progressions import ProgressionAction, edit_progression, progression_starter
 from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
 from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison, physical_resolution
 from app.v2.concepts import build_concept_study, get_study_catalog
@@ -893,14 +894,14 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
 
 
 class OpenWorkspaceRequest(StrictModel):
-    recipe: Literal['scale-comparison', 'physical-resolution']
+    recipe: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression']
 
 
 @router.post('/sessions/{session_id}/concept-workspaces', response_model=Branch, status_code=201)
 async def open_concept_workspace(session_id: str, data: OpenWorkspaceRequest,
     user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
-        workspace = physical_resolution() if data.recipe == 'physical-resolution' else scale_comparison()
+        workspace = progression_starter() if data.recipe == 'four-chord-progression' else physical_resolution() if data.recipe == 'physical-resolution' else scale_comparison()
         return store.create_branch(session_id, user_id, title=workspace.title,
             current_artifact_kind='concept_study', working_draft=workspace.model_dump())
     except NotFoundError as exc:
@@ -993,3 +994,11 @@ async def restore_workspace_snapshot(session_id: str, branch_id: str, data: Undo
         raise HTTPException(404, str(exc)) from exc
     except RevisionConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+@router.post('/concept-workspaces/progression', response_model=ConceptWorkspace)
+async def transform_progression(data: ProgressionAction, user_id: str = Depends(get_current_user)):
+    try:
+        return edit_progression(data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
