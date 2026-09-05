@@ -24,6 +24,7 @@ backend/.venv/
 
 # Agent specific  
 agent/.venv/
+.claude/worktrees/
 
 # Build outputs
 dist/
