@@ -99,13 +99,14 @@ def build_tutor_model(
             # this exact model) -- matters once real domain tools exist;
             # this model can still call tools optionally (tool_choice="auto"),
             # just not via a forced/named choice (see runner.py's
-            # _response_format). stream_usage=True keeps usage_metadata
-            # attached to the aggregated response even in streaming mode --
-            # without it, ChatOpenAI silently drops token usage on a
-            # streamed call, which would otherwise break this ticket's
-            # usage/observability requirement for this model specifically.
+            # _response_format).
+            #
+            # ponytail: usage/cache metrics come back empty for this model
+            # even with streaming on (tried stream_usage=True too, verified
+            # live it changed nothing, cut it rather than leave unproven
+            # code in) -- dig in if per-model usage telemetry starts
+            # mattering; not required for chat to work.
             kwargs["streaming"] = True
-            kwargs["stream_usage"] = True
         return ChatOpenAI(
             model=model,
             api_key=openrouter_api_key,

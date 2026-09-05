@@ -33,18 +33,13 @@ from app.v2.tutor.contract import ProgressionCandidate, TutorFocus, TutorRespons
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, usage_from_ai_message
 
-# (provider, model) pairs known to accept tool definitions but reject a
-# forced/named tool_choice -- ToolStrategy always forces one, so these need
-# ProviderStrategy's native structured-output mode instead. Real fix for a
-# known model, not a workaround: OpenRouter's Meta endpoint for
-# meta/muse-spark-1.3-contributor only permits tool_choice="auto".
-_FORCED_TOOL_CHOICE_INCOMPATIBLE: frozenset[tuple[str, str]] = frozenset(
-    {("openrouter", "meta/muse-spark-1.3-contributor")}
-)
-
-
 def _response_format(provider: str, model: str) -> ToolStrategy | ProviderStrategy:
-    if (provider, model) not in _FORCED_TOOL_CHOICE_INCOMPATIBLE:
+    # OpenRouter's Meta endpoint for meta/muse-spark-1.3-contributor accepts
+    # tool definitions but only permits tool_choice="auto" -- ToolStrategy
+    # always forces a named tool_choice, so this model needs
+    # ProviderStrategy's native structured-output mode instead. A second
+    # incompatible model widens this to a tuple/set; not needed yet.
+    if (provider, model) != ("openrouter", "meta/muse-spark-1.3-contributor"):
         return ToolStrategy(TutorTerminal)
     # Strict native JSON schema requires every property in `required`;
     # Optional[...] = None fields are otherwise omittable, which strict mode
