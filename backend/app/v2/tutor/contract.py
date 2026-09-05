@@ -148,7 +148,7 @@ TutorRunStatus = Literal["completed"]
 
 
 class WorkspaceTurnResult(BaseModel):
-    status: Literal['applied', 'rejected', 'unchanged', 'undone']
+    status: Literal['applied', 'rejected', 'unchanged', 'undone', 'restored']
     reason: Optional[str] = None
     message_id: str
     branch: Branch

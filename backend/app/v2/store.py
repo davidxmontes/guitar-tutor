@@ -66,7 +66,7 @@ class V2Store(Protocol):
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact: ...
     def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch: ...
-    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any], undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]: ...
+    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any], undo_message_id: Optional[str] = None, restore_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
 
@@ -208,7 +208,7 @@ class InMemoryV2Store:
 
     def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
         workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
-        undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
+        undo_message_id: Optional[str] = None, restore_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
         with self._branch_lock:
             session = self.get_session(session_id, user_id)
             index = next((i for i, b in enumerate(session.branches) if b.id == branch_id), None)
@@ -219,8 +219,17 @@ class InMemoryV2Store:
             history = self._tutor_messages.get(branch.tutor_thread_id, [])
             content = deepcopy(assistant)
             change = content.setdefault('workspace_change', {'status': 'unchanged', 'reason': None})
-            if undo_message_id:
-                latest = next((m for m in reversed(history) if m.content.get('workspace_change', {}).get('status') in ('applied', 'undone')), None)
+            if restore_message_id:
+                target = next((m for m in history if m.id == restore_message_id and m.role == 'assistant' and m.content.get('workspace_after')), None)
+                if target is None:
+                    raise NotFoundError('Turn snapshot not found')
+                if before.version != expected_version:
+                    raise RevisionConflictError('The current draft changed. Return to current and reload before restoring.')
+                workspace = ConceptWorkspace.model_validate(target.content['workspace_after'])
+                content['focus'] = deepcopy(target.content.get('focus'))
+                change.update(status='restored', restore_of=restore_message_id)
+            elif undo_message_id:
+                latest = next((m for m in reversed(history) if m.content.get('workspace_change', {}).get('status') in ('applied', 'undone', 'restored')), None)
                 if before.version != expected_version or latest is None or latest.id != undo_message_id or latest.content['workspace_change']['status'] != 'applied' or not latest.content.get('workspace_before'):
                     raise RevisionConflictError('Undo is no longer current. Reload the workspace before trying again.')
                 workspace = ConceptWorkspace.model_validate(latest.content['workspace_before'])
@@ -463,17 +472,17 @@ class SupabaseV2Store:
 
     def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
         workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
-        undo_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
+        undo_message_id: Optional[str] = None, restore_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
         # Ownership, row lock, CAS, snapshots and both messages share one Postgres transaction.
         result = self._client.rpc('v2_commit_workspace_turn', {
             'p_session_id': session_id, 'p_branch_id': branch_id, 'p_user_id': user_id,
             'p_expected_version': expected_version, 'p_workspace': workspace.model_dump() if workspace else None,
-            'p_user_text': user_text, 'p_assistant': assistant, 'p_undo_message_id': undo_message_id,
+            'p_user_text': user_text, 'p_assistant': assistant, 'p_undo_message_id': undo_message_id, 'p_restore_message_id': restore_message_id,
         }).execute().data
         if result.get('error') == 'not_found':
             raise NotFoundError('Workspace not found')
         if result.get('error') == 'conflict':
-            raise RevisionConflictError('Undo is no longer current. Reload the workspace before trying again.')
+            raise RevisionConflictError('The current draft changed. Return to current and reload before restoring or undoing.')
         return self._row_to_branch(result['branch']), self._row_to_tutor_message(result['message'])
 
     def _row_to_tutor_message(self, row: dict[str, Any]) -> TutorMessage:

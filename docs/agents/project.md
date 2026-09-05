@@ -142,3 +142,9 @@ The token survives reload, so a stale branch cannot overwrite a newer saved
 study. Save as a new study is the recovery path that preserves both versions.
 The existing disposable PostgreSQL check also verifies this transaction,
 including rollback after a branch-write failure. Production DDL is manual.
+
+Before deploying #63, reapply `docs/agents/v2-workspace-turns.sql`. It extends
+the transaction with historical snapshot restore and replaces the old RPC
+overload. Restore uses the same owned-thread lookup, branch version guard,
+and atomic draft/message commit; it never updates a saved Artifact. This SQL
+is prepared and verified in the disposable PostgreSQL check, not run in production.

@@ -73,6 +73,10 @@ class ApiClient {
     return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/undo`, { method: 'POST', body: JSON.stringify({ message_id: messageId, expected_version: version }) });
   }
 
+  restoreWorkspaceSnapshot(sessionId: string, branchId: string, messageId: string, version: number): Promise<WorkspaceTurnResult> {
+    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/restore`, { method: 'POST', body: JSON.stringify({ message_id: messageId, expected_version: version }) });
+  }
+
   saveWorkspaceStudy(sessionId: string, branchId: string, version: number, title: string, asNew = false): Promise<V2Branch> {
     return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/save`, { method: 'POST', body: JSON.stringify({ expected_version: version, title, as_new: asNew }) });
   }

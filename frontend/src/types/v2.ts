@@ -442,7 +442,7 @@ export interface VoicingProposal {
   chord: ProgressionChord;
 }
 
-export interface WorkspaceChange { status: 'applied' | 'rejected' | 'unchanged' | 'undone'; reason?: string | null; undo_of?: string }
+export interface WorkspaceChange { status: 'applied' | 'rejected' | 'unchanged' | 'undone' | 'restored'; reason?: string | null; undo_of?: string }
 export interface WorkspaceTurnResult extends WorkspaceChange { message_id: string; branch: V2Branch }
 
 export interface TutorResponse {
@@ -474,7 +474,7 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { workspace_change?: WorkspaceChange; exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
+  content: { workspace_after?: ConceptWorkspace | null; workspace_change?: WorkspaceChange; exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }
 
