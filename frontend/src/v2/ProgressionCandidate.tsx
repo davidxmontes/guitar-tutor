@@ -2,111 +2,7 @@ import { useState } from 'react';
 import { apiClient } from '../api/client';
 import { playChord } from '../utils/audio';
 import type { ProgressionChord, ProgressionPayload } from '../types/v2';
-
-// --- Compact chord diagram: fresh V2 component, per docs/agents/project.md's
-// "V1 UI inspiration" note -- draws the dot-grid/fret-window look of
-// frontend/src/components/ChordDiagram/ChordDiagram.tsx (that reads better
-// than the general UX reference mock), written against this ticket's own
-// data shape (ProgressionChord.voicing: {string, fret}[], no note/interval
-// labels -- those aren't part of the backend's resolved payload) rather than
-// importing/adapting V1's component or its ChordVoicing type.
-//
-// ponytail: hardcodes 6 strings (matches V1 and every curated chord_service
-// voicing today, which are all standard 6-string guitar shapes) and skips
-// barre detection -- add generalized string-count/barre rendering only if a
-// non-6-string candidate voicing actually shows up (tuning-aware voicings
-// are ticket #16, not this one).
-const NUM_STRINGS = 6;
-const STRING_SPACING = 16;
-const FRET_SPACING = 18;
-const VISIBLE_FRETS = 4;
-const DOT_RADIUS = 6;
-const DIAGRAM_WIDTH = STRING_SPACING * (NUM_STRINGS - 1) + 2;
-
-function CompactChordDiagram({ voicing }: { voicing: { string: number; fret: number }[] }) {
-  const frets = voicing.map((p) => p.fret);
-  const minFret = Math.min(...frets);
-  const hasOpenStrings = minFret === 0;
-  const startFret = hasOpenStrings ? 0 : Math.max(1, minFret);
-  const diagramHeight = FRET_SPACING * VISIBLE_FRETS + 2;
-
-  const positionsByString = new Map(voicing.map((p) => [p.string, p]));
-  const getStringX = (stringNum: number) => 1 + (6 - stringNum) * STRING_SPACING;
-  const getFretY = (fret: number) => 1 + (fret - startFret) * FRET_SPACING + FRET_SPACING / 2;
-
-  return (
-    <div
-      data-testid="progression-chord-diagram"
-      className="rounded p-1 border"
-      style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
-    >
-      <div className="relative pt-3" style={{ width: DIAGRAM_WIDTH + 12 }}>
-        {[6, 5, 4, 3, 2, 1].map((stringNum) => {
-          const pos = positionsByString.get(stringNum);
-          const label = !pos ? 'X' : pos.fret === 0 ? 'O' : '';
-          return (
-            label && (
-              <span
-                key={stringNum}
-                className="absolute top-0 -translate-x-1/2 text-[9px] font-bold leading-none"
-                style={{ left: getStringX(stringNum), color: 'var(--text-secondary)' }}
-              >
-                {label}
-              </span>
-            )
-          );
-        })}
-        <svg width={DIAGRAM_WIDTH + 12} height={diagramHeight} className="overflow-visible">
-          <text x="-10" y={FRET_SPACING / 2 + 1} fontSize="8" fill="var(--text-muted)" textAnchor="end" dominantBaseline="middle">
-            {startFret}
-          </text>
-          <rect
-            x={0}
-            y={0}
-            width={DIAGRAM_WIDTH}
-            height={diagramHeight}
-            className="fill-[var(--bg-tertiary)] stroke-[var(--border-secondary)]"
-            strokeWidth={1}
-          />
-          {hasOpenStrings && <rect x={0} y={0} width={DIAGRAM_WIDTH} height={2} className="fill-[var(--text-primary)]" />}
-          {Array.from({ length: VISIBLE_FRETS - 1 }).map((_, i) => (
-            <line
-              key={`fret-${i}`}
-              x1={0}
-              y1={(i + 1) * FRET_SPACING + 1}
-              x2={DIAGRAM_WIDTH}
-              y2={(i + 1) * FRET_SPACING + 1}
-              className="stroke-[var(--border-secondary)]"
-              strokeWidth={1}
-            />
-          ))}
-          {Array.from({ length: 6 }).map((_, i) => (
-            <line
-              key={`string-${i}`}
-              x1={getStringX(6 - i)}
-              y1={1}
-              x2={getStringX(6 - i)}
-              y2={diagramHeight - 1}
-              className="stroke-[var(--border-secondary)]"
-              strokeWidth={1}
-            />
-          ))}
-          {voicing
-            .filter((pos) => pos.fret > 0 && pos.fret - startFret < VISIBLE_FRETS)
-            .map((pos) => (
-              <circle
-                key={`pos-${pos.string}-${pos.fret}`}
-                cx={getStringX(pos.string)}
-                cy={getFretY(pos.fret)}
-                r={DOT_RADIUS}
-                fill="var(--accent-500)"
-              />
-            ))}
-        </svg>
-      </div>
-    </div>
-  );
-}
+import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 
 function chordSymbol(chord: ProgressionChord): string {
   return `${chord.root}${chord.quality === 'major' ? '' : chord.quality}`;
@@ -163,7 +59,19 @@ export function ProgressionCandidate({ candidate }: { candidate: ProgressionPayl
               {chordSymbol(chord)}
             </span>
             {chord.voicing ? (
-              <CompactChordDiagram voicing={chord.voicing} />
+              <div
+                data-testid="progression-chord-diagram"
+                className="rounded border p-1"
+                style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
+              >
+                <PhysicalChordDiagram
+                  positions={chord.voicing}
+                  tuning={chord.tuning ?? 'unknown'}
+                  label={chordSymbol(chord)}
+                  barre={chord.barre}
+                  fingering={chord.fingering}
+                />
+              </div>
             ) : (
               <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
                 No diagram

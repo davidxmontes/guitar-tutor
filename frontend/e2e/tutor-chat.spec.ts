@@ -179,7 +179,20 @@ test('progression candidate: whole sequence renders, Hear stays local, Save pers
               { root: 'C', quality: 'major', voicing: [{ string: 1, fret: 0 }, { string: 2, fret: 1 }], tuning: 'standard' },
               { root: 'A', quality: 'minor', voicing: [{ string: 1, fret: 0 }], tuning: 'standard' },
               { root: 'F', quality: 'major', voicing: null, tuning: null },
-              { root: 'G', quality: 'major', voicing: [{ string: 6, fret: 3 }], tuning: 'standard' },
+              {
+                root: 'G',
+                quality: 'major',
+                voicing: [
+                  { string: 6, fret: 8 },
+                  { string: 5, fret: 10 },
+                  { string: 4, fret: 10 },
+                  { string: 3, fret: 9 },
+                  { string: 2, fret: 8 },
+                  { string: 1, fret: 8 },
+                ],
+                tuning: 'drop-d',
+                fingering: [{ string: 6, fret: 8, finger: 1, provenance: 'source' }],
+              },
             ],
             inspired_by: { artifact_id: 'artifact-1', artifact_kind: 'song_study' },
           },
@@ -221,6 +234,13 @@ test('progression candidate: whole sequence renders, Hear stays local, Save pers
   // Three of the four chords resolved a voicing and get a diagram; the
   // fourth (F major here, stubbed with no voicing) is expected, not broken.
   await expect(page.getByTestId('progression-chord-diagram')).toHaveCount(3)
+  const arbitraryVoicing = page.getByRole('img', {
+    name: 'G chord diagram. Tuning drop-d. String 6 fret 8; String 5 fret 10; String 4 fret 10; String 3 fret 9; String 2 fret 8; String 1 fret 8. Barre at fret 8 from string 1 to string 6.',
+  })
+  await expect(arbitraryVoicing).toBeVisible()
+  await expect(arbitraryVoicing.getByTestId('chord-diagram-barre')).toBeVisible()
+  await expect(arbitraryVoicing.getByTestId('chord-diagram-finger')).toHaveText('1')
+  await expect(page.getByTestId('progression-chord-diagram').first().getByTestId('chord-diagram-finger')).toHaveCount(0)
 
   // Hear is deterministic and must never invoke the tutor.
   const turnsBeforeHear = tutorTurnRequests
