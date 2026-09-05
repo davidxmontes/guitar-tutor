@@ -335,6 +335,9 @@ class ApiClient {
     if (data.selected_interval !== undefined) params.set('selected_interval', String(data.selected_interval));
     if (data.selected_voicing !== undefined) params.set('selected_voicing', String(data.selected_voicing));
     if (data.comparison_quality) params.set('comparison_quality', data.comparison_quality);
+    if (data.caged_quality) params.set('caged_quality', data.caged_quality);
+    if (data.selected_region) params.set('selected_region', data.selected_region);
+    if (data.comparison_region) params.set('comparison_region', data.comparison_region);
     return this.fetch<ConceptStudyPayload>(`/v2/study/visualizations/${data.concept_id}?${params}`);
   }
 
