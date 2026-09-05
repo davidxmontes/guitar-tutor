@@ -63,7 +63,7 @@ export function ProgressionWorkspace({ sessionId, branch, onBranchChange }: {
     : null;
 
   return (
-    <div data-testid="progression-workspace" className={practice.focused ? "fixed inset-0 z-50 overflow-auto p-4 sm:p-8" : "flex flex-col gap-4 xl:flex-row xl:items-start"} style={{ background: 'var(--bg-primary)' }}>
+    <div data-testid="progression-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col gap-4 xl:flex-row xl:items-start"} style={{ background: 'var(--bg-primary)' }}>
       <main className="min-w-0 flex-1 space-y-5">
         <header className="border-b pb-4" style={{ borderColor: 'var(--border-primary)' }}>
           <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--accent-700)' }}>Progression</p>
@@ -123,7 +123,7 @@ export function ProgressionWorkspace({ sessionId, branch, onBranchChange }: {
         </button>
         {error && <p role="alert">{error}</p>}
         {saved && <p role="status">Voicing saved. Reopening this progression restores the exact shape and tuning.</p>}
-        {selectedChord && <VoicingComparison active={selectedChord} comparison={practice.active ? null : comparison} focus={practice.active ? null : tutorFocus} upcoming={upcomingChord} />}
+        {selectedChord && <VoicingComparison active={selectedChord} comparison={practice.active ? null : comparison} focus={practice.active ? null : tutorFocus} upcoming={practice.active ? upcomingChord ?? null : undefined} />}
         {!practice.active && candidates.length > 0 && <section aria-label="Voicing candidates">
           <h3 className="mb-2 text-sm font-bold">Try another voicing</h3>
           <div className="flex snap-x gap-3 overflow-x-auto pb-3">

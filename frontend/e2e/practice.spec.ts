@@ -51,8 +51,79 @@ test('progression practice keeps sequence, tempo and playhead through Focus and 
   await page.screenshot({ path: '/private/tmp/issue19-desktop.png', fullPage: true })
   await page.getByRole('button', { name: 'Exit Focus', exact: true }).click()
   await expect(page.getByTestId('progression-chord').nth(1)).toHaveAttribute('data-practice-role', 'active')
+  await page.getByRole('button', { name: 'Restart', exact: true }).click()
+  await page.getByLabel('Count in', { exact: true }).selectOption('4')
+  await page.getByLabel('Metronome', { exact: true }).check()
+  await page.getByLabel('Loop', { exact: true }).uncheck()
+  await page.evaluate(() => {
+    const original = AudioContext.prototype.createOscillator;
+    Object.assign(window, { practiceClicks: 0 });
+    AudioContext.prototype.createOscillator = function () {
+      (window as unknown as { practiceClicks: number }).practiceClicks++;
+      return original.call(this);
+    };
+  })
+  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  await expect(page.getByTestId('practice-status')).toHaveText('Count in 4')
+  await page.clock.runFor(525)
+  await expect(page.getByTestId('practice-status')).toHaveText('Count in 2')
+  expect(await page.evaluate(() => (window as unknown as { practiceClicks: number }).practiceClicks)).toBe(3)
+  await page.getByLabel('Practice tempo').fill('120')
+  await page.clock.runFor(1000)
+  await expect(page.getByTestId('progression-chord').nth(0)).toHaveAttribute('data-practice-role', 'active')
+  await page.getByLabel('Metronome', { exact: true }).uncheck()
+  const clicks = await page.evaluate(() => (window as unknown as { practiceClicks: number }).practiceClicks)
+  await page.clock.runFor(1500)
+  await expect(page.getByTestId('practice-status')).toHaveText('Finished')
+  expect(await page.evaluate(() => (window as unknown as { practiceClicks: number }).practiceClicks)).toBe(clicks)
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click()
   await expect(page.getByTestId('progression-chord').nth(2)).toHaveAttribute('aria-pressed', 'true')
   const restored = await page.request.get(`/api/v2/sessions/${session.id}`).then(r => r.json())
   expect(restored.branches.find((b: {id: string}) => b.id === opened.branch.id).selection).toEqual({ type: 'progression_chord', index: 2 })
+})
+
+test('song range practice advances real tab timing without changing saved selection', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/v2')
+  const session = await page.request.post('/api/v2/sessions').then(r => r.json())
+  const branch = session.branches[0]
+  const selection = { type: 'range', startMeasureIndex: 1, endMeasureIndex: 2 }
+  await page.request.patch(`/api/v2/sessions/${session.id}/branches/${branch.id}`, { data: {
+    title: 'Timed passage', current_artifact_kind: 'song_study', current_artifact_id: 'timed-song', selection,
+    focus: { measureIndex: 1, windowSize: 2 },
+  } })
+  await page.route('**/api/v2/song-studies/timed-song', route => route.fulfill({ json: {
+    id: 'timed-song', kind: 'song_study', title: 'Timed passage', payload: {
+      title: 'Timed passage', artist: 'Practice fixture', track: { index: 0, name: 'Guitar', instrument: 'Guitar', tuning: [64, 59, 55, 50, 45, 38] },
+      tab_data: { measures: [
+        { voices: [{ beats: [{ duration: [1, 4], notes: [{ string: 0, fret: 9 }] }] }] },
+        { voices: [{ beats: [{ duration: [1, 4], notes: [{ string: 5, fret: 0 }] }, { duration: [1, 8], rest: true, notes: [] }] }] },
+        { voices: [{ beats: [{ duration: [3, 8], notes: [{ string: 1, fret: 2 }] }] }] },
+      ] }, shape_events: [], enrichment: null,
+    },
+  } }))
+  await page.reload()
+  await page.locator(`[data-session-id="${session.id}"]`).click()
+  await page.getByRole('button', { name: 'Practice selection' }).click()
+  await page.getByLabel('Practice tempo').fill('120')
+  await page.getByLabel('Count in', { exact: true }).selectOption('0')
+  await page.getByLabel('Metronome', { exact: true }).uncheck()
+  await page.clock.install()
+  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  await page.clock.runFor(525)
+  await expect(page.getByTestId('practice-song-position')).toContainText('Current: measure 2, event 2')
+  await expect(page.getByTestId('fretboard-active-note')).toHaveCount(0)
+  await page.clock.runFor(250)
+  await expect(page.getByTestId('practice-song-position')).toContainText('Current: measure 3, event 1')
+  await expect(page.locator('[data-testid="fretboard-active-note"][data-string="2"][data-fret="2"]')).toBeVisible()
+  await page.clock.runFor(750)
+  await expect(page.getByTestId('practice-song-position')).toContainText('Current: measure 2, event 1')
+  await page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await page.getByRole('button', { name: 'Focus practice', exact: true }).click()
+  await page.screenshot({ path: '/private/tmp/issue19-mobile.png', fullPage: true })
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click()
+  const restored = await page.request.get(`/api/v2/sessions/${session.id}`).then(r => r.json())
+  expect(restored.branches[0].selection).toEqual(selection)
+  expect(restored.branches[0].current_artifact_id).toBe('timed-song')
+  await expect(page.getByTestId('song-study-title')).toContainText('Timed passage')
 })

@@ -2,8 +2,8 @@ import type { TabBeat } from '../types';
 
 export function beatDuration(beat: TabBeat): number | null {
   const [numerator, denominator] = beat.duration ?? [0, 0];
-  return Number.isFinite(numerator) && Number.isFinite(denominator) && numerator > 0 && denominator > 0
-    ? 4 * numerator / denominator : null;
+  const duration = 4 * numerator / denominator;
+  return numerator > 0 && denominator > 0 && Number.isFinite(duration) && duration > 0 ? duration : null;
 }
 
 export function practicePosition(durations: readonly number[], elapsed: number, countIn: number, loop: boolean) {

@@ -6,7 +6,7 @@ export function VoicingComparison({ active, comparison, focus, upcoming }: {
   active: ProgressionChord;
   comparison: VoicingProposal | null;
   focus: TutorFocus | null;
-  upcoming?: ProgressionChord;
+  upcoming?: ProgressionChord | null;
 }) {
   const tuning = voicingTuning(active);
   if (!tuning) return <p>No tuning available for this chord.</p>;
@@ -20,7 +20,7 @@ export function VoicingComparison({ active, comparison, focus, upcoming }: {
   return (
     <section data-testid="voicing-fretboard" aria-label="Voicing relationship fretboard" className="space-y-2">
       <h3 className="text-sm font-bold">Fretboard · compare shapes</h3>
-      <p className="text-xs">● Active · ◇ {upcoming ? 'Upcoming chord' : comparison?.label ?? 'Choose a candidate to compare'}{focus ? ' · Tutor focus' : ''}</p>
+      <p className="text-xs">● Active · ◇ {upcoming ? 'Upcoming chord' : upcoming === null ? 'End of sequence' : comparison?.label ?? 'Choose a candidate to compare'}{focus ? ' · Tutor focus' : ''}</p>
       <div className="overflow-x-auto rounded-lg bg-stone-900 p-3">
         <svg role="img" aria-label="Exact positions on six strings; circles are active, diamonds are comparison" width={(end + 2) * 42} height="220">
           {Array.from({ length: end + 1 }, (_, fret) => <g key={fret}>

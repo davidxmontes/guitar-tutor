@@ -6,6 +6,9 @@ import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
 import { TutorChat } from './TutorChat';
 import { SongEnrichmentPanel } from './SongEnrichment';
 import { SongShapeStrip } from './SongShapeStrip';
+import { usePractice } from './usePractice';
+import { PracticeControls } from './PracticeControls';
+import { beatDuration } from './practiceTiming';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
 import type { ConceptSuggestion, ProgressionPayload, SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
@@ -561,12 +564,39 @@ function SongStudyWorkspace({
   // different SongStudy/thread is opened.
   const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
 
+  // Flat measure/beat sequence — used to derive "active beat" (selected, or
+  // else the first playable beat in the focused measure) and "upcoming beat"
+  // (whatever plays next), so the fretboard always shows something relevant
+  // without a separate piece of highlight state to keep in sync.
+  const beatSequence = useMemo(() => {
+    const seq: Array<{ measureIndex: number; beatIndex: number; beat: TabBeat }> = [];
+    measures.forEach((measure, measureIndex) => {
+      getBeatsFromMeasure(measure).forEach((beat, beatIndex) => {
+        seq.push({ measureIndex, beatIndex, beat });
+      });
+    });
+    return seq;
+  }, [measures]);
+
+  const practiceBeats = useMemo(() => {
+    const start = selection?.type === 'range' ? selection.startMeasureIndex : selection?.type === 'beat' ? selection.measureIndex : focus.measureIndex;
+    const end = selection?.type === 'range' ? selection.endMeasureIndex : start;
+    return beatSequence.map((entry, sequenceIndex) => ({ ...entry, sequenceIndex }))
+      .filter(entry => entry.measureIndex >= start && entry.measureIndex <= end);
+  }, [beatSequence, selection, focus.measureIndex]);
+  const practiceDurations = useMemo(() => {
+    const durations = practiceBeats.map(entry => beatDuration(entry.beat));
+    return durations.every((duration): duration is number => duration !== null) ? durations : [];
+  }, [practiceBeats]);
+  const practice = usePractice(practiceDurations);
+
   // A different SongStudy was opened — reset local view state from its branch snapshot.
   useEffect(() => {
     setFocus((branch.focus as SongFocus | null) ?? { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE });
     setSelection((branch.selection as SongSelection | null) ?? null);
     setShowFullTab(false);
     setTutorFocus(null);
+    practice.exit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songStudy.id]);
 
@@ -592,36 +622,40 @@ function SongStudyWorkspace({
 
   const jumpToMeasure = useCallback(
     (measureIndex: number) => {
+      if (practice.active) return;
       const clamped = Math.max(0, Math.min(measureCount - 1, measureIndex));
       const next: SongFocus = { measureIndex: clamped, windowSize: focus.windowSize };
       setFocus(next);
       persistBranch({ focus: next });
     },
-    [measureCount, focus.windowSize, persistBranch],
+    [measureCount, focus.windowSize, persistBranch, practice.active],
   );
 
   const selectRange = useCallback(
     (start: number, end: number) => {
+      if (practice.active) return;
       const next: SongSelection = { type: 'range', startMeasureIndex: start, endMeasureIndex: end };
       setSelection(next);
       persistBranch({ selection: next });
     },
-    [persistBranch],
+    [persistBranch, practice.active],
   );
 
   const selectBeat = useCallback(
     (beatId: string) => {
+      if (practice.active) return;
       const parsed = parseBeatId(beatId);
       if (!parsed) return;
       const next: SongSelection = { type: 'beat', ...parsed };
       setSelection(next);
       persistBranch({ selection: next });
     },
-    [persistBranch],
+    [persistBranch, practice.active],
   );
 
   const selectShape = useCallback(
     (source: SongShapeSource) => {
+      if (practice.active) return;
       const nextSelection: SongSelection = {
         type: 'beat',
         measureIndex: source.measure_index,
@@ -632,24 +666,10 @@ function SongStudyWorkspace({
       setFocus(nextFocus);
       persistBranch({ selection: nextSelection, focus: nextFocus });
     },
-    [focus.windowSize, persistBranch],
+    [focus.windowSize, persistBranch, practice.active],
   );
 
-  // Flat measure/beat sequence — used to derive "active beat" (selected, or
-  // else the first playable beat in the focused measure) and "upcoming beat"
-  // (whatever plays next), so the fretboard always shows something relevant
-  // without a separate piece of highlight state to keep in sync.
-  const beatSequence = useMemo(() => {
-    const seq: Array<{ measureIndex: number; beatIndex: number; beat: TabBeat }> = [];
-    measures.forEach((measure, measureIndex) => {
-      getBeatsFromMeasure(measure).forEach((beat, beatIndex) => {
-        seq.push({ measureIndex, beatIndex, beat });
-      });
-    });
-    return seq;
-  }, [measures]);
-
-  const activeBeatIndex = useMemo(() => {
+  const selectedBeatIndex = useMemo(() => {
     if (selection?.type === 'beat') {
       return beatSequence.findIndex(
         (e) => e.measureIndex === selection.measureIndex && e.beatIndex === selection.beatIndex,
@@ -659,6 +679,10 @@ function SongStudyWorkspace({
       (e) => e.measureIndex === focus.measureIndex && (e.beat.notes ?? []).some((n) => !n.rest && !n.dead),
     );
   }, [selection, beatSequence, focus.measureIndex]);
+
+  const activeBeatIndex = practice.active ? practiceBeats[Math.max(0, practice.position.index)]?.sequenceIndex ?? -1 : selectedBeatIndex;
+  const nextBeatIndex = practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex + 1;
+  const displayMeasureIndex = practice.active && activeBeatIndex >= 0 ? beatSequence[activeBeatIndex].measureIndex : focus.measureIndex;
 
   const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
 
@@ -767,15 +791,15 @@ function SongStudyWorkspace({
   }, [moveBeatSelection, moveMeasureSelection, moveSectionSelection]);
 
   const activeNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex].beat) : [];
-  const upcomingNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex + 1]?.beat) : [];
+  const upcomingNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[nextBeatIndex]?.beat) : [];
   const activeBeat = activeBeatIndex >= 0 ? beatSequence[activeBeatIndex] : null;
 
   const trackTuningMidi = payload.track.tuning ?? payload.tab_data.tuning ?? null;
   const tuningNotes = trackTuningMidi ? trackTuningMidi.map((midi) => midiToNoteName(midi)) : null;
 
-  const selectedBeatId = selection?.type === 'beat' ? `${selection.measureIndex}:${selection.beatIndex}` : null;
-  const detailMeasures = measures.slice(focus.measureIndex, focus.measureIndex + focus.windowSize);
-  const detailEndIndex = Math.min(focus.measureIndex + focus.windowSize, measureCount) - 1;
+  const selectedBeatId = practice.active && activeBeat ? `${activeBeat.measureIndex}:${activeBeat.beatIndex}` : selection?.type === 'beat' ? `${selection.measureIndex}:${selection.beatIndex}` : null;
+  const detailMeasures = measures.slice(displayMeasureIndex, displayMeasureIndex + focus.windowSize);
+  const detailEndIndex = Math.min(displayMeasureIndex + focus.windowSize, measureCount) - 1;
 
   const fullTabRows = useMemo(() => buildFullTabRows(overviewSections), [overviewSections]);
 
@@ -841,7 +865,7 @@ function SongStudyWorkspace({
     // area on the left; the Tutor is a permanent side rail on the right, not
     // a tab the user must navigate away to reach (spec #10: "artifacts do
     // not obstruct spontaneous questions").
-    <div data-testid="song-study-workspace" className="flex flex-col xl:flex-row gap-4 items-start">
+    <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)' }}>
     <div className="flex flex-col gap-4 flex-1 min-w-0">
       <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -853,10 +877,11 @@ function SongStudyWorkspace({
               {payload.track.name} ({payload.track.instrument}) • {measureCount} measures
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap" style={{ display: practice.focused ? 'none' : undefined }}>
             <button
               type="button"
               data-testid="song-study-search-again"
+              disabled={practice.active}
               onClick={onSearchAgain}
               className={headerButtonClass}
               style={headerButtonStyle}
@@ -866,6 +891,7 @@ function SongStudyWorkspace({
             <button
               type="button"
               data-testid="song-study-toggle-full-tab"
+              disabled={practice.active}
               onClick={() => setShowFullTab((v) => !v)}
               className={headerButtonClass}
               style={headerButtonStyle}
@@ -886,27 +912,30 @@ function SongStudyWorkspace({
         )}
       </div>
 
-      <SongEnrichmentPanel
+      <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />
+      {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
+      {practice.active && <p data-testid="practice-song-position" className="text-sm">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
+      <div hidden={practice.focused}><SongEnrichmentPanel
         songStudy={songStudy}
         onChange={onSongStudyChange}
         visibleStartMeasure={focus.measureIndex + 1}
         visibleEndMeasure={detailEndIndex + 1}
-      />
+      /></div>
 
-      {!showFullTab ? (
+      {!showFullTab || practice.active ? (
         // Overview + Focus: the compressed section map is a secondary strip
         // above; the focused 2-4 measures are the dominant area below it
         // (mock #overview callouts 1-2), with the fretboard as a small
         // supporting element underneath (callout 3).
         <>
-          <MeasureOverviewStrip
+          {!practice.focused && <MeasureOverviewStrip
             sections={overviewSections}
-            focusMeasureIndex={focus.measureIndex}
+            focusMeasureIndex={displayMeasureIndex}
             selection={selection}
             onJump={jumpToMeasure}
             onRangeSelect={selectRange}
             enrichedRanges={payload.enrichment?.ranges ?? []}
-          />
+          />}
 
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -918,7 +947,7 @@ function SongStudyWorkspace({
                   Focused passage
                 </p>
                 <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Measures {focus.measureIndex + 1}–{detailEndIndex + 1}
+                  Measures {displayMeasureIndex + 1}–{detailEndIndex + 1}
                 </h3>
                 {activeBeatIndex >= 0 && (
                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -927,11 +956,11 @@ function SongStudyWorkspace({
                   </p>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2" style={{ display: practice.focused ? 'none' : undefined }}>
                 <button
                   type="button"
                   data-testid="song-study-focus-prev"
-                  disabled={focus.measureIndex === 0}
+                  disabled={practice.active || focus.measureIndex === 0}
                   onClick={() => jumpToMeasure(focus.measureIndex - focus.windowSize)}
                   className={headerButtonClass}
                   style={headerButtonStyle}
@@ -941,7 +970,7 @@ function SongStudyWorkspace({
                 <button
                   type="button"
                   data-testid="song-study-focus-next"
-                  disabled={detailEndIndex >= measureCount - 1}
+                  disabled={practice.active || detailEndIndex >= measureCount - 1}
                   onClick={() => jumpToMeasure(focus.measureIndex + focus.windowSize)}
                   className={headerButtonClass}
                   style={headerButtonStyle}
@@ -953,9 +982,9 @@ function SongStudyWorkspace({
 
             <MeasureGroup
               measures={detailMeasures}
-              startMeasureIndex={focus.measureIndex}
+              startMeasureIndex={displayMeasureIndex}
               selectedBeatId={selectedBeatId}
-              activeMeasureIndex={focus.measureIndex}
+              activeMeasureIndex={displayMeasureIndex}
               selectedMeasureIndices={selectedMeasureIndices}
               onBeatClick={(_beat, beatId) => selectBeat(beatId)}
               tuningNotes={tuningNotes ?? undefined}
@@ -983,7 +1012,7 @@ function SongStudyWorkspace({
                 tuningNotes={tuningNotes}
                 activeNotes={activeNotes}
                 upcomingNotes={upcomingNotes}
-                tutorFocus={tutorFocus}
+                tutorFocus={practice.active ? null : tutorFocus}
               />
             ) : (
               <p role="status">No tuning data for this track — showing tab only.</p>
@@ -1015,7 +1044,7 @@ function SongStudyWorkspace({
                   measures={measures.slice(row.startIndex, row.endIndex + 1)}
                   startMeasureIndex={row.startIndex}
                   selectedBeatId={selectedBeatId}
-                  activeMeasureIndex={focus.measureIndex}
+                  activeMeasureIndex={displayMeasureIndex}
                   selectedMeasureIndices={selectedMeasureIndices}
                   onBeatClick={(_beat, beatId) => selectBeat(beatId)}
                   tuningNotes={tuningNotes ?? undefined}
@@ -1046,14 +1075,14 @@ function SongStudyWorkspace({
         </div>
       )}
     </div>
-      <TutorChat
+      <div style={{ display: practice.focused ? 'none' : 'contents' }}><TutorChat
         sessionId={sessionId}
         branchId={branch.id}
         tutorThreadId={branch.tutor_thread_id}
         onFocusChange={setTutorFocus}
         onWorkOnConcept={onWorkOnConcept}
         onExploreProgression={onExploreProgression}
-      />
+      /></div>
     </div>
   );
 }
