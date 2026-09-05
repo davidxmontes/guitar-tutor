@@ -354,10 +354,19 @@ export interface TutorFretPosition {
   fret: number;
 }
 
+export interface BranchFocusGroup {
+  branch_id: string;
+  branch_title: string;
+  label: string;
+  notes: TutorFretPosition[];
+  tuning: number[];
+}
+
 export interface TutorFocus {
   role: string;
   notes: TutorFretPosition[];
   label?: string | null;
+  groups?: BranchFocusGroup[];
 }
 
 export interface TutorUsage {
