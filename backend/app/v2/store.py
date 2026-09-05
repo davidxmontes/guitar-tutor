@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Optional, Protocol
 
-from app.v2.models import ARTIFACT_KINDS, Branch, Session
+from app.v2.models import ARTIFACT_KINDS, Artifact, Branch, Session
 
 
 class NotFoundError(Exception):
@@ -38,11 +38,14 @@ class V2Store(Protocol):
     def get_session(self, session_id: str, user_id: str) -> Session: ...
     def list_sessions(self, user_id: str) -> list[Session]: ...
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
+    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact: ...
+    def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
 
 
 class InMemoryV2Store:
     def __init__(self) -> None:
         self._sessions: dict[str, Session] = {}
+        self._artifacts: dict[str, Artifact] = {}
 
     def create_session(self, user_id: str) -> Session:
         now = _now()
@@ -82,6 +85,26 @@ class InMemoryV2Store:
             return updated
 
         raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
+
+    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact:
+        now = _now()
+        artifact = Artifact(
+            id=_new_id(),
+            user_id=user_id,
+            kind=kind,
+            title=title,
+            payload=payload,
+            created_at=now,
+            updated_at=now,
+        )
+        self._artifacts[artifact.id] = artifact
+        return artifact
+
+    def get_artifact(self, artifact_id: str, user_id: str) -> Artifact:
+        artifact = self._artifacts.get(artifact_id)
+        if artifact is None or artifact.user_id != user_id:
+            raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
+        return artifact
 
 
 class SupabaseV2Store:
@@ -182,6 +205,39 @@ class SupabaseV2Store:
         if not rows:
             raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
         return self._row_to_branch(rows[0])
+
+    def _row_to_artifact(self, row: dict[str, Any]) -> Artifact:
+        return Artifact(
+            id=row["id"],
+            user_id=row["clerk_user_id"],
+            kind=row["kind"],
+            title=row["title"],
+            payload=row.get("payload") or {},
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact:
+        row = (
+            self._client.table("v2_artifacts")
+            .insert({"clerk_user_id": user_id, "kind": kind, "title": title, "payload": payload})
+            .execute()
+            .data[0]
+        )
+        return self._row_to_artifact(row)
+
+    def get_artifact(self, artifact_id: str, user_id: str) -> Artifact:
+        rows = (
+            self._client.table("v2_artifacts")
+            .select("*")
+            .eq("id", artifact_id)
+            .eq("clerk_user_id", user_id)
+            .execute()
+            .data
+        )
+        if not rows:
+            raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
+        return self._row_to_artifact(rows[0])
 
 
 @lru_cache
