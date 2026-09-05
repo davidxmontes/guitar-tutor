@@ -149,6 +149,31 @@ def test_get_artifact_raises_not_found_when_no_rows():
         store.get_artifact("art-1", user_id="user_1")
 
 
+def test_update_artifact_updates_only_the_owned_row():
+    client = MagicMock()
+    row = _artifact_row()
+    row["payload"] = {"song_id": 7, "chordpro": "[Em]Today"}
+    chain = _chain([row])
+    client.table.return_value = chain
+
+    store = SupabaseV2Store(client)
+    artifact = store.update_artifact("art-1", user_id="user_1", payload=row["payload"])
+
+    assert artifact.payload["chordpro"] == "[Em]Today"
+    chain.update.assert_called_once_with({"payload": row["payload"]})
+    chain.eq.assert_any_call("id", "art-1")
+    chain.eq.assert_any_call("clerk_user_id", "user_1")
+
+
+def test_update_artifact_raises_not_found_when_owned_row_is_missing():
+    client = MagicMock()
+    client.table.return_value = _chain([])
+
+    store = SupabaseV2Store(client)
+    with pytest.raises(NotFoundError):
+        store.update_artifact("art-1", user_id="user_1", payload={})
+
+
 # --- Tutor message persistence (ticket #13) ---
 
 
