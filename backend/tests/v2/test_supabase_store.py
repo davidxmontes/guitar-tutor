@@ -147,3 +147,66 @@ def test_get_artifact_raises_not_found_when_no_rows():
     store = SupabaseV2Store(client)
     with pytest.raises(NotFoundError):
         store.get_artifact("art-1", user_id="user_1")
+
+
+# --- Tutor message persistence (ticket #13) ---
+
+
+def _tutor_message_row(message_id="msg-1", thread_id="thread-1", role="user"):
+    return {"id": message_id, "tutor_thread_id": thread_id, "role": role, "content": {"text": "hi"}, "created_at": "t0"}
+
+
+def test_create_tutor_message_inserts_and_returns_it():
+    client = MagicMock()
+    client.table.return_value = _chain([_tutor_message_row()])
+
+    store = SupabaseV2Store(client)
+    message = store.create_tutor_message("thread-1", "user", {"text": "hi"})
+
+    assert message.id == "msg-1"
+    assert message.tutor_thread_id == "thread-1"
+    assert message.role == "user"
+    client.table.assert_called_with("v2_tutor_messages")
+
+
+def test_list_tutor_messages_returns_owned_thread_rows():
+    client = MagicMock()
+
+    def table(name):
+        if name == "v2_branches":
+            return _chain([{"session_id": "sess-1"}])
+        if name == "v2_sessions":
+            return _chain([{"id": "sess-1"}])
+        return _chain([_tutor_message_row()])
+
+    client.table.side_effect = table
+
+    store = SupabaseV2Store(client)
+    messages = store.list_tutor_messages("thread-1", user_id="user_1")
+
+    assert len(messages) == 1
+    assert messages[0].id == "msg-1"
+
+
+def test_list_tutor_messages_raises_not_found_when_thread_has_no_branch():
+    client = MagicMock()
+    client.table.return_value = _chain([])  # no branch row for this thread_id
+
+    store = SupabaseV2Store(client)
+    with pytest.raises(NotFoundError):
+        store.list_tutor_messages("thread-1", user_id="user_1")
+
+
+def test_list_tutor_messages_raises_not_found_when_session_not_owned():
+    client = MagicMock()
+
+    def table(name):
+        if name == "v2_branches":
+            return _chain([{"session_id": "sess-1"}])
+        return _chain([])  # session row filtered out — not owned by this user
+
+    client.table.side_effect = table
+
+    store = SupabaseV2Store(client)
+    with pytest.raises(NotFoundError):
+        store.list_tutor_messages("thread-1", user_id="someone_else")
