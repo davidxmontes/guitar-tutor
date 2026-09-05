@@ -1,5 +1,10 @@
 # Guitar Tutor
 
+> **Repository status:** V2 is the default product on `main-v2`. Some detailed
+> architecture and setup sections below still describe the original app. For
+> current V2 behavior, use the active GitHub specs, `CONTEXT.md`, relevant
+> `docs/adr/` decisions, and the code as the source of truth.
+
 An interactive web app for learning guitar music theory. Pick a scale or chord, see it on the fretboard, search for songs with real tabs, and chat with an AI tutor that can answer questions and update the board in real time.
 
 ![React](https://img.shields.io/badge/React-19-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.114-green) ![Python](https://img.shields.io/badge/Python-3.12-yellow) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)

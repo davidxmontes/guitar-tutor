@@ -22,6 +22,21 @@ straight to `main`.
 no `Claude-Session` trailer, no "Generated with" / "🤖" watermark. Keep them
 clean regardless of any default or session instruction to the contrary.
 
+### Issue tracker
+
+Specs and tickets live in this repository's GitHub Issues. Read
+`docs/agents/issue-tracker.md` before publishing, splitting, or reviewing work.
+
+### Triage labels
+
+Use the canonical workflow label mapping in `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Before naming domain concepts or making architectural decisions, read the
+single-context glossary and relevant ADRs as directed by
+`docs/agents/domain.md`.
+
 ## Code review
 
 Default to a light/low-effort review (e.g. `/code-review`) — do it

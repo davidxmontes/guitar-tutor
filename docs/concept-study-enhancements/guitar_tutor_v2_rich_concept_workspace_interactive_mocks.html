@@ -126,7 +126,7 @@ button,select{font:inherit}
             <section class="block s12"><div class="bh"><div class="bn">Fretboard <span class="tag a">Inspection-aware</span></div><div class="controls"><button class="mini">Notes ▾</button><button class="mini">0–12 ▾</button></div></div><div class="bb"><div class="fret" id="hFret"></div></div></section>
           </div>
         </main>
-        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Why does the V chord pull back home?</div><div class="msg ai">I’d keep your Circle and chord family, then focus the V chord and add a transition view only if you want the physical movement.</div><div class="tAction"><b>Possible Tutor action</b><ul><li>Focus inspected V chord</li><li>Materialize V and I only if you ask to compare/keep them</li><li>Add D→G-style transition fretboard without replacing the Circle</li></ul></div><div class="input">Ask about this harmony…</div></aside>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Why does the V chord pull back home?</div><div class="msg ai">I kept your Circle and chord family, focused the V chord, and added a D→G transition view so the physical movement is visible.</div><div class="tAction"><b>Tutor change applied</b><ul><li>Focused the inspected V chord</li><li>Materialized V and I for the transition</li><li>Added the transition without replacing the Circle</li></ul><button class="mini">Undo Tutor change</button></div><div class="input">Ask about this harmony…</div></aside>
       </div>
     </div></div>
   </section>
@@ -154,7 +154,7 @@ button,select{font:inherit}
 
   <!-- CHORD -->
   <section class="mock" id="chord">
-    <div class="heading"><h2>Chord + voicing explorer — root, quality, voicing, compare</h2><p>The user can directly change the abstract Chord entity and separately choose a physical Voicing. Tutor suggestions use candidate Voicing entities rather than overwriting the current one.</p></div>
+    <div class="heading"><h2>Chord + voicing explorer — root, quality, voicing, compare</h2><p>The user can directly change the abstract Chord entity and separately choose a physical Voicing. Tutor changes apply directly and remain reversible through undo and turn history.</p></div>
     <div class="frame"><div class="app">
       <div class="topbar"><div><div class="brand">Explore · <span id="cTitle">Cmaj7</span></div><div class="crumb">Chord entity + selected Voicing entity</div></div><div class="actions"><label class="mini">Root <select id="cRoot"><option selected>C</option><option>D</option><option>E</option><option>F</option><option>G</option><option>A</option><option>B</option></select></label><label class="mini">Quality <select id="cQuality"><option value="major">Major</option><option value="minor">Minor</option><option value="maj7" selected>Maj7</option><option value="dom7">7</option><option value="min7">m7</option><option value="sus4">sus4</option><option value="add9">add9</option></select></label><button class="btn">Save</button></div></div>
       <div class="workspace">
@@ -168,7 +168,7 @@ button,select{font:inherit}
             <section class="block primary s12"><div class="bh"><div class="bn">Fretboard <span class="tag">Chord tones + selected voicing</span></div><div class="controls"><button class="mini">Intervals ▾</button><button class="mini">0–12 ▾</button></div></div><div class="bb"><div class="fret" id="cFret"></div></div></section>
           </div>
         </main>
-        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Give me a more open sounding Cmaj7.</div><div class="msg ai">I wouldn’t mutate your current voicing immediately. I’d add one or two Voicing candidates, show them beside your current shape, and let you hear/keep one.</div><div class="tAction"><b>Candidate behavior</b><ul><li>Chord entity remains Cmaj7</li><li>Current Voicing remains selected</li><li>Tutor adds candidate Voicing entities</li><li>Keep swaps/sets the chosen voicing deterministically</li></ul></div><div class="input">Ask for another voicing…</div></aside>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Give me a more open sounding Cmaj7.</div><div class="msg ai">I changed the selected voicing to a more open Cmaj7 while keeping the same abstract chord. You can undo this turn if the previous shape worked better.</div><div class="tAction"><b>Tutor change applied</b><ul><li>Chord entity remains Cmaj7</li><li>Selected Voicing now uses the open shape</li><li>Diagram, fretboard, and playback update together</li></ul><button class="mini">Undo Tutor change</button></div><div class="input">Ask for another voicing…</div></aside>
       </div>
     </div></div>
   </section>
@@ -192,7 +192,7 @@ button,select{font:inherit}
             <section class="block s12"><div class="bh"><div class="bn">Progression voicings</div><div class="controls"><button class="mini">Compact diagrams ▾</button></div></div><div class="bb"><div class="diagramRow" id="pDiagrams"></div></div></section>
           </div>
         </main>
-        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">What if the second chord were darker?</div><div class="msg ai">Because you said “what if,” I’d propose a candidate for step 2 instead of overwriting it. If you say “change the second chord to Bm,” that’s a direct mutation of the existing progression.</div><div class="tAction"><b>Same object, different intent</b><ul><li>Manual dropdown = direct mutation, no AI</li><li>“Change it to Bm” = Tutor mutation proposal</li><li>“What else could work?” = candidate</li><li>“Transpose to A” = deterministic explicit operation</li></ul></div><div class="input">Ask about this progression…</div></aside>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">What if the second chord were darker?</div><div class="msg ai">I changed the second chord to Bm and updated the connected analysis and voicings. Undo this turn to return to D.</div><div class="tAction"><b>Tutor change applied</b><ul><li>Step 2 changed from D to Bm</li><li>Connected blocks updated atomically</li><li>“Show me three options” would add three ordinary labeled alternatives</li><li>“Transpose to A” remains a deterministic explicit operation</li></ul><button class="mini">Undo Tutor change</button></div><div class="input">Ask about this progression…</div></aside>
       </div>
     </div></div>
   </section>

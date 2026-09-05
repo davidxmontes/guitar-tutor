@@ -68,8 +68,8 @@ Treat `main-v2` as this repo's main for every V2 ticket:
 ## Project posture
 
 - **Personal/solo project.** No external contributors expected right now.
-  `/triage` and the "PRs as a request surface" flag in
-  `docs/issue-tracker.md` don't apply until that changes.
+  `/triage` is normally unnecessary, and pull requests remain disabled as an
+  incoming request surface in `docs/agents/issue-tracker.md`.
 - **Structure:** keep the existing `frontend/` + `backend/` split — it's
   intentional (backend-driven theory engine, thin frontend display layer per
   the README's Design decisions), not something to reorganize as part of
@@ -79,12 +79,14 @@ Treat `main-v2` as this repo's main for every V2 ticket:
   no new dependency when a few lines or an already-installed one will do.
 - **Tech-debt ledger:** none kept. Known gaps get a section in this file (see
   above) rather than a separate tracking issue.
-- **Primary context docs:** `README.md` (architecture, API surface, design
-  decisions), `docs/guitar_tutor_v2_ux_reference.html` (general V2 UX/layout
-  reference mocks — read before building any V2 screen), and
-  `docs/superpowers/specs/` + `docs/superpowers/plans/` for past feature
-  specs/plans. No `CONTEXT.md` / ADRs yet — created lazily by
-  `/domain-modeling` when terms or decisions actually need recording.
+- **Primary context docs:** `CONTEXT.md` defines product language;
+  `docs/adr/` records durable decisions; current GitHub specs define feature
+  behavior; and `docs/guitar_tutor_v2_ux_reference.html` is the general V2
+  UX/layout reference. `README.md` remains a broad product and legacy-system
+  overview, so verify V2 behavior against current specs and code.
+  `docs/superpowers/specs/` and `docs/superpowers/plans/` are historical
+  inputs, not active workflow instructions; use a Superpowers skill only when
+  the user names it.
   The UX reference doc is a reference, not a spec to follow strictly — if
   implementation surfaces a better layout/interaction than what's mocked,
   explore that instead and note the deviation rather than forcing the mock's
@@ -97,7 +99,7 @@ Treat `main-v2` as this repo's main for every V2 ticket:
 - **V1 UI inspiration:** V1's styling/presentation is fair game to draw from
   where it already looks right, even though the V2 components won't be a
   one-to-one port — new data shapes and, per the spec, a semantic
-  role/group vocabulary (active/candidate/comparison/etc.) mean the V2
+  role/group vocabulary (primary/comparison/shared/focus/etc.) mean the V2
   component is a new implementation either way. Chord diagrams
   (`frontend/src/components/ChordDiagram/`) are the known example: its
   dot-grid presentation reads better than what's mocked in the UX reference

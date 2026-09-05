@@ -15,6 +15,8 @@
 - `backend/app/v2/tutor/*`
 - V2 parent spec issue `#10` and later Study/visualization tickets
 
+> **Decision update (2026-09-05):** This brain dump preserves exploratory thinking, but its candidate, audition, Keep, and Dismiss workflow is superseded. Tutor workspace changes now apply directly and atomically. Every applied Tutor mutation captures the exact pre-change state for one-click undo, while turn history supports preview and restore. The grill decision record and product spec are authoritative.
+
 ---
 
 ## 0. Why this document exists
@@ -3217,4 +3219,3 @@ That creates something closer to an exploratory musical workbench than a theory 
 For ConceptStudy, that is the direction worth pursuing.
 
 For SongStudy, preserve the strong temporal/source workflow and continue refining layout independently.
-

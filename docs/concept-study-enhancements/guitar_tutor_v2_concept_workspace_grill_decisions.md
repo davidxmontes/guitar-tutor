@@ -33,6 +33,17 @@ The product goal is:
 
 This should feel like an exploratory musical workbench, not a theory encyclopedia or dashboard builder.
 
+## Target learners and learning outcome
+
+ConceptStudy serves both beginner and intermediate guitarists through progressive disclosure in the same workspace.
+
+- Default explanations use plain language and end in one concrete thing the learner can hear or play.
+- Notes and simple relationships are visible without requiring Roman-numeral or interval knowledge.
+- Interval labels, harmonic roles, comparison detail, and other deeper analysis are available through normal view controls.
+- Do not add separate beginner/intermediate product modes or a persisted proficiency profile initially. The Tutor can adapt its language from the conversation, while the workspace remains the same.
+
+A successful exploration should leave a beginner able to describe and try one musical difference or movement, while an intermediate player can inspect the underlying interval, harmonic, and physical details without switching products.
+
 ---
 
 # 2. Scope boundary
@@ -165,11 +176,32 @@ This is a local workspace model, not universal infrastructure.
 
 # 8. Entity definitions
 
+## Shared musical primitives
+
+Persist pitch classes as validated spelled tokens such as `Bb` or `F#`; do not collapse identity to an integer that loses musical spelling. The backend may derive a semitone value for calculation.
+
+Use one physical tuning representation in new workspace data:
+
+```ts
+type Tuning = [number, number, number, number, number, number];
+```
+
+The six values are MIDI open-string pitches ordered string 1 (highest) through string 6 (lowest). Legacy tuning identifiers may be resolved at the boundary but are not persisted in new workspace entities.
+
+All entities share a local identity base:
+
+```ts
+interface EntityBase {
+  id: string;
+}
+```
+
+Tutor-created musical material is ordinary workspace state. The Tutor applies a coherent change directly; safety comes from an exact pre-change snapshot, one-click undo, and historical restore rather than a candidate lifecycle.
+
 ## Key
 
 ```ts
-interface KeyEntity {
-  id: string;
+interface KeyEntity extends EntityBase {
   kind: "key";
   tonic: PitchClass;
   mode: "major" | "minor";
@@ -192,8 +224,7 @@ The Circle of Fifths is a view of a Key entity, not an entity itself.
 ## Scale
 
 ```ts
-interface ScaleEntity {
-  id: string;
+interface ScaleEntity extends EntityBase {
   kind: "scale";
   root: PitchClass;
   scaleType: ScaleType;
@@ -216,8 +247,7 @@ through deterministic backend logic.
 ## Chord
 
 ```ts
-interface ChordEntity {
-  id: string;
+interface ChordEntity extends EntityBase {
   kind: "chord";
   root: PitchClass;
   quality: ChordQuality;
@@ -233,8 +263,7 @@ It is deliberately separate from its physical realization.
 ## Voicing
 
 ```ts
-interface VoicingEntity {
-  id: string;
+interface VoicingEntity extends EntityBase {
   kind: "voicing";
 
   chordRef?: string;
@@ -261,8 +290,7 @@ A Voicing can exist without a confident canonical chord name.
 ## NoteGroup
 
 ```ts
-interface NoteGroupEntity {
-  id: string;
+interface NoteGroupEntity extends EntityBase {
   kind: "note_group";
 
   tuning?: Tuning;
@@ -304,8 +332,7 @@ Creative physical ideas must not require a canonical theory match to be visualiz
 Progression is a fully editable local entity inside ConceptStudy.
 
 ```ts
-interface ProgressionEntity {
-  id: string;
+interface ProgressionEntity extends EntityBase {
   kind: "progression";
 
   steps: ProgressionStep[];
@@ -379,7 +406,7 @@ Key: A
 
 This does not need to be a ProgressionEntity yet.
 
-When the user edits it, keeps it, or chooses to work on it, materialize the current concrete result as a ProgressionEntity.
+When the user edits it or chooses to work on it, materialize the current concrete result as a ProgressionEntity.
 
 This follows a broader rule:
 
@@ -642,7 +669,6 @@ changed
 context
 current
 upcoming
-candidate
 target
 tutor_focus
 ```
@@ -715,10 +741,11 @@ Chord diagrams
 Degree strip
 Progression strip/editor
 Circle
-Insight
 ```
 
 CAGED may initially remain a composite reusable block.
+
+A standalone Insight block is deferred. Tutor text plus ephemeral focus provides explanation initially, and blocks may include small deterministic captions. Add a persistent Tutor Note/Insight block only when users need an explanation pinned and restored independently of the conversation.
 
 Additional blocks can be added only when real use cases require them.
 
@@ -770,10 +797,12 @@ const blockRegistry = {
   },
 
   progression: {
-    entities: ["progression"]
+    entities: ["progression", "key"]
   }
 };
 ```
+
+A Progression block sourced by a Key displays a derived functional pattern selected in typed view options. The moment the user edits or explicitly works with that concrete result, materialize a Progression entity and rebind the block to it.
 
 Use it for:
 
@@ -868,26 +897,28 @@ Ordinary deterministic controls do not require a Tutor call.
 
 ---
 
-# 28. Mutate-vs-fork rule for the Tutor
+# 28. Direct Tutor changes
 
 The Tutor should behave predictably.
 
-If the user means:
+If the user asks to change the current material, mutate the existing entity.
 
-> “Change this.”
+If the user asks to compare or see alternatives, add the required ordinary entities and relations to the workspace.
 
-mutate the existing entity.
+Examples:
 
-If the user means:
+```text
+“Change this to Dorian.”
+→ update the current Scale
 
-> “Compare this,”  
-> “also show,”  
-> “try another,”  
-> “what about…”
+“Compare this with Mixolydian.”
+→ add a Mixolydian Scale and Compare relation
 
-create another entity/candidate and relate it.
+“Show me three other voicings.”
+→ add three ordinary labeled Voicings
+```
 
-Do not silently replace the main entity when the request is exploratory.
+The Tutor chooses and applies the coherent workspace change directly. It does not create an approval queue. If the result is unhelpful, the learner can undo the whole Tutor change or restore a prior turn.
 
 ---
 
@@ -952,6 +983,18 @@ then click F#
 ```
 
 This should not fill workspace state with entities.
+
+Inspection uses a typed ephemeral locator rather than an entity:
+
+```ts
+interface InspectionTarget {
+  source: BlockSource;
+  kind: "note" | "scale_degree" | "derived_chord" | "voicing" | "caged_region";
+  key: string;
+}
+```
+
+`key` identifies a validated sub-object within the deterministic projection of `source`. Inspection is branch-local UI state, is included in Tutor input, and is not persisted in the ConceptStudy artifact.
 
 ---
 
@@ -1169,26 +1212,21 @@ The user only needs a dedicated Progression artifact when they intentionally cho
 
 ---
 
-# 41. Candidate entities
+# 41. Direct changes are reversible
 
-When the Tutor invents new material, create a candidate entity.
+Tutor-created entities, relations, and blocks enter the working draft as ordinary workspace state.
 
-Example:
+Before applying a Tutor patch, capture the exact current branch draft as that turn's undo snapshot. Apply the complete patch atomically, then store the resulting post-turn snapshot.
+
+The UI exposes one clear action for the latest applied Tutor mutation:
 
 ```text
-Candidate · upper grip
-
-[diagram]
-[hear]
-[keep]
-[dismiss]
+[Undo Tutor change]
 ```
 
-Candidate can participate in comparison before acceptance.
+Undo restores the pre-change snapshot as a new current state. It does not delete or rewrite the Tutor message, truncate later conversation, or alter the intentionally saved Artifact. Full historical preview and restore remain available for older turns.
 
-`Keep` converts it into normal working workspace state.
-
-Saving the ConceptStudy later makes it durable in artifact history.
+When a learner explicitly requests alternatives, the Tutor may add several ordinary labeled entities. They can be heard, compared, edited, or removed with normal workspace controls; they do not require a separate candidate status or Keep/Dismiss workflow.
 
 ---
 
@@ -1203,8 +1241,12 @@ interface TutorResponse {
   message: string;
   focus?: TutorFocus;
   workspace_patch?: WorkspacePatch;
-  candidates?: ...;
   exercise_suggestion?: ...;
+}
+
+interface WorkspacePatch {
+  baseWorkspaceVersion: string;
+  operations: WorkspaceOperation[];
 }
 ```
 
@@ -1224,8 +1266,10 @@ Conceptual operations:
 type WorkspaceOperation =
   | AddEntity
   | UpdateEntity
+  | RemoveEntity
   | AddRelation
   | UpdateRelation
+  | RemoveRelation
   | AddBlock
   | UpdateBlockView
   | RemoveBlock
@@ -1233,6 +1277,14 @@ type WorkspaceOperation =
 ```
 
 All references and block/source compatibility must be validated before application.
+
+`AddEntity`, `AddRelation`, and `AddBlock` use temporary handles rather than agent-selected durable IDs. Later operations in the same patch may reference those handles; the application assigns real IDs while applying the patch.
+
+Operations are evaluated in order against a copy of the workspace. Validate the complete result, including cleanup and composition, then commit it all-or-nothing with compare-and-swap against `baseWorkspaceVersion`.
+
+For a valid patch, capture the current draft as the turn's pre-change undo snapshot before commit and store the post-change snapshot with the assistant turn. The patch commit and its recovery metadata must succeed or fail together.
+
+If the user changed the workspace while the Tutor was running, keep the Tutor's text response but reject the stale patch. Do not silently rebase or partially apply it.
 
 ---
 
@@ -1254,13 +1306,13 @@ then asks:
 
 > “Why is the third important?”
 
-the next Tutor turn receives the current A-major/A-minor workspace.
+the next Tutor turn receives the current A-major/A-minor branch draft.
 
 Historical conversation does not override current application state.
 
 This extends the established V2 principle:
 
-> current artifact/application state is authoritative; conversation is supportive context.
+> current branch workspace state is authoritative; conversation is supportive context.
 
 ---
 
@@ -1284,9 +1336,9 @@ History snapshots capture state implicitly.
 
 ---
 
-# 46. Workspace history
+# 46. Workspace history and undo
 
-Every Tutor turn should reference a semantic workspace snapshot.
+Every Tutor turn should reference its semantic post-turn workspace snapshot. A turn that changes the workspace also stores the exact pre-change snapshot needed by `Undo Tutor change`.
 
 Example:
 
@@ -1306,6 +1358,8 @@ If the workspace did not change, turns may eventually reference the same dedupli
 Start simple: full semantic snapshot JSON is acceptable.
 
 Do not implement event sourcing.
+
+Undo restores snapshots; it does not calculate or apply inverse operations.
 
 ---
 
@@ -1354,11 +1408,13 @@ History remains linear.
 
 Do not create automatic sub-branches or Git-like history.
 
+`Undo Tutor change` uses the same restore semantics against that turn's pre-change snapshot. It creates a new present and preserves the conversation.
+
 ---
 
 # 49. Snapshot boundaries
 
-Always checkpoint at Tutor turn boundaries.
+Always checkpoint the current draft before applying a Tutor mutation and the resulting draft at the Tutor turn boundary.
 
 Also checkpoint intentional lifecycle actions such as:
 
@@ -1393,7 +1449,7 @@ Do not persist ephemeral Tutor focus into the durable ConceptStudy payload.
 # 51. Three histories remain distinct
 
 ```text
-Current working state
+Branch-local working draft
         │
         ├── Turn snapshots
         │     automatic session/Branch history
@@ -1411,20 +1467,29 @@ Do not confuse turn history with formal saved revisions.
 Recommended:
 
 ```text
-ConceptStudy current payload
+Branch.concept_workspace
 = current working truth
 
 Tutor turn
-= workspace_snapshot_id
+= full immutable post-turn workspace snapshot
 
 Workspace snapshot
 = immutable semantic JSON copy
 
+ConceptStudy Artifact
+= last intentionally saved workspace
+
 Artifact revision
-= immutable saved revision on meaningful Save/Apply
+= prior intentionally saved workspace
 ```
 
-The current ConceptStudy payload remains the authoritative working workspace.
+Manual controls persist the branch draft quietly, preferably with a short debounce. They do not create artifact revisions.
+
+The Tutor reads and patches the same branch draft. After a successful patch application, the assistant turn stores the resulting full semantic snapshot. If no patch applies, the turn snapshots the unchanged current draft.
+
+Save creates or updates the ConceptStudy Artifact from the branch draft and records the previous saved payload as an Artifact revision. Restoring a Tutor-turn snapshot creates a new branch-draft present; it does not mutate the saved Artifact until the user saves.
+
+Opening saved work initializes a fresh branch draft from the Artifact. Two branches may therefore explore the same saved ConceptStudy independently. A stale save against an Artifact changed elsewhere returns a revision conflict and leaves the branch draft intact.
 
 ---
 
@@ -1457,7 +1522,9 @@ interface ConceptWorkspacePayload {
 }
 ```
 
-A separate snapshot table/record may be added if needed for turn history.
+Add one nullable, typed `concept_workspace` JSON field to Branch for the working draft. Do not add a separate draft table initially.
+
+Store the full semantic workspace snapshot with the assistant Tutor message initially. Add deduplication or a separate snapshot table only if measured payload growth requires it.
 
 ---
 
@@ -1558,6 +1625,8 @@ Do not throw away the catalog logic.
 
 Change its product role.
 
+The same starter workspace serves beginners and intermediate players. Default copy remains plain-language and playable; deeper interval and harmonic detail is exposed through view controls rather than a separate learning mode.
+
 ---
 
 # 58. Known concepts open deterministically
@@ -1656,7 +1725,6 @@ Scale
 Compare
 Degree strip
 Comparison fretboard
-Insight
 ```
 
 Must support:
@@ -1682,8 +1750,9 @@ Transition
 Circle
 Chord diagrams
 Movement fretboard
-Insight
 ```
+
+The physical Transition runs from the selected D Voicing to the selected G Voicing. Each Voicing references its abstract Chord, and the Transition references the G-major Key context. Harmonic analysis follows the chord references; physical movement follows the authoritative voicing positions and tuning.
 
 Must prove:
 
@@ -1716,20 +1785,9 @@ Must prove:
 
 ---
 
-## Candidate proof
+## Arbitrary Tutor-created material proof
 
-At least one of these flows should include a Tutor-created arbitrary NoteGroup/Voicing candidate:
-
-```text
-Candidate · upper grip
-
-Hear
-Compare
-Keep
-Dismiss
-```
-
-This proves the architecture does not depend on canonical database-only musical objects.
+At least one flow should have the Tutor directly add an arbitrary NoteGroup or Voicing with no canonical database match. It must render and play through trusted blocks like ordinary workspace material. The learner must be able to undo the complete Tutor change and recover the exact pre-turn workspace.
 
 ---
 
@@ -1746,9 +1804,11 @@ The rework is successful when:
 7. Tutor can add/recompose visualizations without generating UI code.
 8. Arbitrary physical musical ideas remain visualizable.
 9. Save/reopen preserves semantic composition.
-10. Turn history can preview/restore prior workspace states.
+10. Tutor changes can be undone exactly, and turn history can preview/restore prior workspace states.
 11. Progressions are editable inside ConceptStudy without forcing a separate mode.
 12. SongStudy remains stable and independent.
+13. A beginner can leave an exploration able to describe and try one audible or playable relationship in plain language.
+14. An intermediate player can reveal interval, harmonic, and physical detail in the same workspace without switching modes.
 
 ---
 
@@ -1767,6 +1827,7 @@ Do not:
 - make the Tutor required for ordinary controls,
 - let the Tutor constantly churn the layout,
 - create artifact revisions on every message,
+- create candidate/Keep/Dismiss approval workflows for Tutor changes,
 - truncate history when restoring,
 - require every Voicing/NoteGroup to have a canonical theory name.
 
@@ -1801,20 +1862,25 @@ Chord diagrams
 Degree strip
 Progression
 Circle
-Insight
 plus composite CAGED as needed
 
 State:
+branch-local ConceptWorkspace draft
 entities + relations + blocks + semantic composition
+typed ephemeral inspection outside the Artifact
 
 History:
-turn snapshots + explicit restore
+full post-turn snapshots + explicit branch-draft restore
 
 Persistence:
+branch draft + intentionally saved Artifact/revisions
 typed ConceptStudy JSON + semantic composition
 
 Tutor:
-final typed workspace_patch
+base workspace version
+temporary handles mapped to application-generated IDs
+ordered all-or-nothing patch application
+pre-change undo snapshot + post-turn snapshot
 
 UX:
 Explore home + deterministic starter recipes
