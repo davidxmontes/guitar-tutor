@@ -1,5 +1,6 @@
+import { MyStuff } from './MyStuff';
 import { circleContext } from './circleState';
-import { ExerciseWorkspace, SavedExercises } from './ExerciseWorkspace';
+import { ExerciseWorkspace } from './ExerciseWorkspace';
 import { useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
@@ -147,6 +148,7 @@ export function V2App() {
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h1 className="text-2xl font-black">Guitar Tutor</h1>
+          <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); setShowConceptPicker(false); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
         </div>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
@@ -218,7 +220,7 @@ export function V2App() {
           </div>
         </section>
       )}
-      <SavedExercises onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
+      <MyStuff onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
       <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>
         Start something new

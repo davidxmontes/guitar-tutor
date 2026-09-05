@@ -53,5 +53,27 @@ def test_saved_concept_selection_is_semantic_and_restorable(client, session_and_
     assert updated.json()['payload']['selected_region'] == 'G'
     assert updated.json()['payload']['comparison_region'] == 'C'
     assert updated.json()['payload']['overlay'] == 'intervals'
+    assert updated.json()['payload']['created_from'] == original['payload']['created_from']
+    assert original['payload']['created_from']['branch_id'] == bid
     assert 'scroll' not in updated.json()['payload']
     assert len(client.get(f"/api/v2/library/{original['id']}/revisions").json()) == 2
+
+
+def test_library_all_kinds_and_history_are_owner_scoped(client, store):
+    from app.v2.concepts import build_concept_study
+    payloads = {
+        'song_study': {'title': 'Song', 'tab_data': {'measures': []}},
+        'progression': {'title': 'Progression', 'chords': []},
+        'concept_study': build_concept_study('D', 'circle').model_dump(),
+        'exercise': {'title': 'Exercise', 'intent': 'Slow down', 'steps': [], 'created_from': {'title': 'Song'}},
+    }
+    for kind, payload in payloads.items():
+        artifact = store.create_artifact('user_1', kind, kind, payload)
+        response = client.post(f'/api/v2/library/{artifact.id}/open')
+        assert response.status_code == 201
+        assert response.json()['branches'][0]['current_artifact_kind'] == kind
+    listed = client.get('/api/v2/library').json()
+    assert {a['kind'] for a in listed} == set(payloads)
+    assert all('payload' not in a and 'revisions' not in a for a in listed)
+    foreign = store.create_artifact('other', 'progression', 'Private', {})
+    assert client.post(f'/api/v2/library/{foreign.id}/restore', json={'revision': 'old', 'expected_updated_at': foreign.updated_at}).status_code == 404

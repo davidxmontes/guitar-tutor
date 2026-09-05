@@ -48,6 +48,7 @@ def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifac
     # ponytail: snapshots share the artifact JSON row for atomic compare-and-swap.
     # Move history to a separate table if large songs or long histories make rows costly.
     return artifact.model_copy(update={"payload": deepcopy(payload), "updated_at": now,
+        "title": payload.get("display_name", artifact.title) if artifact.kind == "concept_study" else artifact.title,
         "saved_at": artifact.saved_at or (now if save else None), "revisions": revisions})
 
 
@@ -157,7 +158,7 @@ class InMemoryV2Store:
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact:
         artifact = self.get_artifact(artifact_id, user_id)
         if expected_updated_at is not None and artifact.updated_at != expected_updated_at:
-            raise RevisionConflictError("Progression changed; request fresh voicings before applying")
+            raise RevisionConflictError("Artifact changed; reload before saving or restoring")
         updated = _revised(artifact, payload, save)
         self._artifacts[artifact_id] = updated
         return updated
@@ -352,7 +353,7 @@ class SupabaseV2Store:
             return artifact
         query = (
             self._client.table("v2_artifacts")
-            .update({"payload": {**updated.payload, "_library": {"saved_at": updated.saved_at, "revisions": [r.model_dump() for r in updated.revisions]}}, "updated_at": updated.updated_at})
+            .update({"title": updated.title, "payload": {**updated.payload, "_library": {"saved_at": updated.saved_at, "revisions": [r.model_dump() for r in updated.revisions]}}, "updated_at": updated.updated_at})
             .eq("id", artifact_id)
             .eq("clerk_user_id", user_id)
         )

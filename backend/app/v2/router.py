@@ -305,6 +305,8 @@ async def create_concept_study(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
+    source = next(branch for branch in session.branches if branch.id == data.branch_id)
+    payload = payload.model_copy(update={"created_from": {"title": source.title, "branch_id": source.id, "artifact_id": source.current_artifact_id}})
     artifact = store.create_artifact(user_id, "concept_study", payload.display_name, payload.model_dump())
     concept_artifact = ConceptStudyArtifact.model_validate(artifact.model_dump())
     try:
@@ -748,7 +750,7 @@ class RestoreArtifactRequest(SaveArtifactRequest):
 
 @router.get("/library")
 async def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    return [{**a.model_dump(exclude={"payload"}), "provenance": a.payload.get("created_from") or a.payload.get("inspired_by")}
+    return [{**a.model_dump(exclude={"payload"}), "provenance": a.payload.get("created_from") or a.payload.get("inspired_by") or ({"title": a.title, "song_id": a.payload.get("song_id"), "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
             for a in store.list_artifacts(user_id) if a.saved_at]
 
 
@@ -807,7 +809,7 @@ class SaveConceptRequest(BaseModel):
 
 @router.patch("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
 async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    await get_concept_study(artifact_id, user_id, store)
+    original = await get_concept_study(artifact_id, user_id, store)
     p = data.payload
     try:
         payload = build_concept_study(p.root, p.concept_id, overlay=p.overlay,
@@ -816,6 +818,7 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
             comparison_quality=getattr(p, "comparison_quality", None), caged_quality=getattr(p, "quality", "major"),
             selected_region=getattr(p, "selected_region", "C"), comparison_region=getattr(p, "comparison_region", None),
             selected_chord=getattr(p, "selected_chord", 0), selected_sequence=getattr(p, "selected_sequence", "primary"))
+        payload = payload.model_copy(update={"created_from": original.payload.created_from})
         return store.update_artifact(artifact_id, user_id, payload.model_dump(), data.expected_updated_at, save=True)
     except RevisionConflictError as exc:
         raise HTTPException(409, str(exc)) from exc

@@ -235,6 +235,7 @@ class ConceptPayloadBase(BaseModel):
     root: str
     display_name: str
     explanation: str
+    created_from: Optional[dict[str, Any]] = None
     tuning: list[str]
     fret_start: int
     fret_end: int

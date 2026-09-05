@@ -94,12 +94,16 @@ export interface SongStudyPayload {
   enrichment: SongEnrichment | null;
 }
 
+export interface ArtifactRevision { revision: string; current: boolean }
+export type LibraryItem = Omit<Artifact, 'payload'> & { provenance: Record<string, unknown> | null };
+
 export interface Artifact {
   id: string;
   user_id: string;
   kind: ArtifactKind;
   title: string;
   payload: Record<string, unknown>;
+  saved_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -167,6 +171,7 @@ export interface ConceptRelationship {
 }
 
 interface ConceptPayloadBase {
+  created_from?: Record<string, unknown> | null;
   root: string;
   display_name: string;
   explanation: string;
