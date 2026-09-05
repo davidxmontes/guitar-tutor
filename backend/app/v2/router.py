@@ -15,7 +15,16 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
-from app.v2.models import Artifact, ArtifactKind, Branch, Session, SongStudyPayload, SongStudyTrack, TutorMessage
+from app.v2.models import (
+    Artifact,
+    ArtifactKind,
+    Branch,
+    ProgressionPayload,
+    Session,
+    SongStudyPayload,
+    SongStudyTrack,
+    TutorMessage,
+)
 from app.v2.store import NotFoundError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -251,7 +260,15 @@ async def create_tutor_turn(
     store.create_tutor_message(
         branch.tutor_thread_id,
         "assistant",
-        {"text": response.message, "focus": response.focus.model_dump() if response.focus else None},
+        {
+            "text": response.message,
+            "focus": response.focus.model_dump() if response.focus else None,
+            # Structured (already voicing-resolved) candidates, not just the
+            # text summary reconstruct_history renders for the model -- this
+            # is what a history reload replays to the frontend so a candidate
+            # from an earlier turn stays addressable/visible (ticket #14).
+            "candidates": [c.model_dump() for c in response.candidates] if response.candidates else None,
+        },
     )
 
     return response
@@ -270,3 +287,17 @@ async def list_tutor_thread_messages(
         return store.list_tutor_messages(tutor_thread_id, user_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/progressions", response_model=Artifact, status_code=status.HTTP_201_CREATED)
+async def create_progression(
+    data: ProgressionPayload,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    """Persist a tutor-proposed candidate as a durable Progression artifact
+    (ticket #14). Deliberately does not touch any Branch's
+    current_artifact_kind/current_artifact_id -- saving a candidate must
+    keep the SongStudy branch the user was working in current/active.
+    """
+    return store.create_artifact(user_id=user_id, kind="progression", title=data.title, payload=data.model_dump())

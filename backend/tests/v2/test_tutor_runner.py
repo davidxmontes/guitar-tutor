@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import SystemMessage
 
-from app.v2.models import Branch, TutorMessage
+from app.v2.models import Artifact, Branch, TutorMessage
 from app.v2.tutor.providers import TutorCapabilityError
 from app.v2.tutor.runner import run_tutor_turn
 from tests.v2.tutor_fakes import ScriptedTutorModel
@@ -255,3 +255,107 @@ def test_disabling_or_missing_cache_metrics_does_not_change_the_semantic_respons
     assert warm_response.focus == cold_response.focus
     assert warm_response.usage.cache_read_tokens == 400
     assert cold_response.usage.cache_read_tokens is None
+
+
+def test_progression_candidate_chords_get_resolved_voicings_deterministically() -> None:
+    """The tutor proposes symbolic chords only; run_tutor_turn resolves each
+    into an exact physical voicing via the real (deterministic, no-network)
+    chord_service -- a curated chord gets a voicing+tuning, an unrecognized
+    quality just gets none (expected, not an error)."""
+
+    model = ScriptedTutorModel(
+        outcomes=[
+            {
+                "message": "Here's an idea inspired by this passage.",
+                "focus": None,
+                "candidates": [
+                    {
+                        "title": "Wistful I-vi-IV-V",
+                        "chords": [
+                            {"root": "C", "quality": "major"},
+                            {"root": "A", "quality": "minor"},
+                            {"root": "G", "quality": "not-a-real-quality"},
+                        ],
+                    }
+                ],
+            }
+        ],
+        usage_metadatas=[None],
+    )
+
+    response = run_tutor_turn(
+        branch=_branch(),
+        artifact=None,
+        history=[],
+        user_message="make me something wistful",
+        provider="openai",
+        model="gpt-4o-mini",
+        openai_api_key="k",
+        model_factory=_factory_returning(model),
+    )
+
+    assert response.candidates is not None
+    candidate = response.candidates[0]
+    assert candidate.title == "Wistful I-vi-IV-V"
+    assert candidate.chords[0].root == "C"
+    assert candidate.chords[0].voicing  # curated -- resolved
+    assert candidate.chords[0].tuning == "standard"
+    assert candidate.chords[1].voicing  # curated -- resolved
+    assert candidate.chords[2].voicing is None  # not a real quality -- no crash, no voicing
+    assert candidate.chords[2].tuning is None
+
+
+def test_progression_candidate_carries_lightweight_song_study_provenance() -> None:
+    artifact = Artifact(
+        id="a1",
+        user_id="u1",
+        kind="song_study",
+        title="Artist - Title",
+        payload={"song_id": 1, "artist": "Artist", "title": "Title", "track": {"index": 0, "name": "Guitar", "instrument": "guitar"}, "tab_data": {}},
+        created_at="x",
+        updated_at="x",
+    )
+    branch = _branch(selection={"type": "range", "startMeasureIndex": 0, "endMeasureIndex": 3})
+    model = ScriptedTutorModel(
+        outcomes=[
+            {
+                "message": "An idea.",
+                "focus": None,
+                "candidates": [{"title": "Idea", "chords": [{"root": "C", "quality": "major"}]}],
+            }
+        ],
+        usage_metadatas=[None],
+    )
+
+    response = run_tutor_turn(
+        branch=branch,
+        artifact=artifact,
+        history=[],
+        user_message="make me something",
+        provider="openai",
+        model="gpt-4o-mini",
+        openai_api_key="k",
+        model_factory=_factory_returning(model),
+    )
+
+    inspired_by = response.candidates[0].inspired_by
+    assert inspired_by["artifact_id"] == "a1"
+    assert inspired_by["artifact_kind"] == "song_study"
+    assert inspired_by["selection"] == {"type": "range", "startMeasureIndex": 0, "endMeasureIndex": 3}
+
+
+def test_no_candidates_proposed_leaves_response_candidates_none() -> None:
+    model = ScriptedTutorModel(outcomes=[{"message": "Just an answer.", "focus": None}], usage_metadatas=[None])
+
+    response = run_tutor_turn(
+        branch=_branch(),
+        artifact=None,
+        history=[],
+        user_message="what key is this?",
+        provider="openai",
+        model="gpt-4o-mini",
+        openai_api_key="k",
+        model_factory=_factory_returning(model),
+    )
+
+    assert response.candidates is None

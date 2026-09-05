@@ -64,11 +64,48 @@ class SongStudyPayload(BaseModel):
     tab_data: dict[str, Any]  # {measures, tuning, name, automations, ...} as Songsterr returned it
 
 
+class ProgressionVoicingPosition(BaseModel):
+    """One string/fret position within a saved chord's exact voicing —
+    deliberately just string+fret (no note/interval labels): those are
+    derivable, and the physical position + tuning below are what the spec
+    calls authoritative for reproducing a chosen voicing."""
+
+    string: int
+    fret: int
+
+
+class ProgressionChord(BaseModel):
+    """One chord slot in a Progression: symbolic identity (root/quality) is
+    always present; `voicing`/`tuning` are populated only when
+    chord_service.get_chord found a curated voicing for this root/quality
+    (see app.v2.tutor.runner) — no entry is expected and normal, not an
+    error (spec #10: don't require every chord to exist in a canonical DB
+    before it can be displayed/saved)."""
+
+    root: str
+    quality: str
+    voicing: Optional[list[ProgressionVoicingPosition]] = None
+    tuning: Optional[str] = None  # tuning id (e.g. "standard") the voicing was resolved against
+
+
+class ProgressionPayload(BaseModel):
+    """Progression artifact payload (ticket #14): an ordered chord sequence
+    plus lightweight historical provenance. `inspired_by` never creates a
+    live dependency on the source SongStudy (spec #10: "no live dependency
+    propagation") — it's a snapshot dict good enough to show where the idea
+    came from."""
+
+    title: str
+    chords: list[ProgressionChord]
+    inspired_by: Optional[dict[str, Any]] = None
+
+
 class Artifact(BaseModel):
     """Common columns + a strict typed JSON payload per artifact kind.
-    Only song_study payloads are validated (SongStudyPayload) as of this
-    ticket; the other three kinds get their own payload types in their own
-    tickets rather than a speculative shared union now.
+    song_study (SongStudyPayload) and progression (ProgressionPayload) are
+    validated at the API layer as of this ticket; concept_study/exercise get
+    their own payload types in their own tickets rather than a speculative
+    shared union now.
     """
 
     id: str
