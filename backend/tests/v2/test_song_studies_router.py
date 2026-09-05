@@ -160,6 +160,23 @@ def test_create_song_study_404_for_unknown_branch(client):
     assert response.status_code == 404
 
 
+def test_create_song_study_404_for_unknown_branch_skips_fetch_and_artifact(client, store, session_and_branch):
+    # session_id is real (owned) but branch_id is not one of its branches —
+    # must 404 before touching Songsterr or the artifact store at all.
+    session_id, _real_branch_id = session_and_branch
+    with patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock) as get_song_revision, \
+         patch("app.v2.router.songsterr.get_tab_data", new_callable=AsyncMock) as get_tab_data:
+        response = client.post(
+            "/api/v2/song-studies",
+            json={"session_id": session_id, "branch_id": "nope", "song_id": 7, "track_index": 0},
+        )
+
+        assert response.status_code == 404
+        get_song_revision.assert_not_awaited()
+        get_tab_data.assert_not_awaited()
+    assert store._artifacts == {}
+
+
 def test_create_song_study_422_for_negative_track_index(client, session_and_branch):
     session_id, branch_id = session_and_branch
 

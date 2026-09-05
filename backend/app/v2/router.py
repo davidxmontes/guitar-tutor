@@ -91,6 +91,19 @@ async def create_song_study(
     Branch's current SongStudy. No further tutor/agent call is required to
     browse the raw track afterward.
     """
+    # Validate session/branch ownership up front — before the external
+    # Songsterr fetch and the artifact write — so a stale/unowned branch_id
+    # 404s cheaply instead of paying for a wasted fetch and an orphaned
+    # Artifact row. update_branch() below re-checks the session anyway; that
+    # duplication is fine, it's cheap and keeps this the single source of
+    # truth for the actual write.
+    try:
+        session = store.get_session(data.session_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if not any(b.id == data.branch_id for b in session.branches):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+
     try:
         revision = await songsterr.get_song_revision(data.song_id)
     except ValueError as exc:
