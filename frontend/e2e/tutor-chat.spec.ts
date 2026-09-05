@@ -88,7 +88,7 @@ test('song chord strip: raw shapes select the real tab beat and exact fretboard 
 
   await expect(page.getByTestId('song-shape-card')).toHaveCount(2)
   await expect(page.getByTestId('song-shape-card').first().getByRole('img')).toHaveAccessibleName(
-    /Tuning D A F C G D.*String 1 fret 3; String 2 fret 3/,
+    /Tuning D G C F A D.*String 1 fret 3; String 2 fret 3/,
   )
 
   await page.getByRole('button', { name: /D\/F#.*measure 2, beat 1/i }).click()

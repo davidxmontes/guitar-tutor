@@ -61,7 +61,7 @@ export function SongShapeStrip({
                 </span>
                 <PhysicalChordDiagram
                   positions={event.positions}
-                  tuning={event.tuning.map((midi) => midiToNoteName(midi))}
+                  tuning={[...event.tuning].reverse().map((midi) => midiToNoteName(midi))}
                   label={event.label ?? undefined}
                 />
               </button>
