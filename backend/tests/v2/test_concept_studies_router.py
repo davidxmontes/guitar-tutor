@@ -222,7 +222,9 @@ def test_caged_transient_and_promotion_keep_only_semantic_region_state(client, s
     )
 
     assert promoted.status_code == 201
-    payload = promoted.json()["artifact"]["payload"]
+    opened = promoted.json()
+    payload = opened["artifact"]["payload"]
+    assert opened["branch"]["title"] == "C minor CAGED"
     assert payload["quality"] == "minor"
     assert payload["selected_region"] == "E"
     assert payload["comparison_region"] == "D"

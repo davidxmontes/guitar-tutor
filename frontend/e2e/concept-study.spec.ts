@@ -176,14 +176,9 @@ test('CAGED selects connected regions, inspects overlap, promotes, and restores 
   const beforePromotion = await page.request.get('/api/v2/concept-studies').then((response) => response.json())
   expect(beforePromotion).toHaveLength(initialStudies.length)
 
-  await page.screenshot({ path: 'test-results/caged-study-desktop.png', fullPage: true })
-  await page.setViewportSize({ width: 320, height: 800 })
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.screenshot({ path: 'test-results/caged-study-mobile.png', fullPage: true })
-  await page.setViewportSize({ width: 1280, height: 800 })
-
   await page.getByTestId('study-work-on-this').click()
   await expect(page.getByTestId('concept-study-workspace')).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'C minor CAGED' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByTestId('study-caged-region-D')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('caged-overlap-summary')).toContainText('E shape')
 
@@ -200,11 +195,18 @@ test('CAGED selects connected regions, inspects overlap, promotes, and restores 
   expect(artifact.payload).not.toHaveProperty('panel_dimensions')
   expect(artifact.payload).not.toHaveProperty('zoom')
   expect(artifact.payload).not.toHaveProperty('layout')
+  expect(session.branches[1].title).toBe('C minor CAGED')
 
   await page.reload()
   await page.locator(`[data-testid="v2-continue-session"][data-session-id="${sessionId}"]`).click()
-  await page.getByTestId('v2-branch-tab').nth(1).click()
+  await page.getByRole('tab', { name: 'C minor CAGED' }).click()
   await expect(page.getByRole('heading', { name: 'C minor CAGED' })).toBeVisible()
   await expect(page.getByTestId('study-caged-region-D')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('caged-overlap-summary')).toContainText('E shape')
+
+  await page.screenshot({ path: 'test-results/caged-study-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 320, height: 800 })
+  await expect(page.getByRole('combobox', { name: 'Current workspace' })).toHaveValue(session.branches[1].id)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/caged-study-mobile.png', fullPage: true })
 })
