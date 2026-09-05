@@ -156,7 +156,19 @@ ScaleConceptId = Literal[
     "blues",
 ]
 IntervalConceptId = Literal["intervals"]
-ConceptId = ScaleConceptId | IntervalConceptId
+ChordQualityId = Literal[
+    "major", "minor", "diminished", "augmented", "dominant7", "major7",
+    "minor7", "dim7", "m7b5", "sus2", "sus4", "add9", "madd9",
+    "7sus4", "6", "m6", "9", "m9", "maj9",
+]
+ChordConceptId = Literal[
+    "chord_major", "chord_minor", "chord_diminished", "chord_augmented",
+    "chord_dominant7", "chord_major7", "chord_minor7", "chord_dim7",
+    "chord_m7b5", "chord_sus2", "chord_sus4", "chord_add9",
+    "chord_madd9", "chord_7sus4", "chord_6", "chord_m6", "chord_9",
+    "chord_m9", "chord_maj9",
+]
+ConceptId = ScaleConceptId | IntervalConceptId | ChordConceptId
 
 
 class ConceptNote(BaseModel):
@@ -217,14 +229,32 @@ class IntervalStudyPayload(ConceptPayloadBase):
     positions: list[ConceptPosition]
 
 
-ConceptStudyPayload = Annotated[ScaleStudyPayload | IntervalStudyPayload, Field(discriminator="visualization")]
+class ChordStudyVoicing(BaseModel):
+    label: str
+    name: str
+    positions: list[ConceptPosition]
+
+
+class ChordStudyPayload(ConceptPayloadBase):
+    visualization: Literal["chord"] = "chord"
+    concept_id: ChordConceptId
+    quality: ChordQualityId
+    notes: list[ConceptNote]
+    positions: list[ConceptPosition]
+    voicings: list[ChordStudyVoicing]
+    selected_voicing: int = Field(ge=0)
+    relationships: list[ConceptRelationship]
+    comparison_quality: Optional[ChordQualityId] = None
+
+
+ConceptStudyPayload = Annotated[ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload, Field(discriminator="visualization")]
 
 
 class StudyCatalogConcept(BaseModel):
     id: ConceptId
     display_name: str
     description: str
-    visualization: Literal["scale", "interval"]
+    visualization: Literal["scale", "interval", "chord"]
 
 
 class StudyCatalogGroup(BaseModel):

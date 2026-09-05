@@ -2,10 +2,15 @@
 
 from typing import get_args
 
-from app.music.chords import index_to_note, note_to_index
+from app.music.chords import CHORD_INTERVALS, get_chord_notes, index_to_note, note_to_index
 from app.music.notes import generate_fretboard
 from app.music.scales import SCALE_DEGREE_NAMES, get_scale_notes
+from app.services.chord_service import get_chord
 from app.v2.models import (
+    ChordConceptId,
+    ChordQualityId,
+    ChordStudyPayload,
+    ChordStudyVoicing,
     ConceptId,
     ConceptNote,
     ConceptPosition,
@@ -56,8 +61,48 @@ INTERVAL_NAMES = [
     "Tritone", "Perfect fifth", "Minor sixth", "Major sixth", "Minor seventh", "Major seventh",
 ]
 
+CHORD_NAMES = {item["id"]: item["name"] for item in (
+    {"id": "major", "name": "Major triad"},
+    {"id": "minor", "name": "Minor triad"},
+    {"id": "diminished", "name": "Diminished triad"},
+    {"id": "augmented", "name": "Augmented triad"},
+    {"id": "dominant7", "name": "Dominant seventh"},
+    {"id": "major7", "name": "Major seventh"},
+    {"id": "minor7", "name": "Minor seventh"},
+    {"id": "dim7", "name": "Diminished seventh"},
+    {"id": "m7b5", "name": "Half-diminished seventh"},
+    {"id": "sus2", "name": "Suspended second"},
+    {"id": "sus4", "name": "Suspended fourth"},
+    {"id": "add9", "name": "Add nine"},
+    {"id": "madd9", "name": "Minor add nine"},
+    {"id": "7sus4", "name": "Seventh suspended fourth"},
+    {"id": "6", "name": "Major sixth"},
+    {"id": "m6", "name": "Minor sixth"},
+    {"id": "9", "name": "Dominant ninth"},
+    {"id": "m9", "name": "Minor ninth"},
+    {"id": "maj9", "name": "Major ninth"},
+)}
+
+ESSENTIAL_CHORDS = ("major", "minor", "dominant7", "major7", "minor7", "sus2", "sus4")
+ADVANCED_CHORDS = ("diminished", "augmented", "dim7", "m7b5", "7sus4", "6", "m6", "add9", "madd9", "9", "m9", "maj9")
+DEFAULT_CHORD_COMPARISONS: dict[str, ChordQualityId] = {
+    "major": "minor", "minor": "major", "diminished": "minor", "augmented": "major",
+    "dominant7": "major7", "major7": "dominant7", "minor7": "minor",
+    "dim7": "diminished", "m7b5": "diminished", "sus2": "major", "sus4": "major",
+    "add9": "major", "madd9": "minor", "7sus4": "sus4", "6": "major",
+    "m6": "minor", "9": "dominant7", "m9": "minor7", "maj9": "major7",
+}
+
 
 def _catalog_concept(concept_id: ConceptId) -> StudyCatalogConcept:
+    if concept_id.startswith("chord_"):
+        quality = concept_id.removeprefix("chord_")
+        return StudyCatalogConcept(
+            id=concept_id,
+            display_name=CHORD_NAMES[quality],
+            description=f"Chord · {', '.join(CHORD_INTERVALS[quality]['names'])}",
+            visualization="chord",
+        )
     if concept_id == "intervals":
         return StudyCatalogConcept(id=concept_id, display_name="Intervals", description="See each distance from a root across the neck.", visualization="interval")
     return StudyCatalogConcept(
@@ -74,10 +119,10 @@ def get_study_catalog() -> StudyCatalog:
         groups=[
             StudyCatalogGroup(id="essentials", display_name="Essentials", concepts=[_catalog_concept(item) for item in (
                 "major", "natural_minor", "pentatonic_major", "pentatonic_minor", "blues"
-            )]),
+            )] + [_catalog_concept(f"chord_{quality}") for quality in ESSENTIAL_CHORDS]),
             StudyCatalogGroup(id="explore_more", display_name="Explore more", concepts=[_catalog_concept(item) for item in (
                 "ionian", "dorian", "phrygian", "lydian", "mixolydian", "aeolian", "locrian", "harmonic_minor", "melodic_minor"
-            )]),
+            )] + [_catalog_concept(f"chord_{quality}") for quality in ADVANCED_CHORDS]),
             StudyCatalogGroup(id="systems", display_name="Systems", concepts=[_catalog_concept("intervals")]),
         ],
     )
@@ -167,6 +212,89 @@ def _build_intervals(root: str, selected_interval: int, overlay: str) -> Interva
     )
 
 
+def _chord_relationship(
+    root: str,
+    primary_quality: ChordQualityId,
+    comparison_quality: ChordQualityId,
+) -> ConceptRelationship:
+    primary_notes = _notes(
+        get_chord_notes(root, primary_quality),
+        CHORD_INTERVALS[primary_quality]["names"],
+    )
+    comparison_notes = _notes(
+        get_chord_notes(root, comparison_quality),
+        CHORD_INTERVALS[comparison_quality]["names"],
+    )
+    primary_note_names = {note.note for note in primary_notes}
+    comparison_note_names = {note.note for note in comparison_notes}
+    added = [note for note in comparison_notes if note.note not in primary_note_names]
+    removed = [note for note in primary_notes if note.note not in comparison_note_names]
+    changes = []
+    if added:
+        changes.append(
+            f"adds {', '.join(note.note for note in added)} "
+            f"({', '.join(note.interval for note in added)})"
+        )
+    if removed:
+        changes.append(
+            f"removes {', '.join(note.note for note in removed)} "
+            f"({', '.join(note.interval for note in removed)})"
+        )
+    return ConceptRelationship(
+        id=comparison_quality,
+        label=f"Compare with {root} {CHORD_NAMES[comparison_quality].lower()}",
+        explanation=f"{CHORD_NAMES[comparison_quality]} {' and '.join(changes)}.",
+        notes=added,
+        positions=_positions(added),
+    )
+
+
+def _build_chord(
+    root: str,
+    concept_id: ChordConceptId,
+    comparison_quality: ChordQualityId | None,
+    selected_voicing: int,
+    overlay: str,
+) -> ChordStudyPayload:
+    quality = concept_id.removeprefix("chord_")
+    notes = _notes(get_chord_notes(root, quality), CHORD_INTERVALS[quality]["names"])
+    resolved = get_chord(root, quality)
+    voicings = [
+        ChordStudyVoicing(
+            label=voicing.label,
+            name=voicing.name,
+            positions=[
+                ConceptPosition(**position.model_dump())
+                for position in voicing.positions
+                if position.fret == 0 or voicing.base_fret <= position.fret < voicing.base_fret + 4
+            ],
+        )
+        for voicing in resolved.voicings
+    ]
+    if not 0 <= selected_voicing < len(voicings):
+        raise ValueError(f"selected_voicing must be between 0 and {len(voicings) - 1}")
+    available_comparison = comparison_quality or DEFAULT_CHORD_COMPARISONS[quality]
+    if available_comparison == quality:
+        raise ValueError("A chord cannot be compared with itself")
+    return ChordStudyPayload(
+        concept_id=concept_id,
+        quality=quality,
+        root=root,
+        display_name=resolved.display_name,
+        explanation=f"Chord tones: {', '.join(note.interval for note in notes)}.",
+        tuning=TUNING,
+        fret_start=FRET_START,
+        fret_end=FRET_END,
+        overlay=overlay,
+        notes=notes,
+        positions=_positions(notes),
+        voicings=voicings,
+        selected_voicing=selected_voicing,
+        relationships=[_chord_relationship(root, quality, available_comparison)],
+        comparison_quality=comparison_quality,
+    )
+
+
 def build_concept_study(
     root: str,
     concept_id: ConceptId,
@@ -174,6 +302,8 @@ def build_concept_study(
     comparison_id: ScaleConceptId | None = None,
     overlay: str = "notes",
     selected_interval: int = 7,
+    selected_voicing: int = 0,
+    comparison_quality: ChordQualityId | None = None,
 ):
     """Build a validated visualization without persisting it."""
 
@@ -184,6 +314,8 @@ def build_concept_study(
         raise ValueError("selected_interval must be between 0 and 11")
     if concept_id == "intervals":
         return _build_intervals(root, selected_interval, overlay)
+    if concept_id in get_args(ChordConceptId):
+        return _build_chord(root, concept_id, comparison_quality, selected_voicing, overlay)
     if concept_id not in get_args(ScaleConceptId):
         raise ValueError(f"Unknown concept: {concept_id}")
     if comparison_id == concept_id:

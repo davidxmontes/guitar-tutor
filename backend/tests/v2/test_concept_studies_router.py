@@ -84,6 +84,62 @@ def test_study_catalog_is_backend_owned_and_progressively_grouped(client):
     assert all(concept["display_name"] for group in catalog["groups"] for concept in group["concepts"])
 
 
+def test_study_catalog_groups_supported_chords_by_learning_depth(client):
+    catalog = client.get("/api/v2/study/catalog").json()
+    groups = {group["id"]: {concept["id"] for concept in group["concepts"]} for group in catalog["groups"]}
+
+    assert groups["essentials"] >= {
+        "chord_major", "chord_minor", "chord_dominant7", "chord_major7",
+        "chord_minor7", "chord_sus2", "chord_sus4",
+    }
+    assert groups["explore_more"] >= {
+        "chord_diminished", "chord_augmented", "chord_dim7", "chord_m7b5",
+        "chord_add9", "chord_madd9", "chord_9", "chord_m9", "chord_maj9",
+    }
+
+
+@pytest.mark.parametrize(
+    ("concept_id", "quality", "intervals"),
+    [
+        ("chord_minor", "minor", ["1", "b3", "5"]),
+        ("chord_dominant7", "dominant7", ["1", "3", "5", "b7"]),
+        ("chord_augmented", "augmented", ["1", "3", "#5"]),
+        ("chord_maj9", "maj9", ["1", "3", "5", "7", "9"]),
+    ],
+)
+def test_chord_studies_build_deterministic_tones_and_physical_shapes(concept_id, quality, intervals):
+    study = build_concept_study("C", concept_id)
+
+    assert study.visualization == "chord"
+    assert study.quality == quality
+    assert [note.interval for note in study.notes] == intervals
+    assert study.voicings
+    assert all(voicing.positions for voicing in study.voicings)
+    assert all(position.note in {note.note for note in study.notes} for position in study.positions)
+
+
+def test_chord_diagrams_receive_one_canonical_position_per_string():
+    study = build_concept_study("A", "chord_minor")
+
+    assert {(position.string, position.fret) for position in study.voicings[0].positions} == {
+        (1, 0), (2, 1), (3, 2), (4, 2), (5, 0),
+    }
+    assert all(
+        len({position.string for position in voicing.positions}) == len(voicing.positions)
+        for voicing in study.voicings
+    )
+
+
+def test_chord_comparison_describes_only_the_meaningful_tone_delta():
+    study = build_concept_study("A", "chord_minor", comparison_quality="major")
+
+    assert [(note.note, note.interval) for note in study.relationships[0].notes] == [("Db", "3")]
+    assert study.relationships[0].explanation == "Major triad adds Db (3) and removes C (b3)."
+
+    with pytest.raises(ValueError, match="A chord cannot be compared with itself"):
+        build_concept_study("A", "chord_minor", comparison_quality="minor")
+
+
 def test_every_catalog_concept_has_a_validated_visualization():
     for group in get_study_catalog().groups:
         for concept in group.concepts:
@@ -177,6 +233,57 @@ def test_work_on_concept_promotes_semantic_state_into_a_new_branch(client, sessi
     assert len(session["branches"]) == 2
     assert session["branches"][0]["current_artifact_id"] is None
     assert session["branches"][1]["tutor_thread_id"] != session["branches"][0]["tutor_thread_id"]
+
+
+def test_chord_promotion_restores_selected_voicing_and_comparison_without_layout(client, session_and_branch):
+    session_id, source_branch_id = session_and_branch
+    response = client.post(
+        "/api/v2/concept-studies",
+        json={
+            "session_id": session_id,
+            "branch_id": source_branch_id,
+            "root": "A",
+            "concept_id": "chord_minor",
+            "selected_voicing": 1,
+            "comparison_quality": "major",
+            "overlay": "intervals",
+            "promotion": "work_on_this",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()["artifact"]["payload"]
+    assert payload["visualization"] == "chord"
+    assert payload["quality"] == "minor"
+    assert payload["selected_voicing"] == 1
+    assert payload["comparison_quality"] == "major"
+    assert not ({"scroll_position", "panel_dimensions", "zoom"} & payload.keys())
+
+    artifact_id = response.json()["artifact"]["id"]
+    reopened = client.get(f"/api/v2/concept-studies/{artifact_id}")
+    assert reopened.json()["payload"] == payload
+
+
+def test_transient_chord_selection_creates_no_artifact(client, store, session_and_branch):
+    response = client.get(
+        "/api/v2/study/visualizations/chord_minor7",
+        params={"root": "D", "selected_voicing": 2, "comparison_quality": "minor"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["selected_voicing"] == 2
+    assert response.json()["comparison_quality"] == "minor"
+    assert store._artifacts == {}
+
+
+def test_transient_chord_rejects_negative_voicing_index(client):
+    response = client.get(
+        "/api/v2/study/visualizations/chord_minor",
+        params={"root": "A", "selected_voicing": -1},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "selected_voicing must be between 0 and 3"
 
 
 def test_saved_concept_studies_can_be_listed_and_reopened_without_copying_layout_state(client, session_and_branch):

@@ -109,6 +109,18 @@ def test_tutor_cannot_offer_an_unsupported_concept_visualization() -> None:
         )
 
 
+def test_tutor_can_offer_only_publicly_supported_chord_studies() -> None:
+    suggestion = ConceptSuggestion(
+        concept_id="chord_m9",
+        root="C",
+        label="C minor 9",
+    )
+
+    assert suggestion.concept_id == "chord_m9"
+    with pytest.raises(ValidationError):
+        ConceptSuggestion(concept_id="chord_power", root="C", label="C power chord")
+
+
 def test_tutor_terminal_candidates_hold_symbolic_chords_only() -> None:
     """LLM-facing schema: a candidate is title + root/quality chords, no
     voicing/tuning fields at all -- the model has no way to invent physical
