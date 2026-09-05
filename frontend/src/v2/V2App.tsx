@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
-import type { V2Session } from '../types/v2';
+import { SongStudyPanel } from './SongStudy';
+import type { V2Branch, V2Session } from '../types/v2';
 
 const pageStyle = { padding: 24, fontFamily: 'sans-serif' };
 
@@ -55,6 +56,16 @@ export function V2App() {
     }
   };
 
+  const handleBranchChange = (updatedBranch: V2Branch) => {
+    setActiveSession((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        branches: prev.branches.map((b) => (b.id === updatedBranch.id ? updatedBranch : b)),
+      };
+    });
+  };
+
   if (activeSession) {
     const branch = activeSession.branches[0];
     return (
@@ -62,6 +73,9 @@ export function V2App() {
         <h1>Guitar Tutor V2</h1>
         <p data-testid="v2-active-session">Session {activeSession.id}</p>
         <p data-testid="v2-active-branch">Branch {branch?.id}</p>
+        {branch && (
+          <SongStudyPanel sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
+        )}
       </div>
     );
   }

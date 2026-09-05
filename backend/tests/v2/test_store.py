@@ -93,3 +93,42 @@ def test_update_branch_raises_not_found_for_other_user(store):
 
     with pytest.raises(NotFoundError):
         store.update_branch(session.id, branch_id, user_id="someone_else", selection={})
+
+
+# --- Artifact CRUD (SongStudy, ticket #12) ---
+
+
+def test_create_artifact_returns_owned_artifact_with_payload(store):
+    artifact = store.create_artifact(
+        user_id="user_1",
+        kind="song_study",
+        title="Oasis - Wonderwall",
+        payload={"song_id": 7, "tab_data": {"measures": [{}]}},
+    )
+
+    assert artifact.user_id == "user_1"
+    assert artifact.kind == "song_study"
+    assert artifact.title == "Oasis - Wonderwall"
+    assert artifact.payload["song_id"] == 7
+    assert artifact.id
+    assert artifact.created_at
+
+
+def test_get_artifact_returns_it_for_owning_user(store):
+    created = store.create_artifact(user_id="user_1", kind="song_study", title="t", payload={"a": 1})
+
+    fetched = store.get_artifact(created.id, user_id="user_1")
+
+    assert fetched == created
+
+
+def test_get_artifact_raises_not_found_for_other_user(store):
+    created = store.create_artifact(user_id="user_1", kind="song_study", title="t", payload={"a": 1})
+
+    with pytest.raises(NotFoundError):
+        store.get_artifact(created.id, user_id="someone_else")
+
+
+def test_get_artifact_raises_not_found_for_unknown_id(store):
+    with pytest.raises(NotFoundError):
+        store.get_artifact("does-not-exist", user_id="user_1")

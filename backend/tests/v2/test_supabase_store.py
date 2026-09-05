@@ -100,3 +100,50 @@ def test_update_branch_raises_not_found_when_branch_missing():
     store = SupabaseV2Store(client)
     with pytest.raises(NotFoundError):
         store.update_branch("sess-1", "branch-1", user_id="user_1", selection={})
+
+
+# --- Artifact CRUD (SongStudy, ticket #12) ---
+
+
+def _artifact_row(artifact_id="art-1", user_id="user_1"):
+    return {
+        "id": artifact_id,
+        "clerk_user_id": user_id,
+        "kind": "song_study",
+        "title": "Oasis - Wonderwall",
+        "payload": {"song_id": 7},
+        "created_at": "t0",
+        "updated_at": "t0",
+    }
+
+
+def test_create_artifact_inserts_and_returns_it():
+    client = MagicMock()
+    client.table.return_value = _chain([_artifact_row()])
+
+    store = SupabaseV2Store(client)
+    artifact = store.create_artifact(user_id="user_1", kind="song_study", title="Oasis - Wonderwall", payload={"song_id": 7})
+
+    assert artifact.id == "art-1"
+    assert artifact.kind == "song_study"
+    assert artifact.payload == {"song_id": 7}
+    client.table.assert_called_with("v2_artifacts")
+
+
+def test_get_artifact_returns_owned_row():
+    client = MagicMock()
+    client.table.return_value = _chain([_artifact_row()])
+
+    store = SupabaseV2Store(client)
+    artifact = store.get_artifact("art-1", user_id="user_1")
+
+    assert artifact.id == "art-1"
+
+
+def test_get_artifact_raises_not_found_when_no_rows():
+    client = MagicMock()
+    client.table.return_value = _chain([])
+
+    store = SupabaseV2Store(client)
+    with pytest.raises(NotFoundError):
+        store.get_artifact("art-1", user_id="user_1")
