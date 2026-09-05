@@ -2,7 +2,7 @@
 ConceptStudy artifact create/open, and stateless tutor turns.
 
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
-user). Exercise lands in its own later V2 ticket.
+user). Exercise saves copy deliberate drills independently of their source.
 """
 
 from typing import Any, Literal, Optional
@@ -16,6 +16,9 @@ from app.services import songsterr
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
     ApplyVoicingRequest,
+    ExerciseDraft,
+    ExercisePayload,
+    ExerciseArtifact,
     Artifact,
     ArtifactKind,
     Branch,
@@ -644,3 +647,53 @@ async def apply_progression_voicing(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RevisionConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class CreateExerciseRequest(ExerciseDraft):
+    source_artifact_id: str
+    expected_updated_at: str
+    source_selection: Optional[dict[str, Any]] = None
+
+
+@router.post("/exercises", response_model=ExerciseArtifact, status_code=201)
+async def create_exercise(data: CreateExerciseRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        source = store.get_artifact(data.source_artifact_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if source.kind not in ("song_study", "progression", "concept_study"):
+        raise HTTPException(422, "Choose song, progression or concept material")
+    if source.updated_at != data.expected_updated_at:
+        raise HTTPException(409, "Source changed; review the current material before saving")
+    payload = ExercisePayload(
+        **data.model_dump(include={"title", "intent", "tempo", "steps"}),
+        created_from={"artifact_id": source.id, "kind": source.kind, "title": source.title,
+                      "updated_at": source.updated_at, "selection": data.source_selection},
+    )
+    return store.create_artifact(user_id, "exercise", data.title, payload.model_dump())
+
+
+@router.get("/exercises", response_model=list[ExerciseArtifact])
+async def list_exercises(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    return store.list_artifacts(user_id, "exercise")
+
+
+@router.get("/exercises/{artifact_id}", response_model=ExerciseArtifact)
+async def get_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+        if artifact.kind != "exercise":
+            raise NotFoundError("Exercise not found")
+        return artifact
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/exercises/{artifact_id}/open", response_model=Session, status_code=201)
+async def open_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    artifact = await get_exercise(artifact_id, user_id, store)
+    # Same two-write session/branch persistence used elsewhere; no conversation is copied.
+    session = store.create_session(user_id)
+    store.update_branch(session.id, session.branches[0].id, user_id, title=artifact.title,
+                        current_artifact_kind="exercise", current_artifact_id=artifact.id)
+    return store.get_session(session.id, user_id)
