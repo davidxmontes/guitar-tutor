@@ -87,3 +87,11 @@ test('Study browses transient visuals, saves, promotes, and restores semantic st
   await expect(page.getByTestId('concept-study-workspace')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+test('Study surfaces an initial catalog failure', async ({ page }) => {
+  await page.route('**/api/v2/study/catalog', (route) => route.fulfill({ status: 500 }))
+  await page.goto('/v2')
+  await page.getByTestId('v2-start-concept').click()
+
+  await expect(page.getByRole('alert')).toContainText('API error: 500')
+})

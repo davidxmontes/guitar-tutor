@@ -227,6 +227,15 @@ def test_create_concept_study_rejects_unknown_music(client, session_and_branch, 
     assert response.status_code == 422
 
 
+def test_transient_intervals_reject_an_out_of_range_selection(client):
+    response = client.get(
+        "/api/v2/study/visualizations/intervals",
+        params={"root": "A", "selected_interval": 99},
+    )
+
+    assert response.status_code == 422
+
+
 def test_create_concept_study_validates_branch_before_writing(client, store, session_and_branch):
     session_id, _ = session_and_branch
     response = client.post(

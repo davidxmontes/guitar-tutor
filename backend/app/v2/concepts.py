@@ -180,6 +180,8 @@ def build_concept_study(
     root = index_to_note(note_to_index(root))
     if overlay not in {"notes", "intervals"}:
         raise ValueError(f"Unknown overlay: {overlay}")
+    if not 0 <= selected_interval <= 11:
+        raise ValueError("selected_interval must be between 0 and 11")
     if concept_id == "intervals":
         return _build_intervals(root, selected_interval, overlay)
     if concept_id not in get_args(ScaleConceptId):

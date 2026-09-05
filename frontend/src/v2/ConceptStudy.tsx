@@ -154,6 +154,7 @@ export function ConceptStudyPicker({ sessionId, branch, onOpened, onCancel, onWo
     }
   };
 
+  if (error && (!catalog || !payload)) return <p role="alert" className="text-sm text-red-600">{error}</p>;
   if (!catalog || !payload) return <p role="status">Loading Study…</p>;
 
   return (

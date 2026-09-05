@@ -520,4 +520,3 @@ async def create_progression(
     keep the SongStudy branch the user was working in current/active.
     """
     return store.create_artifact(user_id=user_id, kind="progression", title=data.title, payload=data.model_dump())
-    ScaleConceptId,
