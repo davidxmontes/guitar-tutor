@@ -88,7 +88,14 @@ When the answer presents or recommends a chord progression (a sequence of 2+ cho
 
 Each entry: {{"root": str, "quality": str, "positions": [{{"string": int, "fret": int}}] | null}}
 - root: note name, e.g. "A", "Db"
-- quality: chord quality id, e.g. "major", "minor", "dominant7", "major7", "minor7", "diminished"
+- quality: exact chord quality id — must be one of:
+  "major", "minor", "diminished", "augmented",
+  "sus2", "sus4", "7sus4",
+  "dominant7", "major7", "minor7",
+  "9", "maj9", "m9", "dim7", "m7b5",
+  "6", "m6",
+  "add9", "madd9"
+  Use "add9" for Cadd9, Gadd9, etc. Use "major7" only for true maj7 chords (e.g. Cmaj7). Do NOT substitute "major7" for "add9".
 - positions: optional list of specific fret positions for voice leading (string 1=high E, fret 0=open). Only set when you are recommending specific voiced positions for smooth voice leading.
 
 Use progression_chords whenever the answer recommends chords in a sequence. Leave empty when the answer is conceptual with no specific chord sequence.

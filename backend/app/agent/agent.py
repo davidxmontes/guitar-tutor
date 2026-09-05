@@ -103,22 +103,43 @@ class GuitarTutorAgent:
 
     def _build_checkpointer(self, *, backend: str, sqlite_path: str):
         backend_normalized = (backend or "memory").strip().lower()
-        if backend_normalized != "sqlite":
-            return MemorySaver()
 
-        try:
-            import sqlite3
-            from pathlib import Path
-            from langgraph.checkpoint.sqlite import SqliteSaver
+        if backend_normalized == "postgres":
+            try:
+                import psycopg
+                from langgraph.checkpoint.postgres import PostgresSaver
+                from app.config import get_settings
 
-            db_path = Path(sqlite_path).expanduser().resolve()
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            self._sqlite_conn = sqlite3.connect(str(db_path), check_same_thread=False)
-            logger.info("Using SQLite checkpoint backend at %s", db_path)
-            return SqliteSaver(self._sqlite_conn)
-        except Exception as exc:
-            logger.warning("Falling back to in-memory checkpoints (SQLite unavailable): %s", exc)
-            return MemorySaver()
+                db_url = get_settings().supabase_db_url
+                if not db_url:
+                    logger.warning("SUPABASE_DB_URL not set — falling back to in-memory checkpoints")
+                    return MemorySaver()
+
+                conn = psycopg.connect(db_url, autocommit=True)
+                saver = PostgresSaver(conn)
+                saver.setup()
+                logger.info("Using Postgres checkpoint backend")
+                return saver
+            except Exception as exc:
+                logger.warning("Falling back to in-memory checkpoints (Postgres unavailable): %s", exc)
+                return MemorySaver()
+
+        if backend_normalized == "sqlite":
+            try:
+                import sqlite3
+                from pathlib import Path
+                from langgraph.checkpoint.sqlite import SqliteSaver
+
+                db_path = Path(sqlite_path).expanduser().resolve()
+                db_path.parent.mkdir(parents=True, exist_ok=True)
+                self._sqlite_conn = sqlite3.connect(str(db_path), check_same_thread=False)
+                logger.info("Using SQLite checkpoint backend at %s", db_path)
+                return SqliteSaver(self._sqlite_conn)
+            except Exception as exc:
+                logger.warning("Falling back to in-memory checkpoints (SQLite unavailable): %s", exc)
+                return MemorySaver()
+
+        return MemorySaver()
 
     # --- Graph construction ---
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { Fretboard } from './components/Fretboard';
 import { ChordDiagramRow } from './components/ChordDiagram';
 import { ChordPopup } from './components/ChordPopup';
@@ -15,6 +16,7 @@ import type { AgentAction, FretboardHighlightAction, ProgressionSetAction } from
 
 function App() {
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
+  const { getToken, isSignedIn, isLoaded } = useAuth();
 
   // ============================================================================
   // Zustand Store - only what App.tsx needs directly
@@ -75,6 +77,9 @@ function App() {
     progressionChordData,
     progressionChordLoading,
     setProgressionFromAgent,
+    fetchProgressions,
+    fetchFavorites,
+    fetchThreads,
   } = useAppStore();
 
   // ============================================================================
@@ -94,6 +99,20 @@ function App() {
       html.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // ============================================================================
+  // Wire Clerk auth token into API client and fetch user data on sign-in
+  // ============================================================================
+  useEffect(() => {
+    if (isSignedIn) {
+      apiClient.setTokenGetter(() => getToken());
+      fetchProgressions();
+      fetchFavorites();
+      fetchThreads();
+    } else {
+      apiClient.setTokenGetter(null);
+    }
+  }, [isSignedIn, getToken, fetchProgressions, fetchFavorites, fetchThreads]);
 
   // ============================================================================
   // Fetch available tunings on mount
@@ -503,6 +522,8 @@ function App() {
       }
     }
   }, [sendMessage, executeAgentActions, handleChatChordClick]);
+
+  if (!isLoaded) return null;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>

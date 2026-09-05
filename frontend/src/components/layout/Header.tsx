@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { SignInButton, UserButton, useUser } from '@clerk/clerk-react';
 import headstockSrc from '../../assets/white_headstock.png';
 import { useAppStore } from '../../stores';
 import type { GuitarType } from '../../utils/audio';
 
 export function Header() {
+  const { isSignedIn } = useUser();
   const {
     appMode,
     setAppMode,
@@ -272,6 +274,23 @@ export function Header() {
               </div>
             )}
           </div>
+
+          {/* Auth */}
+          {isSignedIn ? (
+            <UserButton />
+          ) : (
+            <SignInButton mode="modal">
+              <button
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+                style={{
+                  backgroundColor: 'var(--accent-600)',
+                  color: 'white',
+                }}
+              >
+                Sign in
+              </button>
+            </SignInButton>
+          )}
 
           {/* Dark Mode Toggle */}
           <button

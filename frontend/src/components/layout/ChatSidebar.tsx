@@ -25,8 +25,15 @@ export function ChatSidebar({
     selectedChordQuality,
     selectedRoot,
     selectedMode,
+    threads,
+    loadThread,
   } = useAppStore();
   const streamingStatus = useStreamingStatus();
+
+  const handleNewThread = () => {
+    const newId = `thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    loadThread(newId);
+  };
 
   return (
     <aside
@@ -48,6 +55,9 @@ export function ChatSidebar({
         selectedChordQuality={selectedChordQuality}
         selectedScaleRoot={selectedRoot}
         selectedScaleMode={selectedMode}
+        threads={threads}
+        onSelectThread={loadThread}
+        onNewThread={handleNewThread}
       />
       {/* Resize Handle */}
       {!chatCollapsed && (

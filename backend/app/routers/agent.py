@@ -4,12 +4,15 @@ Agent API routes — synchronous and SSE streaming endpoints.
 
 import json
 import logging
+from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.agent.agent import ThreadNotFoundError, get_agent
 from app.agent.parser import build_api_requests_from_response
+from app.dependencies.auth import get_optional_user
 from app.models.agent import (
     AgentRequest,
     AgentResponse,
@@ -18,6 +21,7 @@ from app.models.agent import (
     ScaleApiRequest,
     ResumeRequest,
 )
+from app.services import user_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -92,12 +96,39 @@ def _ui_context_dict(obj) -> dict:
     return obj.model_dump(exclude_none=True)
 
 
+# --- Shared helpers ---
+
+def _try_upsert_thread(
+    user_id: str,
+    thread_id: str,
+    user_message: Optional[str],
+    ai_answer: str,
+) -> None:
+    """Upsert thread metadata. Swallows errors to avoid failing the chat response."""
+    try:
+        title = (user_message or ai_answer)[:80] if (user_message or ai_answer) else "Conversation"
+        preview = ai_answer[:120] if ai_answer else None
+        user_service.upsert_thread(
+            user_id=user_id,
+            thread_id=thread_id,
+            title=title,
+            preview=preview,
+            last_message_at=datetime.now(timezone.utc),
+        )
+    except Exception as exc:
+        logger.warning("Failed to upsert conversation thread: %s", exc)
+
+
 # --- Synchronous endpoints ---
 
 @router.post("/agent/chat", response_model=AgentResponse)
-async def chat_with_agent(request: AgentRequest):
+async def chat_with_agent(
+    request: AgentRequest,
+    user_id: Optional[str] = Depends(get_optional_user),
+):
     """Chat with the Guitar Tutor agent."""
-    logger.info(f"Chat request: thread={request.thread_id}, message={request.message[:80]}")
+    scoped_thread_id = f"{user_id}:{request.thread_id}" if user_id else request.thread_id
+    logger.info(f"Chat request: thread={scoped_thread_id}, message={request.message[:80]}")
     agent = get_agent()
     try:
         result = agent.chat(
@@ -106,7 +137,7 @@ async def chat_with_agent(request: AgentRequest):
             bootstrap_history=_bootstrap_to_dicts(request),
             require_existing_thread=request.require_existing_thread,
             ui_context=_ui_context_dict(request.ui_context),
-            thread_id=request.thread_id,
+            thread_id=scoped_thread_id,
         )
     except ThreadNotFoundError as exc:
         raise HTTPException(
@@ -117,7 +148,10 @@ async def chat_with_agent(request: AgentRequest):
                 "thread_id": exc.thread_id,
             },
         )
-    return _build_agent_response(result)
+    response = _build_agent_response(result)
+    if user_id and not result.get("interrupted"):
+        _try_upsert_thread(user_id, request.thread_id, request.message, response.answer)
+    return response
 
 
 @router.get("/agent/health")
@@ -133,14 +167,18 @@ async def agent_health():
 
 
 @router.post("/agent/resume", response_model=AgentResponse)
-async def resume_agent_chat(request: ResumeRequest):
+async def resume_agent_chat(
+    request: ResumeRequest,
+    user_id: Optional[str] = Depends(get_optional_user),
+):
     """Resume agent chat after user answers a clarifying question."""
-    logger.info(f"Resume request: thread={request.thread_id}")
+    scoped_thread_id = f"{user_id}:{request.thread_id}" if user_id else request.thread_id
+    logger.info(f"Resume request: thread={scoped_thread_id}")
     agent = get_agent()
     try:
         result = agent.resume_chat(
             human_response=request.response,
-            thread_id=request.thread_id,
+            thread_id=scoped_thread_id,
             ui_context=_ui_context_dict(request.ui_context),
         )
     except ThreadNotFoundError as exc:
@@ -152,26 +190,34 @@ async def resume_agent_chat(request: ResumeRequest):
                 "thread_id": exc.thread_id,
             },
         )
-    return _build_agent_response(result)
+    response = _build_agent_response(result)
+    if user_id and not result.get("interrupted"):
+        _try_upsert_thread(user_id, request.thread_id, None, response.answer)
+    return response
 
 
 # --- SSE streaming endpoints ---
 
 @router.post("/agent/chat/stream")
-async def stream_chat_with_agent(request: AgentRequest):
+async def stream_chat_with_agent(
+    request: AgentRequest,
+    user_id: Optional[str] = Depends(get_optional_user),
+):
     """SSE streaming endpoint for agent chat."""
-    logger.info(f"Stream chat request: thread={request.thread_id}, message={request.message[:80]}")
+    scoped_thread_id = f"{user_id}:{request.thread_id}" if user_id else request.thread_id
+    logger.info(f"Stream chat request: thread={scoped_thread_id}, message={request.message[:80]}")
 
     def event_generator():
         try:
             agent = get_agent()
+            last_answer = None
             for event in agent.stream_chat(
                 message=request.message,
                 conversation_history=_history_to_dicts(request),
                 bootstrap_history=_bootstrap_to_dicts(request),
                 require_existing_thread=request.require_existing_thread,
                 ui_context=_ui_context_dict(request.ui_context),
-                thread_id=request.thread_id,
+                thread_id=scoped_thread_id,
             ):
                 event_type = event["event"]
                 data = event["data"]
@@ -179,9 +225,12 @@ async def stream_chat_with_agent(request: AgentRequest):
                 # Enrich the final answer with parsed API requests
                 if event_type == "answer":
                     data["api_requests"] = _serialize_api_requests(data)
+                    last_answer = data.get("answer", "")
 
                 yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
+            if user_id and last_answer is not None:
+                _try_upsert_thread(user_id, request.thread_id, request.message, last_answer)
             yield "event: done\ndata: {}\n\n"
         except ThreadNotFoundError as exc:
             payload = {
@@ -202,26 +251,34 @@ async def stream_chat_with_agent(request: AgentRequest):
 
 
 @router.post("/agent/resume/stream")
-async def stream_resume_agent_chat(request: ResumeRequest):
+async def stream_resume_agent_chat(
+    request: ResumeRequest,
+    user_id: Optional[str] = Depends(get_optional_user),
+):
     """SSE streaming endpoint for resuming agent chat."""
-    logger.info(f"Stream resume request: thread={request.thread_id}")
+    scoped_thread_id = f"{user_id}:{request.thread_id}" if user_id else request.thread_id
+    logger.info(f"Stream resume request: thread={scoped_thread_id}")
 
     def event_generator():
         try:
             agent = get_agent()
+            last_answer = None
             for event in agent.stream_resume(
                 human_response=request.response,
                 ui_context=_ui_context_dict(request.ui_context),
-                thread_id=request.thread_id,
+                thread_id=scoped_thread_id,
             ):
                 event_type = event["event"]
                 data = event["data"]
 
                 if event_type == "answer":
                     data["api_requests"] = _serialize_api_requests(data)
+                    last_answer = data.get("answer", "")
 
                 yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
+            if user_id and last_answer is not None:
+                _try_upsert_thread(user_id, request.thread_id, None, last_answer)
             yield "event: done\ndata: {}\n\n"
         except ThreadNotFoundError as exc:
             payload = {

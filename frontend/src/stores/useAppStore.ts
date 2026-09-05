@@ -15,6 +15,9 @@ import type {
   TabBeat,
   TabMeasure,
   TuningInfo,
+  SavedProgression,
+  FavoriteSong,
+  ConversationThread,
 } from '../types';
 import type { ChatMessage, UiContext, FretboardHighlightGroup } from '../types/chat';
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
@@ -316,9 +319,30 @@ interface ProgressionSlice {
 }
 
 // ============================================================================
+// User Slice
+// ============================================================================
+interface UserSlice {
+  savedProgressions: SavedProgression[];
+  favorites: FavoriteSong[];
+  favoriteIds: Set<number>;
+  threads: ConversationThread[];
+  userDataLoading: boolean;
+
+  fetchProgressions: () => Promise<void>;
+  saveCurrentProgression: (name: string) => Promise<void>;
+  deleteProgression: (id: string) => Promise<void>;
+
+  fetchFavorites: () => Promise<void>;
+  toggleFavorite: (song: { songsterr_song_id: number; title: string; artist: string }) => Promise<void>;
+
+  fetchThreads: () => Promise<void>;
+  loadThread: (threadId: string) => void;
+}
+
+// ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice;
+type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice & UserSlice;
 
 // ============================================================================
 // Store Implementation
@@ -1218,6 +1242,102 @@ export const useAppStore = create<AppStore>((set, get) => ({
     progressionChordData: null,
     progressionChordLoading: false,
   }),
+
+  // --------------------------------------------------------------------------
+  // User Slice
+  // --------------------------------------------------------------------------
+  savedProgressions: [],
+  favorites: [],
+  favoriteIds: new Set<number>(),
+  threads: [],
+  userDataLoading: false,
+
+  fetchProgressions: async () => {
+    set({ userDataLoading: true });
+    try {
+      const progressions = await apiClient.getProgressions();
+      set({ savedProgressions: progressions });
+    } catch (err) {
+      console.error('Failed to fetch progressions:', err);
+    } finally {
+      set({ userDataLoading: false });
+    }
+  },
+
+  saveCurrentProgression: async (name: string) => {
+    const state = get();
+    const data = {
+      name,
+      key_root: state.progressionKeyRoot,
+      key_mode: state.progressionKeyMode,
+      slots: state.progressionSlots,
+    };
+    const saved = await apiClient.saveProgression(data);
+    set((s) => ({ savedProgressions: [saved, ...s.savedProgressions] }));
+  },
+
+  deleteProgression: async (id: string) => {
+    await apiClient.deleteProgression(id);
+    set((s) => ({ savedProgressions: s.savedProgressions.filter((p) => p.id !== id) }));
+  },
+
+  fetchFavorites: async () => {
+    try {
+      const favorites = await apiClient.getFavorites();
+      const ids = new Set(favorites.map((f) => f.songsterr_song_id));
+      set({ favorites, favoriteIds: ids });
+    } catch (err) {
+      console.error('Failed to fetch favorites:', err);
+    }
+  },
+
+  toggleFavorite: async (song) => {
+    const { favoriteIds } = get();
+    const isFav = favoriteIds.has(song.songsterr_song_id);
+    const newIds = new Set(favoriteIds);
+    if (isFav) {
+      newIds.delete(song.songsterr_song_id);
+      set({ favoriteIds: newIds });
+      try {
+        await apiClient.removeFavorite(song.songsterr_song_id);
+        set((s) => ({
+          favorites: s.favorites.filter((f) => f.songsterr_song_id !== song.songsterr_song_id),
+        }));
+      } catch {
+        const revertIds = new Set(get().favoriteIds);
+        revertIds.add(song.songsterr_song_id);
+        set({ favoriteIds: revertIds });
+      }
+    } else {
+      newIds.add(song.songsterr_song_id);
+      set({ favoriteIds: newIds });
+      try {
+        const fav = await apiClient.addFavorite(song);
+        set((s) => ({ favorites: [fav, ...s.favorites] }));
+      } catch {
+        const revertIds = new Set(get().favoriteIds);
+        revertIds.delete(song.songsterr_song_id);
+        set({ favoriteIds: revertIds });
+      }
+    }
+  },
+
+  fetchThreads: async () => {
+    try {
+      const threads = await apiClient.getThreads();
+      set({ threads });
+    } catch (err) {
+      console.error('Failed to fetch threads:', err);
+    }
+  },
+
+  loadThread: (threadId: string) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_THREAD, threadId);
+      localStorage.removeItem(STORAGE_KEY_MESSAGES);
+    } catch { /* ignore */ }
+    set({ messages: [], threadId });
+  },
 }));
 
 // ============================================================================
@@ -1310,3 +1430,8 @@ export const useProgressionKey = () =>
       mode: state.progressionKeyMode,
     })),
   );
+
+// User selectors
+export const useSavedProgressions = () => useAppStore((s) => s.savedProgressions);
+export const useFavoriteIds = () => useAppStore((s) => s.favoriteIds);
+export const useThreads = () => useAppStore((s) => s.threads);
