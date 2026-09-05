@@ -274,6 +274,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
   onBranchChange: (branch: V2Branch) => void;
   onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
 }) {
+  const [saving, setSaving] = useState(false);
   const [artifact, setArtifact] = useState<ConceptStudyArtifact | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showIntervals, setShowIntervals] = useState(false);
@@ -328,13 +329,17 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
   if (error) return <p role="alert">{error}</p>;
   if (!artifact) return <p role="status">Loading ConceptStudy…</p>;
   const payload = artifact.payload;
-  if (payload.visualization === 'circle') return <SavedCircle initial={payload} sessionId={sessionId} branch={branch} onOpened={onOpened} />;
+  if (payload.visualization === 'circle') return <SavedCircle artifact={artifact} onSaved={setArtifact} initial={payload} sessionId={sessionId} branch={branch} onOpened={onOpened} />;
   const displayedPayload = payload.visualization === 'chord' ? { ...payload, selected_voicing: selectedVoicing } : focusedCagedPayload ?? payload;
 
   return (
     <div data-testid="concept-study-workspace" className="flex flex-col xl:flex-row gap-4 items-start">
       <main className="flex-1 min-w-0 space-y-5 w-full">
         <header className="flex flex-wrap justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--border-primary)' }}><div><p className="text-[10px] uppercase tracking-wide font-bold" style={{ color: 'var(--accent-700)' }}>ConceptStudy · saved</p><h2 className="text-2xl font-bold">{payload.display_name}</h2><p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{payload.explanation}</p></div><div className="flex gap-2"><button type="button" data-testid="concept-hear" onClick={() => hearConcept(displayedPayload)} className="rounded-lg border px-3 py-2 text-sm">Hear</button>{!practiceState && <button type="button" data-testid="concept-enter-practice" onClick={() => setPractice({ type: 'concept_practice', tempo: 80 })} className="rounded-lg px-3 py-2 text-sm text-white" style={{ background: 'var(--accent-600)' }}>Practice</button>}</div></header>
+        <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={saving} onClick={async () => {
+          setSaving(true);
+          try { setArtifact(await apiClient.saveConceptSelection(artifact.id, { ...displayedPayload, overlay: showIntervals ? 'intervals' : 'notes', ...(displayedPayload.visualization === 'scale' ? { comparison_id: comparisonId as ScaleConceptId | null } : {}) }, artifact.updated_at)); } catch (err) { setError(String(err)); } finally { setSaving(false); }
+        }}>{saving ? 'Saving…' : 'Save study selection'}</button>
         <ExerciseComposer sourceId={artifact.id} revision={artifact.updated_at} selection={{ selected_voicing: selectedVoicing, selected_region: focusedCagedPayload?.selected_region }} steps={conceptDrill(displayedPayload)} />
         {practiceState && <section data-testid="concept-practice" className="rounded-xl border p-4" style={{ background: '#fff6db', borderColor: '#edd48d', color: '#422006' }}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Contextual practice</h3><p className="text-sm">{tempo} BPM · one ascending pass</p></div><div className="flex gap-2"><button type="button" onClick={() => setPractice({ ...practiceState, tempo: Math.max(40, tempo - 5) })} className="rounded border px-3 py-2" aria-label="Slow practice by 5 BPM">−5</button><button type="button" data-testid="concept-practice-faster" onClick={() => setPractice({ ...practiceState, tempo: Math.min(200, tempo + 5) })} className="rounded border px-3 py-2" aria-label="Speed practice by 5 BPM">+5</button><button type="button" data-testid="concept-practice-start" onClick={() => playScale(payload.positions, 60 / tempo)} className="rounded px-3 py-2 text-white" style={{ background: '#1b1e23' }}>Start</button><button type="button" data-testid="concept-exit-practice" onClick={() => setPractice(null)} className="rounded border px-3 py-2">Exit</button></div></div></section>}
         <div className="flex gap-2"><button type="button" aria-pressed={!showIntervals} onClick={() => setShowIntervals(false)} className="rounded-full border px-3 py-1.5 text-sm">Notes</button><button type="button" aria-pressed={showIntervals} onClick={() => setShowIntervals(true)} className="rounded-full border px-3 py-1.5 text-sm">Intervals</button></div>
@@ -347,7 +352,7 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
 }
 
 
-function SavedCircle({ initial, sessionId, branch, onOpened }: { initial: CircleStudyPayload; sessionId: string; branch: V2Branch; onOpened: (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => void }) {
+function SavedCircle({ artifact, onSaved, initial, sessionId, branch, onOpened }: { artifact: ConceptStudyArtifact; onSaved: (artifact: ConceptStudyArtifact) => void; initial: CircleStudyPayload; sessionId: string; branch: V2Branch; onOpened: (opened: { branch: V2Branch; source_branch?: V2Branch | null }) => void }) {
   const [state, setState] = useState<CircleState>({ root: initial.root, selected_chord: initial.selected_chord, selected_sequence: initial.selected_sequence, overlay: initial.overlay });
   const [payload, setPayload] = useState(initial);
   const [focus, setFocus] = useState<TutorFocus | null>(null);
@@ -356,7 +361,10 @@ function SavedCircle({ initial, sessionId, branch, onOpened }: { initial: Circle
   useEffect(() => { let live = true; apiClient.getStudyVisualization({ ...state, concept_id: 'circle' }).then(next => { if (live) { setPayload(next as CircleStudyPayload); setError(false); } }).catch(() => { if (live) setError(true); }); return () => { live = false; }; }, [state]);
   return <div className="flex flex-col gap-4 xl:flex-row"><main className="min-w-0 flex-1 space-y-4"><h2 className="text-2xl font-bold">{payload.display_name}</h2>
     <button className="min-h-11 rounded-lg bg-[var(--accent-700)] px-3 py-2 text-white disabled:opacity-50" disabled={busy} onClick={async () => { setBusy(true); try { onOpened(await apiClient.exploreCircle(sessionId, branch.id, state)); } catch { setError(true); } finally { setBusy(false); } }}>Work on this progression</button>
-    {error && <p role="alert">Could not load or open this harmony.</p>}
+    <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" disabled={busy || payload.root !== state.root || payload.selected_chord !== state.selected_chord || payload.selected_sequence !== state.selected_sequence} onClick={async () => {
+      setBusy(true); try { onSaved(await apiClient.saveConceptSelection(artifact.id, payload, artifact.updated_at)); } catch { setError(true); } finally { setBusy(false); }
+    }}>Save study selection</button>
+    {error && <p role="alert">Could not load, save or open this harmony.</p>}
     <Visualization payload={payload} relationship={null} showIntervals={state.overlay === 'intervals'} tutorFocus={focus} onCircle={patch => setState(current => ({ ...current, ...patch }))} />
     </main><TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id} onFocusChange={setFocus} beforeSend={() => rememberCircle(sessionId, branch, state).then(() => {})} /></div>;
 }

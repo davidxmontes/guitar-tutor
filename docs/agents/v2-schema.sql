@@ -38,6 +38,13 @@ ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS closed boolean NOT NULL DEFAULT
 
 -- Artifact CRUD: common columns + a JSON payload, strictly typed by each
 -- concrete artifact route at the application layer.
+-- The store reserves payload._library for saved_at and linear prior snapshots.
+-- It strips this metadata from musical payloads and tutor context on reads;
+-- snapshots and current state update atomically using updated_at as a CAS token.
+-- No DDL change is needed for this metadata. Legacy non-song artifacts already
+-- came from explicit Save/Explore/Work on this promotions and remain in My Stuff;
+-- raw SongStudy loads enter My Stuff only after an explicit Save.
+-- History begins when this feature is deployed; old versions are not fabricated.
 CREATE TABLE v2_artifacts (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   clerk_user_id text NOT NULL,

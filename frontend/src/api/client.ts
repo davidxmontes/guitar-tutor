@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
+import type { Artifact, ArtifactRevision, LibraryItem, CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -311,6 +311,30 @@ class ApiClient {
   }
 
   // --- V2: SongStudy artifact ---
+
+  async listLibrary(): Promise<LibraryItem[]> {
+    return this.fetch('/v2/library');
+  }
+
+  async openLibraryArtifact(id: string): Promise<V2Session> {
+    return this.fetch(`/v2/library/${id}/open`, { method: 'POST' });
+  }
+
+  async artifactRevisions(id: string): Promise<ArtifactRevision[]> {
+    return this.fetch(`/v2/library/${id}/revisions`);
+  }
+
+  async restoreArtifact(id: string, revision: string, expected: string): Promise<Artifact> {
+    return this.fetch(`/v2/library/${id}/restore`, { method: 'POST', body: JSON.stringify({ revision, expected_updated_at: expected }) });
+  }
+
+  async saveArtifact(id: string, expected: string): Promise<Artifact> {
+    return this.fetch(`/v2/library/${id}/save`, { method: 'POST', body: JSON.stringify({ expected_updated_at: expected }) });
+  }
+
+  async saveConceptSelection(id: string, payload: ConceptStudyPayload, expected: string): Promise<ConceptStudyArtifact> {
+    return this.fetch(`/v2/concept-studies/${id}`, { method: 'PATCH', body: JSON.stringify({ payload, expected_updated_at: expected }) });
+  }
 
   async createSongStudy(data: CreateSongStudyRequest): Promise<SongStudyArtifact> {
     return this.fetch<SongStudyArtifact>('/v2/song-studies', {

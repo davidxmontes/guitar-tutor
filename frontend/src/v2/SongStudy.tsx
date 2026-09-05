@@ -1,3 +1,4 @@
+import { SaveToLibrary } from './MyStuff';
 import { ExerciseComposer } from './ExerciseComposer';
 import { songDrill } from './exerciseMaterial';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -974,6 +975,7 @@ function SongStudyWorkspace({
         )}
       </div>
 
+      <SaveToLibrary artifact={songStudy} onSaved={async () => { onSongStudyChange(await apiClient.getSongStudy(songStudy.id)); }} />
       {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection} steps={songDrill(payload, selection, focus)} />}
       <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}

@@ -268,12 +268,14 @@ def test_update_artifact_updates_only_the_owned_row():
     client.table.return_value = chain
 
     store = SupabaseV2Store(client)
-    artifact = store.update_artifact("art-1", user_id="user_1", payload=row["payload"])
+    artifact = store.update_artifact("art-1", user_id="user_1", payload={**row["payload"], "chordpro": "[D]Tomorrow"})
 
     assert artifact.payload["chordpro"] == "[Em]Today"
     assert artifact.updated_at == "t1"
     update = chain.update.call_args.args[0]
-    assert update["payload"] == row["payload"]
+    assert update["payload"]["chordpro"] == "[D]Tomorrow"
+    assert update["payload"]["_library"]["saved_at"] is None
+    chain.eq.assert_any_call("updated_at", "t1")
     assert update["updated_at"] != "t0"
     chain.eq.assert_any_call("id", "art-1")
     chain.eq.assert_any_call("clerk_user_id", "user_1")
@@ -362,3 +364,25 @@ def test_conditional_artifact_update_rejects_concurrent_change():
         SupabaseV2Store(client).update_artifact("p1", "user_1", {"chords": []}, "t1")
     assert ("updated_at", "t1") in [call.args for call in write.eq.call_args_list]
     assert ("clerk_user_id", "user_1") in [call.args for call in write.eq.call_args_list]
+
+
+def test_revision_metadata_survives_store_reconstruction_without_leaking_into_payload():
+    from copy import deepcopy
+    from types import SimpleNamespace
+    client = MagicMock()
+    row = {"id": "p1", "clerk_user_id": "user_1", "kind": "progression", "title": "Idea", "payload": {"chords": ["D"]}, "created_at": "t0", "updated_at": "t1"}
+    read = _chain([deepcopy(row)])
+    write = _chain([])
+    def persist():
+        row.update(write.update.call_args.args[0])
+        return SimpleNamespace(data=[deepcopy(row)])
+    write.execute.side_effect = persist
+    client.table.side_effect = [read, write]
+    SupabaseV2Store(client).update_artifact('p1', 'user_1', {'chords': ['E']}, 't1')
+    client.table.side_effect = None
+    client.table.return_value = _chain([row])
+    restored = SupabaseV2Store(client).get_artifact('p1', 'user_1')
+    assert restored.payload == {'chords': ['E']}
+    assert restored.revisions[0].payload == {'chords': ['D']}
+    assert restored.saved_at == 't0'
+    assert 'revisions' not in restored.model_dump()

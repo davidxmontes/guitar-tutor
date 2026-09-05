@@ -9,11 +9,12 @@ Two backends, selected by Settings.v2_storage_backend:
 """
 
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Optional, Protocol
 
-from app.v2.models import ARTIFACT_KINDS, Artifact, Branch, Session, TutorMessage
+from app.v2.models import ARTIFACT_KINDS, ArtifactRevision, Artifact, Branch, Session, TutorMessage
 
 
 class RevisionConflictError(Exception):
@@ -37,16 +38,30 @@ def _validate_artifact_kind(kind: Optional[str]) -> None:
         raise ValueError(f"Unknown artifact kind: {kind!r}. Supported: {ARTIFACT_KINDS}")
 
 
+def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifact:
+    if payload == artifact.payload and (not save or artifact.saved_at):
+        return artifact
+    now = _now()
+    revisions = list(artifact.revisions)
+    if artifact.saved_at and payload != artifact.payload:
+        revisions.append(ArtifactRevision(revision=artifact.updated_at, payload=deepcopy(artifact.payload)))
+    # ponytail: snapshots share the artifact JSON row for atomic compare-and-swap.
+    # Move history to a separate table if large songs or long histories make rows costly.
+    return artifact.model_copy(update={"payload": deepcopy(payload), "updated_at": now,
+        "title": payload.get("display_name", artifact.title) if artifact.kind == "concept_study" else artifact.title,
+        "saved_at": artifact.saved_at or (now if save else None), "revisions": revisions})
+
+
 class V2Store(Protocol):
     def create_session(self, user_id: str) -> Session: ...
     def get_session(self, session_id: str, user_id: str) -> Session: ...
     def list_sessions(self, user_id: str) -> list[Session]: ...
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch: ...
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
-    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact: ...
+    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
-    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None) -> Artifact: ...
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
 
@@ -112,14 +127,15 @@ class InMemoryV2Store:
 
         raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
 
-    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact:
+    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact:
         now = _now()
         artifact = Artifact(
             id=_new_id(),
             user_id=user_id,
             kind=kind,
             title=title,
-            payload=payload,
+            payload=deepcopy(payload),
+            saved_at=now if saved else None,
             created_at=now,
             updated_at=now,
         )
@@ -139,11 +155,11 @@ class InMemoryV2Store:
         ]
         return sorted(artifacts, key=lambda artifact: artifact.created_at, reverse=True)
 
-    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None) -> Artifact:
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact:
         artifact = self.get_artifact(artifact_id, user_id)
         if expected_updated_at is not None and artifact.updated_at != expected_updated_at:
-            raise RevisionConflictError("Progression changed; request fresh voicings before applying")
-        updated = artifact.model_copy(update={"payload": payload, "updated_at": _now()})
+            raise RevisionConflictError("Artifact changed; reload before saving or restoring")
+        updated = _revised(artifact, payload, save)
         self._artifacts[artifact_id] = updated
         return updated
 
@@ -292,15 +308,17 @@ class SupabaseV2Store:
             user_id=row["clerk_user_id"],
             kind=row["kind"],
             title=row["title"],
-            payload=row.get("payload") or {},
+            payload={k: v for k, v in (row.get("payload") or {}).items() if k != "_library"},
+            saved_at=(row.get("payload") or {}).get("_library", {"saved_at": row["created_at"] if row["kind"] != "song_study" else None}).get("saved_at"),
+            revisions=(row.get("payload") or {}).get("_library", {}).get("revisions", []),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
 
-    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any]) -> Artifact:
+    def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact:
         row = (
             self._client.table("v2_artifacts")
-            .insert({"clerk_user_id": user_id, "kind": kind, "title": title, "payload": payload})
+            .insert({"clerk_user_id": user_id, "kind": kind, "title": title, "payload": {**payload, "_library": {"saved_at": _now() if saved else None, "revisions": []}}})
             .execute()
             .data[0]
         )
@@ -326,21 +344,23 @@ class SupabaseV2Store:
         rows = query.order("created_at", desc=True).execute().data
         return [self._row_to_artifact(row) for row in rows]
 
-    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None) -> Artifact:
-        self.get_artifact(artifact_id, user_id)
+    def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact:
+        artifact = self.get_artifact(artifact_id, user_id)
+        if expected_updated_at is not None and artifact.updated_at != expected_updated_at:
+            raise RevisionConflictError("Artifact changed; reload before saving or restoring")
+        updated = _revised(artifact, payload, save)
+        if updated is artifact:
+            return artifact
         query = (
             self._client.table("v2_artifacts")
-            .update({"payload": payload, "updated_at": _now()})
+            .update({"title": updated.title, "payload": {**updated.payload, "_library": {"saved_at": updated.saved_at, "revisions": [r.model_dump() for r in updated.revisions]}}, "updated_at": updated.updated_at})
             .eq("id", artifact_id)
             .eq("clerk_user_id", user_id)
         )
-        if expected_updated_at is not None:
-            query = query.eq("updated_at", expected_updated_at)
+        query = query.eq("updated_at", artifact.updated_at)
         rows = query.execute().data
         if not rows:
-            if expected_updated_at is not None:
-                raise RevisionConflictError("Progression changed; request fresh voicings before applying")
-            raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
+            raise RevisionConflictError("Artifact changed; reload before saving or restoring")
         return self._row_to_artifact(rows[0])
 
     def _row_to_tutor_message(self, row: dict[str, Any]) -> TutorMessage:

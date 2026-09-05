@@ -1,26 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { ExerciseArtifact, TutorFocus, V2Branch, V2Session } from '../types/v2';
+import type { ExerciseArtifact, TutorFocus, V2Branch } from '../types/v2';
 import { PracticeControls } from './PracticeControls';
 import { usePractice } from './usePractice';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { VoicingComparison } from './VoicingComparison';
 import { TutorChat } from './TutorChat';
-
-export function SavedExercises({ onOpen }: { onOpen: (session: V2Session) => void }) {
-  const [items, setItems] = useState<ExerciseArtifact[]>([]);
-  const [error, setError] = useState(false);
-  const [opening, setOpening] = useState(false);
-  useEffect(() => { let live = true; apiClient.listExercises().then(items => { if (live) setItems(items); }).catch(() => { if (live) setError(true); }); return () => { live = false; }; }, []);
-  return <section className="my-5 space-y-3"><h2 className="text-lg font-bold">Saved exercises</h2>
-    {error && <p role="alert">Could not open saved exercises. Try again from Home.</p>}
-    {!items.length && !error && <p className="text-sm text-[var(--text-secondary)]">Create a deliberate drill from a song, progression or saved concept.</p>}
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{items.map(item => <button key={item.id} aria-label={`Open ${item.title}`} disabled={opening} className="min-h-20 rounded-xl border border-[var(--border-primary)] bg-[var(--card-bg)] p-4 text-left disabled:opacity-50" onClick={async () => {
-      setOpening(true); setError(false);
-      try { onOpen(await apiClient.openExercise(item.id)); } catch { setError(true); } finally { setOpening(false); }
-    }}><strong className="block">{item.title}</strong><span className="text-sm text-[var(--text-secondary)]">{item.payload.intent}</span></button>)}</div>
-  </section>;
-}
 
 export function ExerciseWorkspace({ sessionId, branch }: { sessionId: string; branch: V2Branch }) {
   const [artifact, setArtifact] = useState<ExerciseArtifact | null>(null);
