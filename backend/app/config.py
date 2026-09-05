@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     # Clerk
     clerk_issuer_url: Optional[str] = None  # e.g. https://your-app.clerk.accounts.dev
+    auth_dev_bypass: bool = False  # local/test only — skips Clerk verification, returns a fixed dev user
 
     # OTEL / Langfuse
     otel_exporter_otlp_endpoint: Optional[str] = None  # e.g. https://cloud.langfuse.com/api/public/otel/v1/traces
