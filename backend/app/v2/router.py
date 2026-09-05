@@ -632,6 +632,8 @@ async def apply_progression_voicing(
         artifact = store.get_artifact(artifact_id, user_id)
         if artifact.kind != "progression":
             raise NotFoundError("Not a Progression artifact")
+        if data.expected_updated_at != artifact.updated_at:
+            raise RevisionConflictError("Progression changed; request fresh voicings before applying")
         # Validate the replacement at the request boundary; preserve legacy slots.
         chords = list(artifact.payload["chords"])
         if data.chord_index >= len(chords):
