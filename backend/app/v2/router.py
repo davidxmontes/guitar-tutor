@@ -8,7 +8,7 @@ user). Exercise saves copy deliberate drills independently of their source.
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings, get_settings
@@ -522,6 +522,9 @@ async def create_tutor_turn(
         inspection = data.inspection
         source = next((facts.get(group, {}).get(inspection.source_id) for group in ('scales','chords','voicings','transitions') if inspection.source_id in facts.get(group, {})), None)
         valid = source and (inspection.key in {note['pitch_class'] for note in source.get('notes', source.get('positions', []))} if inspection.kind == 'pitch' else inspection.key == inspection.source_id and inspection.source_id in facts.get(inspection.kind + 's', {}))
+        if inspection.kind == 'step':
+            progression = facts.get('progressions', {}).get(inspection.source_id)
+            valid = progression and isinstance(inspection.key, int) and inspection.key < len(progression['steps'])
         if not valid:
             raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select again.")
 
@@ -1000,5 +1003,7 @@ async def restore_workspace_snapshot(session_id: str, branch_id: str, data: Undo
 async def transform_progression(data: ProgressionAction, user_id: str = Depends(get_current_user)):
     try:
         return edit_progression(data)
+    except ValidationError as exc:
+        raise HTTPException(422, 'That change exceeds fret, tuning or workspace bounds. Try a smaller distance or another fingering.') from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

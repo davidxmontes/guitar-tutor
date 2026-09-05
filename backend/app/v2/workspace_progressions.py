@@ -5,7 +5,7 @@ from pydantic import Field
 from app.music.chords import CHORD_INTERVALS
 from app.v2.workspace import (
     Block, Chord, ConceptWorkspace, Identifier, Key, Pitch, Placement, Position, Progression,
-    ProgressionStep, Row, StrictModel, ViewSettings, Voicing, pitch_class, resolve_workspace, resolve_voicing, spelled_notes,
+    ProgressionStep, Row, StrictModel, ViewSettings, Voicing, pitch_class, resolve_workspace, resolve_voicing, spelled_notes, harmonic_function,
 )
 
 
@@ -25,11 +25,6 @@ def reference_voicing(chord: Chord, tuning: list[int]) -> Voicing:
     standard = [64,59,55,50,45,40]
     positions = [Position(string=s, fret=f + shift + standard[s-1] - tuning[s-1]) for s, f in CAGED_POSITIONS[chord.quality][shape]]
     return Voicing(id=uuid4().hex, chord_id=chord.id, label=f'{chord.root} {chord.quality} voicing', tuning=tuning, positions=positions)
-
-
-def harmonic_function(chord: dict, notes: list[dict]) -> str:
-    index = next((i for i, n in enumerate(notes) if n['pitch_class'] == pitch_class(chord['root'])), None)
-    return ['I','ii','iii','IV','V','vi','vii°'][index] if index is not None and chord['quality'] == ['major','minor','minor','major','major','minor','diminished'][index] else 'outside key'
 
 
 def resolve_progressions(workspace: ConceptWorkspace, facts: dict) -> dict:
@@ -123,7 +118,7 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
         if request.semitones is None:
             raise ValueError('Choose a signed semitone distance')
         key = entities[progression.key_id]
-        new_root = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'][(pitch_class(key.root) + request.semitones) % 12]
+        new_root = key.root if request.semitones % 12 == 0 else ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'][(pitch_class(key.root) + request.semitones) % 12]
         letter_shift = ('CDEFGAB'.index(new_root[0]) - 'CDEFGAB'.index(key.root[0])) % 7
         ids = {id for step in progression.steps for id in (step.chord_id, step.voicing_id) if id}
         for other in draft.entities:
@@ -135,6 +130,11 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
                 entity.root = spelled_notes(entity.root, [request.semitones], [str(letter_shift + 1)])[0]['note']
             else:
                 entity.positions = [Position(string=p.string, fret=p.fret + request.semitones) for p in entity.positions]
+        for id in ids:
+            entity = entities[id]
+            if isinstance(entity, Voicing) and entity.chord_id in ids:
+                chord = entities[entity.chord_id]
+                entity.label = f'{chord.root} {chord.quality} voicing'
         key.root = new_root
     result = ConceptWorkspace.model_validate(draft.model_dump())
     resolve_workspace(result)

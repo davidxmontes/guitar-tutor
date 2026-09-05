@@ -1,7 +1,7 @@
 import type { ConceptWorkspace, Inspection, ResolvedWorkspace, WorkspaceNote } from '../types/conceptWorkspace';
 
 export function workspaceLabel(id: string, facts: ResolvedWorkspace) {
-  return facts.scales[id]?.label ?? facts.voicings[id]?.label ?? facts.chords[id]?.label ?? facts.keys[id]?.label ?? facts.transitions[id]?.label ?? 'Scale comparison';
+  return facts.scales[id]?.label ?? facts.voicings[id]?.label ?? facts.chords[id]?.label ?? facts.keys[id]?.label ?? facts.transitions[id]?.label ?? facts.progressions[id]?.label ?? 'Scale comparison';
 }
 
 export function isInspected(id: string, notes: WorkspaceNote[], inspection: Inspection | null, workspace: ConceptWorkspace) {

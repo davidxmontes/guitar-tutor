@@ -287,9 +287,7 @@ def resolve_physical(workspace: ConceptWorkspace) -> dict:
         functions = []
         for v in (first, second):
             chord = chords.get(v['chord_id'])
-            degree = next((i for i, n in enumerate(key_notes) if chord and n['pitch_class'] == pitch_class(chord['root'])), None)
-            diatonic = degree is not None and chord['quality'] == ['major','minor','minor','major','major','minor','diminished'][degree]
-            functions.append(['I','ii','iii','IV','V','vi','vii°'][degree] if diatonic else 'outside key' if chord else 'unnamed')
+            functions.append(harmonic_function(chord, key_notes) if chord else 'unnamed')
         transitions[relation.id] = {'label': f"{first['label']} → {second['label']}", 'functions': functions,
             'shared': sorted(a & b), 'removed': sorted(a - b), 'added': sorted(b - a), 'movement': movement,
             'explanation': 'D builds expectation; G feels like home in G major. Hear the two shapes, then inspect what stays or moves.' if functions == ['V','I'] and keys[relation.key_id]['root'] == 'G' else 'Hear these shapes in the key context; inspect each string to see what stays or moves.'}
@@ -306,3 +304,7 @@ def resolve_voicing(entity: Voicing, chords: dict) -> dict:
         note = notes.get(pitch) or {'note': ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'][pitch], 'degree':'—', 'pitch_class':pitch, 'offset':0}
         positions.append(p.model_dump() | note | {'midi': midi})
     return {'label': entity.label, 'chord_id': entity.chord_id, 'tuning': entity.tuning, 'positions': positions}
+
+def harmonic_function(chord: dict, notes: list[dict]) -> str:
+    index = next((i for i, n in enumerate(notes) if n['pitch_class'] == pitch_class(chord['root'])), None)
+    return ['I','ii','iii','IV','V','vi','vii°'][index] if index is not None and chord['quality'] == ['major','minor','minor','major','major','minor','diminished'][index] else 'outside key'

@@ -9,7 +9,7 @@ from app.v2.workspace import Block, Compare, ConceptWorkspace, Identifier, Row, 
 
 class InspectionTarget(StrictModel):
     source_id: Identifier
-    kind: Literal['pitch', 'chord', 'voicing', 'transition']
+    kind: Literal['pitch', 'chord', 'voicing', 'transition', 'step']
     key: Annotated[int, Field(ge=0, le=11, strict=True)] | Identifier
 
 
