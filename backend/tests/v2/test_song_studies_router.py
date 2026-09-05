@@ -37,7 +37,7 @@ def _revision(track_index=0, tuning=None):
 TAB_DATA = {
     "tuning": [64, 59, 55, 50, 45, 40],
     "measures": [
-        {"voices": [{"beats": [{"notes": [{"string": 0, "fret": 3}]}]}]},
+        {"voices": [{"beats": [{"notes": [{"string": 0, "fret": 3}, {"string": 1, "fret": 3}]}]}]},
         {"voices": [{"beats": [{"notes": [{"string": 1, "fret": 0}]}]}]},
         {"voices": [{"beats": [{"notes": [{"string": 2, "fret": 2}]}]}]},
     ],
@@ -363,6 +363,8 @@ def test_failed_ai_enrichment_leaves_raw_sources_usable(get_chordpro, client, se
     assert response.status_code == 422
     payload = client.get(f"/api/v2/song-studies/{raw['id']}").json()["payload"]
     assert payload["tab_data"] == raw["payload"]["tab_data"]
+    assert payload["shape_events"] == raw["payload"]["shape_events"]
+    assert payload["shape_events"]
     assert payload["chordpro"] == get_chordpro.return_value
     assert payload["enrichment"] is None
 
