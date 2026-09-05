@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
-from app.v2.models import Artifact, ArtifactKind, Branch, Session, SongStudyPayload, SongStudyTrack
+from app.v2.models import Artifact, ArtifactKind, Branch, Session, SongStudyPayload, SongStudyTrack, TutorMessage
 from app.v2.store import NotFoundError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -255,3 +255,18 @@ async def create_tutor_turn(
     )
 
     return response
+
+
+@router.get("/tutor/threads/{tutor_thread_id}/messages", response_model=list[TutorMessage])
+async def list_tutor_thread_messages(
+    tutor_thread_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    """Prior tutor messages for a Branch's thread (frontend history load on
+    mount/branch change) — thin read over the existing store method, same
+    auth/ownership/404 pattern as every other route above."""
+    try:
+        return store.list_tutor_messages(tutor_thread_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
