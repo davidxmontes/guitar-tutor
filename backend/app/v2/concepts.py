@@ -212,14 +212,40 @@ def _build_intervals(root: str, selected_interval: int, overlay: str) -> Interva
     )
 
 
-def _chord_relationship(root: str, quality: ChordQualityId) -> ConceptRelationship:
-    notes = _notes(get_chord_notes(root, quality), CHORD_INTERVALS[quality]["names"])
+def _chord_relationship(
+    root: str,
+    primary_quality: ChordQualityId,
+    comparison_quality: ChordQualityId,
+) -> ConceptRelationship:
+    primary_notes = _notes(
+        get_chord_notes(root, primary_quality),
+        CHORD_INTERVALS[primary_quality]["names"],
+    )
+    comparison_notes = _notes(
+        get_chord_notes(root, comparison_quality),
+        CHORD_INTERVALS[comparison_quality]["names"],
+    )
+    primary_note_names = {note.note for note in primary_notes}
+    comparison_note_names = {note.note for note in comparison_notes}
+    added = [note for note in comparison_notes if note.note not in primary_note_names]
+    removed = [note for note in primary_notes if note.note not in comparison_note_names]
+    changes = []
+    if added:
+        changes.append(
+            f"adds {', '.join(note.note for note in added)} "
+            f"({', '.join(note.interval for note in added)})"
+        )
+    if removed:
+        changes.append(
+            f"removes {', '.join(note.note for note in removed)} "
+            f"({', '.join(note.interval for note in removed)})"
+        )
     return ConceptRelationship(
-        id=quality,
-        label=f"Compare with {root} {CHORD_NAMES[quality].lower()}",
-        explanation=f"{CHORD_NAMES[quality]} uses {', '.join(note.interval for note in notes)}.",
-        notes=notes,
-        positions=_positions(notes),
+        id=comparison_quality,
+        label=f"Compare with {root} {CHORD_NAMES[comparison_quality].lower()}",
+        explanation=f"{CHORD_NAMES[comparison_quality]} {' and '.join(changes)}.",
+        notes=added,
+        positions=_positions(added),
     )
 
 
@@ -245,9 +271,11 @@ def _build_chord(
         )
         for voicing in resolved.voicings
     ]
-    if selected_voicing >= len(voicings):
+    if not 0 <= selected_voicing < len(voicings):
         raise ValueError(f"selected_voicing must be between 0 and {len(voicings) - 1}")
     available_comparison = comparison_quality or DEFAULT_CHORD_COMPARISONS[quality]
+    if available_comparison == quality:
+        raise ValueError("A chord cannot be compared with itself")
     return ChordStudyPayload(
         concept_id=concept_id,
         quality=quality,
@@ -262,7 +290,7 @@ def _build_chord(
         positions=_positions(notes),
         voicings=voicings,
         selected_voicing=selected_voicing,
-        relationships=[_chord_relationship(root, available_comparison)],
+        relationships=[_chord_relationship(root, quality, available_comparison)],
         comparison_quality=comparison_quality,
     )
 

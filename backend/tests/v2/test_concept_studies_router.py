@@ -130,6 +130,16 @@ def test_chord_diagrams_receive_one_canonical_position_per_string():
     )
 
 
+def test_chord_comparison_describes_only_the_meaningful_tone_delta():
+    study = build_concept_study("A", "chord_minor", comparison_quality="major")
+
+    assert [(note.note, note.interval) for note in study.relationships[0].notes] == [("Db", "3")]
+    assert study.relationships[0].explanation == "Major triad adds Db (3) and removes C (b3)."
+
+    with pytest.raises(ValueError, match="A chord cannot be compared with itself"):
+        build_concept_study("A", "chord_minor", comparison_quality="minor")
+
+
 def test_every_catalog_concept_has_a_validated_visualization():
     for group in get_study_catalog().groups:
         for concept in group.concepts:
@@ -264,6 +274,16 @@ def test_transient_chord_selection_creates_no_artifact(client, store, session_an
     assert response.json()["selected_voicing"] == 2
     assert response.json()["comparison_quality"] == "minor"
     assert store._artifacts == {}
+
+
+def test_transient_chord_rejects_negative_voicing_index(client):
+    response = client.get(
+        "/api/v2/study/visualizations/chord_minor",
+        params={"root": "A", "selected_voicing": -1},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "selected_voicing must be between 0 and 3"
 
 
 def test_saved_concept_studies_can_be_listed_and_reopened_without_copying_layout_state(client, session_and_branch):
