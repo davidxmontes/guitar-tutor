@@ -78,6 +78,7 @@ async function openSourceSong(page: import('@playwright/test').Page) {
   await page.getByTestId('song-study-search-input').fill('Little Wing')
   await page.getByTestId('song-study-search-input').press('Enter')
   await page.getByTestId('song-study-track-option').click()
+  await expect(page.getByTestId('song-study-title')).toContainText('Little Wing')
 
   const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
   const sourceBranchId = (await page.getByTestId('v2-active-branch').textContent())!.replace('Branch ', '')

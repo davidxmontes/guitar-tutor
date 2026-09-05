@@ -1243,7 +1243,12 @@ export function SongStudyPanel({
     return (
       <div>
         {loadError && <p role="alert">{loadError}</p>}
-        <SongStudySearch sessionId={sessionId} branchId={branch.id} onCreated={handleCreated} />
+        <div className="flex flex-col items-start gap-4 xl:flex-row">
+          <div className="min-w-0 flex-1"><SongStudySearch sessionId={sessionId} branchId={branch.id} onCreated={handleCreated} /></div>
+          <TutorChat sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id}
+            onFocusChange={() => {}} onWorkOnConcept={onWorkOnConcept} onExploreProgression={onExploreProgression}
+            emptyMessage="Ask about guitar, explore an idea, or find a song. No saved work needed." />
+        </div>
       </div>
     );
   }

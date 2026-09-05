@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useAppAuth } from '../../lib/authBypass';
 import { useAppStore } from '../../stores';
 import { ProgressionSlotCard } from './ProgressionSlotCard';
 import { SaveProgressionModal } from './SaveProgressionModal';
@@ -25,7 +25,7 @@ export function ProgressionTimeline() {
     fetchProgressions,
     setProgressionFromAgent,
   } = useAppStore();
-  const { isSignedIn } = useUser();
+  const { isSignedIn } = useAppAuth();
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showSavedList, setShowSavedList] = useState(false);
