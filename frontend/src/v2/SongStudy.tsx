@@ -9,6 +9,7 @@ import { SongShapeStrip } from './SongShapeStrip';
 import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
 import { beatDuration } from './practiceTiming';
+import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
 import type { ConceptSuggestion, ProgressionPayload, SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
@@ -19,6 +20,11 @@ const DEFAULT_WINDOW_SIZE = 4;
 // extends past this when an actual active/upcoming note needs a higher
 // fret, so a real note is never clipped out of view.
 const FRESH_FRETBOARD_FRET_COUNT = 12;
+
+// Standard guitar neck inlay positions — single dots at 3/5/7/9, double dot
+// at 12 (octave), then the same pattern repeats shifted an octave up.
+const SINGLE_INLAY_FRETS = new Set([3, 5, 7, 9, 15, 17, 19, 21]);
+const DOUBLE_INLAY_FRETS = new Set([12, 24]);
 
 interface FretNote {
   string: number; // 1-based, 1 = highest string
@@ -132,6 +138,9 @@ function SongStudyFretboard({
   activeNotes,
   upcomingNotes,
   tutorFocus,
+  // Fills the middle panel's width by default instead of a small fixed cap —
+  // pass a smaller value (e.g. the rail layout's 760) only to compare sizes.
+  maxWidth = '100%',
 }: {
   tuningMidi: number[];
   tuningNotes: string[];
@@ -142,6 +151,9 @@ function SongStudyFretboard({
   // beat-derived active/upcoming layers above and cleared/replaced on the
   // next turn by the parent (never persisted to Branch state here).
   tutorFocus?: TutorFocus | null;
+  // Layout-comparison toggle (rail variant) passes a smaller pixel value to
+  // see whether less width is worth it (kept as a size comparison knob).
+  maxWidth?: number | string;
 }) {
   const tutorFocusNotes = useMemo(() => tutorFocus?.notes ?? [], [tutorFocus]);
 
@@ -164,7 +176,8 @@ function SongStudyFretboard({
         borderRadius: 12,
         overflowX: 'auto',
         padding: 6,
-        maxWidth: 560,
+        width: '100%',
+        maxWidth,
       }}
     >
       <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${frets.length},minmax(22px,1fr))` }}>
@@ -206,12 +219,17 @@ function SongStudyFretboard({
                     position: 'relative',
                   }}
                 >
+                  <span
+                    aria-hidden="true"
+                    style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px solid #56606b99' }}
+                  />
                   {label && (
                     <span
                       data-testid={isActive ? 'fretboard-active-note' : isUpcoming ? 'fretboard-upcoming-note' : 'fretboard-tutor-focus-note-label'}
                       data-string={stringNumber}
                       data-fret={fret}
                       style={{
+                        position: 'relative',
                         width: 16,
                         height: 16,
                         borderRadius: '50%',
@@ -251,6 +269,24 @@ function SongStudyFretboard({
           </div>
         );
       })}
+      <div
+        aria-hidden="true"
+        style={{ display: 'grid', gridTemplateColumns: `28px repeat(${frets.length},minmax(22px,1fr))`, height: 10 }}
+      >
+        <span />
+        {frets.map((fret) => (
+          <div key={fret} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+            {DOUBLE_INLAY_FRETS.has(fret) ? (
+              <>
+                <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#4a545f' }} />
+                <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#4a545f' }} />
+              </>
+            ) : SINGLE_INLAY_FRETS.has(fret) ? (
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#4a545f' }} />
+            ) : null}
+          </div>
+        ))}
+      </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: '#8d98a5' }}>
         <span>● active beat</span>
         <span>○ upcoming beat</span>
@@ -266,11 +302,12 @@ function SongStudyFretboard({
   );
 }
 
-// --- Overview: section-grouped, compressed measure map. Click a measure tile
-// to jump, shift-click to pick a range, click a section header to jump to
-// its first measure. Kept deliberately small/scrollable (mock #overview
-// callout 1: "~15% of the screen, not the dominant widget") so it stays a
-// secondary navigation strip regardless of song length. ---
+// --- Overview: section-grouped, compressed measure map. Sticky vertical
+// rail (see SongStudyWorkspace) — click a section header to jump to its
+// first measure, click a measure tile to jump there, shift-click to pick a
+// range. Only the section containing the focused measure expands its
+// measure grid; everything else collapses to just its header so the whole
+// song's sections fit in the sidebar without dominating it. ---
 
 function MeasureOverviewStrip({
   sections,
@@ -302,16 +339,19 @@ function MeasureOverviewStrip({
     <div
       data-testid="song-study-overview"
       aria-label="Song overview"
-      style={{ display: 'flex', gap: 6, overflowX: 'auto', overflowY: 'auto', maxHeight: 160, paddingBottom: 2 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 'calc(100vh - 140px)' }}
     >
-      {sections.map((section) => (
+      {sections.map((section) => {
+        const isCurrentSection = focusMeasureIndex >= section.startIndex && focusMeasureIndex <= section.endIndex;
+        const collapsed = !isCurrentSection;
+        return (
         <div
           key={section.startIndex}
           data-testid="song-study-overview-section"
           style={{
             flex: '0 0 auto',
-            minWidth: 176,
             border: '1px solid var(--border-primary)',
+            borderColor: isCurrentSection ? 'var(--accent-500)' : 'var(--border-primary)',
             borderRadius: 8,
             backgroundColor: 'var(--card-bg)',
             overflow: 'hidden',
@@ -331,14 +371,15 @@ function MeasureOverviewStrip({
               letterSpacing: '0.04em',
               padding: '4px 6px',
               border: 0,
-              backgroundColor: 'var(--bg-secondary)',
-              borderBottom: '1px solid var(--border-primary)',
+              backgroundColor: isCurrentSection ? 'var(--accent-50, var(--bg-secondary))' : 'var(--bg-secondary)',
+              borderBottom: collapsed ? 0 : '1px solid var(--border-primary)',
               color: 'var(--text-secondary)',
               cursor: 'pointer',
             }}
           >
             {section.label}
           </button>
+          {!collapsed && (
           <div
             role="list"
             aria-label={section.label}
@@ -388,8 +429,10 @@ function MeasureOverviewStrip({
               },
             )}
           </div>
+          )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -557,6 +600,9 @@ function SongStudyWorkspace({
   );
   const [selection, setSelection] = useState<SongSelection | null>(() => (branch.selection as SongSelection | null) ?? null);
   const [showFullTab, setShowFullTab] = useState(false);
+  // Shape strip's per-card diagrams default off — the active shape's
+  // diagram surfaces next to the fretboard instead (see activeShapeEvent).
+  const [diagramsMinimized, setDiagramsMinimized] = useState(true);
   const [persistError, setPersistError] = useState<string | null>(null);
   // Ephemeral tutor attention (ticket #13) — deliberately NOT persisted to
   // Branch.selection/focus (that's user-driven navigation state, above).
@@ -816,6 +862,20 @@ function SongStudyWorkspace({
       .filter((event) => event.sources.length > 0);
   }, [payload.shape_events, selection, focus.measureIndex, focus.windowSize, measureCount]);
 
+  // The shape strip defaults to compact cards (no per-card diagram); this is
+  // the one diagram shown instead, next to the fretboard, for whichever
+  // shape the active beat belongs to.
+  const activeShapeEvent = useMemo(() => {
+    if (!activeBeat) return null;
+    return (
+      shapeEvents.find((event) =>
+        event.sources.some(
+          (source) => source.measure_index === activeBeat.measureIndex && source.beat_index === activeBeat.beatIndex,
+        ),
+      ) ?? null
+    );
+  }, [shapeEvents, activeBeat]);
+
   // Measures spanned by a range selection — highlighted wherever they render
   // (Full Tab rows, and the focused detail window), so a selection made in
   // one view stays visible when the other view is showing the same measures.
@@ -922,21 +982,10 @@ function SongStudyWorkspace({
         visibleEndMeasure={detailEndIndex + 1}
       /></div>
 
-      {!showFullTab || practice.active ? (
-        // Overview + Focus: the compressed section map is a secondary strip
-        // above; the focused 2-4 measures are the dominant area below it
-        // (mock #overview callouts 1-2), with the fretboard as a small
-        // supporting element underneath (callout 3).
-        <>
-          {!practice.focused && <MeasureOverviewStrip
-            sections={overviewSections}
-            focusMeasureIndex={displayMeasureIndex}
-            selection={selection}
-            onJump={jumpToMeasure}
-            onRangeSelect={selectRange}
-            enrichedRanges={payload.enrichment?.ranges ?? []}
-          />}
-
+      {!showFullTab || practice.active ? (() => {
+        // Local consts so the same focused-passage/shapes/fretboard JSX
+        // renders inside the sticky rail layout below.
+        const focusedPassageBlock = (
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
@@ -990,36 +1039,86 @@ function SongStudyWorkspace({
               tuningNotes={tuningNotes ?? undefined}
             />
           </div>
+        );
 
+        const shapeStripBlock = (
           <SongShapeStrip
             events={shapeEvents}
             selectedMeasureIndex={activeBeat?.measureIndex}
             selectedBeatIndex={activeBeat?.beatIndex}
             tuningAvailable={Boolean(trackTuningMidi)}
             onSelect={selectShape}
+            minimized={diagramsMinimized}
+            onToggleMinimized={() => setDiagramsMinimized((v) => !v)}
           />
+        );
 
-          <div>
-            <p
-              className="text-[10px] font-bold uppercase tracking-wide mb-1"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Fretboard · relationship view
-            </p>
-            {trackTuningMidi && tuningNotes ? (
-              <SongStudyFretboard
-                tuningMidi={trackTuningMidi}
-                tuningNotes={tuningNotes}
-                activeNotes={activeNotes}
-                upcomingNotes={upcomingNotes}
-                tutorFocus={practice.active ? null : tutorFocus}
-              />
-            ) : (
-              <p role="status">No tuning data for this track — showing tab only.</p>
+        const fretboardBlock = () => (
+          <div className="flex gap-3 items-start flex-wrap">
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-[10px] font-bold uppercase tracking-wide mb-1"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Fretboard · relationship view
+              </p>
+              {trackTuningMidi && tuningNotes ? (
+                <SongStudyFretboard
+                  tuningMidi={trackTuningMidi}
+                  tuningNotes={tuningNotes}
+                  activeNotes={activeNotes}
+                  upcomingNotes={upcomingNotes}
+                  tutorFocus={practice.active ? null : tutorFocus}
+                />
+              ) : (
+                <p role="status">No tuning data for this track — showing tab only.</p>
+              )}
+            </div>
+
+            {diagramsMinimized && activeShapeEvent && (
+              <div
+                data-testid="active-shape-diagram"
+                className="rounded-lg border p-2 flex flex-col items-center gap-1"
+                style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
+              >
+                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {activeShapeEvent.label ?? 'Active shape'}
+                </span>
+                <PhysicalChordDiagram
+                  positions={activeShapeEvent.positions}
+                  tuning={activeShapeEvent.tuning}
+                  label={activeShapeEvent.label ?? undefined}
+                />
+              </div>
             )}
           </div>
-        </>
-      ) : (
+        );
+
+        // Sticky vertical section rail + a fretboard that fills the middle
+        // column's width, with Tutor as a matching sticky panel on the right
+        // (see TutorChat) — replaced the old horizontal-strip layout.
+        return (
+          <div data-testid="song-study-overview-focus" className="flex gap-4 items-start">
+            {!practice.focused && (
+              <div style={{ width: 200, flexShrink: 0, position: 'sticky', top: 12 }}>
+                <MeasureOverviewStrip
+                  sections={overviewSections}
+                  focusMeasureIndex={displayMeasureIndex}
+                  selection={selection}
+                  onJump={jumpToMeasure}
+                  onRangeSelect={selectRange}
+                  enrichedRanges={payload.enrichment?.ranges ?? []}
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              {focusedPassageBlock}
+              {shapeStripBlock}
+              {fretboardBlock()}
+            </div>
+          </div>
+        );
+      })() : (
         // Full Tab: dense, continuous whole-song reader. No permanent
         // fretboard here (mock #full: "remove the permanent fretboard...
         // give the tab the width"). A selection surfaces a dock with a

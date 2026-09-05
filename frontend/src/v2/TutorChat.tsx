@@ -68,6 +68,10 @@ export function TutorChat({
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // Local UI preference, not persisted — Tutor stays visible by default
+  // (spec #10: "artifacts do not obstruct spontaneous questions"), but a
+  // manual collapse lets the user reclaim its width temporarily.
+  const [collapsed, setCollapsed] = useState(false);
 
   // Load history once per thread (mount, or a different SongStudy/branch
   // opened) — and drop any ephemeral tutor focus from the previous thread,
@@ -124,15 +128,57 @@ export function TutorChat({
     }
   };
 
+  if (collapsed) {
+    return (
+      <div
+        data-testid="tutor-chat"
+        data-collapsed="true"
+        className="flex flex-col items-center gap-2 rounded-lg border p-2 xl:flex-none xl:sticky xl:top-3"
+        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
+      >
+        <button
+          type="button"
+          data-testid="tutor-chat-expand"
+          aria-expanded={false}
+          onClick={() => setCollapsed(false)}
+          className="text-xs font-bold"
+          style={{ color: 'var(--text-secondary)' }}
+          title="Expand Tutor"
+        >
+          ◂
+        </button>
+        <p
+          className="text-[10px] font-bold uppercase tracking-wide"
+          style={{ color: 'var(--text-muted)', writingMode: 'vertical-rl' }}
+        >
+          Tutor
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       data-testid="tutor-chat"
-      className="flex min-w-0 flex-col gap-3 rounded-lg border p-3 w-full xl:w-[300px] xl:flex-none"
+      className="flex min-w-0 flex-col gap-3 rounded-lg border p-3 w-full xl:w-[300px] xl:flex-none xl:sticky xl:top-3 xl:max-h-[calc(100vh-24px)]"
       style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
     >
-      <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        Tutor
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+          Tutor
+        </p>
+        <button
+          type="button"
+          data-testid="tutor-chat-collapse"
+          aria-expanded={true}
+          onClick={() => setCollapsed(true)}
+          className="text-xs font-bold"
+          style={{ color: 'var(--text-secondary)' }}
+          title="Collapse Tutor"
+        >
+          ▸
+        </button>
+      </div>
 
       {historyError && (
         <p role="alert" data-testid="tutor-chat-history-error" className="text-xs" style={{ color: '#ef4444' }}>
@@ -143,7 +189,7 @@ export function TutorChat({
       <div
         data-testid="tutor-chat-messages"
         className="flex flex-col gap-2 overflow-y-auto"
-        style={{ flex: '1 1 auto', minHeight: 160, maxHeight: 420 }}
+        style={{ flex: '1 1 auto', minHeight: 160 }}
       >
         {loadingHistory && (
           <p role="status" className="text-xs" style={{ color: 'var(--text-secondary)' }}>
