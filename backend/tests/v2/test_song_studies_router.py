@@ -91,6 +91,37 @@ def test_create_song_study_returns_full_track_measures_immediately(
 
 @patch("app.v2.router.songsterr.get_tab_data", new_callable=AsyncMock)
 @patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock)
+def test_create_song_study_includes_shapes_projected_with_track_tuning(
+    get_song_revision, get_tab_data, client, session_and_branch,
+):
+    session_id, branch_id = session_and_branch
+    drop_d = [64, 59, 55, 50, 45, 38]
+    get_song_revision.return_value = _revision(tuning=drop_d)
+    get_tab_data.return_value = {
+        "tuning": [64, 59, 55, 50, 45, 40],
+        "measures": [
+            {"voices": [{"beats": [{"notes": [{"string": 0, "fret": 3}, {"string": 1, "fret": 3}]}]}]},
+        ],
+    }
+
+    response = client.post(
+        "/api/v2/song-studies",
+        json={"session_id": session_id, "branch_id": branch_id, "song_id": 7, "track_index": 0},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["payload"]["shape_events"] == [
+        {
+            "label": None,
+            "positions": [{"string": 1, "fret": 3}, {"string": 2, "fret": 3}],
+            "tuning": drop_d,
+            "sources": [{"measure_index": 0, "beat_index": 0}],
+        }
+    ]
+
+
+@patch("app.v2.router.songsterr.get_tab_data", new_callable=AsyncMock)
+@patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock)
 def test_create_song_study_sets_it_as_current_artifact_on_branch(
     get_song_revision, get_tab_data, client, session_and_branch,
 ):
