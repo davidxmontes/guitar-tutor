@@ -135,6 +135,7 @@ export type ConceptId =
   | 'blues'
   | 'intervals'
   | 'caged'
+  | 'circle'
   | ChordConceptId;
 
 export type ChordQualityId =
@@ -143,7 +144,7 @@ export type ChordQualityId =
   | '7sus4' | '6' | 'm6' | '9' | 'm9' | 'maj9';
 
 export type ChordConceptId = `chord_${ChordQualityId}`;
-export type ScaleConceptId = Exclude<ConceptId, 'intervals' | 'caged' | ChordConceptId>;
+export type ScaleConceptId = Exclude<ConceptId, 'intervals' | 'caged' | 'circle' | ChordConceptId>;
 export type CagedQualityId = 'major' | 'minor';
 export type CagedShapeId = 'C' | 'A' | 'G' | 'E' | 'D';
 
@@ -234,13 +235,33 @@ export interface CagedStudyPayload extends ConceptPayloadBase {
   overlap_positions: ConceptPosition[];
 }
 
-export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload;
+export interface CircleState {
+  root: string;
+  selected_chord: number;
+  selected_sequence: 'primary' | 'pop' | 'turnaround';
+  overlay: 'notes' | 'intervals';
+}
+export interface CircleStudyPayload extends ConceptPayloadBase, CircleState {
+  visualization: 'circle';
+  concept_id: 'circle';
+  relative_minor: string;
+  accidentals: string[];
+  neighbors: string[];
+  neighbor_keys: string[];
+  keys: { root: string; relative_minor: string }[];
+  chords: { numeral: string; chord: ProgressionChord; notes: ConceptNote[] }[];
+  sequences: { id: CircleState['selected_sequence']; label: string; degrees: number[] }[];
+  notes: ConceptNote[];
+  positions: ConceptPosition[];
+}
+
+export type ConceptStudyPayload = ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload | CircleStudyPayload;
 
 export interface StudyCatalogConcept {
   id: ConceptId;
   display_name: string;
   description: string;
-  visualization: 'scale' | 'interval' | 'chord' | 'caged';
+  visualization: 'scale' | 'interval' | 'chord' | 'caged' | 'circle';
 }
 
 export interface StudyCatalogGroup {
@@ -272,6 +293,8 @@ export interface CreateConceptStudyRequest {
   caged_quality?: CagedQualityId;
   selected_region?: CagedShapeId;
   comparison_region?: CagedShapeId | null;
+  selected_chord?: number;
+  selected_sequence?: CircleState['selected_sequence'];
   promotion: 'save' | 'work_on_this';
 }
 
@@ -286,6 +309,8 @@ export interface StudyVisualizationRequest {
   caged_quality?: CagedQualityId;
   selected_region?: CagedShapeId;
   comparison_region?: CagedShapeId | null;
+  selected_chord?: number;
+  selected_sequence?: CircleState['selected_sequence'];
 }
 
 export interface OpenConceptStudyResponse {
@@ -381,6 +406,7 @@ export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
 };
 
 export interface OpenProgressionResponse {
+  source_branch?: V2Branch | null;
   artifact: ProgressionArtifact;
   branch: V2Branch;
 }

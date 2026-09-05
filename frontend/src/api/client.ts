@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
+import type { CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -338,7 +338,13 @@ class ApiClient {
     if (data.caged_quality) params.set('caged_quality', data.caged_quality);
     if (data.selected_region) params.set('selected_region', data.selected_region);
     if (data.comparison_region) params.set('comparison_region', data.comparison_region);
+    if (data.selected_chord !== undefined) params.set('selected_chord', String(data.selected_chord));
+    if (data.selected_sequence) params.set('selected_sequence', data.selected_sequence);
     return this.fetch<ConceptStudyPayload>(`/v2/study/visualizations/${data.concept_id}?${params}`);
+  }
+
+  async exploreCircle(session_id: string, branch_id: string, state: CircleState): Promise<OpenProgressionResponse> {
+    return this.fetch('/v2/study/circle/explore', { method: 'POST', body: JSON.stringify({ session_id, branch_id, ...state }) });
   }
 
   async createConceptStudy(data: CreateConceptStudyRequest): Promise<OpenConceptStudyResponse> {

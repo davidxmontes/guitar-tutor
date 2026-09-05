@@ -333,6 +333,7 @@ class CircleStudyPayload(ConceptPayloadBase):
     relative_minor: str
     accidentals: list[str]
     neighbors: list[str]
+    neighbor_keys: list[str]
     keys: list[CircleKey]
     chords: list[CircleChord]
     sequences: list[CircleSequence]

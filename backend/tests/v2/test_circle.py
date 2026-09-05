@@ -44,3 +44,27 @@ def test_circle_promotion_preserves_source_and_opens_editable_progression(client
     assert changed.status_code == 200
     assert client.get(f'/api/v2/sessions/{sid}').json()['branches'][0]['recent_ideas'] == source['recent_ideas']
     assert client.post('/api/v2/study/circle/explore', json={'session_id': 'foreign', 'branch_id': bid, 'root': 'C'}).status_code == 404
+
+
+def test_circle_save_and_tutor_context_include_semantic_selection(client, session_and_branch):
+    from app.v2.models import Branch
+    from app.v2.tutor.prompt import volatile_turn_message
+    sid, bid = session_and_branch
+    state = {'root': 'Eb', 'selected_chord': 5, 'selected_sequence': 'turnaround', 'overlay': 'intervals'}
+    saved = client.post('/api/v2/concept-studies', json={'session_id': sid, 'branch_id': bid, 'concept_id': 'circle', 'promotion': 'save', **state})
+    assert saved.status_code == 201, saved.text
+    payload = saved.json()['artifact']['payload']
+    assert all(payload[key] == value for key, value in state.items())
+    branch = Branch.model_validate(client.get(f'/api/v2/sessions/{sid}').json()['branches'][0])
+    branch.recent_ideas = [{'type': 'circle_study', **state}]
+    context = volatile_turn_message(branch=branch, artifact=None, user_message='Explain the relationship').content
+    assert 'Current transient Circle Study' in context
+    assert '"relative_minor":"C"' in context
+    assert '"selected_sequence":"turnaround"' in context
+
+
+def test_circle_neighbor_keys_follow_wheel_across_enharmonic_boundary():
+    from app.v2.concepts import CIRCLE_KEYS
+    for i, key in enumerate(CIRCLE_KEYS):
+        study = build_concept_study(key, 'circle')
+        assert study.neighbor_keys == [CIRCLE_KEYS[(i - 1) % 12], CIRCLE_KEYS[(i + 1) % 12]]

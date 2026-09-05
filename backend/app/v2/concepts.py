@@ -470,6 +470,7 @@ def _build_circle(root: str, selected_chord: int, selected_sequence: str, overla
     return CircleStudyPayload(root=root, display_name=f"{root} major harmony", explanation="Choose a key, inspect its chords, then work on a sequence.",
         tuning=TUNING, fret_start=FRET_START, fret_end=FRET_END, overlay=overlay,
         relative_minor=scale[5], accidentals=[note for note in order if note in scale], neighbors=[scale[3],scale[4]],
+        neighbor_keys=[index_to_note(note_to_index(root) + offset) for offset in (5, 7)],
         keys=[CircleKey(root=key, relative_minor=_major_spelling(key)[5]) for key in CIRCLE_KEYS], chords=chords,
         sequences=[CircleSequence(id="primary", label="I–IV–V", degrees=[0,3,4]), CircleSequence(id="pop", label="I–V–vi–IV", degrees=[0,4,5,3]), CircleSequence(id="turnaround", label="ii–V–I", degrees=[1,4,0])],
         selected_chord=selected_chord, selected_sequence=selected_sequence, notes=selected.notes, positions=positions)
