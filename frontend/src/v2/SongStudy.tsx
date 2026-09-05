@@ -281,30 +281,55 @@ function SongStudySearch({
   };
 
   return (
-    <div data-testid="song-study-search">
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>
+    <div data-testid="song-study-search" className="space-y-4">
+      <form onSubmit={handleSearch} className="flex gap-2">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search for a song or artist..."
           data-testid="song-study-search-input"
+          className="flex-1 px-4 py-2.5 rounded-lg border text-sm outline-none transition-colors"
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-primary)',
+          }}
         />
-        <button type="submit" disabled={searching || query.trim().length < 2}>
+        <button
+          type="submit"
+          disabled={searching || query.trim().length < 2}
+          className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 hover:bg-[var(--accent-600)]"
+          style={{ backgroundColor: 'var(--accent-500)', color: 'white' }}
+        >
           {searching ? 'Searching...' : 'Search'}
         </button>
       </form>
 
-      {searchError && <p role="alert">{searchError}</p>}
-      {createError && <p role="alert">{createError}</p>}
+      {searchError && (
+        <p role="alert" className="px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+          {searchError}
+        </p>
+      )}
+      {createError && (
+        <p role="alert" className="px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+          {createError}
+        </p>
+      )}
 
-      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="space-y-2">
         {results.map((song) => (
-          <div key={song.song_id} data-testid="song-study-result">
-            <div>
-              <strong>{song.title}</strong> — {song.artist}
+          <div
+            key={song.song_id}
+            data-testid="song-study-result"
+            className="px-4 py-3 rounded-lg border"
+            style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
+          >
+            <div className="text-sm">
+              <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{song.title}</span>
+              <span style={{ color: 'var(--text-muted)' }}> — {song.artist}</span>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <div className="flex flex-wrap gap-1.5 mt-2">
               {song.tracks.map((track) => {
                 const key = `${song.song_id}:${track.index}`;
                 return (
@@ -314,6 +339,12 @@ function SongStudySearch({
                     data-testid="song-study-track-option"
                     disabled={creatingKey === key}
                     onClick={() => handleSelectTrack(song.song_id, track.index)}
+                    className="px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderColor: 'var(--border-primary)',
+                      color: 'var(--text-primary)',
+                    }}
                   >
                     {creatingKey === key ? 'Loading...' : track.name || track.instrument}
                   </button>
@@ -447,32 +478,68 @@ function SongStudyWorkspace({
 
   if (measureCount === 0) {
     return (
-      <div data-testid="song-study-workspace">
-        <p>No tab measures found for this track.</p>
-        <button type="button" onClick={onSearchAgain}>Search another song</button>
+      <div data-testid="song-study-workspace" className="space-y-3">
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No tab measures found for this track.</p>
+        <button
+          type="button"
+          onClick={onSearchAgain}
+          className="px-3 py-2 rounded-lg border text-xs font-medium transition-colors hover:bg-[var(--bg-hover)]"
+          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+        >
+          Search another song
+        </button>
       </div>
     );
   }
 
+  const headerButtonClass =
+    'px-3 py-2 rounded-lg border text-xs font-medium transition-colors hover:bg-[var(--bg-hover)]';
+  const headerButtonStyle = {
+    backgroundColor: 'var(--card-bg)',
+    borderColor: 'var(--border-primary)',
+    color: 'var(--text-primary)',
+  };
+
   return (
-    <div data-testid="song-study-workspace" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h2 data-testid="song-study-title">
-          {payload.title} — {payload.artist}
-        </h2>
-        <p>
-          {payload.track.name} ({payload.track.instrument}) • {measureCount} measures
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" data-testid="song-study-search-again" onClick={onSearchAgain}>
-            Search another song
-          </button>
-          <button type="button" data-testid="song-study-toggle-full-tab" onClick={() => setShowFullTab((v) => !v)}>
-            {showFullTab ? 'Show overview + focus' : 'Show full tab'}
-          </button>
+    <div data-testid="song-study-workspace" className="flex flex-col gap-4">
+      <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 data-testid="song-study-title" className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+              {payload.title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span> {payload.artist}
+            </h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+              {payload.track.name} ({payload.track.instrument}) • {measureCount} measures
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              data-testid="song-study-search-again"
+              onClick={onSearchAgain}
+              className={headerButtonClass}
+              style={headerButtonStyle}
+            >
+              Search another song
+            </button>
+            <button
+              type="button"
+              data-testid="song-study-toggle-full-tab"
+              onClick={() => setShowFullTab((v) => !v)}
+              className={headerButtonClass}
+              style={headerButtonStyle}
+            >
+              {showFullTab ? 'Show overview + focus' : 'Show full tab'}
+            </button>
+          </div>
         </div>
         {persistError && (
-          <p role="status" data-testid="song-study-persist-error" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+          <p
+            role="status"
+            data-testid="song-study-persist-error"
+            className="text-xs mt-2"
+            style={{ color: 'var(--text-secondary)' }}
+          >
             Not saved — {persistError}
           </p>
         )}
