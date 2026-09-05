@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useCallback, useState } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAppAuth } from './lib/authBypass';
 import { Fretboard } from './components/Fretboard';
 import { ChordDiagramRow } from './components/ChordDiagram';
 import { ChordPopup } from './components/ChordPopup';
@@ -16,7 +16,7 @@ import type { AgentAction, FretboardHighlightAction, ProgressionSetAction } from
 
 function App() {
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
-  const { getToken, isSignedIn, isLoaded } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useAppAuth();
 
   // ============================================================================
   // Zustand Store - only what App.tsx needs directly

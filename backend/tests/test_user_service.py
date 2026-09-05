@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 import pytest
 
+from conftest import make_supabase_chain
+
 
 def _make_mock_client():
     """Build a mock Supabase client with chainable .table().select().eq().order().execute() etc."""
@@ -10,17 +12,7 @@ def _make_mock_client():
     client.table.return_value = table
 
     def make_chain(**response_data):
-        chain = MagicMock()
-        execute_result = MagicMock()
-        execute_result.data = response_data.get("data", [])
-        chain.execute.return_value = execute_result
-        chain.select.return_value = chain
-        chain.eq.return_value = chain
-        chain.order.return_value = chain
-        chain.insert.return_value = chain
-        chain.delete.return_value = chain
-        chain.upsert.return_value = chain
-        return chain
+        return make_supabase_chain(response_data.get("data", []))
 
     return client, table, make_chain
 

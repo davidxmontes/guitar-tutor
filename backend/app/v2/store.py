@@ -1,0 +1,207 @@
+"""V2 persistence — Session/Branch storage.
+
+Two backends, selected by Settings.v2_storage_backend:
+- "memory" (default): process-lifetime, good enough for local dev and the
+  browser acceptance test — no external credentials required.
+- "supabase": durable, for deployments that already have Supabase configured
+  (see docs/agents/project.md and the saved_progressions table for the same
+  pattern — DDL lives in a doc, not an automated migration).
+"""
+
+import uuid
+from datetime import datetime, timezone
+from functools import lru_cache
+from typing import Any, Optional, Protocol
+
+from app.v2.models import ARTIFACT_KINDS, Branch, Session
+
+
+class NotFoundError(Exception):
+    """Raised when a session/branch doesn't exist or isn't owned by the caller."""
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _new_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _validate_artifact_kind(kind: Optional[str]) -> None:
+    if kind is not None and kind not in ARTIFACT_KINDS:
+        raise ValueError(f"Unknown artifact kind: {kind!r}. Supported: {ARTIFACT_KINDS}")
+
+
+class V2Store(Protocol):
+    def create_session(self, user_id: str) -> Session: ...
+    def get_session(self, session_id: str, user_id: str) -> Session: ...
+    def list_sessions(self, user_id: str) -> list[Session]: ...
+    def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
+
+
+class InMemoryV2Store:
+    def __init__(self) -> None:
+        self._sessions: dict[str, Session] = {}
+
+    def create_session(self, user_id: str) -> Session:
+        now = _now()
+        session_id = _new_id()
+        branch = Branch(
+            id=_new_id(),
+            session_id=session_id,
+            tutor_thread_id=_new_id(),
+            created_at=now,
+            updated_at=now,
+        )
+        session = Session(id=session_id, user_id=user_id, branches=[branch], created_at=now, updated_at=now)
+        self._sessions[session_id] = session
+        return session
+
+    def get_session(self, session_id: str, user_id: str) -> Session:
+        session = self._sessions.get(session_id)
+        if session is None or session.user_id != user_id:
+            raise NotFoundError(f"Session {session_id!r} not found for this user")
+        return session
+
+    def list_sessions(self, user_id: str) -> list[Session]:
+        owned = [s for s in self._sessions.values() if s.user_id == user_id]
+        return sorted(owned, key=lambda s: s.created_at, reverse=True)
+
+    def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
+        session = self.get_session(session_id, user_id)  # raises NotFoundError if not owned
+
+        if "current_artifact_kind" in fields:
+            _validate_artifact_kind(fields["current_artifact_kind"])
+
+        for i, branch in enumerate(session.branches):
+            if branch.id != branch_id:
+                continue
+            updated = branch.model_copy(update={**fields, "updated_at": _now()})
+            session.branches[i] = updated
+            return updated
+
+        raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
+
+
+class SupabaseV2Store:
+    """Durable backend. Schema: docs/agents/v2-schema.sql (Supabase has no
+    tracked migrations in this repo yet — same pattern as saved_progressions).
+    """
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def _row_to_branch(self, row: dict[str, Any]) -> Branch:
+        return Branch(
+            id=row["id"],
+            session_id=row["session_id"],
+            tutor_thread_id=row["tutor_thread_id"],
+            current_artifact_kind=row.get("current_artifact_kind"),
+            current_artifact_id=row.get("current_artifact_id"),
+            selection=row.get("selection"),
+            focus=row.get("focus"),
+            recent_ideas=row.get("recent_ideas") or [],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def _load_session(self, session_row: dict[str, Any]) -> Session:
+        branch_rows = (
+            self._client.table("v2_branches")
+            .select("*")
+            .eq("session_id", session_row["id"])
+            .order("created_at")
+            .execute()
+            .data
+        )
+        return Session(
+            id=session_row["id"],
+            user_id=session_row["clerk_user_id"],
+            branches=[self._row_to_branch(r) for r in branch_rows],
+            created_at=session_row["created_at"],
+            updated_at=session_row["updated_at"],
+        )
+
+    def create_session(self, user_id: str) -> Session:
+        # ponytail: two sequential inserts, not a transaction — a failure
+        # between them leaves an orphaned zero-branch session row. Upgrade to
+        # a Postgres function/RPC if that's ever observed in practice; the
+        # Supabase Python client has no multi-table transaction API.
+        session_row = (
+            self._client.table("v2_sessions").insert({"clerk_user_id": user_id}).execute().data[0]
+        )
+        branch_row = (
+            self._client.table("v2_branches")
+            .insert({"session_id": session_row["id"], "tutor_thread_id": _new_id()})
+            .execute()
+            .data[0]
+        )
+        return Session(
+            id=session_row["id"],
+            user_id=user_id,
+            branches=[self._row_to_branch(branch_row)],
+            created_at=session_row["created_at"],
+            updated_at=session_row["updated_at"],
+        )
+
+    def get_session(self, session_id: str, user_id: str) -> Session:
+        rows = (
+            self._client.table("v2_sessions")
+            .select("*")
+            .eq("id", session_id)
+            .eq("clerk_user_id", user_id)
+            .execute()
+            .data
+        )
+        if not rows:
+            raise NotFoundError(f"Session {session_id!r} not found for this user")
+        return self._load_session(rows[0])
+
+    def list_sessions(self, user_id: str) -> list[Session]:
+        rows = (
+            self._client.table("v2_sessions")
+            .select("*")
+            .eq("clerk_user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+        )
+        return [self._load_session(r) for r in rows]
+
+    def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
+        self.get_session(session_id, user_id)  # raises NotFoundError if not owned
+
+        if "current_artifact_kind" in fields:
+            _validate_artifact_kind(fields["current_artifact_kind"])
+
+        query = self._client.table("v2_branches")
+        # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
+        query = query.update(fields) if fields else query.select("*")
+        rows = query.eq("id", branch_id).eq("session_id", session_id).execute().data
+        if not rows:
+            raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
+        return self._row_to_branch(rows[0])
+
+
+@lru_cache
+def get_v2_store() -> V2Store:
+    """Process-wide singleton store, backend chosen by Settings.v2_storage_backend.
+    lru_cache (same pattern as app.config.get_settings) memoizes this safely
+    across FastAPI's threadpool — a manual "if _store is None" global has a
+    check-then-set race under concurrent first requests.
+    """
+    from app.config import get_settings  # local import avoids a config->store->config cycle
+
+    settings = get_settings()
+    if settings.v2_storage_backend == "supabase":
+        from app.db import get_supabase_client
+
+        client = get_supabase_client()
+        if client is None:
+            raise RuntimeError(
+                "v2_storage_backend=supabase but Supabase is not configured "
+                "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
+            )
+        return SupabaseV2Store(client)
+    return InMemoryV2Store()

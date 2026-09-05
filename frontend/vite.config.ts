@@ -10,9 +10,17 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://backend:8000',
+        // "backend" is a docker-compose service name; there's no
+        // docker-compose.yml in this repo yet, so default to the host the
+        // README's local-dev instructions actually use. Override with
+        // VITE_DEV_PROXY_TARGET if you do run this behind a compose service.
+        //
+        // No rewrite: backend routers are registered with prefix="/api"
+        // (see backend/app/main.py), same as nginx.conf's proxy_pass, which
+        // forwards /api/* unchanged. The old rewrite stripped /api here,
+        // which the backend never expected — the dev proxy never worked.
+        target: process.env.VITE_DEV_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

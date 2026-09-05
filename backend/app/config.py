@@ -43,8 +43,12 @@ class Settings(BaseSettings):
     supabase_service_key: Optional[str] = None
     supabase_db_url: Optional[str] = None  # postgres:// connection string for LangGraph checkpoint saver
 
+    # V2 (Session/Branch/Artifact) persistence
+    v2_storage_backend: str = "memory"  # memory | supabase
+
     # Clerk
     clerk_issuer_url: Optional[str] = None  # e.g. https://your-app.clerk.accounts.dev
+    auth_dev_bypass: bool = False  # local/test only — skips Clerk verification, returns a fixed dev user
 
     # OTEL / Langfuse
     otel_exporter_otlp_endpoint: Optional[str] = None  # e.g. https://cloud.langfuse.com/api/public/otel/v1/traces

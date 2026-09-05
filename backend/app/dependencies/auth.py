@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
+DEV_BYPASS_USER_ID = "dev-user"
+
 # JWKS cache: (keys_list, fetched_at_timestamp)
 _jwks_cache: tuple[list, float] = ([], 0.0)
 _JWKS_TTL = 3600  # 1 hour
@@ -85,6 +87,8 @@ async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> str:
     """FastAPI dependency: verify Bearer token, return user_id. Raises 401 if missing/invalid."""
+    if get_settings().auth_dev_bypass:
+        return DEV_BYPASS_USER_ID
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,6 +102,8 @@ async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Optional[str]:
     """FastAPI dependency: verify Bearer token if present, return user_id or None."""
+    if get_settings().auth_dev_bypass:
+        return DEV_BYPASS_USER_ID
     if credentials is None:
         return None
     try:
