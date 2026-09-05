@@ -26,8 +26,8 @@ export interface V2Session {
 export interface UpdateBranchRequest {
   current_artifact_kind?: ArtifactKind;
   current_artifact_id?: string;
-  selection?: Record<string, unknown>;
-  focus?: Record<string, unknown>;
+  selection?: Record<string, unknown> | null;
+  focus?: Record<string, unknown> | null;
   recent_ideas?: Record<string, unknown>[];
 }
 
@@ -58,10 +58,10 @@ export interface Artifact {
   updated_at: string;
 }
 
-export interface SongStudyArtifact extends Artifact {
+export type SongStudyArtifact = Omit<Artifact, 'payload' | 'kind'> & {
   kind: 'song_study';
   payload: SongStudyPayload;
-}
+};
 
 export interface CreateSongStudyRequest {
   session_id: string;
@@ -70,14 +70,18 @@ export interface CreateSongStudyRequest {
   track_index: number;
 }
 
-// Branch.selection shapes this ticket writes/reads — a beat pick or a
-// contiguous measure range. Stored as an opaque dict on the branch, so this
-// is a frontend-only contract, not something the backend validates.
-export type SongSelection =
+// Branch.selection/focus shapes this ticket writes/reads — a beat pick or a
+// contiguous measure range, and a focused measure window. Stored as an
+// opaque dict on the branch (hence the index signatures below, so these
+// assign directly to UpdateBranchRequest's Record<string, unknown> fields);
+// this is a frontend-only contract, not something the backend validates.
+export type SongSelection = { [key: string]: unknown } & (
   | { type: 'beat'; measureIndex: number; beatIndex: number }
-  | { type: 'range'; startMeasureIndex: number; endMeasureIndex: number };
+  | { type: 'range'; startMeasureIndex: number; endMeasureIndex: number }
+);
 
 export interface SongFocus {
+  [key: string]: unknown;
   measureIndex: number;
   windowSize: number;
 }

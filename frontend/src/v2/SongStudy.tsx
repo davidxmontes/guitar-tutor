@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import { midiTuningToNotes } from '../utils/tuning';
-import { useFretboard } from '../hooks';
-import { Fretboard } from '../components/Fretboard';
+import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
-import type { HighlightedNote, SongSearchResult, TabBeat, TabMeasure } from '../types';
+import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
 import type { SongFocus, SongSelection, SongStudyArtifact, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
-const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40]; // fallback display only — never assumed for playable tracks
+const FRESH_FRETBOARD_FRET_COUNT = 15; // readable default window; horizontally scrollable
 
-// Small local ports of TabViewer's private helpers (see
+// Small local port of TabViewer's private helper (see
 // ../components/TabViewer/TabViewer.tsx) — V1 is reference material for V2,
-// not something this ticket modifies, so these stay duplicated rather than
+// not something this ticket modifies, so this stays duplicated rather than
 // exported out of a V1 file.
 function getBeatsFromMeasure(measure?: TabMeasure): TabBeat[] {
   if (!measure) return [];
@@ -33,20 +31,32 @@ function getBeatsFromMeasure(measure?: TabMeasure): TabBeat[] {
   return bestBeats;
 }
 
-function toHighlightedNotes(beat: TabBeat): HighlightedNote[] {
+interface FretNote {
+  string: number; // 1-based, 1 = highest string
+  fret: number;
+}
+
+function toFretNotes(beat?: TabBeat): FretNote[] {
+  if (!beat) return [];
   const seen = new Set<string>();
-  const highlights: HighlightedNote[] = [];
+  const notes: FretNote[] = [];
   for (const note of beat.notes ?? []) {
     if (note.rest || note.dead) continue;
     if (typeof note.string !== 'number' || typeof note.fret !== 'number') continue;
-    const mappedString = note.string + 1; // Songsterr strings are 0-5 (high e -> low E), fretboard uses 1-6
-    if (mappedString < 1 || mappedString > 6) continue;
-    const key = `${mappedString}:${note.fret}`;
+    const stringNumber = note.string + 1; // Songsterr strings are 0-based, high string first
+    const key = `${stringNumber}:${note.fret}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    highlights.push({ string: mappedString, fret: note.fret });
+    notes.push({ string: stringNumber, fret: note.fret });
   }
-  return highlights;
+  return notes;
+}
+
+function firstMeasureChordLabel(measure: TabMeasure): string | null {
+  for (const beat of getBeatsFromMeasure(measure)) {
+    if (beat.chord?.text) return beat.chord.text;
+  }
+  return null;
 }
 
 function parseBeatId(beatId: string): { measureIndex: number; beatIndex: number } | null {
@@ -63,16 +73,118 @@ function chunkMeasures<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+// --- Fretboard: fresh V2 component. Draws styling cues (dark neck, green
+// active/upcoming role dots) from V1's Fretboard + the UX reference mock,
+// but is written against SongStudy's own data (MIDI tuning + string/fret
+// pairs from the raw beat) rather than porting V1's component/props — see
+// docs/agents/project.md "V1 UI reuse". Any string count works (not just 6),
+// which is also how this ticket avoids inheriting V1's standard-tuning
+// assumption.
+function SongStudyFretboard({
+  tuningMidi,
+  tuningNotes,
+  activeNotes,
+  upcomingNotes,
+}: {
+  tuningMidi: number[];
+  tuningNotes: string[];
+  activeNotes: FretNote[];
+  upcomingNotes: FretNote[];
+}) {
+  const frets = useMemo(() => Array.from({ length: FRESH_FRETBOARD_FRET_COUNT }, (_, f) => f), []);
+
+  return (
+    <div
+      data-testid="song-study-fretboard"
+      style={{
+        background: 'linear-gradient(180deg,#20252b 0%,#171b20 100%)',
+        border: '1px solid #343b44',
+        borderRadius: 16,
+        overflowX: 'auto',
+        padding: 8,
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: `34px repeat(${frets.length},minmax(28px,1fr))` }}>
+        <span />
+        {frets.map((f) => (
+          <span key={f} style={{ fontSize: 9, color: '#8d98a5', textAlign: 'center', fontWeight: 800 }}>
+            {f}
+          </span>
+        ))}
+      </div>
+      {tuningMidi.map((openMidi, i) => {
+        const stringNumber = i + 1;
+        return (
+          <div
+            key={stringNumber}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `34px repeat(${frets.length},minmax(28px,1fr))`,
+              alignItems: 'center',
+              height: 30,
+            }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 900, color: '#b7c0c9', textAlign: 'center' }}>
+              {tuningNotes[i] ?? '?'}
+            </div>
+            {frets.map((fret) => {
+              const isActive = activeNotes.some((n) => n.string === stringNumber && n.fret === fret);
+              const isUpcoming = !isActive && upcomingNotes.some((n) => n.string === stringNumber && n.fret === fret);
+              const label = isActive || isUpcoming ? midiToNoteName(openMidi + fret) : '';
+              return (
+                <div
+                  key={fret}
+                  style={{
+                    borderLeft: '1px solid #3a424b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {label && (
+                    <span
+                      data-testid={isActive ? 'fretboard-active-note' : 'fretboard-upcoming-note'}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 8,
+                        fontWeight: 900,
+                        background: isActive ? 'linear-gradient(180deg,#2aa878,#1f8f67)' : 'transparent',
+                        color: isActive ? '#fff' : '#9fe0c8',
+                        border: isActive ? '1px solid #46ba8f' : '2px solid #38a67b',
+                      }}
+                    >
+                      {label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: '#8d98a5' }}>
+        <span>● active beat</span>
+        <span>○ upcoming beat</span>
+      </div>
+    </div>
+  );
+}
+
 // --- Overview: whole-track measure map, click to jump, shift-click to pick a range ---
 
 function MeasureOverviewStrip({
-  measureCount,
+  measures,
   focusMeasureIndex,
   selection,
   onJump,
   onRangeSelect,
 }: {
-  measureCount: number;
+  measures: TabMeasure[];
   focusMeasureIndex: number;
   selection: SongSelection | null;
   onJump: (measureIndex: number) => void;
@@ -94,12 +206,14 @@ function MeasureOverviewStrip({
       data-testid="song-study-overview"
       role="list"
       aria-label="Song overview"
-      style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}
+      style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}
     >
-      {Array.from({ length: measureCount }, (_, idx) => {
+      {measures.map((measure, idx) => {
         const inFocus = idx === focusMeasureIndex;
         const inRange =
           selection?.type === 'range' && idx >= selection.startMeasureIndex && idx <= selection.endMeasureIndex;
+        const chordLabel = firstMeasureChordLabel(measure);
+        const markerText = measure.marker?.text;
         return (
           <button
             key={idx}
@@ -108,17 +222,25 @@ function MeasureOverviewStrip({
             data-testid="song-study-overview-measure"
             data-measure-index={idx}
             onClick={(e) => handleClick(idx, e.shiftKey)}
-            title={`Jump to measure ${idx + 1}${inRange ? ' (in selected range)' : ''} — shift-click to select a range`}
+            title={`Jump to measure ${idx + 1}${markerText ? ` (${markerText})` : ''} — shift-click to select a range`}
             style={{
-              width: 10,
-              height: 16,
+              width: 46,
+              minHeight: 34,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-start',
+              padding: 4,
               border: '1px solid var(--border-primary)',
-              borderRadius: 2,
-              backgroundColor: inRange ? 'var(--accent-500)' : inFocus ? 'var(--accent-600)' : 'var(--bg-hover)',
+              borderRadius: 6,
+              backgroundColor: inRange ? 'var(--accent-500)' : inFocus ? 'var(--accent-600)' : 'var(--card-bg)',
+              color: inRange || inFocus ? 'white' : 'var(--text-secondary)',
               cursor: 'pointer',
-              padding: 0,
             }}
-          />
+          >
+            <span style={{ fontSize: 9, fontWeight: 800 }}>{idx + 1}</span>
+            {chordLabel && <span style={{ fontSize: 8 }}>{chordLabel}</span>}
+          </button>
         );
       })}
     </div>
@@ -251,13 +373,11 @@ function SongStudyWorkspace({
   );
   const [selection, setSelection] = useState<SongSelection | null>(() => (branch.selection as SongSelection | null) ?? null);
   const [showFullTab, setShowFullTab] = useState(false);
-  const [highlightedNotes, setHighlightedNotes] = useState<HighlightedNote[]>([]);
 
   // A different SongStudy was opened — reset local view state from its branch snapshot.
   useEffect(() => {
     setFocus((branch.focus as SongFocus | null) ?? { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE });
     setSelection((branch.selection as SongSelection | null) ?? null);
-    setHighlightedNotes([]);
     setShowFullTab(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songStudy.id]);
@@ -297,19 +417,43 @@ function SongStudyWorkspace({
     (beatId: string) => {
       const parsed = parseBeatId(beatId);
       if (!parsed) return;
-      const beat = getBeatsFromMeasure(measures[parsed.measureIndex])[parsed.beatIndex];
       const next: SongSelection = { type: 'beat', ...parsed };
       setSelection(next);
-      setHighlightedNotes(beat ? toHighlightedNotes(beat) : []);
       persistBranch({ selection: next });
     },
-    [measures, persistBranch],
+    [persistBranch],
   );
 
+  // Flat measure/beat sequence — used to derive "active beat" (selected, or
+  // else the first playable beat in the focused measure) and "upcoming beat"
+  // (whatever plays next), so the fretboard always shows something relevant
+  // without a separate piece of highlight state to keep in sync.
+  const beatSequence = useMemo(() => {
+    const seq: Array<{ measureIndex: number; beatIndex: number; beat: TabBeat }> = [];
+    measures.forEach((measure, measureIndex) => {
+      getBeatsFromMeasure(measure).forEach((beat, beatIndex) => {
+        seq.push({ measureIndex, beatIndex, beat });
+      });
+    });
+    return seq;
+  }, [measures]);
+
+  const activeBeatIndex = useMemo(() => {
+    if (selection?.type === 'beat') {
+      return beatSequence.findIndex(
+        (e) => e.measureIndex === selection.measureIndex && e.beatIndex === selection.beatIndex,
+      );
+    }
+    return beatSequence.findIndex(
+      (e) => e.measureIndex === focus.measureIndex && (e.beat.notes ?? []).some((n) => !n.rest && !n.dead),
+    );
+  }, [selection, beatSequence, focus.measureIndex]);
+
+  const activeNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex].beat) : [];
+  const upcomingNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex + 1]?.beat) : [];
+
   const trackTuningMidi = payload.track.tuning ?? payload.tab_data.tuning ?? null;
-  const tuningNotes = trackTuningMidi && trackTuningMidi.length === 6 ? midiTuningToNotes(trackTuningMidi) : null;
-  const fretboardTuningNotes = tuningNotes ?? midiTuningToNotes(STANDARD_TUNING_MIDI);
-  const { fretboardData } = useFretboard('custom', fretboardTuningNotes.join(','));
+  const tuningNotes = trackTuningMidi ? trackTuningMidi.map((midi) => midiToNoteName(midi)) : null;
 
   const selectedBeatId = selection?.type === 'beat' ? `${selection.measureIndex}:${selection.beatIndex}` : null;
   const detailMeasures = measures.slice(focus.measureIndex, focus.measureIndex + focus.windowSize);
@@ -342,16 +486,10 @@ function SongStudyWorkspace({
         </div>
       </div>
 
-      {!tuningNotes && (
-        <p role="status">
-          Fretboard mapping only supports 6-string tuning; showing tab only for this track.
-        </p>
-      )}
-
       {!showFullTab ? (
         <>
           <MeasureOverviewStrip
-            measureCount={measureCount}
+            measures={measures}
             focusMeasureIndex={focus.measureIndex}
             selection={selection}
             onJump={jumpToMeasure}
@@ -382,13 +520,15 @@ function SongStudyWorkspace({
         </div>
       )}
 
-      {tuningNotes && (
-        <Fretboard
-          strings={fretboardData?.strings ?? []}
-          fretCount={fretboardData?.fret_count ?? 22}
+      {trackTuningMidi && tuningNotes ? (
+        <SongStudyFretboard
+          tuningMidi={trackTuningMidi}
           tuningNotes={tuningNotes}
-          highlightedNotes={highlightedNotes}
+          activeNotes={activeNotes}
+          upcomingNotes={upcomingNotes}
         />
+      ) : (
+        <p role="status">No tuning data for this track — showing tab only.</p>
       )}
     </div>
   );
