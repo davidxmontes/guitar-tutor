@@ -42,7 +42,10 @@ function toHighlightedNotes(beat: TabBeat): HighlightedNote[] {
   return highlights;
 }
 
-function getBeatsFromMeasure(measure: TabMeasure): TabBeat[] {
+// Exported for V2's SongStudy.tsx (ticket #12 dedup) to import instead of
+// duplicating. HMR-only rule below, no behavior impact.
+// eslint-disable-next-line react-refresh/only-export-components
+export function getBeatsFromMeasure(measure: TabMeasure): TabBeat[] {
   const voices = measure.voices ?? [];
   if (voices.length === 0) return [];
   if (voices.length === 1) return voices[0]?.beats ?? [];

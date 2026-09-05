@@ -2,34 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
+import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
 import type { SongFocus, SongSelection, SongStudyArtifact, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 const FRESH_FRETBOARD_FRET_COUNT = 15; // readable default window; horizontally scrollable
-
-// Small local port of TabViewer's private helper (see
-// ../components/TabViewer/TabViewer.tsx) — V1 is reference material for V2,
-// not something this ticket modifies, so this stays duplicated rather than
-// exported out of a V1 file.
-function getBeatsFromMeasure(measure?: TabMeasure): TabBeat[] {
-  if (!measure) return [];
-  const voices = measure.voices ?? [];
-  if (voices.length === 0) return [];
-  if (voices.length === 1) return voices[0]?.beats ?? [];
-
-  let bestBeats: TabBeat[] = voices[0]?.beats ?? [];
-  let bestScore = -1;
-  for (const voice of voices) {
-    const beats = voice?.beats ?? [];
-    const score = beats.reduce((acc, beat) => acc + (beat.notes ?? []).filter((n) => !n.rest && !n.dead).length, 0);
-    if (score > bestScore) {
-      bestScore = score;
-      bestBeats = beats;
-    }
-  }
-  return bestBeats;
-}
 
 interface FretNote {
   string: number; // 1-based, 1 = highest string
