@@ -1,4 +1,4 @@
-import type { ConceptWorkspace } from './conceptWorkspace';
+import type { ConceptWorkspace, Inspection } from './conceptWorkspace';
 import type { TabData } from './song';
 
 export type ArtifactKind = 'song_study' | 'progression' | 'concept_study' | 'exercise';
@@ -441,7 +441,11 @@ export interface VoicingProposal {
   chord: ProgressionChord;
 }
 
+export interface WorkspaceChange { status: 'applied' | 'rejected' | 'unchanged' | 'undone'; reason?: string | null; undo_of?: string }
+export interface WorkspaceTurnResult extends WorkspaceChange { message_id: string; branch: V2Branch }
+
 export interface TutorResponse {
+  workspace_result?: WorkspaceTurnResult | null;
   message: string;
   focus: TutorFocus | null;
   concept_suggestion?: ConceptSuggestion | null;
@@ -457,6 +461,7 @@ export interface TutorResponse {
 }
 
 export interface TutorTurnRequest {
+  inspection?: Inspection | null;
   session_id: string;
   branch_id: string;
   message: string;
@@ -468,7 +473,7 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
+  content: { workspace_change?: WorkspaceChange; exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }
 
