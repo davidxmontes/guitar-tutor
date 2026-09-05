@@ -85,3 +85,54 @@ export interface SongFocus {
   measureIndex: number;
   windowSize: number;
 }
+
+// --- Tutor (ticket #13) — mirrors backend/app/v2/tutor/contract.py. `focus`
+// here is ephemeral cross-view attention the tutor expresses on a turn, not
+// navigation state — never written into V2Branch.selection/focus above.
+
+export interface TutorFretPosition {
+  string: number;
+  fret: number;
+}
+
+export interface TutorFocus {
+  role: string;
+  notes: TutorFretPosition[];
+  label?: string | null;
+}
+
+export interface TutorUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens?: number | null;
+  cache_write_tokens?: number | null;
+  uncached_input_tokens?: number | null;
+  reasoning_tokens?: number | null;
+}
+
+export interface TutorResponse {
+  message: string;
+  focus: TutorFocus | null;
+  provider: string;
+  model: string;
+  latency_ms: number;
+  usage: TutorUsage;
+  tool_call_count: number;
+  status: 'completed';
+}
+
+export interface TutorTurnRequest {
+  session_id: string;
+  branch_id: string;
+  message: string;
+}
+
+export type TutorMessageRole = 'user' | 'assistant' | 'tool';
+
+export interface TutorMessage {
+  id: string;
+  tutor_thread_id: string;
+  role: TutorMessageRole;
+  content: { text?: string; focus?: TutorFocus | null; [key: string]: unknown };
+  created_at: string;
+}

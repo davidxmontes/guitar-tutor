@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { V2Session, V2Branch, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest } from '../types/v2';
+import type { V2Session, V2Branch, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -321,6 +321,19 @@ class ApiClient {
 
   async getSongStudy(artifactId: string): Promise<SongStudyArtifact> {
     return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}`);
+  }
+
+  // --- V2: stateless tutor turn (ticket #13) ---
+
+  async listTutorMessages(tutorThreadId: string): Promise<TutorMessage[]> {
+    return this.fetch<TutorMessage[]>(`/v2/tutor/threads/${tutorThreadId}/messages`);
+  }
+
+  async sendTutorTurn(data: TutorTurnRequest): Promise<TutorResponse> {
+    return this.fetch<TutorResponse>('/v2/tutor/turns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 

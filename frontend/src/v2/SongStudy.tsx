@@ -3,8 +3,9 @@ import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
 import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
+import { TutorChat } from './TutorChat';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
-import type { SongFocus, SongSelection, SongStudyArtifact, V2Branch } from '../types/v2';
+import type { SongFocus, SongSelection, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 // Supporting element, not a primary block (mock #overview callout 3: "large
@@ -125,20 +126,28 @@ function SongStudyFretboard({
   tuningNotes,
   activeNotes,
   upcomingNotes,
+  tutorFocus,
 }: {
   tuningMidi: number[];
   tuningNotes: string[];
   activeNotes: FretNote[];
   upcomingNotes: FretNote[];
+  // Third, additive highlight layer (ticket #13) — the tutor's ephemeral
+  // cross-view attention for the current turn, distinct from the
+  // beat-derived active/upcoming layers above and cleared/replaced on the
+  // next turn by the parent (never persisted to Branch state here).
+  tutorFocus?: TutorFocus | null;
 }) {
+  const tutorFocusNotes = useMemo(() => tutorFocus?.notes ?? [], [tutorFocus]);
+
   // FRESH_FRETBOARD_FRET_COUNT is the highest fret shown by default (fret 0
   // is always rendered too, so the default column count is one more than
   // this) — but never clip a real note out of view, extend past it when the
   // current or next beat actually reaches further up the neck.
   const neededFretCount = useMemo(() => {
-    const frets = [...activeNotes, ...upcomingNotes].map((n) => n.fret);
+    const frets = [...activeNotes, ...upcomingNotes, ...tutorFocusNotes].map((n) => n.fret);
     return Math.max(FRESH_FRETBOARD_FRET_COUNT + 1, ...frets.map((f) => f + 1));
-  }, [activeNotes, upcomingNotes]);
+  }, [activeNotes, upcomingNotes, tutorFocusNotes]);
   const frets = useMemo(() => Array.from({ length: neededFretCount }, (_, f) => f), [neededFretCount]);
 
   return (
@@ -179,7 +188,8 @@ function SongStudyFretboard({
             {frets.map((fret) => {
               const isActive = activeNotes.some((n) => n.string === stringNumber && n.fret === fret);
               const isUpcoming = !isActive && upcomingNotes.some((n) => n.string === stringNumber && n.fret === fret);
-              const label = isActive || isUpcoming ? midiToNoteName(openMidi + fret) : '';
+              const isTutorFocus = tutorFocusNotes.some((n) => n.string === stringNumber && n.fret === fret);
+              const label = isActive || isUpcoming || isTutorFocus ? midiToNoteName(openMidi + fret) : '';
               return (
                 <div
                   key={fret}
@@ -188,11 +198,12 @@ function SongStudyFretboard({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    position: 'relative',
                   }}
                 >
                   {label && (
                     <span
-                      data-testid={isActive ? 'fretboard-active-note' : 'fretboard-upcoming-note'}
+                      data-testid={isActive ? 'fretboard-active-note' : isUpcoming ? 'fretboard-upcoming-note' : 'fretboard-tutor-focus-note-label'}
                       style={{
                         width: 16,
                         height: 16,
@@ -203,12 +214,29 @@ function SongStudyFretboard({
                         fontSize: 7,
                         fontWeight: 900,
                         background: isActive ? 'linear-gradient(180deg,#2aa878,#1f8f67)' : 'transparent',
-                        color: isActive ? '#fff' : '#9fe0c8',
-                        border: isActive ? '1px solid #46ba8f' : '2px solid #38a67b',
+                        color: isActive ? '#fff' : isTutorFocus ? '#f9d38c' : '#9fe0c8',
+                        border: isActive ? '1px solid #46ba8f' : isTutorFocus ? '2px solid #d4901f' : '2px solid #38a67b',
                       }}
                     >
                       {label}
                     </span>
+                  )}
+                  {isTutorFocus && (
+                    // Additive third layer — a ring around whatever's already
+                    // there (or the note label itself), never replacing the
+                    // active/upcoming beat-derived styling above.
+                    <span
+                      data-testid="fretboard-tutor-focus-note"
+                      style={{
+                        position: 'absolute',
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        border: '2px solid #f5a623',
+                        boxShadow: '0 0 0 2px rgba(245,166,35,0.35)',
+                        pointerEvents: 'none',
+                      }}
+                    />
                   )}
                 </div>
               );
@@ -219,7 +247,14 @@ function SongStudyFretboard({
       <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: '#8d98a5' }}>
         <span>● active beat</span>
         <span>○ upcoming beat</span>
+        {tutorFocusNotes.length > 0 && <span style={{ color: '#f5a623' }}>◎ tutor focus</span>}
       </div>
+      {tutorFocus && (
+        <p data-testid="song-study-tutor-focus-caption" style={{ fontSize: 9, color: '#f5a623', marginTop: 4 }}>
+          Tutor focus — {tutorFocus.role}
+          {tutorFocus.label ? `: ${tutorFocus.label}` : ''}
+        </p>
+      )}
     </div>
   );
 }
@@ -497,12 +532,18 @@ function SongStudyWorkspace({
   const [selection, setSelection] = useState<SongSelection | null>(() => (branch.selection as SongSelection | null) ?? null);
   const [showFullTab, setShowFullTab] = useState(false);
   const [persistError, setPersistError] = useState<string | null>(null);
+  // Ephemeral tutor attention (ticket #13) — deliberately NOT persisted to
+  // Branch.selection/focus (that's user-driven navigation state, above).
+  // Local-only, cleared/replaced on every tutor turn and whenever a
+  // different SongStudy/thread is opened.
+  const [tutorFocus, setTutorFocus] = useState<TutorFocus | null>(null);
 
   // A different SongStudy was opened — reset local view state from its branch snapshot.
   useEffect(() => {
     setFocus((branch.focus as SongFocus | null) ?? { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE });
     setSelection((branch.selection as SongSelection | null) ?? null);
     setShowFullTab(false);
+    setTutorFocus(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songStudy.id]);
 
@@ -639,7 +680,12 @@ function SongStudyWorkspace({
   };
 
   return (
-    <div data-testid="song-study-workspace" className="flex flex-col gap-4">
+    // Two-column layout: the SongStudy content stays the primary, undisturbed
+    // area on the left; the Tutor is a permanent side rail on the right, not
+    // a tab the user must navigate away to reach (spec #10: "artifacts do
+    // not obstruct spontaneous questions").
+    <div data-testid="song-study-workspace" className="flex gap-4 items-start">
+    <div className="flex flex-col gap-4 flex-1 min-w-0">
       <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -764,6 +810,7 @@ function SongStudyWorkspace({
                 tuningNotes={tuningNotes}
                 activeNotes={activeNotes}
                 upcomingNotes={upcomingNotes}
+                tutorFocus={tutorFocus}
               />
             ) : (
               <p role="status">No tuning data for this track — showing tab only.</p>
@@ -825,6 +872,13 @@ function SongStudyWorkspace({
           )}
         </div>
       )}
+    </div>
+      <TutorChat
+        sessionId={sessionId}
+        branchId={branch.id}
+        tutorThreadId={branch.tutor_thread_id}
+        onFocusChange={setTutorFocus}
+      />
     </div>
   );
 }

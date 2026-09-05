@@ -78,3 +78,26 @@ class Artifact(BaseModel):
     payload: dict[str, Any]
     created_at: str
     updated_at: str
+
+
+TutorMessageRole = Literal["user", "assistant", "tool"]
+
+
+class TutorMessage(BaseModel):
+    """One persisted message in a Branch's application-owned tutor
+    conversation, keyed by Branch.tutor_thread_id — the durable memory the
+    stateless-per-run V2 tutor (ticket #13) reconstructs from scratch on
+    every request. No provider thread/response id is ever canonical; this
+    row is the whole of "conversation memory".
+
+    `content` is a plain dict rather than a fixed schema so it can hold
+    either simple text (`{"text": "..."}`, user/assistant turns) or whatever
+    a future tool call/result needs to round-trip (`tool_call_id`, `name`,
+    args/results) — see app/v2/tutor/prompt.py's reconstruction.
+    """
+
+    id: str
+    tutor_thread_id: str
+    role: TutorMessageRole
+    content: dict[str, Any]
+    created_at: str
