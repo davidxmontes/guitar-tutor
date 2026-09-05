@@ -61,7 +61,9 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      const body: unknown = await response.json().catch(() => null);
+      const detail = body && typeof body === 'object' && 'detail' in body ? body.detail : null;
+      throw new Error(typeof detail === 'string' ? detail : `API error: ${response.status} ${response.statusText}`);
     }
 
     return response.json();
@@ -69,6 +71,10 @@ class ApiClient {
 
   undoWorkspaceChange(sessionId: string, branchId: string, messageId: string, version: number): Promise<WorkspaceTurnResult> {
     return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/undo`, { method: 'POST', body: JSON.stringify({ message_id: messageId, expected_version: version }) });
+  }
+
+  saveWorkspaceStudy(sessionId: string, branchId: string, version: number, title: string, asNew = false): Promise<V2Branch> {
+    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/save`, { method: 'POST', body: JSON.stringify({ expected_version: version, title, as_new: asNew }) });
   }
 
   openConceptWorkspace(sessionId: string): Promise<V2Branch> {
@@ -396,11 +402,13 @@ class ApiClient {
   }
 
   async getConceptStudy(artifactId: string): Promise<ConceptStudyArtifact> {
-    return this.fetch<ConceptStudyArtifact>(`/v2/concept-studies/${artifactId}`);
+    const artifact = await this.fetch<ConceptStudyArtifact>(`/v2/concept-studies/${artifactId}`);
+    if ('schema_version' in artifact.payload) throw new Error('Open this study from My Stuff to resume its workspace.');
+    return artifact;
   }
 
-  async listConceptStudies(): Promise<ConceptStudyArtifact[]> {
-    return this.fetch<ConceptStudyArtifact[]>('/v2/concept-studies');
+  async listConceptStudies(): Promise<Artifact[]> {
+    return this.fetch<Artifact[]>('/v2/concept-studies');
   }
 
   async workOnSavedConcept(artifactId: string, sessionId: string, branchId: string): Promise<OpenConceptStudyResponse> {

@@ -21,14 +21,21 @@ def edit(client, branch, root):
 def test_explicit_saves_snapshot_music_and_independent_drafts_conflict_without_loss(client, store):
     branch = edit(client, opened(client), 'Bb')
     assert client.get('/api/v2/library').json() == []
+    store.update_branch(branch['session_id'], branch['id'], 'user_1', focus={'notes': [11]}, selection={'scroll': 120, 'inspection': 'B'})
     result = save(client, branch)
     assert result.status_code == 200, result.text
     first = result.json()
     aid = first['current_artifact_id']
     original = store.get_artifact(aid, 'user_1').model_dump()
     assert original['title'] == 'My scale study'
+    assert client.get(f'/api/v2/concept-studies/{aid}').json()['payload'] == original['payload']
+    assert client.get('/api/v2/concept-studies').json()[0]['id'] == aid
     assert original['payload'] == first['working_draft']
     assert first['saved_artifact_revision'] == original['updated_at']
+    same_session = client.post(f'/api/v2/concept-studies/{aid}/work-on-this', json={'session_id': first['session_id'], 'branch_id': first['id']})
+    assert same_session.status_code == 201, same_session.text
+    assert same_session.json()['branch']['working_draft'] == original['payload'] | {'version': 1}
+    assert same_session.json()['branch']['saved_artifact_revision'] == original['updated_at']
     left, right = [client.post(f'/api/v2/library/{aid}/open').json()['branches'][0] for _ in range(2)]
     assert left['id'] != right['id'] and left['tutor_thread_id'] != right['tutor_thread_id']
     assert left['working_draft'] == original['payload'] | {'version': 1}
@@ -65,3 +72,13 @@ def test_stale_draft_invalid_name_and_ownership_are_rejected_before_save(client,
     client.app.dependency_overrides[get_current_user] = lambda: 'other'
     assert save(client, latest).status_code == 404
     assert store.list_artifacts('user_1') == []
+
+
+def test_unsupported_saved_workspace_is_recoverable_without_opening_a_branch(client, store):
+    branch = opened(client)
+    payload = branch['working_draft'] | {'schema_version': 999}
+    artifact = store.create_artifact('user_1', 'concept_study', 'Future study', payload)
+    before = client.get('/api/v2/sessions').json()
+    response = client.post(f'/api/v2/library/{artifact.id}/open')
+    assert response.status_code == 422 and 'Open a new exploration' in response.json()['detail']
+    assert client.get('/api/v2/sessions').json() == before

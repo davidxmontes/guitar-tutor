@@ -153,6 +153,7 @@ test('CAGED selects connected regions, inspects overlap, promotes, and restores 
   await page.getByTestId('v2-start-concept').click()
 
   const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
+  const sourceBranchId = (await page.getByTestId('v2-active-branch').textContent())!.replace('Branch ', '')
   const initialStudies = await page.request.get('/api/v2/concept-studies').then((response) => response.json())
   await page.getByTestId('study-root-C').click()
   await page.getByTestId('study-concept-caged').click()
@@ -174,7 +175,8 @@ test('CAGED selects connected regions, inspects overlap, promotes, and restores 
   await page.getByTestId('study-hear').click()
   expect(tutorCalls).toBe(0)
   const beforePromotion = await page.request.get('/api/v2/concept-studies').then((response) => response.json())
-  expect(beforePromotion).toHaveLength(initialStudies.length)
+  const sourceIds = (studies: { id: string; payload: { created_from?: { branch_id?: string } } }[]) => studies.filter(study => study.payload.created_from?.branch_id === sourceBranchId).map(study => study.id).sort()
+  expect(sourceIds(beforePromotion)).toEqual(sourceIds(initialStudies))
 
   await page.getByTestId('study-work-on-this').click()
   await expect(page.getByTestId('concept-study-workspace')).toBeVisible()

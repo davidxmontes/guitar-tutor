@@ -174,7 +174,9 @@ test('search a song, load the whole track, select a beat, and sync the fretboard
   const dock = page.getByTestId('song-study-selection-dock')
   await expect(dock).toBeVisible()
   await expect(dock).toContainText('Measures 1–3 selected')
+  const focusSaved = page.waitForResponse(response => response.url().endsWith(`/sessions/${sessionId}/branches/${branchId}`) && response.request().method() === 'PATCH' && response.request().postDataJSON()?.focus?.measureIndex === 0)
   await dock.getByTestId('song-study-focus-selection').click()
+  expect((await focusSaved).ok()).toBe(true)
 
   await expect(page.getByTestId('song-study-full-tab')).toHaveCount(0)
   const branchAfterFocusSelection = await page.request

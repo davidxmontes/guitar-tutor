@@ -413,7 +413,7 @@ class Artifact(BaseModel):
 
 class ConceptStudyArtifact(Artifact):
     kind: Literal["concept_study"]
-    payload: ConceptStudyPayload
+    payload: ConceptStudyPayload | ConceptWorkspace
 
 
 TutorMessageRole = Literal["user", "assistant", "tool"]
