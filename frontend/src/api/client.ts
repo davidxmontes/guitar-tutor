@@ -393,6 +393,10 @@ class ApiClient {
     });
   }
 
+  async saveSongRanges(artifactId: string, revision: string, ranges: import('../types/v2').SongSavedRange[]): Promise<SongStudyArtifact> {
+    return this.fetch(`/v2/song-studies/${artifactId}/ranges`, { method: 'PUT', body: JSON.stringify({ expected_updated_at: revision, ranges }) });
+  }
+
   async enhanceSongStudy(artifactId: string): Promise<SongStudyArtifact> {
     return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}/enrichment`, { method: 'POST' });
   }

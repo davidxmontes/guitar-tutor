@@ -9,6 +9,7 @@ import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
 import { TutorChat } from './TutorChat';
 import { SongEnrichmentPanel } from './SongEnrichment';
 import { SongShapeStrip } from './SongShapeStrip';
+import { SongLearningMap } from './SongLearningMap';
 import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
 import { beatDuration } from './practiceTiming';
@@ -682,13 +683,15 @@ function SongStudyWorkspace({
   );
 
   const selectRange = useCallback(
-    (start: number, end: number) => {
+    (start: number, end: number, reveal = false) => {
       if (practice.active) return;
       const next: SongSelection = { type: 'range', startMeasureIndex: start, endMeasureIndex: end };
       setSelection(next);
-      persistBranch({ selection: next });
+      const nextFocus = { ...focus, measureIndex: start };
+      if (reveal) setFocus(nextFocus);
+      persistBranch({ selection: next, ...(reveal ? { focus: nextFocus } : {}) });
     },
-    [persistBranch, practice.active],
+    [persistBranch, practice.active, focus],
   );
 
   const selectBeat = useCallback(
@@ -930,7 +933,7 @@ function SongStudyWorkspace({
     // a tab the user must navigate away to reach (spec #10: "artifacts do
     // not obstruct spontaneous questions").
     <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)' }}>
-    <div className="flex flex-col gap-4 flex-1 min-w-0">
+    <div className="flex w-full flex-col gap-4 flex-1 min-w-0">
       <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -987,6 +990,9 @@ function SongStudyWorkspace({
         visibleStartMeasure={focus.measureIndex + 1}
         visibleEndMeasure={detailEndIndex + 1}
       /></div>
+
+      <div hidden={practice.focused}><SongLearningMap key={songStudy.id} song={songStudy} selection={selection} measureIndex={focus.measureIndex}
+        disabled={practice.active} onSelect={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} /></div>
 
       {!showFullTab || practice.active ? (() => {
         // Local consts so the same focused-passage/shapes/fretboard JSX
@@ -1104,7 +1110,7 @@ function SongStudyWorkspace({
         // column's width, with Tutor as a matching sticky panel on the right
         // (see TutorChat) — replaced the old horizontal-strip layout.
         return (
-          <div data-testid="song-study-overview-focus" className="flex gap-4 items-start">
+          <div data-testid="song-study-overview-focus" className="flex flex-col md:flex-row gap-4 items-start">
             {!practice.focused && (
               <div style={{ width: 200, flexShrink: 0, position: 'sticky', top: 12 }}>
                 <MeasureOverviewStrip
@@ -1117,7 +1123,7 @@ function SongStudyWorkspace({
                 />
               </div>
             )}
-            <div className="flex flex-col gap-3 flex-1 min-w-0">
+            <div className="flex w-full flex-col gap-3 flex-1 min-w-0">
               {focusedPassageBlock}
               {shapeStripBlock}
               {fretboardBlock()}

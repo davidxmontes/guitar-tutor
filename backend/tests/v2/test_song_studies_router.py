@@ -309,7 +309,7 @@ def test_enhance_song_study_preserves_raw_sources_and_persists_derived_ranges(ge
     assert payload["chordpro"] == get_chordpro.return_value
     assert payload["enrichment"]["ranges"][0] == {
         **_range(),
-        "provenance": "ai",
+        "provenance": "ai", "kind": "phrase", "repeat_group": None, "annotation": None,
     }
     assert payload["enrichment"]["source_sections"] == []
     assert client.get(f"/api/v2/song-studies/{raw['id']}").json()["payload"] == payload

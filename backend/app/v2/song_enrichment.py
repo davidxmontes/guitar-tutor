@@ -25,10 +25,13 @@ class SongDerivedRangeProposal(BaseModel):
     broad_harmony: list[str] = Field(default_factory=list)
     detailed_harmony: list[str] = Field(default_factory=list)
     confidence: Literal["low", "medium", "high"]
+    kind: Literal["section", "phrase", "transition"] = "phrase"
+    repeat_group: Optional[str] = Field(default=None, max_length=80)
+    annotation: Optional[str] = Field(default=None, max_length=500)
 
 
 class SongEnrichmentProposal(BaseModel):
-    ranges: list[SongDerivedRangeProposal] = Field(default_factory=list)
+    ranges: list[SongDerivedRangeProposal] = Field(default_factory=list, max_length=128)
 
 
 ENRICHMENT_INSTRUCTIONS = (
@@ -37,7 +40,10 @@ ENRICHMENT_INSTRUCTIONS = (
     "derive useful sections or phrases from the detailed tab summary. Include detailed guitar chord/embellishment "
     "labels when present. Preserve broad and detailed harmony separately; never choose one "
     "as the winner. Confidence must be low, medium, or high and should reflect alignment uncertainty. Use only "
-    "measure numbers inside the supplied track."
+    "measure numbers inside the supplied track. Mark range kind as section, phrase, or transition. "
+    "Use the same repeat_group for related repeated passages, one range per occurrence. "
+    "Optionally add a short learning annotation about a useful chunk or transition. "
+    "These are suggestions, not mandatory navigation. Do not invent repeats when evidence is sparse."
 )
 
 
@@ -85,7 +91,8 @@ def _measure_summary(measure: dict[str, Any], number: int) -> dict[str, Any]:
         and not note.get("rest")
         and not note.get("dead")
     ))
-    summary: dict[str, Any] = {"measure": number, "chords": chords, "positions": positions}
+    summary: dict[str, Any] = {"measure": number, "chords": chords, "positions": positions,
+                               "pattern": _fingerprint({"voices": measure.get("voices"), "header": measure.get("header")})[:16]}
     marker = measure.get("marker")
     if isinstance(marker, dict) and marker.get("text"):
         summary["marker"] = str(marker["text"])

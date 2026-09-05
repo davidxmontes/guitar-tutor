@@ -66,6 +66,18 @@ class SongSourceSection(BaseModel):
         return self
 
 
+class SongSavedRange(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    start_measure: int = Field(ge=1)
+    end_measure: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_range(self):
+        if not self.label.strip() or self.end_measure < self.start_measure:
+            raise ValueError("Give a label and an ordered measure range")
+        return self
+
+
 class SongDerivedRange(BaseModel):
     start_measure: int = Field(ge=1)
     end_measure: int = Field(ge=1)
@@ -75,6 +87,9 @@ class SongDerivedRange(BaseModel):
     detailed_harmony: list[str] = Field(default_factory=list)
     confidence: Literal["low", "medium", "high"]
     provenance: Literal["ai"] = "ai"
+    kind: Literal["section", "phrase", "transition"] = "phrase"
+    repeat_group: Optional[str] = Field(default=None, max_length=80)
+    annotation: Optional[str] = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
     def validate_range(self) -> "SongDerivedRange":
@@ -122,6 +137,7 @@ class SongStudyPayload(BaseModel):
     shape_events: list[SongShapeEvent] = Field(default_factory=list)
     chordpro: Optional[str] = None
     enrichment: Optional[SongEnrichment] = None
+    saved_ranges: list[SongSavedRange] = Field(default_factory=list, max_length=100)
 
 
 class ProgressionVoicingPosition(BaseModel):
