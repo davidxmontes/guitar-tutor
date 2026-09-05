@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
+from app.v2.workspace_caged import CagedMaterialize, caged_starter, materialize_region, valid_caged_inspection
 from app.v2.workspace_progressions import ProgressionAction, edit_progression, progression_starter
 from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
 from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison, physical_resolution
@@ -525,6 +526,8 @@ async def create_tutor_turn(
         if inspection.kind == 'step':
             progression = facts.get('progressions', {}).get(inspection.source_id)
             valid = progression and isinstance(inspection.key, int) and inspection.key < len(progression['steps'])
+        if inspection.kind.startswith('region'):
+            valid = valid_caged_inspection(facts.get('caged', {}).get(inspection.source_id), inspection.kind, inspection.key)
         if not valid:
             raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select again.")
 
@@ -897,14 +900,14 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
 
 
 class OpenWorkspaceRequest(StrictModel):
-    recipe: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression']
+    recipe: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression', 'caged-exploration']
 
 
 @router.post('/sessions/{session_id}/concept-workspaces', response_model=Branch, status_code=201)
 async def open_concept_workspace(session_id: str, data: OpenWorkspaceRequest,
     user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
-        workspace = progression_starter() if data.recipe == 'four-chord-progression' else physical_resolution() if data.recipe == 'physical-resolution' else scale_comparison()
+        workspace = caged_starter() if data.recipe == 'caged-exploration' else progression_starter() if data.recipe == 'four-chord-progression' else physical_resolution() if data.recipe == 'physical-resolution' else scale_comparison()
         return store.create_branch(session_id, user_id, title=workspace.title,
             current_artifact_kind='concept_study', working_draft=workspace.model_dump())
     except NotFoundError as exc:
@@ -1007,3 +1010,11 @@ async def transform_progression(data: ProgressionAction, user_id: str = Depends(
         raise HTTPException(422, 'That change exceeds fret, tuning or workspace bounds. Try a smaller distance or another fingering.') from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@router.post('/concept-workspaces/caged/materialize', response_model=ConceptWorkspace)
+async def keep_caged_region(data: CagedMaterialize, user_id: str = Depends(get_current_user)):
+    try:
+        return materialize_region(data)
+    except ValueError as exc:
+        raise HTTPException(422, 'That region cannot be kept within the current tuning or workspace bounds. Your draft is unchanged.') from exc
