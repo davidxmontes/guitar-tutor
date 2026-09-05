@@ -333,6 +333,8 @@ class ApiClient {
     const params = new URLSearchParams({ root: data.root, overlay: data.overlay ?? 'notes' });
     if (data.comparison_id) params.set('comparison_id', data.comparison_id);
     if (data.selected_interval !== undefined) params.set('selected_interval', String(data.selected_interval));
+    if (data.selected_voicing !== undefined) params.set('selected_voicing', String(data.selected_voicing));
+    if (data.comparison_quality) params.set('comparison_quality', data.comparison_quality);
     return this.fetch<ConceptStudyPayload>(`/v2/study/visualizations/${data.concept_id}?${params}`);
   }
 
