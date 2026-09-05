@@ -32,6 +32,7 @@ from app.v2.models import (
     ScaleConceptId,
     Session,
     SongStudyPayload,
+    SongSavedRange,
     SongStudyTrack,
     StudyCatalog,
     ChordQualityId,
@@ -396,6 +397,29 @@ def _owned_song_study(store: V2Store, artifact_id: str, user_id: str) -> tuple[A
     return artifact, SongStudyPayload.model_validate(artifact.payload)
 
 
+def _save_song_study(store: V2Store, artifact: Artifact, user_id: str, payload: SongStudyPayload) -> Artifact:
+    try:
+        return store.update_artifact(artifact.id, user_id, payload.model_dump(), artifact.updated_at)
+    except RevisionConflictError as exc:
+        raise HTTPException(409, "SongStudy changed; reload before trying again") from exc
+
+
+class UpdateSongRangesRequest(BaseModel):
+    expected_updated_at: str
+    ranges: list[SongSavedRange] = Field(max_length=100)
+
+
+@router.put("/song-studies/{artifact_id}/ranges", response_model=Artifact)
+async def update_song_ranges(artifact_id: str, data: UpdateSongRangesRequest,
+                             user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    artifact, payload = _owned_song_study(store, artifact_id, user_id)
+    if artifact.updated_at != data.expected_updated_at:
+        raise HTTPException(409, "SongStudy changed; reload before trying again")
+    if any(item.end_measure > len(payload.tab_data.get("measures", [])) for item in data.ranges):
+        raise HTTPException(422, "Range is outside the track")
+    return _save_song_study(store, artifact, user_id, payload.model_copy(update={"saved_ranges": data.ranges}))
+
+
 @router.post("/song-studies/{artifact_id}/enrichment", response_model=Artifact)
 async def enhance_song_study(
     artifact_id: str,
@@ -413,7 +437,7 @@ async def enhance_song_study(
             chordpro = None
         if chordpro:
             payload = payload.model_copy(update={"chordpro": chordpro})
-            artifact = store.update_artifact(artifact.id, user_id, payload.model_dump())
+            artifact = _save_song_study(store, artifact, user_id, payload)
 
     try:
         enrichment = run_song_enrichment(
@@ -435,7 +459,7 @@ async def enhance_song_study(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Song enrichment provider call failed") from exc
 
     payload = payload.model_copy(update={"enrichment": enrichment})
-    return store.update_artifact(artifact.id, user_id, payload.model_dump())
+    return _save_song_study(store, artifact, user_id, payload)
 
 
 @router.delete("/song-studies/{artifact_id}/enrichment", response_model=Artifact)
@@ -448,7 +472,7 @@ async def remove_song_study_enrichment(
     if payload.enrichment is None:
         return artifact
     payload = payload.model_copy(update={"enrichment": None})
-    return store.update_artifact(artifact.id, user_id, payload.model_dump())
+    return _save_song_study(store, artifact, user_id, payload)
 
 
 def get_tutor_model_factory() -> ModelFactory:

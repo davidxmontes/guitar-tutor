@@ -52,6 +52,8 @@ export interface SongSourceSection {
   source: 'tab' | 'chordpro';
 }
 
+export interface SongSavedRange { label: string; start_measure: number; end_measure: number }
+
 export interface SongDerivedRange {
   start_measure: number;
   end_measure: number;
@@ -61,6 +63,9 @@ export interface SongDerivedRange {
   detailed_harmony: string[];
   confidence: 'low' | 'medium' | 'high';
   provenance: 'ai';
+  kind?: 'section' | 'phrase' | 'transition';
+  repeat_group?: string | null;
+  annotation?: string | null;
 }
 
 export interface SongEnrichment {
@@ -92,6 +97,7 @@ export interface SongStudyPayload {
   shape_events: SongShapeEvent[];
   chordpro: string | null;
   enrichment: SongEnrichment | null;
+  saved_ranges?: SongSavedRange[];
 }
 
 export interface ArtifactRevision { revision: string; current: boolean }
