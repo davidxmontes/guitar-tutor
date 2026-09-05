@@ -40,12 +40,40 @@ export interface SongStudyTrack {
   tuning: number[] | null;
 }
 
+export interface SongSourceSection {
+  label: string;
+  start_measure: number;
+  end_measure: number;
+  source: 'tab' | 'chordpro';
+}
+
+export interface SongDerivedRange {
+  start_measure: number;
+  end_measure: number;
+  section: string | null;
+  lyrics: string[];
+  broad_harmony: string[];
+  detailed_harmony: string[];
+  confidence: 'low' | 'medium' | 'high';
+  provenance: 'ai';
+}
+
+export interface SongEnrichment {
+  tab_fingerprint: string;
+  chordpro_fingerprint: string;
+  source_sections: SongSourceSection[];
+  ranges: SongDerivedRange[];
+  generated_at: string;
+}
+
 export interface SongStudyPayload {
   song_id: number;
   artist: string;
   title: string;
   track: SongStudyTrack;
   tab_data: TabData;
+  chordpro: string | null;
+  enrichment: SongEnrichment | null;
 }
 
 export interface Artifact {

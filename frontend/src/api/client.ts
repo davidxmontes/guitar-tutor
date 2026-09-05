@@ -323,6 +323,14 @@ class ApiClient {
     return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}`);
   }
 
+  async enhanceSongStudy(artifactId: string): Promise<SongStudyArtifact> {
+    return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}/enrichment`, { method: 'POST' });
+  }
+
+  async removeSongStudyEnrichment(artifactId: string): Promise<SongStudyArtifact> {
+    return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}/enrichment`, { method: 'DELETE' });
+  }
+
   // --- V2: stateless tutor turn (ticket #13) ---
 
   async listTutorMessages(tutorThreadId: string): Promise<TutorMessage[]> {
