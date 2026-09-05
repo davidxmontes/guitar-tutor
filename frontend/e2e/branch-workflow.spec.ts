@@ -121,3 +121,36 @@ test('Explore opens an independent branch and restores both workspaces', async (
   await page.getByRole('tab', { name: 'Dreamy progression' }).click()
   await expect(page.getByTestId('progression-chord').nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
+
+test('closed work remains reopenable after reload', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const { sessionId } = await openSourceSong(page)
+  await page.getByTestId('tutor-chat-input').fill('Make something with this vibe')
+  await page.getByTestId('tutor-chat-send').click()
+  await page.getByTestId('progression-candidate-explore').click()
+
+  await page.getByTestId('v2-close-active-branch').click()
+  await expect(page.getByRole('tab', { name: 'Dreamy progression' })).toHaveCount(0)
+  await expect(page.getByTestId('v2-closed-workspaces')).toContainText('Dreamy progression')
+
+  await page.reload()
+  await page.locator(`[data-testid="v2-continue-session"][data-session-id="${sessionId}"]`).click()
+  await page.getByRole('button', { name: 'Reopen Dreamy progression' }).click()
+  await page.getByRole('tab', { name: 'Dreamy progression' }).click()
+  await expect(page.getByTestId('progression-chord').first()).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('mobile uses a workspace switcher for the same branches', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openSourceSong(page)
+  await page.getByTestId('tutor-chat-input').fill('Make something with this vibe')
+  await page.getByTestId('tutor-chat-send').click()
+  await page.getByTestId('progression-candidate-explore').click()
+
+  await expect(page.getByTestId('v2-desktop-tabs')).toBeHidden()
+  const switcher = page.getByLabel('Current workspace')
+  await expect(switcher).toBeVisible()
+  await expect(switcher.locator('option')).toHaveText(['Little Wing', 'Dreamy progression'])
+  await switcher.selectOption({ label: 'Little Wing' })
+  await expect(page.getByTestId('song-study-workspace')).toBeVisible()
+})

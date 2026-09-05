@@ -5,14 +5,9 @@ import { useAppAuth } from '../lib/authBypass';
 import { SongStudyPanel } from './SongStudy';
 import { ConceptStudyPanel, ConceptStudyPicker } from './ConceptStudy';
 import { ProgressionWorkspace } from './ProgressionWorkspace';
+import { BranchNavigation } from './BranchNavigation';
 import type { ConceptSuggestion, ProgressionPayload, V2Branch, V2Session } from '../types/v2';
 
-const pageStyle = { padding: 24, fontFamily: 'sans-serif' };
-
-// V2 foundation screen — proves Session/Branch create → leave → resume works
-// end to end. The real artifact-first workspace (Home entry points, branch
-// tabs, SongStudy/Progression/ConceptStudy/Exercise UIs) lands in tickets
-// #12+; this only has to prove the persistence contract.
 export function V2App() {
   const { getToken, isSignedIn, isLoaded } = useAppAuth();
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
@@ -33,8 +28,8 @@ export function V2App() {
   if (!isLoaded) return null;
   if (!isSignedIn) {
     return (
-      <div style={pageStyle}>
-        <h1>Guitar Tutor V2</h1>
+      <div className="p-4 sm:p-6">
+        <h1>Guitar Tutor</h1>
         <p>Sign in to start or resume a session.</p>
         <SignInButton mode="modal" />
       </div>
@@ -45,7 +40,7 @@ export function V2App() {
     try {
       const session = await apiClient.createV2Session();
       setActiveSession(session);
-      setActiveBranchId(session.branches[0]?.id ?? null);
+      setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
       setShowConceptPicker(startConcept);
       setSessions((prev) => [session, ...(prev ?? [])]);
     } catch (err) {
@@ -57,7 +52,7 @@ export function V2App() {
     try {
       const session = await apiClient.getV2Session(sessionId);
       setActiveSession(session);
-      setActiveBranchId(session.branches[0]?.id ?? null);
+      setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
       setShowConceptPicker(false);
     } catch (err) {
       setError(String(err));
@@ -111,69 +106,117 @@ export function V2App() {
     handleBranchOpened(opened);
   };
 
+  const handleSelectBranch = (branchId: string) => {
+    setActiveBranchId(branchId);
+    setShowConceptPicker(false);
+  };
+
+  const handleCloseBranch = async (branchId: string) => {
+    if (!activeSession) return;
+    try {
+      const updated = await apiClient.updateV2Branch(activeSession.id, branchId, { closed: true });
+      handleBranchChange(updated);
+      if (activeBranchId === branchId) {
+        setActiveBranchId(activeSession.branches.find((branch) => branch.id !== branchId && !branch.closed)?.id ?? null);
+      }
+      setShowConceptPicker(false);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
+  const handleReopenBranch = async (branchId: string) => {
+    if (!activeSession) return;
+    try {
+      const updated = await apiClient.updateV2Branch(activeSession.id, branchId, { closed: false });
+      handleBranchChange(updated);
+      if (!activeBranchId) setActiveBranchId(branchId);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
   if (activeSession) {
-    const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId) ?? activeSession.branches[0];
+    const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
     return (
-      <div style={{ ...pageStyle, maxWidth: 1280, margin: '0 auto' }}>
+      <main className="mx-auto max-w-7xl p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h1 className="text-2xl font-black">Guitar Tutor V2</h1>
+          <h1 className="text-2xl font-black">Guitar Tutor</h1>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
         </div>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
-        {activeSession.branches.length > 0 && <nav aria-label="Workspace branches" role="tablist" className="flex gap-2 overflow-x-auto border-b my-4" style={{ borderColor: 'var(--border-primary)' }}>
-          {activeSession.branches.map((candidate) => <button key={candidate.id} type="button" role="tab" data-testid="v2-branch-tab" aria-selected={candidate.id === branch?.id} onClick={() => { setActiveBranchId(candidate.id); setShowConceptPicker(false); }} className="whitespace-nowrap rounded-t-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-primary)', background: candidate.id === branch?.id ? 'var(--card-bg)' : 'var(--bg-secondary)' }}>{candidate.title}</button>)}
-        </nav>}
+        <BranchNavigation
+          branches={activeSession.branches}
+          activeBranchId={branch?.id ?? null}
+          onSelect={handleSelectBranch}
+          onClose={handleCloseBranch}
+          onReopen={handleReopenBranch}
+        />
         {branch && (
-          showConceptPicker ? (
-            <ConceptStudyPicker
-              sessionId={activeSession.id}
-              branch={branch}
-              onOpened={handleBranchOpened}
-              onCancel={() => setShowConceptPicker(false)}
-              onWorkOnConcept={handleWorkOnConcept}
-            />
-          ) : branch.current_artifact_kind === 'concept_study' ? (
-            <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
-          ) : branch.current_artifact_kind === 'progression' ? (
-            <ProgressionWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
-          ) : (
-            <SongStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} onExploreProgression={handleExploreProgression} />
-          )
+          <section
+            id={`workspace-panel-${branch.id}`}
+            role="tabpanel"
+            aria-labelledby={`workspace-tab-${branch.id}`}
+          >
+            {showConceptPicker ? (
+              <ConceptStudyPicker
+                sessionId={activeSession.id}
+                branch={branch}
+                onOpened={handleBranchOpened}
+                onCancel={() => setShowConceptPicker(false)}
+                onWorkOnConcept={handleWorkOnConcept}
+              />
+            ) : branch.current_artifact_kind === 'concept_study' ? (
+              <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+            ) : branch.current_artifact_kind === 'progression' ? (
+              <ProgressionWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
+            ) : (
+              <SongStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} onExploreProgression={handleExploreProgression} />
+            )}
+          </section>
         )}
-      </div>
+      </main>
     );
   }
 
   return (
-    <div style={pageStyle}>
-      <h1>Guitar Tutor V2</h1>
+    <main className="p-4 sm:p-6">
+      <h1 className="text-2xl font-black">Guitar Tutor</h1>
       {error && <p role="alert">{error}</p>}
-      {sessions === null && <p>Loading...</p>}
+      {sessions === null && <p role="status">Loading your work…</p>}
       {sessions !== null && sessions.length > 0 && (
-        <div>
-          <p>Continue where you left off:</p>
-          {sessions.map((session) => (
+        <section className="my-5" aria-labelledby="continue-heading">
+          <h2 id="continue-heading" className="text-lg font-bold">Continue where you left off</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {sessions.map((session) => {
+            const workspace = session.branches.find((branch) => !branch.closed);
+            return (
             <button
               key={session.id}
+              type="button"
               data-testid="v2-continue-session"
               data-session-id={session.id}
               onClick={() => handleContinue(session.id)}
+              className="min-h-20 rounded-xl border p-4 text-left"
+              style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}
             >
-              Continue session {session.id.slice(0, 8)}
+              <strong className="block">{workspace?.title ?? 'Saved work'}</strong>
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Continue workspace</span>
             </button>
-          ))}
-        </div>
+          )})}
+          </div>
+        </section>
       )}
       <div className="flex gap-3 flex-wrap">
-      <button data-testid="v2-start-session" onClick={() => handleStart(false)}>
+      <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>
         Start something new
       </button>
-      <button data-testid="v2-start-concept" onClick={() => handleStart(true)}>
+      <button type="button" data-testid="v2-start-concept" onClick={() => handleStart(true)}>
         Study a concept
       </button>
       </div>
-    </div>
+    </main>
   );
 }
