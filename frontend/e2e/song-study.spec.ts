@@ -7,6 +7,12 @@ import { test, expect } from '@playwright/test'
 // deterministic without any network dependency — everything downstream
 // (branch state, fretboard sync, full-tab toggle) exercises real app code.
 
+// Deliberately non-standard (whole-step down: D G C F A D) so this test would
+// fail if the fretboard ever fell back to a hard-coded standard tuning
+// instead of the track's own — the note asserted below only comes out right
+// when the actual tuning array is used.
+const DROP_STEP_TUNING = [62, 57, 53, 48, 43, 38]
+
 const SEARCH_RESPONSE = {
   results: [
     {
@@ -21,7 +27,7 @@ const SEARCH_RESPONSE = {
           instrument: 'Guitar',
           is_vocal: false,
           is_empty: false,
-          tuning: [64, 59, 55, 50, 45, 40],
+          tuning: DROP_STEP_TUNING,
         },
       ],
     },
@@ -38,9 +44,9 @@ function songStudyArtifact() {
       song_id: 7,
       artist: 'Oasis',
       title: 'Wonderwall',
-      track: { index: 0, name: 'Acoustic Guitar', instrument: 'Guitar', tuning: [64, 59, 55, 50, 45, 40] },
+      track: { index: 0, name: 'Acoustic Guitar', instrument: 'Guitar', tuning: DROP_STEP_TUNING },
       tab_data: {
-        tuning: [64, 59, 55, 50, 45, 40],
+        tuning: DROP_STEP_TUNING,
         measures: [
           { voices: [{ beats: [{ notes: [{ string: 0, fret: 3 }] }] }] },
           { voices: [{ beats: [{ notes: [{ string: 1, fret: 0 }] }] }] },
@@ -85,11 +91,11 @@ test('search a song, load the whole track, select a beat, and sync the fretboard
   await expect(page.getByTestId('song-study-overview-measure')).toHaveCount(3)
 
   // Select a beat in the focused detail window — the fretboard should reflect
-  // the track's actual tuning (E at fret 3 on the high string = G), not a
-  // hard-coded standard-tuning assumption baked in separately from the track.
+  // the track's actual (non-standard) tuning: D + 3 frets = F, not the G a
+  // hard-coded standard-tuning assumption would produce for the same fret.
   const firstMeasureBeat = page.locator('[data-testid="song-study-workspace"] [data-measure-index="0"] button').first()
   await firstMeasureBeat.click()
-  await expect(page.getByTestId('fretboard-active-note')).toHaveText('G')
+  await expect(page.getByTestId('fretboard-active-note')).toHaveText('F')
 
   // Selection is represented in Branch state (persisted server-side).
   const branchAfterBeat = await page.request
