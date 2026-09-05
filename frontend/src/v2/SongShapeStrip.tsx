@@ -1,4 +1,3 @@
-import { midiToNoteName } from '../utils/tuning';
 import type { SongShapeEvent, SongShapeSource } from '../types/v2';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 
@@ -61,7 +60,7 @@ export function SongShapeStrip({
                 </span>
                 <PhysicalChordDiagram
                   positions={event.positions}
-                  tuning={[...event.tuning].reverse().map((midi) => midiToNoteName(midi))}
+                  tuning={event.tuning}
                   label={event.label ?? undefined}
                 />
               </button>

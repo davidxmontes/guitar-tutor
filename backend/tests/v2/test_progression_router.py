@@ -189,3 +189,13 @@ def test_invalid_physical_progressions_are_rejected_on_create_and_apply(voicing,
         "expected_updated_at": original["updated_at"], "chord_index": 0, "chord": chord,
     }).status_code == 422
     assert client.get(f"/api/v2/progressions/{original['id']}").json() == original
+
+
+def test_apply_preserves_untouched_legacy_chords():
+    store = InMemoryV2Store()
+    client = _app(store)
+    legacy = {"root": "C", "quality": "major", "tuning": "standard", "voicing": [{"string": 1, "fret": 0}, {"string": 1, "fret": 12}]}
+    artifact = store.create_artifact("user_1", "progression", "Old idea", {"title": "Old idea", "chords": [legacy, legacy]})
+    response = client.patch(f"/api/v2/progressions/{artifact.id}/voicing", json={"expected_updated_at": artifact.updated_at, "chord_index": 0, "chord": CANDIDATE["chords"][0]})
+    assert response.status_code == 200
+    assert response.json()["payload"]["chords"] == [CANDIDATE["chords"][0], legacy]

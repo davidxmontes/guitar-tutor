@@ -364,7 +364,7 @@ export interface ProgressionChord {
   root: string;
   quality: string;
   voicing: ProgressionVoicingPosition[] | null;
-  tuning: string | null;
+  tuning: string | number[] | null;
   barre?: ProgressionBarre | null;
   fingering?: ProgressionFingering[];
 }
@@ -385,11 +385,20 @@ export interface OpenProgressionResponse {
   branch: V2Branch;
 }
 
+export interface VoicingProposal {
+  label: string;
+  artifact_id: string;
+  expected_updated_at: string;
+  chord_index: number;
+  chord: ProgressionChord;
+}
+
 export interface TutorResponse {
   message: string;
   focus: TutorFocus | null;
   concept_suggestion?: ConceptSuggestion | null;
   candidates: ProgressionPayload[] | null;
+  voicing_candidates?: VoicingProposal[] | null;
   provider: string;
   model: string;
   latency_ms: number;
@@ -410,6 +419,6 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
+  content: { voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }

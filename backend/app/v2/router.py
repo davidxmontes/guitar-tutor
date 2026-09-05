@@ -15,6 +15,7 @@ from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
+    ApplyVoicingRequest,
     Artifact,
     ArtifactKind,
     Branch,
@@ -34,9 +35,7 @@ from app.v2.models import (
 )
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
-from app.v2.store import NotFoundError, V2Store, get_v2_store
-from app.v2.models import ApplyVoicingRequest
-from app.v2.store import RevisionConflictError
+from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
@@ -633,11 +632,12 @@ async def apply_progression_voicing(
         artifact = store.get_artifact(artifact_id, user_id)
         if artifact.kind != "progression":
             raise NotFoundError("Not a Progression artifact")
-        payload = ProgressionPayload.model_validate(artifact.payload)
-        if data.chord_index >= len(payload.chords):
+        # Validate the replacement at the request boundary; preserve legacy slots.
+        chords = list(artifact.payload["chords"])
+        if data.chord_index >= len(chords):
             raise HTTPException(status_code=422, detail="Chord slot no longer exists")
-        payload.chords[data.chord_index] = data.chord
-        return store.update_artifact(artifact_id, user_id, payload.model_dump(), data.expected_updated_at)
+        chords[data.chord_index] = data.chord.model_dump()
+        return store.update_artifact(artifact_id, user_id, {**artifact.payload, "chords": chords}, data.expected_updated_at)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RevisionConflictError as exc:
