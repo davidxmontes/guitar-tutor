@@ -1,4 +1,4 @@
-"""V2 persistence — Session/Branch storage.
+"""V2 persistence — Session/Branch/Artifact storage.
 
 Two backends, selected by Settings.v2_storage_backend:
 - "memory" (default): process-lifetime, good enough for local dev and the

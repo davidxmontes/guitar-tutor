@@ -25,3 +25,17 @@ CREATE TABLE v2_branches (
   updated_at             timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ON v2_branches (session_id);
+
+-- Artifact CRUD (ticket #12): common columns + a JSON payload, strictly typed
+-- per kind at the application layer (only song_study's SongStudyPayload
+-- exists so far — see backend/app/v2/models.py).
+CREATE TABLE v2_artifacts (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  clerk_user_id text NOT NULL,
+  kind         text NOT NULL CHECK (kind IN ('song_study', 'progression', 'concept_study', 'exercise')),
+  title        text NOT NULL,
+  payload      jsonb NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX ON v2_artifacts (clerk_user_id, created_at DESC);

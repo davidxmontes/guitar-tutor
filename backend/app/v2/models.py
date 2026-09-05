@@ -1,12 +1,13 @@
-"""V2 domain models — Session, Branch, and the artifact-kind vocabulary.
+"""V2 domain models — Session, Branch, Artifact, and the artifact-kind vocabulary.
 
 Session = an ongoing exploration containing multiple branches.
 Branch = one independent working context (current artifact reference,
 selection, focus, recent ideas, tutor-thread identity).
 Artifact = a durable musical thing (SongStudy, Progression, ConceptStudy,
-Exercise) saved/reopened independently of the branch that created it.
-Artifact CRUD itself lands in later tickets; this ticket only needs the
-kind vocabulary validated on a branch's current-artifact reference.
+Exercise) saved/reopened independently of the branch that created it —
+common columns plus a JSON payload, strictly typed per kind (only
+song_study's SongStudyPayload exists so far; the other three kinds get
+their own payload types in their own tickets).
 """
 
 from typing import Any, Literal, Optional, get_args
