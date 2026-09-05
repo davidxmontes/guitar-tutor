@@ -83,7 +83,7 @@ class ScriptedTutorModel(BaseChatModel):
         usage = self.usage_metadatas[index] if index < len(self.usage_metadatas) else None
         message = AIMessage(
             content="",
-            tool_calls=[
+            tool_calls=outcome["tool_calls"] if "tool_calls" in outcome else [
                 {
                     "name": self.structured_tool_name,
                     "args": outcome,

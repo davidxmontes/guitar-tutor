@@ -25,6 +25,7 @@ import openai
 from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.tools import BaseTool
 
 from app.services.chord_service import get_chord
 from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
@@ -104,6 +105,7 @@ def run_tutor_turn(
     anthropic_api_key: Optional[str] = None,
     openrouter_api_key: Optional[str] = None,
     model_factory: ModelFactory = build_tutor_model,
+    lookup_tools: Optional[list[BaseTool]] = None,
 ) -> TutorResponse:
     # Cache-affinity key derived from application state (never itself
     # conversation memory) -- see providers.py.
@@ -124,13 +126,13 @@ def run_tutor_turn(
 
     agent = create_agent(
         model=chat_model,
-        tools=[],
+        tools=lookup_tools or [],
         response_format=structured_response_format(TutorTerminal, provider, model),
     )
 
     started = time.monotonic()
     try:
-        final_state: dict[str, Any] = agent.invoke({"messages": request_messages})
+        final_state: dict[str, Any] = agent.invoke({"messages": request_messages}, config={"recursion_limit": 16})
     except NotImplementedError as exc:
         raise TutorCapabilityError(
             f"{provider}/{model} cannot satisfy required tutor capabilities (tool calling): {exc}"
@@ -148,13 +150,15 @@ def run_tutor_turn(
 
     new_messages = final_state["messages"][len(request_messages) :]
     ai_messages = [m for m in new_messages if isinstance(m, AIMessage)]
-    usage_source = next((m for m in reversed(ai_messages) if m.usage_metadata), None)
-    usage = usage_from_ai_message(usage_source) if usage_source is not None else TutorUsage()
+    reports = [usage_from_ai_message(message) for message in ai_messages if message.usage_metadata]
+    usage = TutorUsage()
+    for field in TutorUsage.model_fields:
+        values = [getattr(report, field) for report in reports]
+        if values and all(value is not None for value in values):
+            setattr(usage, field, sum(values))
 
     # Every AIMessage.tool_calls entry that isn't the structured-response
-    # tool itself is a real domain tool call (ticket #13 ships with zero
-    # domain tools, so this is 0 today -- the counting logic stays correct
-    # once #14/#16/#20 add real tools).
+    # tool itself is a real domain tool call, including saved-work lookups.
     tool_call_count = sum(
         1
         for message in ai_messages
