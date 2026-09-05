@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 agent/
+
+# Playwright
+test-results/
+playwright-report/
