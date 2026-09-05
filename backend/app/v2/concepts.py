@@ -2,7 +2,7 @@
 
 from typing import get_args
 
-from app.music.chords import CHORD_INTERVALS, get_chord_notes, index_to_note, note_to_index
+from app.music.chords import CHORD_INTERVALS, get_chord_notes, get_note_at_position, index_to_note, note_to_index
 from app.music.notes import generate_fretboard
 from app.music.scales import SCALE_DEGREE_NAMES, get_scale_notes
 from app.services.chord_service import get_chord
@@ -11,6 +11,10 @@ from app.v2.models import (
     ChordQualityId,
     ChordStudyPayload,
     ChordStudyVoicing,
+    CagedQualityId,
+    CagedRegion,
+    CagedShapeId,
+    CagedStudyPayload,
     ConceptId,
     ConceptNote,
     ConceptPosition,
@@ -93,6 +97,25 @@ DEFAULT_CHORD_COMPARISONS: dict[str, ChordQualityId] = {
     "m6": "minor", "9": "dominant7", "m9": "minor7", "maj9": "major7",
 }
 
+CAGED_SHAPES: tuple[CagedShapeId, ...] = ("C", "A", "G", "E", "D")
+CAGED_ROOTS = {"C": "C", "A": "A", "G": "G", "E": "E", "D": "D"}
+CAGED_POSITIONS: dict[CagedQualityId, dict[CagedShapeId, tuple[tuple[int, int], ...]]] = {
+    "major": {
+        "C": ((1, 0), (2, 1), (3, 0), (4, 2), (5, 3)),
+        "A": ((1, 0), (2, 2), (3, 2), (4, 2), (5, 0)),
+        "G": ((1, 3), (2, 0), (3, 0), (4, 0), (5, 2), (6, 3)),
+        "E": ((1, 0), (2, 0), (3, 1), (4, 2), (5, 2), (6, 0)),
+        "D": ((1, 2), (2, 3), (3, 2), (4, 0)),
+    },
+    "minor": {
+        "C": ((1, 3), (2, 1), (3, 0), (4, 1), (5, 3)),
+        "A": ((1, 0), (2, 1), (3, 2), (4, 2), (5, 0)),
+        "G": ((1, 3), (2, 3), (3, 0), (4, 0), (5, 1), (6, 3)),
+        "E": ((1, 0), (2, 0), (3, 0), (4, 2), (5, 2), (6, 0)),
+        "D": ((1, 1), (2, 3), (3, 2), (4, 0)),
+    },
+}
+
 
 def _catalog_concept(concept_id: ConceptId) -> StudyCatalogConcept:
     if concept_id.startswith("chord_"):
@@ -105,6 +128,8 @@ def _catalog_concept(concept_id: ConceptId) -> StudyCatalogConcept:
         )
     if concept_id == "intervals":
         return StudyCatalogConcept(id=concept_id, display_name="Intervals", description="See each distance from a root across the neck.", visualization="interval")
+    if concept_id == "caged":
+        return StudyCatalogConcept(id=concept_id, display_name="CAGED", description="Five connected movable chord regions.", visualization="caged")
     return StudyCatalogConcept(
         id=concept_id,
         display_name=SCALE_NAMES[concept_id],
@@ -123,7 +148,7 @@ def get_study_catalog() -> StudyCatalog:
             StudyCatalogGroup(id="explore_more", display_name="Explore more", concepts=[_catalog_concept(item) for item in (
                 "ionian", "dorian", "phrygian", "lydian", "mixolydian", "aeolian", "locrian", "harmonic_minor", "melodic_minor"
             )] + [_catalog_concept(f"chord_{quality}") for quality in ADVANCED_CHORDS]),
-            StudyCatalogGroup(id="systems", display_name="Systems", concepts=[_catalog_concept("intervals")]),
+            StudyCatalogGroup(id="systems", display_name="Systems", concepts=[_catalog_concept("intervals"), _catalog_concept("caged")]),
         ],
     )
 
@@ -295,6 +320,74 @@ def _build_chord(
     )
 
 
+def _build_caged(
+    root: str,
+    quality: CagedQualityId,
+    selected_region: CagedShapeId,
+    comparison_region: CagedShapeId | None,
+    overlay: str,
+) -> CagedStudyPayload:
+    if quality not in CAGED_POSITIONS:
+        raise ValueError(f"Unsupported CAGED quality: {quality}")
+    if selected_region not in CAGED_SHAPES:
+        raise ValueError(f"Unknown CAGED region: {selected_region}")
+    if comparison_region not in (*CAGED_SHAPES, None):
+        raise ValueError(f"Unknown CAGED region: {comparison_region}")
+    if comparison_region == selected_region:
+        raise ValueError("A CAGED region cannot be compared with itself")
+
+    root_index = note_to_index(root)
+    role_by_semitone = {0: "1", 3 if quality == "minor" else 4: "b3" if quality == "minor" else "3", 7: "5"}
+    regions = []
+    for shape in CAGED_SHAPES:
+        offset = (root_index - note_to_index(CAGED_ROOTS[shape])) % 12
+        positions = []
+        for string, fret in CAGED_POSITIONS[quality][shape]:
+            physical_fret = fret + offset
+            note = get_note_at_position(string, physical_fret)
+            interval = role_by_semitone.get((note_to_index(note) - root_index) % 12)
+            if interval is None:
+                raise ValueError(f"Invalid {quality} {shape}-shape position")
+            positions.append(ConceptPosition(string=string, fret=physical_fret, note=note, interval=interval))
+        expected_roles = {"1", "b3" if quality == "minor" else "3", "5"}
+        if {position.interval for position in positions} != expected_roles:
+            raise ValueError(f"Incomplete {quality} {shape}-shape region")
+        regions.append(CagedRegion(
+            shape=shape,
+            label=f"{shape} shape",
+            fret_start=min(position.fret for position in positions),
+            fret_end=max(position.fret for position in positions),
+            positions=positions,
+        ))
+    regions.sort(key=lambda region: (region.fret_start, CAGED_SHAPES.index(region.shape)))
+
+    selected = next(region for region in regions if region.shape == selected_region)
+    comparison = next((region for region in regions if region.shape == comparison_region), None)
+    comparison_keys = {(position.string, position.fret) for position in comparison.positions} if comparison else set()
+    overlap = [
+        position for position in selected.positions
+        if (position.string, position.fret) in comparison_keys
+    ]
+    visible = selected.positions + (comparison.positions if comparison else [])
+    third = "b3" if quality == "minor" else "3"
+    return CagedStudyPayload(
+        root=root,
+        quality=quality,
+        display_name=f"{root} {quality} CAGED",
+        explanation=f"Five connected chord regions labeled 1, {third}, and 5.",
+        tuning=TUNING,
+        fret_start=min(position.fret for position in visible),
+        fret_end=max(position.fret for position in visible),
+        overlay=overlay,
+        notes=_notes(get_chord_notes(root, quality), ["1", third, "5"]),
+        positions=selected.positions,
+        regions=regions,
+        selected_region=selected_region,
+        comparison_region=comparison_region,
+        overlap_positions=overlap,
+    )
+
+
 def build_concept_study(
     root: str,
     concept_id: ConceptId,
@@ -304,6 +397,9 @@ def build_concept_study(
     selected_interval: int = 7,
     selected_voicing: int = 0,
     comparison_quality: ChordQualityId | None = None,
+    caged_quality: CagedQualityId = "major",
+    selected_region: CagedShapeId = "C",
+    comparison_region: CagedShapeId | None = None,
 ):
     """Build a validated visualization without persisting it."""
 
@@ -314,6 +410,8 @@ def build_concept_study(
         raise ValueError("selected_interval must be between 0 and 11")
     if concept_id == "intervals":
         return _build_intervals(root, selected_interval, overlay)
+    if concept_id == "caged":
+        return _build_caged(root, caged_quality, selected_region, comparison_region, overlay)
     if concept_id in get_args(ChordConceptId):
         return _build_chord(root, concept_id, comparison_quality, selected_voicing, overlay)
     if concept_id not in get_args(ScaleConceptId):
