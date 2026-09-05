@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guitar Tutor V2 — Rich ConceptWorkspace Prototype</title>
+<style>
+:root{
+  --bg:#edf1f5;--surface:#fff;--surface2:#f7f9fb;--ink:#151b22;--muted:#6e7986;--line:#dbe2e8;
+  --green:#169b73;--greenSoft:#e8f7f1;--purple:#6853d7;--purpleSoft:#f1eeff;
+  --amber:#b97812;--amberSoft:#fff4dd;--blue:#2e6fb0;--blueSoft:#ebf4fd;--dark:#171a20;
+  --shadow:0 20px 55px rgba(20,30,45,.11)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,select{font:inherit}
+.page{max-width:1580px;margin:auto;padding:22px 14px 80px}
+.hero{background:linear-gradient(145deg,#151920,#252b33);color:#fff;border-radius:26px;padding:28px 30px;box-shadow:var(--shadow)}
+.kicker{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:#96e4cb;font-weight:950}
+.hero h1{font-size:36px;line-height:1.03;letter-spacing:-1.1px;margin:7px 0 9px}
+.hero p{max-width:1100px;margin:0;color:#d9dfe7;font-size:14px;line-height:1.55}
+.hero .rule{margin-top:15px;padding:10px 12px;border:1px solid #ffffff22;background:#ffffff09;border-radius:12px;font-size:11px}
+.nav{position:sticky;top:7px;z-index:40;margin:16px 0 20px;padding:7px;display:flex;gap:6px;overflow:auto;background:rgba(237,241,245,.95);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px}
+.nav button{white-space:nowrap;border:1px solid var(--line);background:#fff;color:#56616e;border-radius:999px;padding:8px 11px;font-size:9px;font-weight:900;cursor:pointer}
+.nav button.active{background:var(--dark);color:#fff;border-color:var(--dark)}
+.mock{display:none}.mock.active{display:block}
+.heading{margin-bottom:10px}.heading h2{margin:0;font-size:25px;letter-spacing:-.45px}.heading p{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.55;max-width:1050px}
+.frame{background:#11141a;border-radius:22px;padding:8px;box-shadow:var(--shadow)}
+.app{background:#f6f8fa;border-radius:15px;overflow:hidden;min-height:820px}
+.topbar{min-height:58px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 13px}
+.brand{font-size:13px;font-weight:950}.crumb{font-size:8px;color:var(--muted);margin-top:2px}
+.actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 9px;font-size:8px;font-weight:850;color:#475360;cursor:pointer}.btn.dark{background:var(--dark);border-color:var(--dark);color:#fff}.btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.purple{background:var(--purpleSoft);border-color:#d8d0ff;color:#5847bd}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 330px;min-height:750px}
+.canvas{min-width:0;padding:11px;background:#f4f6f8}
+.tutor{border-left:1px solid var(--line);background:#fbfbfd;padding:11px;display:flex;flex-direction:column}
+.tTitle{font-size:8px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);font-weight:950;margin-bottom:8px}
+.chat{flex:1}.msg{font-size:8px;line-height:1.55;border-radius:10px;padding:9px 10px;margin-bottom:7px}.msg.u{background:#edf1f4;margin-left:22px}.msg.ai{background:var(--purpleSoft);border:1px solid #ddd5ff;margin-right:9px}
+.tAction{border:1px solid #d7cfff;background:#fbfaff;border-radius:10px;padding:9px;margin:8px 0}.tAction b{display:block;font-size:8px;margin-bottom:5px}.tAction ul{margin:0;padding-left:16px;font-size:7px;color:#5f5a77;line-height:1.5}
+.input{margin-top:9px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px;font-size:8px;color:#939ca8}
+.activity{border:1px solid #d8d0ff;background:var(--purpleSoft);border-radius:10px;padding:8px 9px;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px}.activity.manual{background:var(--greenSoft);border-color:#c5e8dc}.activity.focus{background:var(--amberSoft);border-color:#ecd39b}.activity b{font-size:8px}.activity span{display:block;font-size:6px;color:#6a6381;margin-top:2px}
+.inspect{border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 10px;margin-bottom:9px;display:flex;justify-content:space-between;gap:10px;align-items:center}.inspect b{font-size:10px}.inspect span{display:block;font-size:7px;color:var(--muted);margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;align-items:start}.s12{grid-column:span 12}.s8{grid-column:span 8}.s7{grid-column:span 7}.s6{grid-column:span 6}.s5{grid-column:span 5}.s4{grid-column:span 4}
+.block{background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:0 4px 15px rgba(20,31,45,.035)}.block.primary{border-color:#bfe4d7;box-shadow:0 0 0 2px #edf9f5 inset}.block.new{border-color:#cbbfff;box-shadow:0 0 0 2px #efeaff inset}
+.bh{min-height:38px;padding:7px 9px;border-bottom:1px solid var(--line);background:#fbfcfd;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.bn{font-size:9px;font-weight:900;display:flex;gap:6px;align-items:center}.tag{font-size:6px;text-transform:uppercase;letter-spacing:.08em;border-radius:999px;padding:3px 5px;border:1px solid #c8e5da;background:var(--greenSoft);color:#087254}.tag.p{border-color:#d4caff;background:var(--purpleSoft);color:#5b49bd}.tag.a{border-color:#ecd39b;background:var(--amberSoft);color:#875b10}
+.controls{display:flex;gap:5px;flex-wrap:wrap}.mini,select{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 6px;font-size:7px;font-weight:800;color:#5c6875}
+.bb{padding:10px}.big{font-size:17px;font-weight:950;letter-spacing:-.3px}.small{font-size:8px;color:var(--muted);line-height:1.55}
+.chips{display:flex;gap:5px;flex-wrap:wrap}.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 7px;font-size:7px;font-weight:850;color:#596572}.chip.g{background:var(--greenSoft);border-color:#c4e8db;color:#087255}.chip.p{background:var(--purpleSoft);border-color:#d7ceff;color:#5a48bd}.chip.a{background:var(--amberSoft);border-color:#edd69f;color:#875c12}
+
+/* Circle */
+.circleWrap{display:flex;gap:14px;align-items:center}.circle{width:285px;height:285px;border:2px solid #e0e5ea;border-radius:50%;position:relative;flex:0 0 auto}.cnode{position:absolute;transform:translate(-50%,-50%);width:48px;min-height:40px;border:1px solid var(--line);border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:8px;font-weight:950;cursor:pointer}.cnode small{font-size:6px;color:var(--muted)}.cnode.sel{background:var(--greenSoft);border-color:#73cdb1;color:#0b7255}.cnode.inspect{box-shadow:0 0 0 3px #e8ac4e55;border-color:#d69b3b}.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}.center b{font-size:18px}.center span{display:block;font-size:7px;color:var(--muted)}
+.c1{left:50%;top:4%}.c2{left:76%;top:14%}.c3{left:94%;top:36%}.c4{left:95%;top:64%}.c5{left:77%;top:87%}.c6{left:50%;top:97%}.c7{left:23%;top:87%}.c8{left:5%;top:64%}.c9{left:6%;top:36%}.c10{left:24%;top:14%}
+.circleInfo{flex:1;min-width:220px}.circleInfo h4{font-size:10px;margin:0 0 6px}.circleInfo p{font-size:8px;color:var(--muted);line-height:1.55}.chordFamily{display:flex;gap:5px;flex-wrap:wrap}.cf{border:1px solid var(--line);border-radius:8px;padding:6px 7px;text-align:center;min-width:52px;cursor:pointer}.cf.active{background:var(--amberSoft);border-color:#e6c984}.cf b{font-size:8px;display:block}.cf span{font-size:5px;color:var(--muted)}
+
+/* degree */
+.degrees{display:flex;gap:5px;overflow:auto}.deg{min-width:48px;border:1px solid var(--line);border-radius:9px;padding:7px;text-align:center}.deg b{font-size:9px;display:block}.deg span{font-size:6px;color:var(--muted)}.deg.chg{background:var(--amberSoft);border-color:#ecd39b}
+
+/* fretboard */
+.fret{background:linear-gradient(180deg,#20252b,#171b20);border-radius:10px;color:#fff;padding:8px;overflow:auto}.fnums,.string{display:grid;grid-template-columns:28px repeat(13,minmax(34px,1fr));min-width:580px}.fnums{font-size:6px;color:#8f99a4}.fnums span{text-align:center}.string{height:34px;align-items:center}.string>span:first-child{font-size:7px;text-align:center;color:#bbc4cc;font-weight:900}
+.cell{height:100%;border-left:1px solid #3b4550;position:relative;display:flex;align-items:center;justify-content:center}.cell:after{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid #59636e70}.dot{position:relative;z-index:2;width:20px;height:20px;border-radius:50%;background:var(--green);border:1px solid #65cdb0;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:950}.dot.alt{background:transparent;border:2px solid #8975e8;color:#d0c8ff}.dot.focus{box-shadow:0 0 0 3px #efa93d66,0 0 0 1px #efa93d}
+
+/* chord diagram */
+.diagramRow{display:flex;gap:8px;overflow:auto;align-items:center}.diag{min-width:110px;border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}.diag.selected{background:var(--greenSoft);border-color:#b8decf}.diag b{display:block;font-size:9px}.diag small{font-size:6px;color:var(--muted)}.diaGrid{width:54px;height:66px;margin:7px auto;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(6,1fr);border-top:1px solid #6c7580;border-left:1px solid #6c7580}.diaGrid i{border-right:1px solid #a8b0b8;border-bottom:1px solid #a8b0b8;position:relative}.diaGrid i.d:after{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}.arrow{font-size:16px;color:#8d97a1}
+
+/* progression */
+.progression{display:flex;gap:7px;align-items:center;overflow:auto;flex-wrap:wrap}.step{min-width:96px;border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;background:#fff}.step.selected{background:var(--amberSoft);border-color:#e4c582}.step select{width:100%;margin-bottom:4px}.step small{font-size:6px;color:var(--muted)}.remove{font-size:6px;margin-top:5px;color:#8a5a5e;cursor:pointer}.plus{border:1px dashed #c8d0d9;border-radius:10px;padding:13px 15px;font-size:8px;color:#6f7c89;cursor:pointer}
+
+/* tables */
+.kv{display:grid;grid-template-columns:100px 1fr;gap:5px 8px;font-size:8px}.kv b{font-size:8px}.kv span{color:var(--muted)}
+
+@media(max-width:1120px){.workspace{grid-template-columns:1fr}.tutor{border-left:0;border-top:1px solid var(--line)}.s8,.s7,.s6,.s5,.s4{grid-column:span 12}.circleWrap{flex-direction:column;align-items:flex-start}}
+@media(max-width:720px){.page{padding:10px 7px 45px}.hero{padding:21px 17px}.hero h1{font-size:27px}.topbar{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.block{grid-column:1!important}.circle{width:250px;height:250px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="hero">
+    <div class="kicker">Rich interactive ConceptWorkspace prototype</div>
+    <h1>Users manipulate real musical controls. Tutor works on the same state.</h1>
+    <p>This version is intentionally more product-like: Circle of Fifths, key and chord-family inspection, scale/root/mode selection, chord quality and voicing selection, and a fully editable progression. The controls are interactive so you can see how user actions and Tutor actions could share one model.</p>
+    <div class="rule"><b>Try the controls.</b> Change keys, scales, chord qualities, progression chords, and selected progression steps. The goal is to demonstrate the actual reusable building blocks—not only simplified interaction cards.</div>
+  </section>
+
+  <nav class="nav">
+    <button class="active" data-target="harmony">Harmony + Circle</button>
+    <button data-target="scale">Scale explorer</button>
+    <button data-target="chord">Chord + voicing explorer</button>
+    <button data-target="prog">Editable progression</button>
+  </nav>
+
+  <!-- HARMONY -->
+  <section class="mock active" id="harmony">
+    <div class="heading"><h2>Harmony explorer — Circle of Fifths + derived chords + progression</h2><p>The user can change the key directly, click a chord in the diatonic family, or ask the Tutor to turn an inspected chord relationship into a persistent comparison/transition.</p></div>
+    <div class="frame"><div class="app">
+      <div class="topbar"><div><div class="brand">Explore · <span id="hTitle">G major harmony</span></div><div class="crumb">Key entity → Circle + chord family + derived progression</div></div><div class="actions"><label class="mini">Key <select id="hKey"><option>C</option><option>D</option><option>E</option><option>F</option><option selected>G</option><option>A</option><option>Bb</option></select></label><button class="btn">+ Add view</button><button class="btn">Save</button></div></div>
+      <div class="workspace">
+        <main class="canvas">
+          <div class="activity manual"><div><b>Manual controls are first-class</b><span>Changing the key re-resolves every bound block without a Tutor call.</span></div></div>
+          <div class="inspect"><div><b id="hInspectTitle">G major</b><span id="hInspectSub">Click a chord below to inspect it across the workspace.</span></div><button class="btn" id="clearChord">Back to key</button></div>
+          <div class="grid">
+            <section class="block primary s7"><div class="bh"><div class="bn">Circle of Fifths <span class="tag">Key view</span></div></div><div class="bb">
+              <div class="circleWrap">
+                <div class="circle" id="circle">
+                  <div class="center"><b id="circleCenter">G</b><span>major</span></div>
+                </div>
+                <div class="circleInfo">
+                  <h4 id="circleHeading">G major</h4>
+                  <p id="circleMeta">Relative minor: Em · I/IV/V: G / C / D</p>
+                  <div class="chordFamily" id="hChordFamily"></div>
+                  <div class="chips" style="margin-top:10px"><span class="chip g">▶ Hear key</span><span class="chip">Show intervals</span><span class="chip p">Ask Tutor why these belong together</span></div>
+                </div>
+              </div>
+            </div></section>
+
+            <section class="block s5"><div class="bh"><div class="bn">Inspected chord</div><div class="controls"><span class="mini" id="hChordRole">No chord selected</span></div></div><div class="bb">
+              <div class="big" id="hChordName">Choose a chord</div>
+              <div class="small" id="hChordText" style="margin:5px 0 10px">Click G, C, D, Em, or another diatonic chord. This is inspection first—not an entity explosion.</div>
+              <div class="chips"><span class="chip">Hear</span><span class="chip">Compare with…</span><span class="chip p">Explore movement</span></div>
+            </div></section>
+
+            <section class="block s12"><div class="bh"><div class="bn">Common movement <span class="tag">Derived pattern</span></div><div class="controls"><label class="mini">Pattern <select id="hPattern"><option value="1451">I–IV–V–I</option><option value="1564">I–V–vi–IV</option><option value="6415">vi–IV–I–V</option></select></label></div></div><div class="bb">
+              <div class="progression" id="hProgression"></div>
+              <div class="small" style="margin-top:8px">This remains derived harmony until the user edits or chooses “Work on this,” at which point the current concrete chords can become a ProgressionEntity.</div>
+            </div></section>
+
+            <section class="block s12"><div class="bh"><div class="bn">Fretboard <span class="tag a">Inspection-aware</span></div><div class="controls"><button class="mini">Notes ▾</button><button class="mini">0–12 ▾</button></div></div><div class="bb"><div class="fret" id="hFret"></div></div></section>
+          </div>
+        </main>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Why does the V chord pull back home?</div><div class="msg ai">I’d keep your Circle and chord family, then focus the V chord and add a transition view only if you want the physical movement.</div><div class="tAction"><b>Possible Tutor action</b><ul><li>Focus inspected V chord</li><li>Materialize V and I only if you ask to compare/keep them</li><li>Add D→G-style transition fretboard without replacing the Circle</li></ul></div><div class="input">Ask about this harmony…</div></aside>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- SCALE -->
+  <section class="mock" id="scale">
+    <div class="heading"><h2>Scale explorer — user chooses root, scale type, comparison, labels, and fret range</h2><p>This is a real reusable Scale block model: the Scale entity is shared, while view controls like Notes/Intervals are block-local.</p></div>
+    <div class="frame"><div class="app">
+      <div class="topbar"><div><div class="brand">Explore · <span id="sTitle">A minor pentatonic</span></div><div class="crumb">Scale entity + optional Compare relation</div></div><div class="actions"><label class="mini">Root <select id="sRoot"><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option><option selected>A</option><option>B</option></select></label><label class="mini">Scale <select id="sType"><option value="major">Major</option><option value="natural_minor">Natural minor</option><option value="dorian">Dorian</option><option value="mixolydian">Mixolydian</option><option value="pentatonic_minor" selected>Minor pentatonic</option><option value="blues">Blues</option></select></label><button class="btn">Save</button></div></div>
+      <div class="workspace">
+        <main class="canvas">
+          <div class="inspect"><div><b id="sInspect">A minor pentatonic</b><span>Entity controls change every bound view. Block controls change only that view.</span></div></div>
+          <div class="grid">
+            <section class="block s12"><div class="bh"><div class="bn">Scale degrees</div><div class="controls"><label class="mini">Compare <select id="sCompare"><option value="">None</option><option value="major">Major</option><option value="natural_minor">Natural minor</option><option value="dorian">Dorian</option><option value="mixolydian">Mixolydian</option><option value="blues">Blues</option></select></label></div></div><div class="bb"><div class="degrees" id="sDegrees"></div></div></section>
+
+            <section class="block primary s8"><div class="bh"><div class="bn">Fretboard <span class="tag">Primary</span></div><div class="controls"><label class="mini">Labels <select id="sLabels"><option value="notes">Notes</option><option value="intervals">Intervals</option></select></label><label class="mini">Frets <select id="sRange"><option value="0-5">0–5</option><option value="3-8">3–8</option><option value="5-10" selected>5–10</option><option value="7-12">7–12</option></select></label></div></div><div class="bb"><div class="fret" id="sFret"></div></div></section>
+
+            <section class="block s4"><div class="bh"><div class="bn">Scale info</div></div><div class="bb"><div class="kv"><b>Name</b><span id="sInfoName"></span><b>Formula</b><span id="sInfoFormula"></span><b>Compare</b><span id="sInfoCompare">None</span></div><div class="chips" style="margin-top:10px"><span class="chip g">▶ Hear</span><span class="chip">Show chord tones</span><span class="chip p">Ask Tutor for a shape</span></div></div></section>
+          </div>
+        </main>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Show me why A blues feels different from A minor pentatonic.</div><div class="msg ai">I’d keep your current A-minor-pentatonic Scale entity, create A blues as a second Scale entity, then bind the existing fretboard to a Compare relation so the added ♭5 stands out.</div><div class="tAction"><b>Tutor uses the same controls conceptually</b><ul><li>Does not replace your scale unless you say “change this”</li><li>“Compare” creates a second entity</li><li>“Make this Dorian” mutates the current Scale entity</li></ul></div><div class="input">Ask about this scale…</div></aside>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- CHORD -->
+  <section class="mock" id="chord">
+    <div class="heading"><h2>Chord + voicing explorer — root, quality, voicing, compare</h2><p>The user can directly change the abstract Chord entity and separately choose a physical Voicing. Tutor suggestions use candidate Voicing entities rather than overwriting the current one.</p></div>
+    <div class="frame"><div class="app">
+      <div class="topbar"><div><div class="brand">Explore · <span id="cTitle">Cmaj7</span></div><div class="crumb">Chord entity + selected Voicing entity</div></div><div class="actions"><label class="mini">Root <select id="cRoot"><option selected>C</option><option>D</option><option>E</option><option>F</option><option>G</option><option>A</option><option>B</option></select></label><label class="mini">Quality <select id="cQuality"><option value="major">Major</option><option value="minor">Minor</option><option value="maj7" selected>Maj7</option><option value="dom7">7</option><option value="min7">m7</option><option value="sus4">sus4</option><option value="add9">add9</option></select></label><button class="btn">Save</button></div></div>
+      <div class="workspace">
+        <main class="canvas">
+          <div class="inspect"><div><b id="cInspect">Cmaj7</b><span>Changing quality changes the Chord entity; choosing a voicing changes the physical realization.</span></div></div>
+          <div class="grid">
+            <section class="block s5"><div class="bh"><div class="bn">Chord tones</div><div class="controls"><label class="mini">Compare <select id="cCompare"><option value="">None</option><option value="major">Major</option><option value="minor">Minor</option><option value="maj7">Maj7</option><option value="dom7">7</option><option value="min7">m7</option><option value="sus4">sus4</option></select></label></div></div><div class="bb"><div class="degrees" id="cTones"></div><div class="small" id="cCompareText" style="margin-top:8px">No comparison.</div></div></section>
+
+            <section class="block s7"><div class="bh"><div class="bn">Physical voicings</div><div class="controls"><label class="mini">Voicing <select id="cVoicing"><option value="open">Open / low</option><option value="mid">Mid-neck</option><option value="upper">Upper</option></select></label></div></div><div class="bb"><div class="diagramRow" id="cDiagrams"></div></div></section>
+
+            <section class="block primary s12"><div class="bh"><div class="bn">Fretboard <span class="tag">Chord tones + selected voicing</span></div><div class="controls"><button class="mini">Intervals ▾</button><button class="mini">0–12 ▾</button></div></div><div class="bb"><div class="fret" id="cFret"></div></div></section>
+          </div>
+        </main>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">Give me a more open sounding Cmaj7.</div><div class="msg ai">I wouldn’t mutate your current voicing immediately. I’d add one or two Voicing candidates, show them beside your current shape, and let you hear/keep one.</div><div class="tAction"><b>Candidate behavior</b><ul><li>Chord entity remains Cmaj7</li><li>Current Voicing remains selected</li><li>Tutor adds candidate Voicing entities</li><li>Keep swaps/sets the chosen voicing deterministically</li></ul></div><div class="input">Ask for another voicing…</div></aside>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- PROGRESSION -->
+  <section class="mock" id="prog">
+    <div class="heading"><h2>Editable progression — user changes chords directly</h2><p>This is the part the earlier mocks did not show clearly enough: Progression is a real compact editor inside ConceptStudy. The user can change chords, select steps, add/remove steps, transpose, and then ask Tutor about the resulting concrete music.</p></div>
+    <div class="frame"><div class="app">
+      <div class="topbar"><div><div class="brand">Explore · Editable progression</div><div class="crumb">Concrete ProgressionEntity · manual edits are deterministic</div></div><div class="actions"><label class="mini">Context key <select id="pKey"><option>C</option><option>D</option><option>E</option><option>F</option><option selected>G</option><option>A</option></select></label><button class="btn" id="transposeA">Transpose to A</button><button class="btn dark">▶ Hear all</button><button class="btn">Save</button></div></div>
+      <div class="workspace">
+        <main class="canvas">
+          <div class="activity manual"><div><b>User-owned music</b><span>Change any chord below. Other blocks update immediately. Context key does not silently transpose concrete chords.</span></div></div>
+          <div class="inspect"><div><b id="pTitle">G → D → Em → C</b><span id="pSub">Selected step: 1 · G</span></div><div class="chips"><span class="chip">Roman numerals</span><span class="chip g">Voicings</span><span class="chip">Transitions</span></div></div>
+          <div class="grid">
+            <section class="block primary s12"><div class="bh"><div class="bn">Progression editor <span class="tag">Fully editable</span></div><div class="controls"><button class="mini" id="addChord">+ Chord</button></div></div><div class="bb"><div class="progression" id="pEditor"></div></div></section>
+
+            <section class="block s5"><div class="bh"><div class="bn">Selected chord</div></div><div class="bb"><div class="big" id="pSelectedChord">G</div><div class="small" id="pSelectedRole">I in G major</div><div class="chips" style="margin-top:9px"><span class="chip g">▶ Hear</span><span class="chip">Change voicing</span><span class="chip p">Try another</span></div></div></section>
+
+            <section class="block s7"><div class="bh"><div class="bn">Current transition</div><div class="controls"><button class="mini">Movement ▾</button></div></div><div class="bb"><div class="big" id="pTransition">G → D</div><div class="small">Selecting a step can derive the adjacent Transition without creating another sequence abstraction.</div><div class="fret" id="pFret" style="margin-top:8px"></div></div></section>
+
+            <section class="block s12"><div class="bh"><div class="bn">Progression voicings</div><div class="controls"><button class="mini">Compact diagrams ▾</button></div></div><div class="bb"><div class="diagramRow" id="pDiagrams"></div></div></section>
+          </div>
+        </main>
+        <aside class="tutor"><div class="tTitle">Tutor</div><div class="msg u">What if the second chord were darker?</div><div class="msg ai">Because you said “what if,” I’d propose a candidate for step 2 instead of overwriting it. If you say “change the second chord to Bm,” that’s a direct mutation of the existing progression.</div><div class="tAction"><b>Same object, different intent</b><ul><li>Manual dropdown = direct mutation, no AI</li><li>“Change it to Bm” = Tutor mutation proposal</li><li>“What else could work?” = candidate</li><li>“Transpose to A” = deterministic explicit operation</li></ul></div><div class="input">Ask about this progression…</div></aside>
+      </div>
+    </div></div>
+  </section>
+</div>
+
+<script>
+const PC = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const idx = n => PC.indexOf(n);
+const note = i => PC[(i%12+12)%12];
+const tuning = ['E','B','G','D','A','E']; // high to low
+const tuningIdx = tuning.map(idx);
+
+const scales = {
+  major: {name:'major', semis:[0,2,4,5,7,9,11], deg:['1','2','3','4','5','6','7']},
+  natural_minor: {name:'natural minor', semis:[0,2,3,5,7,8,10], deg:['1','2','♭3','4','5','♭6','♭7']},
+  dorian: {name:'Dorian', semis:[0,2,3,5,7,9,10], deg:['1','2','♭3','4','5','6','♭7']},
+  mixolydian: {name:'Mixolydian', semis:[0,2,4,5,7,9,10], deg:['1','2','3','4','5','6','♭7']},
+  pentatonic_minor: {name:'minor pentatonic', semis:[0,3,5,7,10], deg:['1','♭3','4','5','♭7']},
+  blues: {name:'blues', semis:[0,3,5,6,7,10], deg:['1','♭3','4','♭5','5','♭7']}
+};
+const chordDefs = {
+  major:{suffix:'', semis:[0,4,7], deg:['1','3','5']},
+  minor:{suffix:'m', semis:[0,3,7], deg:['1','♭3','5']},
+  maj7:{suffix:'maj7', semis:[0,4,7,11], deg:['1','3','5','7']},
+  dom7:{suffix:'7', semis:[0,4,7,10], deg:['1','3','5','♭7']},
+  min7:{suffix:'m7', semis:[0,3,7,10], deg:['1','♭3','5','♭7']},
+  sus4:{suffix:'sus4', semis:[0,5,7], deg:['1','4','5']},
+  add9:{suffix:'add9', semis:[0,2,4,7], deg:['1','2','3','5']}
+};
+const keyData = {
+ C:{rel:'Am',chords:['C','Dm','Em','F','G','Am','Bdim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'F',v:'G'},
+ D:{rel:'Bm',chords:['D','Em','F#m','G','A','Bm','C#dim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'G',v:'A'},
+ E:{rel:'C#m',chords:['E','F#m','G#m','A','B','C#m','D#dim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'A',v:'B'},
+ F:{rel:'Dm',chords:['F','Gm','Am','Bb','C','Dm','Edim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'Bb',v:'C'},
+ G:{rel:'Em',chords:['G','Am','Bm','C','D','Em','F#dim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'C',v:'D'},
+ A:{rel:'F#m',chords:['A','Bm','C#m','D','E','F#m','G#dim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'D',v:'E'},
+ Bb:{rel:'Gm',chords:['Bb','Cm','Dm','Eb','F','Gm','Adim'],roles:['I','ii','iii','IV','V','vi','vii°'],iv:'Eb',v:'F'}
+};
+const circleOrder=['C','G','D','A','E','B','Gb','Db','Ab','Eb','Bb','F'];
+
+function parseChordSymbol(sym){
+  const m=sym.match(/^([A-G](?:b|#)?)(.*)$/);
+  return {root:m?m[1]:'C',suffix:m?m[2]:''};
+}
+function chordQualityFromSuffix(s){
+  if(s==='m') return 'minor';
+  if(s==='maj7') return 'maj7';
+  if(s==='7') return 'dom7';
+  if(s==='m7') return 'min7';
+  return 'major';
+}
+function chordTones(sym){
+  const {root,suffix}=parseChordSymbol(sym); const q=chordQualityFromSuffix(suffix);
+  return chordDefs[q].semis.map(x=>note(idx(root)+x));
+}
+function scaleNotes(root,type){
+  const s=scales[type]; return s.semis.map(x=>note(idx(root)+x));
+}
+function buildFret(container, notes, labelsMap={}, focusNotes=[]){
+  const frets=[0,1,2,3,4,5,6,7,8,9,10,11,12];
+  let html='<div class="fnums"><span></span>'+frets.map(f=>`<span>${f}</span>`).join('')+'</div>';
+  tuningIdx.forEach((open,i)=>{
+    html+='<div class="string"><span>'+tuning[i]+'</span>';
+    frets.forEach(f=>{
+      const n=note(open+f);
+      if(notes.includes(n)){
+        const lab=labelsMap[n]||n;
+        html+=`<div class="cell"><i class="dot ${focusNotes.includes(n)?'focus':''}">${lab}</i></div>`;
+      } else html+='<div class="cell"></div>';
+    });
+    html+='</div>';
+  });
+  container.innerHTML=html;
+}
+function fakeDiagram(label,selected=false){
+  const cells=Array.from({length:30},(_,i)=>`<i class="${[2,7,14].includes((i+label.length)%30)?'d':''}"></i>`).join('');
+  return `<div class="diag ${selected?'selected':''}"><b>${label}</b><small>physical voicing</small><div class="diaGrid">${cells}</div></div>`;
+}
+
+/* Harmony */
+let hSelectedChord=null;
+function renderHarmony(){
+  const key=document.getElementById('hKey').value; const d=keyData[key];
+  document.getElementById('hTitle').textContent=`${key} major harmony`;
+  document.getElementById('circleCenter').textContent=key;
+  document.getElementById('circleHeading').textContent=`${key} major`;
+  document.getElementById('circleMeta').textContent=`Relative minor: ${d.rel} · I/IV/V: ${key} / ${d.iv} / ${d.v}`;
+  const circle=document.getElementById('circle');
+  [...circle.querySelectorAll('.cnode')].forEach(n=>n.remove());
+  circleOrder.forEach((k,i)=>{
+    const angle=i*Math.PI/6;
+    const x=50+44*Math.sin(angle), y=50-44*Math.cos(angle);
+    const el=document.createElement('button'); el.className='cnode'+(k===key?' sel':'');
+    el.style.left=x+'%';el.style.top=y+'%';el.innerHTML=`${k}<small>${k===key?'current key':''}</small>`;
+    el.onclick=()=>{ if(keyData[k]){document.getElementById('hKey').value=k;hSelectedChord=null;renderHarmony();}};
+    circle.appendChild(el);
+  });
+  const fam=document.getElementById('hChordFamily'); fam.innerHTML='';
+  d.chords.forEach((c,i)=>{
+    const b=document.createElement('button');b.className='cf'+(hSelectedChord===c?' active':'');b.innerHTML=`<b>${c}</b><span>${d.roles[i]}</span>`;
+    b.onclick=()=>{hSelectedChord=c;renderHarmony();};fam.appendChild(b);
+  });
+  if(hSelectedChord){
+    const i=d.chords.indexOf(hSelectedChord); document.getElementById('hInspectTitle').textContent=`${key} major · inspecting ${hSelectedChord}`;
+    document.getElementById('hInspectSub').textContent=`${d.roles[i]} chord · derived from the current Key entity`;
+    document.getElementById('hChordName').textContent=hSelectedChord;
+    document.getElementById('hChordRole').textContent=d.roles[i];
+    document.getElementById('hChordText').textContent=`${hSelectedChord} is ${d.roles[i]} in ${key} major. Compatible blocks now respond to this inspection.`;
+    buildFret(document.getElementById('hFret'),chordTones(hSelectedChord),{},chordTones(hSelectedChord).slice(0,1));
+  }else{
+    document.getElementById('hInspectTitle').textContent=`${key} major`;
+    document.getElementById('hInspectSub').textContent='Click a chord below to inspect it across the workspace.';
+    document.getElementById('hChordName').textContent='Choose a chord';document.getElementById('hChordRole').textContent='No chord selected';
+    document.getElementById('hChordText').textContent=`Click ${d.chords.slice(0,6).join(', ')} or another diatonic chord. This is inspection first—not an entity explosion.`;
+    buildFret(document.getElementById('hFret'),scaleNotes(key,'major'));
+  }
+  renderHarmonyProgression();
+}
+function renderHarmonyProgression(){
+  const key=document.getElementById('hKey').value,d=keyData[key],pat=document.getElementById('hPattern').value;
+  const degs=pat==='1451'?[0,3,4,0]:pat==='1564'?[0,4,5,3]:[5,3,0,4];
+  document.getElementById('hProgression').innerHTML=degs.map((x,i)=>`<div class="step"><b>${d.chords[x]}</b><small>${d.roles[x]}</small></div>${i<degs.length-1?'<span class="arrow">→</span>':''}`).join('');
+}
+document.getElementById('hKey').onchange=()=>{hSelectedChord=null;renderHarmony()};
+document.getElementById('hPattern').onchange=renderHarmonyProgression;
+document.getElementById('clearChord').onclick=()=>{hSelectedChord=null;renderHarmony()};
+
+/* Scale */
+function renderScale(){
+  const root=document.getElementById('sRoot').value,type=document.getElementById('sType').value,cmp=document.getElementById('sCompare').value;
+  const s=scales[type], ns=scaleNotes(root,type);
+  document.getElementById('sTitle').textContent=`${root} ${s.name}`;
+  document.getElementById('sInspect').textContent=`${root} ${s.name}`;
+  const cmpNotes=cmp?scaleNotes(root,cmp):[];
+  document.getElementById('sDegrees').innerHTML=ns.map((n,i)=>{
+    const changed=cmp && !cmpNotes.includes(n);
+    return `<div class="deg ${changed?'chg':''}"><b>${n}</b><span>${s.deg[i]}</span></div>`;
+  }).join('') + (cmp ? cmpNotes.filter(n=>!ns.includes(n)).map(n=>`<div class="deg chg"><b>${n}</b><span>compare-only</span></div>`).join(''):'');
+  document.getElementById('sInfoName').textContent=`${root} ${s.name}`;
+  document.getElementById('sInfoFormula').textContent=s.deg.join(' · ');
+  document.getElementById('sInfoCompare').textContent=cmp?`${root} ${scales[cmp].name}`:'None';
+  const labels=document.getElementById('sLabels').value; const [fs,fe]=document.getElementById('sRange').value.split('-').map(Number);
+  const labelMap={}; ns.forEach((n,i)=>labelMap[n]=labels==='intervals'?s.deg[i]:n);
+  let notes=[...ns]; if(cmp) notes=[...new Set([...ns,...cmpNotes])];
+  buildCustomFret(document.getElementById('sFret'),notes,labelMap,fs,fe,cmp?cmpNotes.filter(n=>!ns.includes(n)):[]);
+}
+function buildCustomFret(container, notes, labelsMap, fs, fe, altNotes=[]){
+  const frets=Array.from({length:fe-fs+1},(_,i)=>fs+i);
+  let html='<div class="fnums" style="grid-template-columns:28px repeat('+frets.length+',minmax(34px,1fr));min-width:'+Math.max(420,frets.length*45)+'px"><span></span>'+frets.map(f=>`<span>${f}</span>`).join('')+'</div>';
+  tuningIdx.forEach((open,i)=>{
+    html+='<div class="string" style="grid-template-columns:28px repeat('+frets.length+',minmax(34px,1fr));min-width:'+Math.max(420,frets.length*45)+'px"><span>'+tuning[i]+'</span>';
+    frets.forEach(f=>{const n=note(open+f); if(notes.includes(n)){html+=`<div class="cell"><i class="dot ${altNotes.includes(n)?'alt':''}">${labelsMap[n]||n}</i></div>`}else html+='<div class="cell"></div>';});
+    html+='</div>';
+  });container.innerHTML=html;
+}
+['sRoot','sType','sCompare','sLabels','sRange'].forEach(id=>document.getElementById(id).onchange=renderScale);
+
+/* Chord */
+function chordName(root,q){return root+chordDefs[q].suffix}
+function renderChord(){
+  const root=document.getElementById('cRoot').value,q=document.getElementById('cQuality').value,cmp=document.getElementById('cCompare').value,vo=document.getElementById('cVoicing').value;
+  const name=chordName(root,q); document.getElementById('cTitle').textContent=name;document.getElementById('cInspect').textContent=name;
+  const tones=chordDefs[q].semis.map(x=>note(idx(root)+x));
+  document.getElementById('cTones').innerHTML=tones.map((n,i)=>`<div class="deg"><b>${n}</b><span>${chordDefs[q].deg[i]}</span></div>`).join('');
+  if(cmp){
+    const cmpT=chordDefs[cmp].semis.map(x=>note(idx(root)+x));
+    const delta=[...new Set([...tones.filter(n=>!cmpT.includes(n)),...cmpT.filter(n=>!tones.includes(n))])];
+    document.getElementById('cCompareText').textContent=`Compared with ${chordName(root,cmp)}: changed tones ${delta.join(', ')||'none'}.`;
+  } else document.getElementById('cCompareText').textContent='No comparison.';
+  document.getElementById('cDiagrams').innerHTML=['open','mid','upper'].map(v=>fakeDiagram(`${name} · ${v}`,v===vo)).join('');
+  buildFret(document.getElementById('cFret'),tones,Object.fromEntries(tones.map((n,i)=>[n,chordDefs[q].deg[i]])));
+}
+['cRoot','cQuality','cCompare','cVoicing'].forEach(id=>document.getElementById(id).onchange=renderChord);
+
+/* Progression */
+let prog=['G','D','Em','C'], selectedStep=0;
+const chordChoices=['C','Cm','Cmaj7','D','Dm','D7','Em','Em7','F','Fmaj7','G','G7','Am','Am7','Bm','Bm7','Bb'];
+function romanFor(sym,key){
+  const d=keyData[key]; if(!d) return '—'; const i=d.chords.indexOf(sym); return i>=0?d.roles[i]:'outside key';
+}
+function renderProg(){
+  const key=document.getElementById('pKey').value;
+  document.getElementById('pTitle').textContent=prog.join(' → ');
+  document.getElementById('pSub').textContent=`Selected step: ${selectedStep+1} · ${prog[selectedStep]}`;
+  const ed=document.getElementById('pEditor');ed.innerHTML='';
+  prog.forEach((sym,i)=>{
+    const wrap=document.createElement('div');wrap.className='step'+(selectedStep===i?' selected':'');
+    const sel=document.createElement('select'); chordChoices.forEach(c=>{const o=document.createElement('option');o.textContent=c;o.value=c;if(c===sym)o.selected=true;sel.appendChild(o)});
+    sel.onchange=()=>{prog[i]=sel.value;selectedStep=i;renderProg();};
+    const sm=document.createElement('small');sm.textContent=romanFor(sym,key);
+    const rm=document.createElement('div');rm.className='remove';rm.textContent='remove';rm.onclick=()=>{if(prog.length>2){prog.splice(i,1);selectedStep=Math.min(selectedStep,prog.length-1);renderProg()}};
+    wrap.onclick=e=>{if(e.target.tagName!=='SELECT' && !e.target.classList.contains('remove')){selectedStep=i;renderProg()}};
+    wrap.append(sel,sm,rm);ed.appendChild(wrap); if(i<prog.length-1){const a=document.createElement('span');a.className='arrow';a.textContent='→';ed.appendChild(a);}
+  });
+  const plus=document.createElement('div');plus.className='plus';plus.textContent='+ chord';plus.onclick=()=>{prog.push(key);selectedStep=prog.length-1;renderProg()};ed.appendChild(plus);
+  const sym=prog[selectedStep]; document.getElementById('pSelectedChord').textContent=sym;document.getElementById('pSelectedRole').textContent=`${romanFor(sym,key)} in ${key} major`;
+  const next=prog[(selectedStep+1)%prog.length]; document.getElementById('pTransition').textContent=`${sym} → ${next}`;
+  const notes=[...new Set([...chordTones(sym),...chordTones(next)])];buildFret(document.getElementById('pFret'),notes,{},chordTones(sym).filter(n=>!chordTones(next).includes(n)));
+  document.getElementById('pDiagrams').innerHTML=prog.map((c,i)=>fakeDiagram(c,i===selectedStep)).join('<span class="arrow">→</span>');
+}
+document.getElementById('pKey').onchange=renderProg;
+document.getElementById('addChord').onclick=()=>{prog.push(document.getElementById('pKey').value);selectedStep=prog.length-1;renderProg()};
+document.getElementById('transposeA').onclick=()=>{
+  const from=document.getElementById('pKey').value,shift=(idx('A')-idx(from)+12)%12;
+  prog=prog.map(sym=>{const {root,suffix}=parseChordSymbol(sym);return note(idx(root)+shift)+suffix});
+  document.getElementById('pKey').value='A';renderProg();
+};
+
+/* tabs */
+document.querySelectorAll('.nav button').forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.mock').forEach(m=>m.classList.remove('active'));
+  btn.classList.add('active');document.getElementById(btn.dataset.target).classList.add('active');
+});
+
+/* init */
+renderHarmony();renderScale();renderChord();renderProg();
+</script>
+</body>
+</html>
