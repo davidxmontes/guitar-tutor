@@ -13,6 +13,8 @@ from typing import Annotated, Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.v2.workspace import ConceptWorkspace
+
 ArtifactKind = Literal["song_study", "progression", "concept_study", "exercise"]
 
 ARTIFACT_KINDS: tuple[str, ...] = get_args(ArtifactKind)
@@ -25,6 +27,7 @@ class Branch(BaseModel):
     title: str = "New workspace"
     current_artifact_kind: Optional[ArtifactKind] = None
     current_artifact_id: Optional[str] = None
+    working_draft: Optional[ConceptWorkspace] = None
     selection: Optional[dict[str, Any]] = None
     focus: Optional[dict[str, Any]] = None
     recent_ideas: list[dict[str, Any]] = Field(default_factory=list)

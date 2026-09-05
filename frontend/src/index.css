@@ -382,3 +382,11 @@ input:focus-visible {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Semantic ConceptWorkspace composition becomes a priority-ordered stack on mobile. */
+.cw-composition { display: flex; flex-direction: column; gap: 1rem; }
+.cw-block { order: var(--cw-order); }
+@media (min-width: 768px) {
+  .cw-composition { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .cw-block { grid-column: span var(--cw-span); grid-row: var(--cw-row); order: initial; }
+}

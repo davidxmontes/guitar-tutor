@@ -19,6 +19,7 @@ CREATE TABLE v2_branches (
   title                  text NOT NULL DEFAULT 'New workspace',
   current_artifact_kind  text CHECK (current_artifact_kind IN ('song_study', 'progression', 'concept_study', 'exercise')),
   current_artifact_id    text,
+  working_draft          jsonb,
   selection              jsonb,
   focus                  jsonb,
   recent_ideas           jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -71,3 +72,6 @@ CREATE TABLE v2_tutor_messages (
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ON v2_tutor_messages (tutor_thread_id, created_at);
+
+-- ConceptWorkspace: nullable branch-local JSON, no legacy payload conversion.
+ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS working_draft jsonb;

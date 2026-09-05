@@ -1,3 +1,4 @@
+import type { ConceptWorkspace, ResolvedWorkspace } from '../types/conceptWorkspace';
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
 import type { Artifact, ArtifactRevision, LibraryItem, CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
@@ -64,6 +65,18 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  openConceptWorkspace(sessionId: string): Promise<V2Branch> {
+    return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces`, { method: 'POST', body: JSON.stringify({ recipe: 'scale-comparison' }) });
+  }
+
+  resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<ResolvedWorkspace> {
+    return this.fetch('/v2/concept-workspaces/resolve', { method: 'POST', body: JSON.stringify(workspace) });
+  }
+
+  saveConceptWorkspace(sessionId: string, branchId: string, workspace: ConceptWorkspace): Promise<V2Branch> {
+    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace`, { method: 'PUT', body: JSON.stringify({ expected_version: workspace.version, workspace }) });
   }
 
   // Parses an SSE ReadableStream into typed SseEvent objects.

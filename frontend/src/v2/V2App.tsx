@@ -1,3 +1,4 @@
+import { ConceptWorkspacePanel } from './ConceptWorkspace';
 import { MyStuff } from './MyStuff';
 import { circleContext } from './circleState';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
@@ -49,6 +50,15 @@ export function V2App() {
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const handleComparison = async () => {
+    try {
+      const session = activeSession ?? await apiClient.createV2Session();
+      const branch = await apiClient.openConceptWorkspace(session.id);
+      setActiveSession({ ...session, branches: [...session.branches, branch] });
+      setActiveBranchId(branch.id); setShowConceptPicker(false);
+    } catch (err) { setError(String(err)); }
   };
 
   const handleContinue = async (sessionId: string) => {
@@ -151,6 +161,7 @@ export function V2App() {
           <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); setShowConceptPicker(false); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
         </div>
+        <button type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2" onClick={handleComparison}>Explore major vs minor</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
@@ -177,6 +188,8 @@ export function V2App() {
                 }}
                 onWorkOnConcept={handleWorkOnConcept}
               />
+            ) : branch.working_draft ? (
+              <ConceptWorkspacePanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
             ) : branch.current_artifact_kind === 'exercise' ? (
               <ExerciseWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} />
             ) : branch.current_artifact_kind === 'concept_study' ? (
@@ -220,6 +233,7 @@ export function V2App() {
           </div>
         </section>
       )}
+      <section className="my-5 space-y-2"><h2 className="text-lg font-bold">Explore</h2><p>What changes between major and minor?</p><button type="button" className="min-h-11 rounded-lg border px-3 py-2" onClick={handleComparison}>Explore major vs minor</button></section>
       <MyStuff onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
       <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>

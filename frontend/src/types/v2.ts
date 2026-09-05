@@ -1,3 +1,4 @@
+import type { ConceptWorkspace } from './conceptWorkspace';
 import type { TabData } from './song';
 
 export type ArtifactKind = 'song_study' | 'progression' | 'concept_study' | 'exercise';
@@ -9,6 +10,7 @@ export interface V2Branch {
   title: string;
   current_artifact_kind: ArtifactKind | null;
   current_artifact_id: string | null;
+  working_draft?: ConceptWorkspace | null;
   selection: Record<string, unknown> | null;
   focus: Record<string, unknown> | null;
   recent_ideas: Record<string, unknown>[];
