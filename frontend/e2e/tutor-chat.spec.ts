@@ -102,6 +102,7 @@ test('tutor chat: history loads, a turn round-trips, and a focus response highli
       json: {
         message: 'That opening note is the root of a G major chord.',
         focus: { role: 'candidate', notes: [{ string: 6, fret: 3 }], label: 'G major root' },
+        concept_suggestion: { concept_id: 'pentatonic_minor', root: 'A', label: 'A minor pentatonic' },
         provider: 'openai',
         model: 'stub-model',
         latency_ms: 12,
@@ -120,7 +121,7 @@ test('tutor chat: history loads, a turn round-trips, and a focus response highli
   await expect(page.getByTestId('tutor-chat-message-user').last()).toHaveText('What chord is this first note?')
 
   // Assistant reply renders once the request resolves.
-  await expect(page.getByTestId('tutor-chat-message-assistant').last()).toHaveText(
+  await expect(page.getByTestId('tutor-chat-message-assistant').last()).toContainText(
     'That opening note is the root of a G major chord.',
   )
 
@@ -140,4 +141,14 @@ test('tutor chat: history loads, a turn round-trips, and a focus response highli
     .then((r) => r.json())
     .then((s) => s.branches[0])
   expect(branch.focus).toBeNull()
+
+  // Mentioning/offering a concept in a song conversation is content only.
+  // The SongStudy remains the sole branch until the user explicitly acts.
+  const beforePromotion = await page.request.get(`/api/v2/sessions/${sessionId}`).then((r) => r.json())
+  expect(beforePromotion.branches).toHaveLength(1)
+  await expect(page.getByRole('button', { name: 'Work on A minor pentatonic' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Work on A minor pentatonic' }).click()
+  await expect(page.getByRole('heading', { name: 'A minor pentatonic' })).toBeVisible()
+  await expect(page.getByTestId('v2-branch-tab')).toHaveCount(2)
 })
