@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guitar Tutor V2 — Study Target Mocks</title>
+<!-- Three Study-shell variants, switchable with ?variant=A|B|C. Variant A is the recommended implementation target. -->
+<style>
+:root{
+  --bg:#eef1f5;--panel:#fff;--ink:#151922;--muted:#687282;--line:#d9dee7;
+  --soft:#f7f8fa;--accent:#168765;--accent2:#7259cf;--gold:#a66c08;--dark:#171b20;
+  --mint:#e8f7f1;--purple:#f2efff;--blue:#edf5ff;--shadow:0 18px 55px rgba(16,24,40,.10)
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.4}
+button,select{font:inherit}
+.wrap{max-width:1500px;margin:0 auto;padding:28px 18px 110px}
+.hero{background:linear-gradient(135deg,#15181d,#2b3139);color:#fff;border-radius:24px;padding:28px 30px;box-shadow:var(--shadow)}
+.kicker,.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:900}
+.kicker{color:#9fe0c8}.eyebrow{color:var(--muted)}
+h1{font-size:36px;letter-spacing:-1.2px;margin:6px 0 8px}h2{font-size:26px;letter-spacing:-.6px;margin:0 0 7px}h3{margin:0;font-size:17px}
+.hero p,.lead{color:#d6dbe2;max-width:1020px;margin:0;font-size:14px}.lead{color:var(--muted);margin-bottom:14px}
+.nav{position:sticky;top:8px;z-index:30;margin:16px 0 30px;padding:7px;background:rgba(238,241,245,.94);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px;display:flex;gap:6px;overflow:auto}
+.nav a{white-space:nowrap;text-decoration:none;color:#3d4652;background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:11px;font-weight:850}
+section{margin-top:34px}.noteBox{background:#fff;border-left:4px solid var(--accent);border-radius:12px;padding:12px 14px;margin:12px 0 14px;font-size:13px;box-shadow:var(--shadow)}
+.frame{background:#101318;border-radius:22px;padding:8px;box-shadow:var(--shadow)}.browser{background:#fafbfc;border-radius:16px;overflow:hidden}
+.browserbar{height:29px;background:#e5e8ec;display:flex;align-items:center;gap:7px;padding:0 10px;border-bottom:1px solid #d4d9df}
+.dots{display:flex;gap:4px}.dots i{width:7px;height:7px;border-radius:50%;background:#bec3c9}.url{height:17px;flex:1;background:#fff;border:1px solid #d2d7dd;border-radius:6px}
+.appbar{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.brand{font-size:13px;font-weight:950}.crumb{font-size:9px;color:var(--muted);margin-top:2px}.actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 9px;font-size:9px;font-weight:850;color:#303742}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.dark{background:var(--dark);border-color:var(--dark);color:#fff}.btn.purple{background:var(--purple);border-color:#d9d0ff;color:#5c48bd}
+.tabs{display:flex;gap:5px;padding:8px 14px 0;background:#f6f8fa;border-bottom:1px solid var(--line)}.tab{padding:7px 10px;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;background:#edf0f3;font-size:9px;font-weight:850}.tab.active{background:#fff;color:var(--accent);position:relative;bottom:-1px}
+.studyShell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;min-height:625px;background:#fff}.catalog{background:#fafbfc;border-right:1px solid var(--line);padding:14px}.canvas{padding:15px;min-width:0}.tutor{background:#fbfbfc;border-left:1px solid var(--line);padding:14px}
+.search{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 9px;color:#8a929d;font-size:9px;margin:9px 0 12px}
+.groupTitle{font-size:8px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:900;margin:13px 0 6px}.concept{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid transparent;border-radius:10px;font-size:9px;font-weight:800;margin-bottom:4px}.concept small{display:block;color:var(--muted);font-size:7px}.concept.active{background:var(--mint);border-color:#bfe5d7;color:#11694f}.concept.locked{color:#7d8692}
+.rootRow{display:flex;gap:5px;flex-wrap:wrap}.root{width:25px;height:25px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:8px;font-weight:850}.root.active{background:var(--dark);color:#fff;border-color:var(--dark)}
+.canvasHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.canvasHead p{margin:4px 0 0;color:var(--muted);font-size:9px}.unsaved{display:inline-flex;gap:5px;align-items:center;font-size:8px;color:var(--gold);font-weight:850;margin-top:5px}.unsaved i{width:6px;height:6px;border-radius:50%;background:#d69d2f}
+.lensbar{display:flex;gap:5px;margin:8px 0 11px}.lens{padding:6px 8px;border-radius:999px;background:#f0f2f5;border:1px solid var(--line);font-size:8px;font-weight:850}.lens.active{background:var(--mint);border-color:#b9dfd0;color:#126b51}
+.fretboard{background:linear-gradient(180deg,#242a31,#171b20);border:1px solid #343c45;border-radius:14px;padding:7px 8px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.fnums,.string{display:grid;grid-template-columns:28px repeat(12,minmax(25px,1fr));align-items:center}.fnums{font-size:7px;color:#8e98a4;text-align:center;margin-bottom:3px}.string{height:28px}.string>span:first-child{font-size:7px;color:#b7c0c9;font-weight:900;text-align:center}.fret{height:100%;border-left:1px solid #505964;display:flex;align-items:center;justify-content:center;position:relative}.fret:after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#aab1b8;opacity:.55}.tone{width:18px;height:18px;border-radius:50%;background:#59636e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:900;z-index:2}.tone.rootTone{background:linear-gradient(180deg,#28aa81,#168765);box-shadow:0 0 0 3px rgba(22,135,101,.18)}.tone.compare{background:#181d22;border:2px solid #a98ff0;color:#e6ddff}.tone.third{background:#7259cf}.tone.fifth{background:#2b6fb8}
+.legend{display:flex;gap:9px;flex-wrap:wrap;color:var(--muted);font-size:8px;margin-top:7px}.legend span:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#59636e;margin-right:4px}.legend .r:before{background:var(--accent)}.legend .t:before{background:var(--accent2)}.legend .f:before{background:#2b6fb8}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.fact{border:1px solid var(--line);border-radius:11px;padding:9px;background:#fff}.fact b{display:block;font-size:9px}.fact span{font-size:8px;color:var(--muted)}
+.msg{font-size:9px;line-height:1.45;padding:9px 10px;border-radius:11px;margin-bottom:7px;background:#eef1f4}.msg.ai{background:var(--purple);border:1px solid #ddd5ff}.prompt{border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px;color:#8a929d;font-size:9px;margin-top:9px}
+.variant{display:none}body[data-variant="A"] .variantA,body[data-variant="B"] .variantB,body[data-variant="C"] .variantC{display:block}
+.variantB .studyShell{grid-template-columns:1fr 270px}.variantB .catalog{grid-column:1/-1;border-right:0;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;overflow:auto}.variantB .concept{white-space:nowrap;margin:0}.variantB .canvas{padding:20px 24px}.variantB .tutor{grid-column:2;grid-row:2}.variantB .canvas{grid-column:1;grid-row:2}
+.variantC .studyShell{grid-template-columns:180px 1fr}.variantC .catalog{background:#182028;color:#fff;border:0}.variantC .catalog .groupTitle,.variantC .catalog small{color:#aeb7c1}.variantC .concept.active{background:#2a5d4e;border-color:#4c8b77;color:#fff}.variantC .canvas{display:grid;grid-template-columns:1fr 250px;gap:12px}.variantC .tutor{position:static;border:1px solid var(--line);border-radius:12px;background:#fff}.variantC .fretboard{align-self:start}
+.compareLabel{display:inline-flex;padding:5px 8px;border-radius:999px;background:#fff6dc;color:#8d6108;border:1px solid #edd797;font-size:8px;font-weight:900;margin-bottom:8px}
+.mockGrid{display:grid;grid-template-columns:230px 1fr;gap:12px}.sideCard,.panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:13px}.sideCard h4{margin:0 0 8px;font-size:11px}.pick{padding:8px;border-radius:9px;font-size:9px;margin-bottom:5px;background:#f4f5f7;border:1px solid transparent}.pick.active{background:var(--mint);border-color:#b9dfd0;color:#126b51;font-weight:850}
+.chordStrip{display:flex;gap:9px;overflow:auto;padding:5px 2px 10px}.chordCard{min-width:145px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:10px;text-align:center}.chordCard.active{border-color:#72bea4;background:#effaf6;box-shadow:0 0 0 2px rgba(22,135,101,.10)}.chordName{font-size:12px;font-weight:950}.chordMeta{font-size:7px;color:var(--muted);margin:2px 0 7px}
+.diagram{position:relative;width:94px;height:116px;margin:0 auto 7px;padding-top:12px}.diagram .nut{position:absolute;left:13px;right:5px;top:16px;height:4px;border-radius:3px;background:#1e242a}.diagramGrid{position:absolute;left:13px;right:5px;top:20px;bottom:8px;background:repeating-linear-gradient(to right,transparent 0,transparent calc(20% - 1px),#353b42 calc(20% - 1px),#353b42 20%),repeating-linear-gradient(to bottom,transparent 0,transparent calc(25% - 1px),#9ba2a9 calc(25% - 1px),#9ba2a9 25%)}.finger{position:absolute;width:15px;height:15px;border-radius:50%;background:#1e252b;color:#fff;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:3}.barre{position:absolute;height:14px;border-radius:999px;background:#1e252b;z-index:2}.openMark,.muteMark{position:absolute;top:0;font-size:8px;font-weight:900;color:#4f5863}.fretLabel{font-size:7px;color:var(--muted);font-weight:850}
+.cagedTop{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.shape{border:1px solid var(--line);border-radius:999px;padding:6px 9px;background:#fff;font-size:8px;font-weight:900}.shape.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.neckRegions{position:relative;border-radius:14px;background:#1e242a;color:#fff;padding:28px 14px 14px;overflow:hidden}.neckLine{height:170px;background:repeating-linear-gradient(to right,transparent 0,transparent calc(8.33% - 1px),#69737e calc(8.33% - 1px),#69737e 8.33%),repeating-linear-gradient(to bottom,transparent 0,transparent calc(20% - 1px),#9aa2aa calc(20% - 1px),#9aa2aa 20%);position:relative}.region{position:absolute;top:10px;bottom:10px;border-radius:11px;border:2px solid rgba(255,255,255,.45);background:rgba(255,255,255,.05)}.region b{position:absolute;top:-22px;left:5px;font-size:8px}.region.one{left:1%;width:22%;border-color:#8d73e0}.region.two{left:19%;width:23%;border-color:#3db18c}.region.three{left:39%;width:22%;border-color:#4e8fce}.region.four{left:58%;width:22%;border-color:#d29b32}.region.five{left:77%;width:22%;border-color:#b86f75}.region.active{background:rgba(61,177,140,.20);box-shadow:0 0 0 3px rgba(61,177,140,.12)}
+.roleDot{position:absolute;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:900;color:#fff;z-index:4}.roleDot.r{background:var(--accent)}.roleDot.t{background:var(--accent2)}.roleDot.f{background:#2b6fb8}
+.circleLayout{display:grid;grid-template-columns:390px 1fr;gap:16px;align-items:center}.wheel{width:360px;height:360px;border-radius:50%;margin:auto;position:relative;background:radial-gradient(circle at center,#fff 0 30%,transparent 31%),conic-gradient(#eaf7f2 0 30deg,#edf5ff 30deg 60deg,#f4f0ff 60deg 90deg,#fff5df 90deg 120deg,#eef1f4 120deg 150deg,#eaf7f2 150deg 180deg,#edf5ff 180deg 210deg,#f4f0ff 210deg 240deg,#fff5df 240deg 270deg,#eef1f4 270deg 300deg,#eaf7f2 300deg 330deg,#edf5ff 330deg);border:1px solid var(--line);box-shadow:inset 0 0 0 52px rgba(255,255,255,.42),var(--shadow)}
+.wheelCenter{position:absolute;inset:38%;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 22px rgba(0,0,0,.10)}.wheelCenter b{font-size:28px}.wheelCenter span{font-size:8px;color:var(--muted)}
+.key{position:absolute;width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:950;transform:translate(-50%,-50%);box-shadow:0 4px 12px rgba(0,0,0,.08)}.key small{font-size:7px;color:var(--muted)}.key.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 6px rgba(22,135,101,.16)}.key.active small{color:#dff7ee}.phone .wheel .key{width:38px;height:38px;font-size:9px}.phone .wheel .key small{font-size:6px}
+.progression{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:9px 0}.degree{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;font-size:9px;font-weight:900}.degree span{display:block;color:var(--muted);font-size:7px}.arrow{color:#98a0aa}
+.phoneGrid{display:grid;grid-template-columns:repeat(2,minmax(300px,390px));gap:18px;justify-content:center}.phone{background:#101318;border-radius:34px;padding:8px;box-shadow:var(--shadow)}.screen{min-height:720px;background:#f8f9fb;border-radius:27px;overflow:hidden;position:relative;padding-bottom:60px}.status{height:24px;padding:0 13px 4px;display:flex;align-items:end;justify-content:space-between;font-size:8px;font-weight:900}.mhead{background:#fff;border-bottom:1px solid var(--line);padding:10px 11px}.mhead strong{font-size:13px}.mhead small{display:block;color:var(--muted);font-size:8px;margin-top:2px}.msection{padding:11px;border-bottom:1px solid var(--line)}.mrow{display:flex;gap:7px;overflow:auto;padding-bottom:4px}.mcard{min-width:118px;border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px}.mcard.active{background:var(--mint);border-color:#b9dfd0}.mcard b{display:block;font-size:9px}.mcard small{font-size:7px;color:var(--muted)}.mBottom{position:absolute;left:0;right:0;bottom:0;height:52px;background:rgba(255,255,255,.97);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);font-size:8px;font-weight:850;color:var(--muted);align-items:center;text-align:center}.mBottom .active{color:var(--accent)}
+.variantSwitch{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;background:#15191e;color:#fff;border:1px solid #3a424b;border-radius:999px;padding:6px;display:flex;align-items:center;gap:8px;box-shadow:0 14px 35px rgba(0,0,0,.28)}.variantSwitch button{width:30px;height:30px;border:0;border-radius:50%;background:#2b323a;color:#fff;font-weight:900}.variantSwitch span{font-size:10px;font-weight:900;min-width:170px;text-align:center}
+.callouts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.call{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px;font-size:10px}.call b{display:block;margin-bottom:4px}
+@media(max-width:1000px){.studyShell{grid-template-columns:190px 1fr}.tutor{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}.mockGrid,.circleLayout{grid-template-columns:1fr}.callouts{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.wrap{padding:14px 8px 90px}h1{font-size:28px}.desktopOnly{display:none}.phoneGrid{grid-template-columns:1fr}.facts,.callouts{grid-template-columns:1fr}.wheel{width:300px;height:300px}.variantSwitch{bottom:8px}}
+</style>
+</head>
+<body data-variant="A">
+<div class="wrap">
+  <div class="hero">
+    <div class="kicker">Study · concrete target mocks</div>
+    <h1>Browse visually. Save only when it becomes work.</h1>
+    <p>These mocks fill the visual gaps for Spec #10 tickets #34, #35, #37, #38, and #39. Variant A is the recommended implementation target; B and C test alternate information hierarchies without changing the product contract.</p>
+  </div>
+  <nav class="nav">
+    <a href="#shell">Study shell</a><a href="#scale">Scale / interval</a><a href="#chord">Chord / triad</a><a href="#caged">CAGED</a><a href="#circle">Circle / harmony</a><a href="#mobile">Mobile</a><a href="#notes">Frontend notes</a>
+  </nav>
+
+  <section id="shell">
+    <h2>Study shell alternatives</h2>
+    <p class="lead">Use the floating arrows or <strong>?variant=A|B|C</strong>. A is the target unless later feedback selects another shell.</p>
+    <div class="variant variantA">
+      <div class="compareLabel">A · Recommended · catalog + visual canvas + Tutor rail</div>
+      <div class="frame desktopOnly"><div class="browser">
+        <div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="url"></div></div>
+        <div class="appbar"><div><div class="brand">Guitar Tutor</div><div class="crumb">Study · exploring, not saved</div></div><div class="actions"><button class="btn">My Stuff</button><button class="btn">Classic</button></div></div>
+        <div class="tabs"><div class="tab">Don’t Look Back In Anger</div><div class="tab active">Study · A minor pentatonic</div><div class="tab">+</div></div>
+        <div class="studyShell">
+          <aside class="catalog">
+            <div class="eyebrow">Find a concept</div><div class="search">Search scales, chords, systems…</div>
+            <div class="groupTitle">Essentials</div>
+            <div class="concept active"><span>Minor pentatonic<small>Scale · five notes</small></span><span>›</span></div>
+            <div class="concept"><span>Major scale<small>Scale · seven notes</small></span><span>›</span></div>
+            <div class="concept"><span>Major &amp; minor triads<small>Chord construction</small></span><span>›</span></div>
+            <div class="groupTitle">Explore more</div>
+            <div class="concept"><span>Modes<small>Dorian, Mixolydian…</small></span><span>›</span></div>
+            <div class="concept"><span>Extended chords<small>9ths, 11ths, 13ths</small></span><span>›</span></div>
+            <div class="groupTitle">Systems</div>
+            <div class="concept"><span>CAGED<small>Five connected regions</small></span><span>›</span></div>
+            <div class="concept"><span>Circle of Fifths<small>Keys and harmony</small></span><span>›</span></div>
+          </aside>
+          <main class="canvas">
+            <div class="canvasHead"><div><div class="eyebrow">Scale study</div><h3>A minor pentatonic</h3><div class="unsaved"><i></i> Exploring · nothing saved yet</div><p>Five notes that outline the minor sound and leave space between phrases.</p></div><div class="actions"><button class="btn dark">▶ Hear</button><button class="btn">Save</button><button class="btn primary">Work on this</button></div></div>
+            <div class="rootRow"><button class="root">C</button><button class="root">D</button><button class="root">E</button><button class="root">F</button><button class="root">G</button><button class="root active">A</button><button class="root">B</button></div>
+            <div class="lensbar"><span class="lens active">Pattern</span><span class="lens">Intervals</span><span class="lens">Compare natural minor</span></div>
+            <div class="fretboard">
+              <div class="fnums"><span></span><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span></div>
+              <div class="string"><span>e</span><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone rootTone">A</b></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">C</b></i><i class="fret"></i><i class="fret"><b class="tone">D</b></i><i class="fret"></i></div>
+              <div class="string"><span>B</span><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">E</b></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">G</b></i><i class="fret"></i><i class="fret"><b class="tone rootTone">A</b></i><i class="fret"></i></div>
+              <div class="string"><span>G</span><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">C</b></i><i class="fret"></i><i class="fret"><b class="tone">D</b></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">E</b></i><i class="fret"></i><i class="fret"></i></div>
+              <div class="string"><span>D</span><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">G</b></i><i class="fret"></i><i class="fret"><b class="tone rootTone">A</b></i><i class="fret"></i><i class="fret"><b class="tone">C</b></i><i class="fret"></i><i class="fret"></i></div>
+              <div class="string"><span>A</span><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">D</b></i><i class="fret"></i><i class="fret"><b class="tone">E</b></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">G</b></i><i class="fret"></i><i class="fret"><b class="tone rootTone">A</b></i></div>
+              <div class="string"><span>E</span><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone rootTone">A</b></i><i class="fret"></i><i class="fret"></i><i class="fret"><b class="tone">C</b></i><i class="fret"></i><i class="fret"><b class="tone">D</b></i><i class="fret"></i></div>
+            </div>
+            <div class="legend"><span class="r">Root · 1</span><span>Scale tone</span><span style="color:#7259cf">Compare layer appears only when selected</span></div>
+            <div class="facts"><div class="fact"><b>Formula</b><span>1 · ♭3 · 4 · 5 · ♭7</span></div><div class="fact"><b>Notes</b><span>A · C · D · E · G</span></div><div class="fact"><b>Next useful lens</b><span>Compare natural minor</span></div></div>
+          </main>
+          <aside class="tutor"><div class="eyebrow">Tutor</div><div class="msg ai">The two “missing” natural-minor notes are B and F. Turn on Compare to see exactly where they sit.</div><div class="actions"><button class="btn purple">Show the difference</button><button class="btn">Make a drill</button></div><div class="prompt">Ask why this works…</div></aside>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="variant variantB">
+      <div class="compareLabel">B · Canvas first · concepts become a top ribbon</div>
+      <div class="frame desktopOnly"><div class="browser"><div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="url"></div></div><div class="appbar"><div class="brand">Study · A minor pentatonic</div><div class="actions"><button class="btn">Save</button><button class="btn primary">Work on this</button></div></div><div class="studyShell"><div class="catalog"><div class="eyebrow">Study</div><div class="concept active">Minor pentatonic</div><div class="concept">Major scale</div><div class="concept">Triads</div><div class="concept">CAGED</div><div class="concept">Circle of Fifths</div></div><main class="canvas"><div class="canvasHead"><div><h3>Instrument-first canvas</h3><p>The concept picker yields most of the width to the current visualization.</p></div></div><div class="fretboard" style="min-height:270px;display:grid;place-items:center;color:#b9c2cb;font-size:12px">Large responsive fretboard visualization</div><div class="facts"><div class="fact"><b>Pattern</b><span>Box 1 · frets 5–8</span></div><div class="fact"><b>Formula</b><span>1 ♭3 4 5 ♭7</span></div><div class="fact"><b>Status</b><span>Transient</span></div></div></main><aside class="tutor"><div class="eyebrow">Tutor</div><div class="msg ai">Tutor stays narrow and contextual.</div></aside></div></div></div>
+    </div>
+
+    <div class="variant variantC">
+      <div class="compareLabel">C · Guided path · stronger beginner sequencing</div>
+      <div class="frame desktopOnly"><div class="browser"><div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="url"></div></div><div class="appbar"><div class="brand">Study path</div><div class="actions"><button class="btn">Browse all</button><button class="btn primary">Keep this study</button></div></div><div class="studyShell"><aside class="catalog"><div class="eyebrow" style="color:#9fe0c8">Your path</div><div class="groupTitle">1 · Hear it</div><div class="concept active">A minor pentatonic</div><div class="groupTitle">2 · See it</div><div class="concept">Pattern on the neck</div><div class="groupTitle">3 · Connect it</div><div class="concept">Compare natural minor</div></aside><main class="canvas"><div><div class="canvasHead"><div><h3>A minor pentatonic</h3><p>More guided, but risks feeling like a course rather than exploration.</p></div></div><div class="fretboard" style="min-height:250px;display:grid;place-items:center;color:#b9c2cb">Focused visual step</div></div><aside class="tutor"><div class="eyebrow">Why it matters</div><div class="msg ai">This variant brings explanation closer, but may over-structure intermediate exploration.</div><div class="prompt">Ask a follow-up…</div></aside></main></div></div></div>
+    </div>
+  </section>
+
+  <section id="scale">
+    <h2>Scale and interval target</h2>
+    <p class="lead">The recommended shell above is also the concrete #34 target: correct interval labels, a real fretboard pattern, optional comparison, and explicit promotion.</p>
+    <div class="noteBox"><strong>Product behavior:</strong> changing A minor pentatonic to D Dorian updates this canvas without creating an Artifact. Save or Work on this is the persistence boundary.</div>
+    <div class="callouts"><div class="call"><b>Progressive breadth</b>Essentials first; modes and altered families are one reveal away, not hidden in a five-item hard-coded menu.</div><div class="call"><b>Visual first</b>Pattern, intervals, and deltas carry the learning value. Tutor explanation is on demand.</div><div class="call"><b>Semantic state</b>Root, concept, selected pattern/comparison save. Scroll, widths, and zoom do not.</div><div class="call"><b>No empty studies</b>If the app cannot render validated musical data, Tutor stays conversational.</div></div>
+  </section>
+
+  <section id="chord">
+    <h2>Chord and triad target</h2>
+    <p class="lead">V1’s dot-grid chord diagram is the visual starting point. V2 adds clear selection, physical provenance, partial shapes, and responsive sequence use.</p>
+    <div class="mockGrid">
+      <aside class="sideCard"><div class="eyebrow">Chord study</div><h4>A minor</h4><div class="pick active">Open shapes</div><div class="pick">Triads</div><div class="pick">Inversions</div><div class="pick">Other voicings</div><div class="groupTitle">Compare</div><div class="pick">A major · one note changes</div><div class="pick">Am7 · add ♭7</div></aside>
+      <div class="panel"><div class="canvasHead"><div><div class="eyebrow">Chord construction · transient</div><h3>A minor · 1 ♭3 5</h3><p>Choose a shape to see the same chord tones on the fretboard.</p></div><div class="actions"><button class="btn dark">▶ Hear</button><button class="btn">Save</button><button class="btn primary">Work on this</button></div></div>
+        <div class="chordStrip">
+          <div class="chordCard active"><div class="chordName">Am</div><div class="chordMeta">Open · source shape</div><div class="diagram"><span class="openMark" style="left:15px">×</span><span class="openMark" style="left:31px">○</span><span class="openMark" style="left:48px">○</span><div class="nut"></div><div class="diagramGrid"></div><i class="finger" style="left:45px;top:39px">1</i><i class="finger" style="left:29px;top:62px">2</i><i class="finger" style="left:61px;top:62px">3</i></div><div class="fretLabel">Open position</div></div>
+          <div class="chordCard"><div class="chordName">Am/C</div><div class="chordMeta">1st inversion · triad</div><div class="diagram"><div class="nut"></div><div class="diagramGrid"></div><i class="finger" style="left:61px;top:39px">1</i><i class="finger" style="left:45px;top:62px">3</i><i class="finger" style="left:77px;top:62px">2</i></div><div class="fretLabel">Frets 5–8</div></div>
+          <div class="chordCard"><div class="chordName">Am</div><div class="chordMeta">E-shape · barre detected</div><div class="diagram"><div class="diagramGrid"></div><i class="barre" style="left:13px;right:5px;top:35px"></i><i class="finger" style="left:45px;top:58px">3</i><i class="finger" style="left:29px;top:80px">4</i></div><div class="fretLabel">5th fret · barre</div></div>
+          <div class="chordCard"><div class="chordName">Partial</div><div class="chordMeta">Strings 2–4 · exact positions</div><div class="diagram"><div class="diagramGrid"></div><i class="finger" style="left:45px;top:39px"></i><i class="finger" style="left:61px;top:62px"></i><i class="finger" style="left:77px;top:84px"></i></div><div class="fretLabel">No guessed fingers</div></div>
+        </div>
+        <div class="fretboard" style="min-height:155px;display:grid;place-items:center;color:#b9c2cb">Selected Am shape on the relational fretboard · roots / ♭3 / 5</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="caged">
+    <h2>CAGED target</h2>
+    <p class="lead">Five validated chord regions, shown as overlapping neighborhoods—not five mystery boxes produced by a nearby-fret heuristic.</p>
+    <div class="panel">
+      <div class="canvasHead"><div><div class="eyebrow">Systems · CAGED</div><h3>C major across the neck</h3><p>Start with chord tones. Scale and arpeggio overlays come later only if this view proves useful.</p></div><div class="actions"><button class="btn dark">▶ Hear E-shape</button><button class="btn">Save</button><button class="btn primary">Work on this</button></div></div>
+      <div class="cagedTop"><button class="shape">C shape</button><button class="shape">A shape</button><button class="shape">G shape</button><button class="shape active">E shape</button><button class="shape">D shape</button></div>
+      <div class="neckRegions"><div class="neckLine"><div class="region one"><b>C</b></div><div class="region two"><b>A</b></div><div class="region three"><b>G</b></div><div class="region four active"><b>E · selected</b></div><div class="region five"><b>D</b></div><i class="roleDot r" style="left:61%;top:22%">R</i><i class="roleDot t" style="left:67%;top:42%">3</i><i class="roleDot f" style="left:72%;top:62%">5</i><i class="roleDot r" style="left:78%;top:82%">R</i><i class="roleDot f" style="left:57%;top:82%">5</i></div></div>
+      <div class="facts"><div class="fact"><b>Selected region</b><span>E shape · frets 8–11</span></div><div class="fact"><b>Overlap</b><span>Shares C and G with adjacent D region</span></div><div class="fact"><b>Saved state</b><span>C major · E region · chord tones</span></div></div>
+    </div>
+  </section>
+
+  <section id="circle">
+    <h2>Circle of Fifths and harmony target</h2>
+    <p class="lead">The wheel is a control, not decoration: choose a key, inspect its harmonic neighborhood, then turn an intentional sequence into a Progression.</p>
+    <div class="panel circleLayout">
+      <div class="wheel">
+        <button class="key active" style="left:50%;top:7%">C<small>Am</small></button><button class="key" style="left:72%;top:13%">G<small>Em</small></button><button class="key" style="left:88%;top:29%">D<small>Bm</small></button><button class="key" style="left:94%;top:50%">A<small>F♯m</small></button><button class="key" style="left:88%;top:72%">E<small>C♯m</small></button><button class="key" style="left:72%;top:88%">B<small>G♯m</small></button><button class="key" style="left:50%;top:94%">G♭<small>E♭m</small></button><button class="key" style="left:28%;top:88%">D♭<small>B♭m</small></button><button class="key" style="left:12%;top:72%">A♭<small>Fm</small></button><button class="key" style="left:6%;top:50%">E♭<small>Cm</small></button><button class="key" style="left:12%;top:29%">B♭<small>Gm</small></button><button class="key" style="left:28%;top:13%">F<small>Dm</small></button>
+        <div class="wheelCenter"><b>C</b><span>0 accidentals<br>relative minor · Am</span></div>
+      </div>
+      <div><div class="eyebrow">C major neighborhood</div><h3>Stable center, two useful neighbors</h3><div class="facts" style="grid-template-columns:1fr 1fr"><div class="fact"><b>Relative minor</b><span>A minor</span></div><div class="fact"><b>Neighbors</b><span>F · G</span></div><div class="fact"><b>Diatonic chords</b><span>C · Dm · Em · F · G · Am · B°</span></div><div class="fact"><b>Common movement</b><span>I–IV–V · I–V–vi–IV</span></div></div><div class="groupTitle">Selected sequence</div><div class="progression"><div class="degree">I<span>C</span></div><span class="arrow">→</span><div class="degree">V<span>G</span></div><span class="arrow">→</span><div class="degree">vi<span>Am</span></div><span class="arrow">→</span><div class="degree">IV<span>F</span></div></div><div class="actions"><button class="btn dark">▶ Hear</button><button class="btn">Save study</button><button class="btn primary">Work on this progression</button></div><div class="msg ai" style="margin-top:11px">Tutor can explain why this movement works, but the wheel and sequence remain useful without prose.</div></div>
+    </div>
+  </section>
+
+  <section id="mobile">
+    <h2>Mobile targets</h2>
+    <p class="lead">Discovery becomes horizontal and the visualization stays dominant. Tutor and secondary lenses become destinations/sheets rather than squeezing the instrument.</p>
+    <div class="phoneGrid">
+      <div class="phone"><div class="screen"><div class="status"><span>9:41</span><span>5G ▰</span></div><div class="mhead"><strong>Study</strong><small>Browse first · save when it matters</small></div><div class="msection"><div class="eyebrow">Essentials</div><div class="mrow" style="margin-top:7px"><div class="mcard active"><b>Minor pentatonic</b><small>Scale</small></div><div class="mcard"><b>Major scale</b><small>Scale</small></div><div class="mcard"><b>Triads</b><small>Chords</small></div></div></div><div class="msection"><div class="eyebrow">Explore more</div><div class="mrow" style="margin-top:7px"><div class="mcard"><b>Modes</b><small>7 families</small></div><div class="mcard"><b>Extended chords</b><small>9 · 11 · 13</small></div></div></div><div class="msection"><div class="eyebrow">Systems</div><div class="mrow" style="margin-top:7px"><div class="mcard"><b>CAGED</b><small>Neck regions</small></div><div class="mcard"><b>Circle of Fifths</b><small>Keys &amp; harmony</small></div><div class="mcard"><b>Intervals</b><small>Distance &amp; sound</small></div></div></div><div class="msection"><div class="prompt">Search or ask Guitar Tutor…</div></div><div class="mBottom"><div>Home</div><div class="active">Study</div><div>My Stuff</div></div></div></div>
+      <div class="phone"><div class="screen"><div class="status"><span>9:41</span><span>5G ▰</span></div><div class="mhead"><strong>A minor · chord study</strong><small>Exploring · not saved</small></div><div class="msection"><div class="rootRow"><button class="root">G</button><button class="root active">A</button><button class="root">B♭</button><button class="root">B</button></div><div class="lensbar"><span class="lens active">Shapes</span><span class="lens">Intervals</span><span class="lens">Compare</span></div></div><div class="msection"><div class="mrow"><div class="chordCard active" style="min-width:140px"><div class="chordName">Am</div><div class="chordMeta">Open</div><div class="diagram"><div class="nut"></div><div class="diagramGrid"></div><i class="finger" style="left:45px;top:39px">1</i><i class="finger" style="left:29px;top:62px">2</i><i class="finger" style="left:61px;top:62px">3</i></div></div><div class="chordCard" style="min-width:140px"><div class="chordName">Am</div><div class="chordMeta">5th-fret barre</div><div class="diagram"><div class="diagramGrid"></div><i class="barre" style="left:13px;right:5px;top:35px"></i><i class="finger" style="left:45px;top:58px">3</i></div></div></div></div><div class="msection"><div class="fretboard" style="height:160px;display:grid;place-items:center;color:#b9c2cb;font-size:9px">Selected shape · fretboard relationship view</div></div><div class="msection"><div class="actions"><button class="btn dark">▶ Hear</button><button class="btn">Save</button><button class="btn primary">Work on this</button></div></div><div class="mBottom"><div class="active">Study</div><div>Tutor</div><div>More</div></div></div></div>
+      <div class="phone"><div class="screen"><div class="status"><span>9:41</span><span>5G ▰</span></div><div class="mhead"><strong>C major · CAGED</strong><small>E shape selected · transient</small></div><div class="msection"><div class="cagedTop"><button class="shape">C</button><button class="shape">A</button><button class="shape">G</button><button class="shape active">E</button><button class="shape">D</button></div></div><div class="msection"><div class="neckRegions" style="padding:25px 8px 8px"><div class="neckLine" style="height:205px"><div class="region one"><b>C</b></div><div class="region two"><b>A</b></div><div class="region three"><b>G</b></div><div class="region four active"><b>E</b></div><div class="region five"><b>D</b></div><i class="roleDot r" style="left:61%;top:22%">R</i><i class="roleDot t" style="left:67%;top:42%">3</i><i class="roleDot f" style="left:72%;top:62%">5</i><i class="roleDot r" style="left:78%;top:82%">R</i></div></div><div class="legend"><span class="r">Root</span><span class="t">3rd</span><span class="f">5th</span></div></div><div class="msection"><div class="fact"><b>Overlap with D region</b><span>Shared C and G positions stay visible.</span></div><div class="actions" style="margin-top:8px"><button class="btn dark">▶ Hear</button><button class="btn">Save</button><button class="btn primary">Work on this</button></div></div><div class="mBottom"><div class="active">Study</div><div>Tutor</div><div>More</div></div></div></div>
+      <div class="phone"><div class="screen"><div class="status"><span>9:41</span><span>5G ▰</span></div><div class="mhead"><strong>Circle of Fifths</strong><small>C major · relative minor Am</small></div><div class="msection"><div class="wheel" style="width:260px;height:260px;box-shadow:none"><button class="key active" style="left:50%;top:7%">C<small>Am</small></button><button class="key" style="left:72%;top:13%">G<small>Em</small></button><button class="key" style="left:88%;top:29%">D<small>Bm</small></button><button class="key" style="left:94%;top:50%">A<small>F♯m</small></button><button class="key" style="left:88%;top:72%">E<small>C♯m</small></button><button class="key" style="left:72%;top:88%">B<small>G♯m</small></button><button class="key" style="left:50%;top:94%">G♭<small>E♭m</small></button><button class="key" style="left:28%;top:88%">D♭<small>B♭m</small></button><button class="key" style="left:12%;top:72%">A♭<small>Fm</small></button><button class="key" style="left:6%;top:50%">E♭<small>Cm</small></button><button class="key" style="left:12%;top:29%">B♭<small>Gm</small></button><button class="key" style="left:28%;top:13%">F<small>Dm</small></button><div class="wheelCenter"><b>C</b><span>0 accidentals<br>Am relative</span></div></div></div><div class="msection"><div class="eyebrow">Selected sequence</div><div class="progression"><div class="degree">I<span>C</span></div><span class="arrow">→</span><div class="degree">V<span>G</span></div><span class="arrow">→</span><div class="degree">vi<span>Am</span></div><span class="arrow">→</span><div class="degree">IV<span>F</span></div></div><div class="actions"><button class="btn dark">▶ Hear</button><button class="btn primary">Work on this progression</button></div></div><div class="mBottom"><div class="active">Study</div><div>Tutor</div><div>More</div></div></div></div>
+    </div>
+  </section>
+
+  <section id="notes">
+    <h2>What agents should preserve</h2>
+    <div class="callouts"><div class="call"><b>Transient by default</b>No Artifact write happens because the user clicked around.</div><div class="call"><b>One shell, distinct visuals</b>Scale, chord, CAGED, and Circle do not collapse into one generic card grid.</div><div class="call"><b>V1-inspired diagrams</b>Keep the strong dot-grid readability; rewrite for V2 physical data and styling.</div><div class="call"><b>Tutor stays additive</b>The visualization teaches on its own. Tutor deepens it when asked.</div></div>
+  </section>
+</div>
+
+<div class="variantSwitch" aria-label="Prototype variant switcher"><button type="button" data-dir="-1" aria-label="Previous variant">←</button><span id="variantLabel">A · Recommended three-column</span><button type="button" data-dir="1" aria-label="Next variant">→</button></div>
+<script>
+const variants=[["A","Recommended three-column"],["B","Canvas-first ribbon"],["C","Guided path"]];
+const params=new URLSearchParams(location.search);
+let index=Math.max(0,variants.findIndex(([key])=>key===(params.get("variant")||"A")));
+function showVariant(next){
+  index=(next+variants.length)%variants.length;
+  const [key,label]=variants[index];
+  document.body.dataset.variant=key;
+  document.getElementById("variantLabel").textContent=key+" · "+label;
+  params.set("variant",key);
+  history.replaceState(null,"","?"+params.toString()+location.hash);
+}
+document.querySelectorAll("[data-dir]").forEach(button=>button.addEventListener("click",()=>showVariant(index+Number(button.dataset.dir))));
+addEventListener("keydown",event=>{
+  if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)||document.activeElement.isContentEditable)return;
+  if(event.key==="ArrowLeft")showVariant(index-1);
+  if(event.key==="ArrowRight")showVariant(index+1);
+});
+showVariant(index);
+</script>
+</body>
+</html>

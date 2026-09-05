@@ -120,6 +120,27 @@ h2{font-size:25px;letter-spacing:-.6px;margin:0 0 8px}
 .selectionDock{position:sticky;bottom:10px;margin:12px auto 0;max-width:620px;background:#161a20;color:#fff;border-radius:13px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 12px 35px rgba(0,0,0,.2)}
 .selectionDock strong{font-size:9px}.selectionDock span{font-size:8px;color:#c1c7cf}
 
+/* selected-range chord shapes — ticket #36 */
+.shapeStripWrap{margin-top:11px;border:1px solid var(--line);border-radius:13px;background:#f8f9fb;padding:9px}
+.shapeStripHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:7px}
+.shapeStripHead strong{display:block;font-size:10px}.shapeStripHead span{font-size:8px;color:var(--muted)}
+.shapeScroll{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 5px}
+.shapeCard{appearance:none;min-width:119px;border:1px solid var(--line);border-radius:11px;background:#fff;padding:8px;text-align:left;color:var(--ink)}
+.shapeCard.active{background:#edfaf5;border-color:#62bea0;box-shadow:0 0 0 2px rgba(18,163,125,.11)}
+.shapeCard.reference{border-style:dashed;background:#fffaf0}
+.shapeTitle{display:flex;justify-content:space-between;gap:6px;align-items:center;font-size:9px;font-weight:900}.shapeTitle i{font-style:normal;font-size:7px;color:var(--muted)}
+.shapeMeta{font-size:7px;color:var(--muted);margin:2px 0 5px}
+.miniChord{position:relative;width:68px;height:74px;margin:2px auto 4px}
+.miniChord:before{content:"";position:absolute;left:9px;right:3px;top:12px;bottom:3px;background:repeating-linear-gradient(to right,transparent 0,transparent calc(20% - 1px),#30363d calc(20% - 1px),#30363d 20%),repeating-linear-gradient(to bottom,transparent 0,transparent calc(25% - 1px),#9ca3aa calc(25% - 1px),#9ca3aa 25%)}
+.miniChord:after{content:"";position:absolute;left:9px;right:3px;top:9px;height:4px;border-radius:3px;background:#20262c}
+.shapeDot{position:absolute;width:11px;height:11px;border-radius:50%;background:#20262c;z-index:2}
+.shapeBarre{position:absolute;height:11px;border-radius:999px;background:#20262c;z-index:2}
+.shapeOpen{position:absolute;top:0;font-size:7px;font-weight:900;color:#56606c}
+.syncNote{display:flex;gap:5px;align-items:center;border-radius:9px;background:#182028;color:#fff;padding:6px 8px;margin-top:6px;font-size:8px}.syncNote b{color:#9fe0c8}
+.shapeLegend{display:flex;gap:7px;flex-wrap:wrap;font-size:7px;color:var(--muted);margin-top:5px}
+.shapeLegend b{color:#147457}
+.mobileShapeScroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px}.mobileShapeScroll .shapeCard{min-width:112px}
+
 /* phone */
 .phoneWrap{display:grid;grid-template-columns:repeat(2,minmax(300px,390px));gap:18px;justify-content:center}
 .phone{background:#101217;border-radius:34px;padding:8px;box-shadow:var(--shadow)}
@@ -178,6 +199,7 @@ h2{font-size:25px;letter-spacing:-.6px;margin:0 0 8px}
   <div class="nav">
     <a href="#overview">Desktop Overview + Focus</a>
     <a href="#full">Desktop Full Tab</a>
+    <a href="#chords">Physical chord strip</a>
     <a href="#mobile">Mobile</a>
     <a href="#notes">What to tell frontend</a>
   </div>
@@ -461,6 +483,103 @@ E|──────────</div></div>
     </div>
   </section>
 
+  <section id="chords">
+    <h2>Selected-range physical chord strip</h2>
+    <p class="lead">The chord letters are supporting labels. The actual strings/frets from the selected raw tab are the primary learning view, and they work without Enhance for learning.</p>
+    <div class="target-note"><strong>Recommended placement:</strong> immediately below focused tab and above the relational fretboard. Clicking a diagram selects the real source beat in all three views.</div>
+
+    <div class="frame desktopOnly">
+      <div class="browser">
+        <div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="url"></div></div>
+        <div class="appTop">
+          <div class="titleblock"><div class="song">Little Wing — Jimi Hendrix</div><div class="meta">Guitar 1 · Standard tuning · raw tab available · enhancement unavailable</div></div>
+          <div class="actions"><button class="btn">Full Tab</button><button class="btn soft">Retry enhancement</button><button class="btn">My Stuff</button></div>
+        </div>
+        <div class="worktabs"><div class="worktab active">Little Wing · Intro</div></div>
+        <div class="songShell">
+          <div class="overviewBar">
+            <div class="overviewTop"><div class="label">Song overview · selected m3–6</div><div class="actions"><button class="btn">Track ▾</button><button class="btn">42 measures</button></div></div>
+            <div class="mapline" style="grid-template-columns:repeat(4,1fr)">
+              <div class="sectionSeg"><strong>Intro · 1–6</strong><div class="measureStrip"><span class="mini">1</span><span class="mini">2</span><span class="mini sel">3</span><span class="mini sel">4</span><span class="mini sel">5</span><span class="mini sel">6</span></div></div>
+              <div class="sectionSeg"><strong>Verse · 7–18</strong><div class="measureStrip"><span class="mini">7</span><span class="mini">9</span><span class="mini">11</span><span class="mini">13</span><span class="mini">15</span><span class="mini">18</span></div></div>
+              <div class="sectionSeg"><strong>Verse · 19–30</strong><div class="measureStrip"><span class="mini">19</span><span class="mini">21</span><span class="mini">23</span><span class="mini">25</span><span class="mini">27</span><span class="mini">30</span></div></div>
+              <div class="sectionSeg"><strong>Outro · 31–42</strong><div class="measureStrip"><span class="mini">31</span><span class="mini">33</span><span class="mini">35</span><span class="mini">37</span><span class="mini">39</span><span class="mini">42</span></div></div>
+            </div>
+          </div>
+          <div class="mainSplit">
+            <div class="study">
+              <div class="focusHead"><div><div class="label">Selected passage</div><h3>Intro · measures 3–6</h3><div class="sub"><span data-selected-beat>m3 · beat 2</span> active · selection and fretboard synchronized</div></div><div class="actions"><button class="btn dark">▶ Play selection</button><button class="btn">Practice</button></div></div>
+              <div class="tabPanel">
+                <div class="tabHeader"><span class="label">Focused tab · exact source positions</span><div class="actions"><button class="btn">←</button><button class="btn">→</button></div></div>
+                <div class="tabMeasures" style="grid-template-columns:repeat(4,1fr);min-height:148px">
+                  <div class="measureBlock current" data-tab-measure="m3"><div class="mh">M3 · selected beat</div><div class="beatGlow" style="height:90px"></div><div class="tabtxt">e|──3────5────
+B|──3────5────
+G|──4────5────
+D|──5────7────
+A|────────────
+E|────────────</div></div>
+                  <div class="measureBlock" data-tab-measure="m4"><div class="mh">M4</div><div class="tabtxt">e|──3─────────
+B|──3────5────
+G|──4────5────
+D|──5────5────
+A|────────────
+E|────────────</div></div>
+                  <div class="measureBlock" data-tab-measure="m5"><div class="mh">M5</div><div class="tabtxt">e|────────────
+B|──8────8────
+G|──7────7────
+D|──9────9────
+A|────────────
+E|────────────</div></div>
+                  <div class="measureBlock" data-tab-measure="m6"><div class="mh">M6 · lead only</div><div class="tabtxt">e|──10b─10────
+B|────────────
+G|────────────
+D|────────────
+A|────────────
+E|────────────</div></div>
+                </div>
+              </div>
+
+              <div class="shapeStripWrap">
+                <div class="shapeStripHead"><div><strong>Shapes in this passage</strong><span>Ordered from raw tab · identical immediate repeats collapse</span></div><div class="label">4 chord-like events · lead ignored</div></div>
+                <div class="shapeScroll">
+                  <button class="shapeCard active" data-song-shape="m3 · beat 2" data-song-measure="m3"><div class="shapeTitle"><span>G/B</span><i>m3 · b2</i></div><div class="shapeMeta">Partial voicing · exact</div><div class="miniChord"><i class="shapeOpen" style="left:11px">×</i><i class="shapeDot" style="left:42px;top:24px"></i><i class="shapeDot" style="left:31px;top:38px"></i><i class="shapeDot" style="left:20px;top:52px"></i></div><div class="shapeMeta">strings 2–4</div></button>
+                  <button class="shapeCard" data-song-shape="m4 · beat 1" data-song-measure="m4"><div class="shapeTitle"><span>C/G</span><i>m4 · b1</i></div><div class="shapeMeta">Inversion · exact</div><div class="miniChord"><i class="shapeDot" style="left:53px;top:24px"></i><i class="shapeDot" style="left:42px;top:38px"></i><i class="shapeDot" style="left:31px;top:52px"></i></div><div class="shapeMeta">source tuning</div></button>
+                  <button class="shapeCard" data-song-shape="m5 · beats 1–2" data-song-measure="m5"><div class="shapeTitle"><span>Em7</span><i>m5 · ×2</i></div><div class="shapeMeta">Immediate repeat collapsed</div><div class="miniChord"><i class="shapeBarre" style="left:20px;right:4px;top:25px"></i><i class="shapeDot" style="left:31px;top:52px"></i></div><div class="shapeMeta">barre detected</div></button>
+                  <button class="shapeCard reference" data-song-shape="Chorus · ChordPro" data-song-measure="m5"><div class="shapeTitle"><span>Am7</span><i>lyrics</i></div><div class="shapeMeta">Reference shape · not performed tab</div><div class="miniChord"><i class="shapeOpen" style="left:11px">○</i><i class="shapeDot" style="left:42px;top:24px"></i><i class="shapeDot" style="left:31px;top:38px"></i></div><div class="shapeMeta">clearly secondary</div></button>
+                </div>
+                <div class="shapeLegend"><b>Exact</b><span>raw strings/frets</span><span>·</span><span>Reference shape is always labeled</span><span>·</span><span>No finger numbers guessed</span></div>
+                <div class="syncNote"><b>Selected:</b><span data-selected-beat>m3 · beat 2</span><span>→ tab beat + diagram + fretboard use the same positions</span></div>
+              </div>
+
+              <div class="relationship">
+                <div class="fretCard"><div class="label">Fretboard · selected shape</div><div class="fret" style="margin-top:6px;min-height:112px;display:grid;place-items:center;font-size:9px;color:#bdc6cf">G/B exact positions · active shape updates on diagram click</div></div>
+                <div class="infoCard"><strong>Why this is useful without AI</strong><p>The raw tab already knows where the guitarist played. Enhancement adds sections, lyrics, and harmonic explanation—not the basic physical view.</p><button class="btn purple">Ask Tutor about this shape</button></div>
+              </div>
+            </div>
+            <aside class="tutor"><div class="chatTitle"><strong>Tutor</strong><span class="label">optional</span></div><div class="msg ai">That G/B is a compact partial voicing. The diagram shows the played notes; ask if you want the harmonic role.</div><div class="quick"><button class="btn purple">Why this inversion?</button><button class="btn">Compare next shape</button></div><div class="ask">Ask about the selected shape… <b>↑</b></div></aside>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phoneWrap" style="margin-top:16px">
+      <div>
+        <div class="target-note"><strong>Mobile:</strong> diagrams become a horizontal strip between focused tab and fretboard. Selection remains one tap.</div>
+        <div class="phone"><div class="screen"><div class="status"><span>9:41</span><span>5G ▰</span></div><div class="mhead"><div class="branch"><span>Little Wing · Intro</span><span>▾</span></div><div class="mmeta">m3–6 · raw tab · Standard tuning</div></div><div class="msection"><div class="label">Focused tab · m3–4</div><div class="mobileTab" style="margin-top:6px"><div class="tabtxt">e|──3────5────  ──3──────
+B|──3────5────  ──3──5───
+G|──4────5────  ──4──5───
+D|──5────7────  ──5──5───</div></div></div><div class="msection"><div class="shapeStripHead"><div><strong>Shapes in range</strong><span>Swipe · tap to select</span></div></div><div class="mobileShapeScroll"><button class="shapeCard active" data-song-shape="m3 · beat 2" data-song-measure="m3"><div class="shapeTitle"><span>G/B</span><i>m3</i></div><div class="shapeMeta">Partial · exact</div><div class="miniChord"><i class="shapeDot" style="left:42px;top:24px"></i><i class="shapeDot" style="left:31px;top:38px"></i><i class="shapeDot" style="left:20px;top:52px"></i></div></button><button class="shapeCard" data-song-shape="m4 · beat 1" data-song-measure="m4"><div class="shapeTitle"><span>C/G</span><i>m4</i></div><div class="shapeMeta">Inversion · exact</div><div class="miniChord"><i class="shapeDot" style="left:53px;top:24px"></i><i class="shapeDot" style="left:42px;top:38px"></i><i class="shapeDot" style="left:31px;top:52px"></i></div></button><button class="shapeCard" data-song-shape="m5 · beats 1–2" data-song-measure="m5"><div class="shapeTitle"><span>Em7</span><i>×2</i></div><div class="shapeMeta">Barre · collapsed</div><div class="miniChord"><i class="shapeBarre" style="left:20px;right:4px;top:25px"></i></div></button></div><div class="syncNote"><b>Selected</b><span data-selected-beat>m3 · beat 2</span></div></div><div class="msection"><div class="label">Fretboard · same exact shape</div><div class="fret mobileFret" style="height:115px;display:grid;place-items:center;font-size:8px">G/B physical positions</div></div><div class="bottom"><div class="bnav active">Song</div><div class="bnav">Tutor</div><div class="bnav">More</div></div></div></div>
+      </div>
+    </div>
+
+    <div class="callouts">
+      <div class="call"><b>Exact before inferred</b>The performed raw shape is primary. A label can be unknown without losing the useful diagram.</div>
+      <div class="call"><b>Partial shapes count</b>Two or more simultaneous strings can be useful harmony; a single-note lead line is omitted.</div>
+      <div class="call"><b>Collapse narrowly</b>Only immediate identical repeats collapse. A later recurrence keeps its place in the sequence.</div>
+      <div class="call"><b>Enhancement stays additive</b>A 502 must not remove diagrams derived from raw tab.</div>
+    </div>
+  </section>
+
   <section id="mobile">
     <h2>Mobile target</h2>
     <p class="lead">Same mental model, different composition. The phone should not attempt to reproduce the three-column desktop layout.</p>
@@ -581,8 +700,20 @@ E|────────────────────────</div>
       <div class="call"><b>Desktop Tutor</b>Reserve a right rail for Tutor/context while focused music is visible. It can be collapsible later.</div>
       <div class="call"><b>Fretboard</b>Supporting relationship view by default—not a permanent half-screen canvas.</div>
       <div class="call"><b>Full Tab</b>Keep it full-width and dense. Selection provides Focus / Practice / Ask Tutor actions.</div>
+      <div class="call"><b>Chord shapes</b>Place the ordered physical diagram strip between focused tab and fretboard. Use V1’s diagram as visual inspiration, rebuilt for exact V2 positions and tuning.</div>
     </div>
   </section>
 </div>
+<script>
+document.querySelectorAll("[data-song-shape]").forEach(card=>{
+  card.addEventListener("click",()=>{
+    const scope=card.closest("#chords");
+    scope.querySelectorAll("[data-song-shape]").forEach(item=>item.classList.remove("active"));
+    card.classList.add("active");
+    scope.querySelectorAll("[data-selected-beat]").forEach(label=>label.textContent=card.dataset.songShape);
+    scope.querySelectorAll("[data-tab-measure]").forEach(measure=>measure.classList.toggle("current",measure.dataset.tabMeasure===card.dataset.songMeasure));
+  });
+});
+</script>
 </body>
 </html>
