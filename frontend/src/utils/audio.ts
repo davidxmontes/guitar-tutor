@@ -275,3 +275,18 @@ export function getChordDuration(
 ): number {
   return positionCount * strumSpeed + duration
 }
+
+// Short percussive click for contextual Practice; no physical guitar pitch.
+export function playMetronomeClick(): void {
+  const ctx = getAudioContext()
+  const oscillator = ctx.createOscillator()
+  const gain = ctx.createGain()
+  oscillator.frequency.value = 1000
+  gain.gain.setValueAtTime(0.15, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04)
+  oscillator.connect(gain)
+  gain.connect(ctx.destination)
+  oscillator.start()
+  oscillator.stop(ctx.currentTime + 0.05)
+  oscillator.onended = () => { oscillator.disconnect(); gain.disconnect() }
+}

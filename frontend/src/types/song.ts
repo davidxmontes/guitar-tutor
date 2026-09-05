@@ -48,6 +48,8 @@ export interface TabNote {
 }
 
 export interface TabBeat {
+  duration?: [number, number]; // rational whole-note duration from raw tab
+  rest?: boolean;
   notes: TabNote[];
   chord?: { text: string };
   pickStroke?: 'up' | 'down';
