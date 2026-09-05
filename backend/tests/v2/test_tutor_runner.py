@@ -11,8 +11,9 @@ from langchain.agents.structured_output import ProviderStrategy, ToolStrategy
 from langchain_core.messages import SystemMessage
 
 from app.v2.models import Artifact, Branch, TutorMessage
-from app.v2.tutor.providers import TutorCapabilityError
-from app.v2.tutor.runner import _response_format, run_tutor_turn
+from app.v2.tutor.contract import TutorTerminal
+from app.v2.tutor.providers import TutorCapabilityError, structured_response_format
+from app.v2.tutor.runner import run_tutor_turn
 from tests.v2.tutor_fakes import ScriptedTutorModel
 
 
@@ -209,11 +210,11 @@ def test_known_incompatible_model_routes_to_provider_strategy_not_tool_strategy(
     """meta/muse-spark-1.3-contributor (OpenRouter/Meta) is a known,
     reproduced case: it accepts tool definitions but only supports
     tool_choice="auto", not the forced/named choice ToolStrategy always
-    sets. _response_format must route it to ProviderStrategy (native
+    sets. The shared response-format selector must route it to ProviderStrategy (native
     structured output, no forced tool_choice) instead — asserted directly
     against the routing function rather than faking a full ProviderStrategy
     round-trip through create_agent."""
-    strategy = _response_format("openrouter", "meta/muse-spark-1.3-contributor")
+    strategy = structured_response_format(TutorTerminal, "openrouter", "meta/muse-spark-1.3-contributor")
 
     assert isinstance(strategy, ProviderStrategy)
     # focus/candidates must be required-but-nullable in the strict schema
@@ -225,8 +226,11 @@ def test_known_incompatible_model_routes_to_provider_strategy_not_tool_strategy(
 
 
 def test_other_models_still_use_tool_strategy() -> None:
-    assert isinstance(_response_format("openai", "gpt-4o-mini"), ToolStrategy)
-    assert isinstance(_response_format("openrouter", "some-other-vendor/some-other-model"), ToolStrategy)
+    assert isinstance(structured_response_format(TutorTerminal, "openai", "gpt-4o-mini"), ToolStrategy)
+    assert isinstance(
+        structured_response_format(TutorTerminal, "openrouter", "some-other-vendor/some-other-model"),
+        ToolStrategy,
+    )
 
 
 def test_missing_api_key_fails_before_any_model_call() -> None:

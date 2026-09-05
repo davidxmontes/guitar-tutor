@@ -33,10 +33,12 @@ provider did with its cache.
 
 from typing import Any, Optional
 
+from langchain.agents.structured_output import ProviderStrategy, ToolStrategy
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, create_model
 
 from app.v2.tutor.contract import TutorUsage
 
@@ -48,6 +50,19 @@ _OPENROUTER_PROVIDER_ROUTING: dict[str, Any] = {
     "allow_fallbacks": False,
     "require_parameters": True,
 }
+
+
+def structured_response_format(
+    schema: type[BaseModel], provider: str, model: str
+) -> ToolStrategy | ProviderStrategy:
+    if (provider, model) != ("openrouter", "meta/muse-spark-1.3-contributor"):
+        return ToolStrategy(schema)
+    strict_schema = create_model(
+        schema.__name__,
+        __base__=schema,
+        **{name: (field.annotation, ...) for name, field in schema.model_fields.items()},
+    )
+    return ProviderStrategy(strict_schema)
 
 
 class TutorCapabilityError(Exception):
@@ -98,8 +113,8 @@ def build_tutor_model(
             # to complete correctly (confirmed against enzo-ai's own fix for
             # this exact model) -- matters once real domain tools exist;
             # this model can still call tools optionally (tool_choice="auto"),
-            # just not via a forced/named choice (see runner.py's
-            # _response_format).
+            # just not via a forced/named choice (see
+            # structured_response_format above).
             #
             # ponytail: usage/cache metrics come back empty for this model
             # even with streaming on (tried stream_usage=True too, verified

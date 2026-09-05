@@ -22,36 +22,14 @@ from typing import Any, Callable, Optional
 import anthropic
 import openai
 from langchain.agents import create_agent
-from langchain.agents.structured_output import ProviderStrategy, ToolStrategy
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
-from pydantic import create_model
 
 from app.services.chord_service import get_chord
 from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
-from app.v2.tutor.contract import ProgressionCandidate, TutorFocus, TutorResponse, TutorTerminal, TutorUsage
+from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
-from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, usage_from_ai_message
-
-def _response_format(provider: str, model: str) -> ToolStrategy | ProviderStrategy:
-    # OpenRouter's Meta endpoint for meta/muse-spark-1.3-contributor accepts
-    # tool definitions but only permits tool_choice="auto" -- ToolStrategy
-    # always forces a named tool_choice, so this model needs
-    # ProviderStrategy's native structured-output mode instead. A second
-    # incompatible model widens this to a tuple/set; not needed yet.
-    if (provider, model) != ("openrouter", "meta/muse-spark-1.3-contributor"):
-        return ToolStrategy(TutorTerminal)
-    # Strict native JSON schema requires every property in `required`;
-    # Optional[...] = None fields are otherwise omittable, which strict mode
-    # rejects. Redeclare them as required-but-nullable (same type, no
-    # default) rather than loosening TutorTerminal itself for every model.
-    strict_schema = create_model(
-        TutorTerminal.__name__,
-        __base__=TutorTerminal,
-        focus=(Optional[TutorFocus], ...),
-        candidates=(Optional[list[ProgressionCandidate]], ...),
-    )
-    return ProviderStrategy(strict_schema)
+from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 
 _VOICING_TUNING_ID = "standard"
 
@@ -140,7 +118,11 @@ def run_tutor_turn(
     request_messages.extend(reconstruct_history(history))
     request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message))
 
-    agent = create_agent(model=chat_model, tools=[], response_format=_response_format(provider, model))
+    agent = create_agent(
+        model=chat_model,
+        tools=[],
+        response_format=structured_response_format(TutorTerminal, provider, model),
+    )
 
     started = time.monotonic()
     try:

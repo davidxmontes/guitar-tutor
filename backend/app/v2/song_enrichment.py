@@ -7,13 +7,12 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Optional
 
 from langchain.agents import create_agent
-from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from app.v2.models import SongDerivedRange, SongEnrichment, SongSourceSection
-from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
+from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format
 
 ModelFactory = Callable[..., BaseChatModel]
 
@@ -143,7 +142,11 @@ def run_song_enrichment(
         anthropic_api_key=anthropic_api_key,
         openrouter_api_key=openrouter_api_key,
     )
-    agent = create_agent(model=chat_model, tools=[], response_format=ToolStrategy(SongEnrichmentProposal))
+    agent = create_agent(
+        model=chat_model,
+        tools=[],
+        response_format=structured_response_format(SongEnrichmentProposal, provider, model),
+    )
     try:
         state = agent.invoke(
             {

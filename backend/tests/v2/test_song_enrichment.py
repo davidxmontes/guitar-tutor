@@ -1,3 +1,6 @@
+from langchain.agents.structured_output import ProviderStrategy
+
+import app.v2.song_enrichment as song_enrichment
 from app.v2.song_enrichment import build_enrichment_context, run_song_enrichment
 from tests.v2.tutor_fakes import ScriptedTutorModel
 
@@ -71,6 +74,32 @@ def test_run_song_enrichment_marks_model_ranges_as_ai_and_keeps_semantic_levels(
     prompt = " ".join(str(message.content) for message in model.calls[0])
     assert enrichment.tab_fingerprint in prompt
     assert "accentuated" not in prompt
+
+
+def test_muse_enrichment_uses_native_structured_output(monkeypatch) -> None:
+    captured = {}
+
+    class Agent:
+        def invoke(self, _state):
+            return {"structured_response": song_enrichment.SongEnrichmentProposal(ranges=[])}
+
+    def create_agent(**kwargs):
+        captured["response_format"] = kwargs["response_format"]
+        return Agent()
+
+    monkeypatch.setattr(song_enrichment, "create_agent", create_agent)
+
+    run_song_enrichment(
+        artifact_id="artifact-1",
+        tab_data=TAB_DATA,
+        chordpro=CHORDPRO,
+        provider="openrouter",
+        model="meta/muse-spark-1.3-contributor",
+        openrouter_api_key="k",
+        model_factory=lambda *_args, **_kwargs: ScriptedTutorModel(),
+    )
+
+    assert isinstance(captured["response_format"], ProviderStrategy)
 
 
 def test_run_song_enrichment_rejects_ranges_outside_the_raw_track() -> None:
