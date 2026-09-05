@@ -80,7 +80,7 @@ Treat `main-v2` as this repo's main for every V2 ticket:
 - **Tech-debt ledger:** none kept. Known gaps get a section in this file (see
   above) rather than a separate tracking issue.
 - **Primary context docs:** `README.md` (architecture, API surface, design
-  decisions), `docs/guitar_tutor_v2_ux_reference.html` (V2 UX/layout
+  decisions), `docs/guitar_tutor_v2_ux_reference.html` (general V2 UX/layout
   reference mocks — read before building any V2 screen), and
   `docs/superpowers/specs/` + `docs/superpowers/plans/` for past feature
   specs/plans. No `CONTEXT.md` / ADRs yet — created lazily by
@@ -89,6 +89,11 @@ Treat `main-v2` as this repo's main for every V2 ticket:
   implementation surfaces a better layout/interaction than what's mocked,
   explore that instead and note the deviation rather than forcing the mock's
   shape.
+  Per-artifact mocks supersede the general reference where they exist and
+  overlap — `docs/guitar_tutor_songstudy_target_mocks.html` is the concrete
+  target for SongStudy specifically (Overview+Focus, Full Tab, and mobile
+  layouts, plus frontend-team notes); prefer it over the general reference
+  doc for that screen. Same posture: reference, not strict spec.
 - **V1 UI inspiration:** V1's styling/presentation is fair game to draw from
   where it already looks right, even though the V2 components won't be a
   one-to-one port — new data shapes and, per the spec, a semantic

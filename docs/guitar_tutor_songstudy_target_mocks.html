@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guitar Tutor V2 — SongStudy Target Mocks</title>
+<style>
+:root{
+  --bg:#eef1f5;--panel:#fff;--ink:#111827;--muted:#667085;--line:#d9dee7;
+  --soft:#f7f8fa;--accent:#12a37d;--accent2:#6d5bd0;--dark:#171a20;
+  --blue:#2b6fb8;--gold:#a77500;--danger:#a74e4e;
+  --shadow:0 18px 55px rgba(16,24,40,.10);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);line-height:1.35}
+.wrap{max-width:1500px;margin:0 auto;padding:28px 18px 100px}
+.hero{background:#171a20;color:#fff;border-radius:24px;padding:28px 30px;box-shadow:var(--shadow)}
+.kicker{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:#96ead2;font-weight:800}
+h1{margin:5px 0 8px;font-size:34px;letter-spacing:-1.2px}
+.hero p{margin:0;max-width:980px;color:#d6d9de;font-size:15px}
+.nav{position:sticky;top:8px;z-index:30;margin:16px 0 30px;padding:7px;background:rgba(238,241,245,.94);backdrop-filter:blur(14px);border:1px solid #d9dee7;border-radius:14px;display:flex;gap:6px;overflow:auto}
+.nav a{white-space:nowrap;text-decoration:none;color:#3d4652;background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:11px;font-weight:800}
+section{margin-top:34px}
+h2{font-size:25px;letter-spacing:-.6px;margin:0 0 8px}
+.lead{color:var(--muted);margin:0 0 14px;font-size:14px}
+.target-note{border-left:4px solid var(--accent);background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;box-shadow:var(--shadow)}
+
+.frame{background:#111318;border-radius:22px;padding:8px;box-shadow:var(--shadow)}
+.browser{background:#f8f9fb;border-radius:16px;overflow:hidden}
+.browserbar{height:30px;background:#e4e7eb;display:flex;align-items:center;gap:7px;padding:0 10px;border-bottom:1px solid #d5dae0}
+.dots{display:flex;gap:4px}.dots i{width:7px;height:7px;border-radius:50%;background:#bdc2c8}
+.url{height:18px;flex:1;background:#fff;border:1px solid #d2d7dd;border-radius:6px}
+
+.appTop{height:59px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 17px}
+.titleblock .song{font-size:15px;font-weight:900;letter-spacing:-.2px}
+.titleblock .meta{font-size:10px;color:var(--muted);margin-top:2px}
+.actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn,.pill{
+  appearance:none;border:1px solid var(--line);background:#fff;border-radius:9px;
+  padding:7px 9px;font-size:9px;font-weight:850;color:#303742
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.dark{background:#1a1e24;border-color:#1a1e24;color:#fff}
+.btn.soft{background:#eefbf6;border-color:#bfeadb;color:#0b7658}
+.btn.purple{background:#f2efff;border-color:#d9d0ff;color:#5b49c0}
+
+.worktabs{display:flex;align-items:end;gap:5px;padding:8px 14px 0;background:#f8f9fb;border-bottom:1px solid var(--line)}
+.worktab{background:#eef1f4;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;padding:7px 10px;font-size:9px;font-weight:850}
+.worktab.active{background:#fff;color:var(--accent);position:relative;bottom:-1px}
+
+.songShell{background:#fff}
+.overviewBar{padding:12px 15px;border-bottom:1px solid var(--line)}
+.overviewTop{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.label{font-size:8px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:900}
+.mapline{display:grid;grid-template-columns:1.1fr 1.3fr 1.1fr 1.4fr 1.5fr;gap:6px}
+.sectionSeg{border:1px solid var(--line);border-radius:9px;background:#fbfcfd;overflow:hidden}
+.sectionSeg strong{display:block;font-size:8px;padding:5px 7px;background:#f1f3f6;border-bottom:1px solid var(--line)}
+.measureStrip{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:5px}
+.mini{height:17px;border-radius:4px;background:#fff;border:1px solid #e0e4ea;font-size:6px;display:flex;align-items:center;justify-content:center;color:#667085}
+.mini.sel{background:#dff7ef;border-color:#58c7a4;color:#07684e;font-weight:900}
+.mini.mark{box-shadow:inset 0 -3px 0 #7a68df}
+
+.mainSplit{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:590px}
+.study{padding:15px;border-right:1px solid var(--line)}
+.tutor{padding:14px;background:#fbfbfc}
+.focusHead{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:9px}
+.focusHead h3{font-size:15px;margin:2px 0 0}
+.focusHead .sub{font-size:9px;color:var(--muted);margin-top:2px}
+.tabPanel{border:1px solid var(--line);border-radius:13px;background:#fff;overflow:hidden}
+.tabHeader{background:#f7f8fa;border-bottom:1px solid var(--line);padding:7px 10px;display:flex;justify-content:space-between;align-items:center}
+.tabMeasures{display:grid;grid-template-columns:repeat(4,1fr);min-height:190px}
+.measureBlock{padding:10px;border-right:1px solid var(--line);position:relative}
+.measureBlock:last-child{border-right:0}
+.measureBlock .mh{font-size:8px;font-weight:900;color:#687385;margin-bottom:7px}
+.measureBlock.current{background:linear-gradient(180deg,#f0fbf7,#fff)}
+.beatGlow{position:absolute;left:19%;top:34px;width:23%;height:132px;background:rgba(18,163,125,.10);border:1px solid rgba(18,163,125,.22);border-radius:7px}
+.tabtxt{font:700 10px/1.72 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;color:#263141}
+.contextStrip{display:flex;gap:6px;flex-wrap:wrap;padding:9px 0 0}
+.ctx{background:#f3f5f7;border:1px solid #e0e4e9;border-radius:999px;padding:5px 7px;font-size:8px;font-weight:800;color:#505866}
+.ctx.em{background:#eefaf6;border-color:#c7ebdf;color:#167657}
+.ctx.ai{background:#f4f1ff;border-color:#ddd5ff;color:#5949b4}
+
+.relationship{margin-top:12px;display:grid;grid-template-columns:minmax(0,1fr) 205px;gap:10px}
+.fretCard,.infoCard{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px}
+.fret{background:#20252c;border-radius:9px;padding:6px 8px;color:#cad0d7;overflow:hidden}
+.fnums{display:grid;grid-template-columns:28px repeat(12,1fr);font-size:6px;color:#818a95;margin-bottom:3px}
+.fnums span{text-align:center}
+.string{display:grid;grid-template-columns:28px repeat(12,1fr);height:25px;align-items:center}
+.string>span:first-child{font-size:7px;font-weight:900;color:#a9b1ba}
+.cell{height:100%;border-left:1px solid #3b424b;display:flex;align-items:center;justify-content:center}
+.note{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:900;background:#17a47e;color:white}
+.note.up{background:transparent;border:2px solid #39bd96;color:#aaf1da}
+.note.ctx{background:#5b6470;color:#e3e5e8}
+.infoCard strong{font-size:10px}.infoCard p{font-size:8px;color:var(--muted);margin:4px 0 8px}
+.legend{display:flex;gap:7px;flex-wrap:wrap;font-size:7px;color:#77808c;margin-top:6px}
+
+.chatTitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.chatTitle strong{font-size:11px}
+.msg{font-size:9px;line-height:1.45;padding:9px 10px;border-radius:11px;margin-bottom:7px}
+.msg.user{background:#eef1f4}
+.msg.ai{background:#f2efff;border:1px solid #d9d0ff}
+.quick{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.ask{margin-top:10px;border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px;color:#8a929d;font-size:9px;display:flex;justify-content:space-between}
+.aiCard{border:1px solid #d9d0ff;background:#fbfaff;border-radius:11px;padding:9px;margin-top:9px}
+.aiCard .prog{font-size:9px;font-weight:900;margin:4px 0 7px}
+
+.fullTab{padding:14px 16px 20px}
+.fullToolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.fullRows{display:grid;gap:8px}
+.fullRow{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.rowHead{height:25px;padding:0 10px;background:#f7f8fa;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.rowHead strong{font-size:8px}.rowHead span{font-size:7px;color:var(--muted)}
+.rowTab{padding:8px 10px 10px;display:grid;grid-template-columns:repeat(4,1fr)}
+.rowM{position:relative;border-right:1px dashed #d9dee5;padding:0 10px;min-height:98px}
+.rowM:last-child{border-right:0}
+.rowM .mh{font-size:7px;color:#77808b;font-weight:900;margin-bottom:3px}
+.rowM.selected{background:#edf9f5}
+.selectbar{position:absolute;left:8px;right:8px;bottom:5px;height:4px;border-radius:999px;background:var(--accent)}
+.selectionDock{position:sticky;bottom:10px;margin:12px auto 0;max-width:620px;background:#161a20;color:#fff;border-radius:13px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 12px 35px rgba(0,0,0,.2)}
+.selectionDock strong{font-size:9px}.selectionDock span{font-size:8px;color:#c1c7cf}
+
+/* phone */
+.phoneWrap{display:grid;grid-template-columns:repeat(2,minmax(300px,390px));gap:18px;justify-content:center}
+.phone{background:#101217;border-radius:34px;padding:8px;box-shadow:var(--shadow)}
+.screen{min-height:720px;background:#f8f9fb;border-radius:27px;overflow:hidden;position:relative;padding-bottom:58px}
+.status{height:24px;padding:0 13px 4px;display:flex;align-items:end;justify-content:space-between;font-size:8px;font-weight:900}
+.mhead{background:#fff;border-bottom:1px solid var(--line);padding:9px 11px}
+.branch{border:1px solid var(--line);border-radius:9px;padding:7px 9px;display:flex;justify-content:space-between;font-size:10px;font-weight:900}
+.mmeta{font-size:8px;color:var(--muted);margin-top:4px}
+.msection{padding:10px 11px;border-bottom:1px solid var(--line)}
+.mobileMap{display:flex;gap:5px;overflow:hidden}
+.mseg{min-width:88px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:5px}
+.mseg strong{display:block;font-size:7px;margin-bottom:4px}
+.mobileStrip{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+.mm{height:18px;border:1px solid #e1e5eb;border-radius:4px;font-size:6px;display:flex;align-items:center;justify-content:center}
+.mm.sel{background:#dff7ef;border-color:#61cbaa;color:#08664e;font-weight:900}
+.mobileTab{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px}
+.mobileTab .tabtxt{font-size:8px}
+.mobileFret{margin-top:8px}
+.bottom{position:absolute;bottom:0;left:0;right:0;height:53px;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr)}
+.bnav{font-size:8px;font-weight:900;color:#7a828d;display:flex;align-items:center;justify-content:center}.bnav.active{color:var(--accent)}
+.sheet{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px}
+.fullPhoneRow{border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:7px;padding:8px}
+.fullPhoneRow .tabtxt{font-size:7px}
+.floatSel{position:absolute;left:10px;right:10px;bottom:63px;background:#181c22;color:#fff;border-radius:11px;padding:8px 9px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.floatSel strong{font-size:8px}.floatSel .actions{margin-top:6px}
+
+/* annotation */
+.callouts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.call{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px;font-size:10px;box-shadow:var(--shadow)}
+.call b{display:block;margin-bottom:4px}
+.call em{font-style:normal;color:var(--accent);font-weight:900}
+
+@media(max-width:1050px){
+  .mainSplit{grid-template-columns:1fr}
+  .study{border-right:0}.tutor{border-top:1px solid var(--line)}
+  .relationship{grid-template-columns:1fr}
+  .callouts{grid-template-columns:1fr 1fr}
+}
+@media(max-width:750px){
+  .wrap{padding:14px 8px 60px}
+  h1{font-size:26px}
+  .desktopOnly{display:none}
+  .phoneWrap{grid-template-columns:1fr}
+  .callouts{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="kicker">SongStudy · concrete target mocks</div>
+    <h1>What I mean by “Overview + Focus” vs “Full Tab”</h1>
+    <p>Same song, same selection, same core tab renderer. The difference is composition: Overview + Focus is the learning workspace; Full Tab is the dense reading/navigation view.</p>
+  </div>
+
+  <div class="nav">
+    <a href="#overview">Desktop Overview + Focus</a>
+    <a href="#full">Desktop Full Tab</a>
+    <a href="#mobile">Mobile</a>
+    <a href="#notes">What to tell frontend</a>
+  </div>
+
+  <section id="overview">
+    <h2>Desktop target: Overview + Focus</h2>
+    <p class="lead">This is the screen I would make the default when the user opens a song.</p>
+    <div class="target-note"><strong>Key idea:</strong> the song map stays compact, the selected 2–4 measures are the center of gravity, the fretboard supports the explanation, and Tutor lives beside the thing being explained.</div>
+
+    <div class="frame desktopOnly">
+      <div class="browser">
+        <div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="url"></div></div>
+        <div class="appTop">
+          <div class="titleblock">
+            <div class="song">Don’t Look Back In Anger — Oasis</div>
+            <div class="meta">Noel Gallagher · Lead Guitar (Overdriven Guitar) · Standard tuning · 97 measures</div>
+          </div>
+          <div class="actions">
+            <button class="btn">Search another song</button>
+            <button class="btn soft">Enhance for learning</button>
+            <button class="btn">Full Tab</button>
+            <button class="btn">My Stuff</button>
+          </div>
+        </div>
+        <div class="worktabs">
+          <div class="worktab active">Don’t Look Back In Anger</div>
+        </div>
+
+        <div class="songShell">
+          <div class="overviewBar">
+            <div class="overviewTop"><div class="label">Song overview · click to jump · shift-click for range</div><div class="actions"><button class="btn">Track ▾</button><button class="btn">97 measures</button></div></div>
+            <div class="mapline">
+              <div class="sectionSeg"><strong>Intro · 1–8</strong><div class="measureStrip"><span class="mini">1</span><span class="mini">2</span><span class="mini">3</span><span class="mini">4</span><span class="mini">5</span><span class="mini">6</span><span class="mini">7</span><span class="mini">8</span></div></div>
+              <div class="sectionSeg"><strong>Verse 1 · 9–28</strong><div class="measureStrip"><span class="mini">9</span><span class="mini">12</span><span class="mini">15</span><span class="mini">18</span><span class="mini">21</span><span class="mini">24</span><span class="mini mark">26</span><span class="mini">28</span></div></div>
+              <div class="sectionSeg"><strong>Verse 2 · 29–44</strong><div class="measureStrip"><span class="mini">29</span><span class="mini">31</span><span class="mini sel">34</span><span class="mini sel">35</span><span class="mini sel">36</span><span class="mini sel">37</span><span class="mini">41</span><span class="mini">44</span></div></div>
+              <div class="sectionSeg"><strong>Chorus · 45–68</strong><div class="measureStrip"><span class="mini">45</span><span class="mini">48</span><span class="mini">51</span><span class="mini">54</span><span class="mini">57</span><span class="mini">60</span><span class="mini">64</span><span class="mini">68</span></div></div>
+              <div class="sectionSeg"><strong>Outro · 69–97</strong><div class="measureStrip"><span class="mini">69</span><span class="mini">73</span><span class="mini">77</span><span class="mini">81</span><span class="mini">85</span><span class="mini">89</span><span class="mini">93</span><span class="mini">97</span></div></div>
+            </div>
+          </div>
+
+          <div class="mainSplit">
+            <div class="study">
+              <div class="focusHead">
+                <div>
+                  <div class="label">Selected passage</div>
+                  <h3>Verse 2 · measures 34–37</h3>
+                  <div class="sub">Beat 2 of m34 active · swipe/click measures to move through selection</div>
+                </div>
+                <div class="actions">
+                  <button class="btn dark">▶ Play selection</button>
+                  <button class="btn">Practice</button>
+                  <button class="btn">Save range</button>
+                </div>
+              </div>
+
+              <div class="tabPanel">
+                <div class="tabHeader"><span class="label">Focused tab</span><div class="actions"><button class="btn">← Previous</button><button class="btn">Next →</button></div></div>
+                <div class="tabMeasures">
+                  <div class="measureBlock current">
+                    <div class="mh">M34 · active</div><div class="beatGlow"></div>
+                    <div class="tabtxt">e|────────────
+B|────────────
+G|─5──5──7b──7
+D|────────────
+A|────────────
+E|────────────</div>
+                  </div>
+                  <div class="measureBlock">
+                    <div class="mh">M35</div>
+                    <div class="tabtxt">e|────────────
+B|──8──8──────
+G|──7──7──7b──
+D|──────5h─7──
+A|────────────
+E|────────────</div>
+                  </div>
+                  <div class="measureBlock">
+                    <div class="mh">M36</div>
+                    <div class="tabtxt">e|────────────
+B|────────────
+G|──5h─7──5h─7
+D|──────5h─7──
+A|────────────
+E|────────────</div>
+                  </div>
+                  <div class="measureBlock">
+                    <div class="mh">M37</div>
+                    <div class="tabtxt">e|────────────
+B|────────────
+G|──5─────────
+D|────────────
+A|────────────
+E|────────────</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="contextStrip">
+                <span class="ctx em">Verse 2</span>
+                <span class="ctx">Broad harmony: Fsus2 → Fm7</span>
+                <span class="ctx ai">AI: repeated 5→7 movement</span>
+                <span class="ctx">Selected range: 34–37</span>
+              </div>
+
+              <div class="relationship">
+                <div class="fretCard">
+                  <div class="label">Fretboard · relationship view</div>
+                  <div class="fret" style="margin-top:6px">
+                    <div class="fnums"><span></span><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span></div>
+                    <div class="string"><span>E</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                    <div class="string"><span>B</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><i class="note">G</i></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                    <div class="string"><span>G</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><i class="note">C</i></div><div class="cell"></div><div class="cell"><i class="note up">D</i></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                    <div class="string"><span>D</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                    <div class="string"><span>A</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                    <div class="string"><span>E</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                  </div>
+                  <div class="legend"><span>● active beat</span><span>○ upcoming beat</span><span>dim = harmonic context</span></div>
+                </div>
+                <div class="infoCard">
+                  <div class="label">Why this is here</div>
+                  <strong>The fretboard is supporting evidence.</strong>
+                  <p>It becomes taller only when there is actually something spatial to teach. It should not automatically consume half the viewport.</p>
+                  <button class="btn">Show all notes</button>
+                </div>
+              </div>
+            </div>
+
+            <aside class="tutor">
+              <div class="chatTitle"><strong>Tutor</strong><button class="btn">···</button></div>
+              <div class="msg user">What’s happening in this lick?</div>
+              <div class="msg ai">The repeated C→D motion is doing most of the work. Notice how the shape stays nearly fixed while one note pushes forward. I’ve highlighted the current and upcoming notes on the fretboard.</div>
+              <div class="quick"><button class="btn purple">Show movement</button><button class="btn">What changes?</button><button class="btn">Give me a practice idea</button></div>
+
+              <div class="aiCard">
+                <div class="label">Creative next step</div>
+                <div class="prog">Turn this motion into a progression?</div>
+                <div class="actions"><button class="btn dark">▶ Hear</button><button class="btn">Save</button><button class="btn primary">Explore</button></div>
+              </div>
+
+              <div class="ask"><span>Ask about measures 34–37…</span><span>↵</span></div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callouts">
+      <div class="call"><b>1. Song map is orientation</b><em>~15% of the screen</em>, not the dominant widget.</div>
+      <div class="call"><b>2. Passage is primary</b>The selected 2–4 measures get the most visual weight.</div>
+      <div class="call"><b>3. Fretboard is contextual</b>Large enough to teach the current relationship, no larger by default.</div>
+      <div class="call"><b>4. Tutor stays visible</b>On desktop, explanation and music can be seen simultaneously.</div>
+    </div>
+  </section>
+
+  <section id="full">
+    <h2>Desktop target: Full Tab</h2>
+    <p class="lead">This is not another learning dashboard. It is a dense, readable whole-song view for scanning and navigating.</p>
+    <div class="target-note"><strong>Key idea:</strong> remove the permanent fretboard and Tutor from this view. Give the tab the width. Selecting measures reveals lightweight actions that send the range back into Focus, Practice, or Tutor.</div>
+
+    <div class="frame desktopOnly">
+      <div class="browser">
+        <div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="url"></div></div>
+        <div class="appTop">
+          <div class="titleblock">
+            <div class="song">Don’t Look Back In Anger — Oasis</div>
+            <div class="meta">Noel Gallagher · Lead Guitar (Overdriven Guitar) · Standard tuning</div>
+          </div>
+          <div class="actions">
+            <button class="btn">Search another song</button>
+            <button class="btn soft">Enhance for learning</button>
+            <button class="btn primary">Overview + Focus</button>
+          </div>
+        </div>
+        <div class="fullTab">
+          <div class="fullToolbar"><div><div class="label">Full tab · 97 measures</div><strong style="font-size:12px">Click a measure · shift-click to select a range</strong></div><div class="actions"><button class="btn">Sections ▾</button><button class="btn">Track ▾</button></div></div>
+          <div class="fullRows">
+            <div class="fullRow">
+              <div class="rowHead"><strong>Intro · measures 1–4</strong><span>m1–4</span></div>
+              <div class="rowTab">
+                <div class="rowM"><div class="mh">M1</div><div class="tabtxt">e|──────────
+B|──────────
+G|──────────
+D|──────────
+A|────3─────
+E|──────────</div></div>
+                <div class="rowM"><div class="mh">M2</div><div class="tabtxt">e|──────────
+B|──────────
+G|──0──0────
+D|──2h─3────
+A|──────────
+E|──────────</div></div>
+                <div class="rowM"><div class="mh">M3</div><div class="tabtxt">e|──────────
+B|──────────
+G|──0───────
+D|──────────
+A|──────────
+E|──────────</div></div>
+                <div class="rowM"><div class="mh">M4</div><div class="tabtxt">e|──────────
+B|──────────
+G|──5──5────
+D|──5h─7────
+A|──────────
+E|──────────</div></div>
+              </div>
+            </div>
+
+            <div class="fullRow">
+              <div class="rowHead"><strong>Verse 2 · measures 33–36</strong><span>selected range continues into next row</span></div>
+              <div class="rowTab">
+                <div class="rowM"><div class="mh">M33</div><div class="tabtxt">e|──────────
+B|──────────
+G|──────────
+D|──────────
+A|──────────
+E|──────────</div></div>
+                <div class="rowM selected"><div class="mh">M34</div><div class="tabtxt">e|──────────
+B|──────────
+G|─5─5─7b─7─
+D|──────────
+A|──────────
+E|──────────</div><div class="selectbar"></div></div>
+                <div class="rowM selected"><div class="mh">M35</div><div class="tabtxt">e|──────────
+B|──8──8────
+G|──7──7b───
+D|──5h─7────
+A|──────────
+E|──────────</div><div class="selectbar"></div></div>
+                <div class="rowM selected"><div class="mh">M36</div><div class="tabtxt">e|──────────
+B|──────────
+G|──5h─7────
+D|──5h─7────
+A|──────────
+E|──────────</div><div class="selectbar"></div></div>
+              </div>
+            </div>
+
+            <div class="fullRow">
+              <div class="rowHead"><strong>Verse 2 · measures 37–40</strong><span>m37 is selected</span></div>
+              <div class="rowTab">
+                <div class="rowM selected"><div class="mh">M37</div><div class="tabtxt">e|──────────
+B|──────────
+G|──5───────
+D|──────────
+A|──────────
+E|──────────</div><div class="selectbar"></div></div>
+                <div class="rowM"><div class="mh">M38</div><div class="tabtxt">e|──────────
+B|──────────
+G|──────────
+D|──────────
+A|──────────
+E|──────────</div></div>
+                <div class="rowM"><div class="mh">M39</div><div class="tabtxt">e|──────────
+B|──────────
+G|──────────
+D|──────────
+A|──────────
+E|──────────</div></div>
+                <div class="rowM"><div class="mh">M40</div><div class="tabtxt">e|──────────
+B|──────────
+G|──────────
+D|──────────
+A|──────────
+E|──────────</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="selectionDock">
+            <div><strong>Measures 34–37 selected</strong><br><span>Verse 2 · Lead Guitar</span></div>
+            <div class="actions"><button class="btn primary">Focus selection</button><button class="btn">Practice</button><button class="btn">Ask Tutor</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callouts">
+      <div class="call"><b>Full Tab's job</b><em>Read + scan + select.</em></div>
+      <div class="call"><b>Denser rows</b>Four measures should not require a giant card with lots of empty vertical space.</div>
+      <div class="call"><b>No permanent fretboard</b>It returns when the user focuses a range or asks a spatial question.</div>
+      <div class="call"><b>Selection bridges views</b>Select 34–37 → Focus selection → return to Overview + Focus on exactly that passage.</div>
+    </div>
+  </section>
+
+  <section id="mobile">
+    <h2>Mobile target</h2>
+    <p class="lead">Same mental model, different composition. The phone should not attempt to reproduce the three-column desktop layout.</p>
+
+    <div class="phoneWrap">
+      <div>
+        <div class="target-note"><strong>Overview + Focus:</strong> song map → 1–2 focused measures → compact fretboard. Tutor is a bottom destination/sheet.</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>5G ▰</span></div>
+            <div class="mhead">
+              <div class="branch"><span>Don’t Look Back In Anger</span><span>▾</span></div>
+              <div class="mmeta">Lead Guitar · Verse 2 · m34–37 selected</div>
+            </div>
+            <div class="msection">
+              <div class="label">Song overview</div>
+              <div class="mobileMap" style="margin-top:6px">
+                <div class="mseg"><strong>Verse 1</strong><div class="mobileStrip"><span class="mm">21</span><span class="mm">23</span><span class="mm">25</span><span class="mm">27</span><span class="mm">28</span></div></div>
+                <div class="mseg"><strong>Verse 2</strong><div class="mobileStrip"><span class="mm">31</span><span class="mm sel">34</span><span class="mm sel">35</span><span class="mm sel">36</span><span class="mm sel">37</span></div></div>
+                <div class="mseg"><strong>Chorus</strong><div class="mobileStrip"><span class="mm">45</span><span class="mm">49</span><span class="mm">53</span><span class="mm">57</span><span class="mm">61</span></div></div>
+              </div>
+            </div>
+            <div class="msection">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div><div class="label">Focused measures</div><strong style="font-size:11px">M34–35</strong></div>
+                <div class="actions"><button class="btn">‹</button><button class="btn">›</button></div>
+              </div>
+              <div class="mobileTab" style="margin-top:6px">
+                <div class="tabtxt">M34                 M35
+e|────────────  ────────────
+B|────────────  ──8──8──────
+G|─5─5─7b──7──  ──7──7──7b──
+D|────────────  ─────5h──7───
+A|────────────  ────────────
+E|────────────  ────────────</div>
+              </div>
+              <div class="contextStrip"><span class="ctx em">Verse 2</span><span class="ctx">Fsus2 → Fm7</span></div>
+            </div>
+            <div class="msection">
+              <div class="label">Fretboard · active / upcoming</div>
+              <div class="fret mobileFret">
+                <div class="string"><span>G</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><i class="note">C</i></div><div class="cell"></div><div class="cell"><i class="note up">D</i></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+                <div class="string"><span>D</span><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+              </div>
+              <div class="actions" style="margin-top:7px"><button class="btn dark">▶ Play</button><button class="btn">Practice</button><button class="btn purple">Explain</button></div>
+            </div>
+            <div class="bottom"><div class="bnav active">Song</div><div class="bnav">Tutor</div><div class="bnav">More</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="target-note"><strong>Full Tab:</strong> dense vertical reader. Selection creates a floating action bar; it doesn't insert a permanent Tutor or fretboard.</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>5G ▰</span></div>
+            <div class="mhead">
+              <div class="branch"><span>Full Tab</span><span>▾</span></div>
+              <div class="mmeta">Don’t Look Back In Anger · Lead Guitar</div>
+            </div>
+            <div class="msection" style="padding-bottom:78px">
+              <div class="label">Verse 2</div>
+              <div class="fullPhoneRow">
+                <strong style="font-size:8px">M33–34</strong>
+                <div class="tabtxt">e|────────────────────────
+B|────────────────────────
+G|─────────────5─5─7b──7──
+D|────────────────────────
+A|────────────────────────
+E|────────────────────────</div>
+              </div>
+              <div class="fullPhoneRow" style="background:#effaf6;border-color:#bfe8d9">
+                <strong style="font-size:8px">M35–36 · selected</strong>
+                <div class="tabtxt">e|────────────────────────
+B|──8──8──────────────────
+G|──7──7b────5h─7──5h─7───
+D|──5h─7─────5h─7──────────
+A|────────────────────────
+E|────────────────────────</div>
+              </div>
+              <div class="fullPhoneRow" style="background:#effaf6;border-color:#bfe8d9">
+                <strong style="font-size:8px">M37–38 · selection ends</strong>
+                <div class="tabtxt">e|────────────────────────
+B|────────────────────────
+G|──5─────────────────────
+D|────────────────────────
+A|────────────────────────
+E|────────────────────────</div>
+              </div>
+              <div class="fullPhoneRow">
+                <strong style="font-size:8px">M39–40</strong>
+                <div class="tabtxt">e|────────────────────────
+B|────────────────────────
+G|────────────────────────
+D|────────────────────────
+A|────────────────────────
+E|────────────────────────</div>
+              </div>
+            </div>
+            <div class="floatSel">
+              <strong>m34–37 selected</strong>
+              <div class="actions"><button class="btn primary">Focus</button><button class="btn">Practice</button><button class="btn">Ask</button></div>
+            </div>
+            <div class="bottom"><div class="bnav active">Tab</div><div class="bnav">Sections</div><div class="bnav">More</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="notes">
+    <h2>What I would tell the frontend team now</h2>
+    <div class="target-note">
+      <strong>Don't throw away what they built.</strong> Keep their measure selection, tab renderer, whole-track loading, section markers, active beat, and fretboard synchronization. Restructure the composition around those pieces.
+    </div>
+    <div class="callouts">
+      <div class="call"><b>Overview + Focus</b>Compress the 97-measure grid into a compact section-aware overview. Make m34–37 the main workspace.</div>
+      <div class="call"><b>Desktop Tutor</b>Reserve a right rail for Tutor/context while focused music is visible. It can be collapsible later.</div>
+      <div class="call"><b>Fretboard</b>Supporting relationship view by default—not a permanent half-screen canvas.</div>
+      <div class="call"><b>Full Tab</b>Keep it full-width and dense. Selection provides Focus / Practice / Ask Tutor actions.</div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
