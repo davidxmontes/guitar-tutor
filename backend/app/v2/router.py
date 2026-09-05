@@ -976,3 +976,18 @@ async def save_workspace_study(session_id: str, branch_id: str, data: SaveWorksp
         raise HTTPException(404, str(exc)) from exc
     except RevisionConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/workspace/restore', response_model=WorkspaceTurnResult)
+async def restore_workspace_snapshot(session_id: str, branch_id: str, data: UndoWorkspaceRequest,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        branch, message = store.commit_workspace_turn(session_id, branch_id, user_id,
+            expected_version=data.expected_version, workspace=None, user_text=None,
+            assistant={'text': 'Restored an earlier Tutor snapshot as the current draft. Later conversation and saved studies are unchanged.',
+                'workspace_change': {'status': 'restored', 'reason': None}}, restore_message_id=data.message_id)
+        return WorkspaceTurnResult(**message.content['workspace_change'], branch=branch, message_id=message.id)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc

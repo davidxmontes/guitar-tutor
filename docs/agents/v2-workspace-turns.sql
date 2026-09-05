@@ -3,7 +3,7 @@
 CREATE OR REPLACE FUNCTION public.v2_commit_workspace_turn(
   p_session_id uuid, p_branch_id uuid, p_user_id text,
   p_expected_version integer, p_workspace jsonb, p_user_text text,
-  p_assistant jsonb, p_undo_message_id uuid DEFAULT NULL
+  p_assistant jsonb, p_undo_message_id uuid DEFAULT NULL, p_restore_message_id uuid DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
 DECLARE
   b v2_branches%ROWTYPE;
@@ -23,10 +23,21 @@ BEGIN
     RETURN jsonb_build_object('error', 'not_found');
   END IF;
   before_draft := b.working_draft;
-  IF p_undo_message_id IS NOT NULL THEN
+  IF p_restore_message_id IS NOT NULL THEN
+    SELECT history.* INTO latest FROM v2_tutor_messages history
+      WHERE history.tutor_thread_id = b.tutor_thread_id AND history.id = p_restore_message_id
+        AND history.role = 'assistant' AND jsonb_typeof(history.content->'workspace_after') = 'object';
+    IF NOT FOUND THEN RETURN jsonb_build_object('error', 'not_found'); END IF;
+    IF (before_draft->>'version')::integer <> p_expected_version THEN
+      RETURN jsonb_build_object('error', 'conflict');
+    END IF;
+    next_draft := latest.content->'workspace_after';
+    content := content || jsonb_build_object('focus', latest.content->'focus');
+    change := change || jsonb_build_object('status', 'restored', 'restore_of', p_restore_message_id::text);
+  ELSIF p_undo_message_id IS NOT NULL THEN
     SELECT history.* INTO latest FROM v2_tutor_messages history
       WHERE history.tutor_thread_id = b.tutor_thread_id
-        AND history.content->'workspace_change'->>'status' IN ('applied', 'undone')
+        AND history.content->'workspace_change'->>'status' IN ('applied', 'undone', 'restored')
       ORDER BY history.created_at DESC, history.id DESC LIMIT 1;
     IF latest.id IS DISTINCT FROM p_undo_message_id
       OR latest.content->'workspace_change'->>'status' IS DISTINCT FROM 'applied'
@@ -62,5 +73,9 @@ $$;
 
 -- Only the existing backend service may call the transaction. Caller-supplied
 -- owner IDs are never accepted from anonymous/browser PostgREST clients.
-REVOKE ALL ON FUNCTION public.v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid,uuid) TO service_role;
+
+-- Replace the previous eight-argument overload after installing the extended
+-- transaction. Existing eight-argument calls use the new final default.
+DROP FUNCTION IF EXISTS public.v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid);

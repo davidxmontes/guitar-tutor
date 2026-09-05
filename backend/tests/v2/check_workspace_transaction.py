@@ -57,7 +57,7 @@ def check():
             assert call(3, None, 'Undo twice', undo=applied['message']['id']) == {'error': 'conflict'}
             assert call(3, None, 'Undo marker', undo=restored['message']['id']) == {'error': 'conflict'}
             sql('CREATE ROLE browser_user;')
-            assert sql("SELECT has_function_privilege('browser_user', 'v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid)', 'EXECUTE');") == 'f'
+            assert sql("SELECT has_function_privilege('browser_user', 'v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid,uuid)', 'EXECUTE');") == 'f'
             def save(branch_id, version, title='Saved study', as_new=False, success=True):
                 result = sql(f"SELECT v2_save_workspace_study('{sid}','{branch_id}','owner',{version},'{title}',{str(as_new).lower()});", success)
                 return json.loads(result) if success else None
@@ -85,6 +85,22 @@ def check():
             assert json.loads(sql(f"SELECT payload FROM v2_artifacts WHERE id='{aid}';")) == new_payload
             assert sql("SELECT has_function_privilege('browser_user', 'v2_save_workspace_study(uuid,uuid,text,integer,text,boolean)', 'EXECUTE');") == 'f'
             assert json.loads(sql(f"SELECT v2_save_workspace_study('{sid}','{bid}','other',5,'Private',false);")) == {'error':'not_found'}
+            def restore(version, target=applied['message']['id'], text='Restore earlier state', success=True):
+                result = sql(f"SELECT v2_commit_workspace_turn('{sid}','{bid}','owner',{version},NULL,NULL,{literal({'text':text,'workspace_change':{'status':'restored'}})},NULL,'{target}');", success)
+                return json.loads(result) if success else None
+            count = int(sql('SELECT count(*) FROM v2_tutor_messages;'))
+            restored_history = restore(5)
+            assert restored_history['branch']['working_draft'] == applied['branch']['working_draft'] | {'version':6}
+            assert restored_history['message']['content']['workspace_change']['status'] == 'restored'
+            assert int(sql('SELECT count(*) FROM v2_tutor_messages;')) == count + 1
+            assert json.loads(sql(f"SELECT payload FROM v2_artifacts WHERE id='{aid}';")) == new_payload
+            assert restore(5) == {'error':'conflict'}
+            assert restore(6, target='00000000-0000-0000-0000-000000000000') == {'error':'not_found'}
+            assert call(6, None, 'Old Undo', undo=applied['message']['id']) == {'error':'conflict'}
+            restore(6, text='force rollback', success=False)
+            assert int(sql('SELECT count(*) FROM v2_tutor_messages;')) == count + 1
+            assert json.loads(sql(f"SELECT working_draft FROM v2_branches WHERE id='{bid}';")) == restored_history['branch']['working_draft']
+            print('PostgreSQL historical restore: exact snapshot, new present, retained history/artifact, stale rejection and rollback passed.')
             print('PostgreSQL study saves: first save, versions, no-op retry, stale draft/study, independent copy, rollback and permissions passed.')
             print('PostgreSQL workspace transaction: apply, snapshots, stale, undo, ownership, rollback, permissions passed.')
         finally:
