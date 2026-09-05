@@ -15,7 +15,7 @@ test('create a V2 session, leave, and resume it', async ({ page }) => {
   await page.reload()
   await page.goto('/v2')
 
-  const continueButton = page.getByTestId('v2-continue-session')
+  const continueButton = page.locator(`[data-testid="v2-continue-session"][data-session-id="${sessionId}"]`)
   await expect(continueButton).toBeVisible()
   await continueButton.click()
 

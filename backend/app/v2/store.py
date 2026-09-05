@@ -10,6 +10,7 @@ Two backends, selected by Settings.v2_storage_backend:
 
 import uuid
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any, Optional, Protocol
 
 from app.v2.models import ARTIFACT_KINDS, Branch, Session
@@ -123,6 +124,10 @@ class SupabaseV2Store:
         )
 
     def create_session(self, user_id: str) -> Session:
+        # ponytail: two sequential inserts, not a transaction — a failure
+        # between them leaves an orphaned zero-branch session row. Upgrade to
+        # a Postgres function/RPC if that's ever observed in practice; the
+        # Supabase Python client has no multi-table transaction API.
         session_row = (
             self._client.table("v2_sessions").insert({"clerk_user_id": user_id}).execute().data[0]
         )
@@ -170,39 +175,33 @@ class SupabaseV2Store:
         if "current_artifact_kind" in fields:
             _validate_artifact_kind(fields["current_artifact_kind"])
 
-        rows = (
-            self._client.table("v2_branches")
-            .update(fields)
-            .eq("id", branch_id)
-            .eq("session_id", session_id)
-            .execute()
-            .data
-        )
+        query = self._client.table("v2_branches")
+        # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
+        query = query.update(fields) if fields else query.select("*")
+        rows = query.eq("id", branch_id).eq("session_id", session_id).execute().data
         if not rows:
             raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
         return self._row_to_branch(rows[0])
 
 
-_store: Optional[V2Store] = None
-
-
+@lru_cache
 def get_v2_store() -> V2Store:
-    """Process-wide singleton store, backend chosen by Settings.v2_storage_backend."""
-    global _store
-    if _store is None:
-        from app.config import get_settings  # local import avoids a config->store->config cycle
+    """Process-wide singleton store, backend chosen by Settings.v2_storage_backend.
+    lru_cache (same pattern as app.config.get_settings) memoizes this safely
+    across FastAPI's threadpool — a manual "if _store is None" global has a
+    check-then-set race under concurrent first requests.
+    """
+    from app.config import get_settings  # local import avoids a config->store->config cycle
 
-        settings = get_settings()
-        if settings.v2_storage_backend == "supabase":
-            from app.db import get_supabase_client
+    settings = get_settings()
+    if settings.v2_storage_backend == "supabase":
+        from app.db import get_supabase_client
 
-            client = get_supabase_client()
-            if client is None:
-                raise RuntimeError(
-                    "v2_storage_backend=supabase but Supabase is not configured "
-                    "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
-                )
-            _store = SupabaseV2Store(client)
-        else:
-            _store = InMemoryV2Store()
-    return _store
+        client = get_supabase_client()
+        if client is None:
+            raise RuntimeError(
+                "v2_storage_backend=supabase but Supabase is not configured "
+                "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
+            )
+        return SupabaseV2Store(client)
+    return InMemoryV2Store()

@@ -11,14 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.dependencies.auth import get_current_user
-from app.v2.models import Branch, Session
+from app.v2.models import ArtifactKind, Branch, Session
 from app.v2.store import NotFoundError, V2Store, get_v2_store
 
 router = APIRouter()
 
 
 class UpdateBranchRequest(BaseModel):
-    current_artifact_kind: Optional[str] = None
+    current_artifact_kind: Optional[ArtifactKind] = None
     current_artifact_id: Optional[str] = None
     selection: Optional[dict[str, Any]] = None
     focus: Optional[dict[str, Any]] = None
@@ -61,7 +61,9 @@ async def update_branch(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
-    fields = {k: v for k, v in data.model_dump().items() if v is not None}
+    # exclude_unset (not `is not None`): a client explicitly clearing a field
+    # to null must reach the store as null, distinct from simply omitting it.
+    fields = data.model_dump(exclude_unset=True)
     try:
         return store.update_branch(session_id, branch_id, user_id, **fields)
     except NotFoundError as exc:

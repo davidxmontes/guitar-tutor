@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
+import { useAppAuth } from '../lib/authBypass';
 import type { V2Session } from '../types/v2';
 
 const pageStyle = { padding: 24, fontFamily: 'sans-serif' };
@@ -9,13 +11,30 @@ const pageStyle = { padding: 24, fontFamily: 'sans-serif' };
 // tabs, SongStudy/Progression/ConceptStudy/Exercise UIs) lands in tickets
 // #12+; this only has to prove the persistence contract.
 export function V2App() {
+  const { getToken, isSignedIn, isLoaded } = useAppAuth();
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isSignedIn) {
+      apiClient.setTokenGetter(null);
+      return;
+    }
+    apiClient.setTokenGetter(() => getToken());
     apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err)));
-  }, []);
+  }, [isSignedIn, getToken]);
+
+  if (!isLoaded) return null;
+  if (!isSignedIn) {
+    return (
+      <div style={pageStyle}>
+        <h1>Guitar Tutor V2</h1>
+        <p>Sign in to start or resume a session.</p>
+        <SignInButton mode="modal" />
+      </div>
+    );
+  }
 
   const handleStart = async () => {
     try {
@@ -48,7 +67,7 @@ export function V2App() {
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
+    <div style={pageStyle}>
       <h1>Guitar Tutor V2</h1>
       {error && <p role="alert">{error}</p>}
       {sessions === null && <p>Loading...</p>}
@@ -59,6 +78,7 @@ export function V2App() {
             <button
               key={session.id}
               data-testid="v2-continue-session"
+              data-session-id={session.id}
               onClick={() => handleContinue(session.id)}
             >
               Continue session {session.id.slice(0, 8)}

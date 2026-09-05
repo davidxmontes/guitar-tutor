@@ -77,6 +77,35 @@ def test_update_branch_422_for_invalid_artifact_kind(client):
     assert response.status_code == 422
 
 
+def test_update_branch_can_explicitly_clear_a_field_to_null(client):
+    created = client.post("/api/v2/sessions").json()
+    branch_id = created["branches"][0]["id"]
+    client.patch(
+        f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
+        json={"current_artifact_kind": "progression", "current_artifact_id": "a1"},
+    )
+
+    response = client.patch(
+        f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
+        json={"current_artifact_id": None},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current_artifact_id"] is None
+    assert body["current_artifact_kind"] == "progression"  # untouched — wasn't in this PATCH
+
+
+def test_update_branch_no_op_patch_returns_current_state(client):
+    created = client.post("/api/v2/sessions").json()
+    branch_id = created["branches"][0]["id"]
+
+    response = client.patch(f"/api/v2/sessions/{created['id']}/branches/{branch_id}", json={})
+
+    assert response.status_code == 200
+    assert response.json()["id"] == branch_id
+
+
 def test_sessions_are_isolated_per_user(client):
     created = client.post("/api/v2/sessions").json()
 

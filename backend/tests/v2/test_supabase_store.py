@@ -72,6 +72,21 @@ def test_update_branch_rejects_invalid_kind():
         store.update_branch("sess-1", "branch-1", user_id="user_1", current_artifact_kind="nope")
 
 
+def test_update_branch_with_no_fields_selects_instead_of_updating():
+    """PostgREST rejects .update({}) — a no-op PATCH must read, not write."""
+    client = MagicMock()
+    session_chain = _chain([_session_row()])
+    branch_chain = _chain([_branch_row()])
+    client.table.side_effect = lambda name: {"v2_sessions": session_chain, "v2_branches": branch_chain}[name]
+
+    store = SupabaseV2Store(client)
+    branch = store.update_branch("sess-1", "branch-1", user_id="user_1")
+
+    assert branch.id == "branch-1"
+    branch_chain.update.assert_not_called()
+    branch_chain.select.assert_called_with("*")
+
+
 def test_update_branch_raises_not_found_when_branch_missing():
     client = MagicMock()
 
