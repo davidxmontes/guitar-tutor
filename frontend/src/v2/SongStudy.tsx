@@ -660,6 +660,112 @@ function SongStudyWorkspace({
     );
   }, [selection, beatSequence, focus.measureIndex]);
 
+  const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
+
+  // Keeps the focused measure window scrolled to wherever keyboard nav lands.
+  const ensureMeasureVisible = useCallback(
+    (measureIndex: number) => {
+      if (measureIndex < focus.measureIndex || measureIndex >= focus.measureIndex + focus.windowSize) {
+        jumpToMeasure(measureIndex);
+      }
+    },
+    [focus.measureIndex, focus.windowSize, jumpToMeasure],
+  );
+
+  const moveBeatSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (beatSequence.length === 0) return;
+      const nextIndex = Math.max(0, Math.min(beatSequence.length - 1, activeBeatIndex + direction));
+      if (nextIndex === activeBeatIndex) return;
+      const next = beatSequence[nextIndex];
+      selectBeat(`${next.measureIndex}:${next.beatIndex}`);
+      ensureMeasureVisible(next.measureIndex);
+    },
+    [beatSequence, activeBeatIndex, selectBeat, ensureMeasureVisible],
+  );
+
+  const moveMeasureSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (measureCount === 0) return;
+      const sourceMeasureIndex = selection?.type === 'beat' ? selection.measureIndex : focus.measureIndex;
+      const sourceBeatIndex = selection?.type === 'beat' ? selection.beatIndex : 0;
+      const targetMeasureIndex = Math.max(0, Math.min(measureCount - 1, sourceMeasureIndex + direction));
+      if (targetMeasureIndex === sourceMeasureIndex) return;
+
+      const targetBeats = getBeatsFromMeasure(measures[targetMeasureIndex]);
+      if (targetBeats.length === 0) {
+        ensureMeasureVisible(targetMeasureIndex);
+        return;
+      }
+
+      const targetBeatIndex = Math.min(sourceBeatIndex, targetBeats.length - 1);
+      selectBeat(`${targetMeasureIndex}:${targetBeatIndex}`);
+      ensureMeasureVisible(targetMeasureIndex);
+    },
+    [measureCount, selection, focus.measureIndex, measures, selectBeat, ensureMeasureVisible],
+  );
+
+  const moveSectionSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (overviewSections.length === 0) return;
+      const currentMeasureIndex = selection?.type === 'beat' ? selection.measureIndex : focus.measureIndex;
+      const currentSectionIndex = overviewSections.findIndex(
+        (section) => currentMeasureIndex >= section.startIndex && currentMeasureIndex <= section.endIndex,
+      );
+      const nextSectionIndex = Math.max(
+        0,
+        Math.min(overviewSections.length - 1, (currentSectionIndex < 0 ? 0 : currentSectionIndex) + direction),
+      );
+      if (nextSectionIndex === currentSectionIndex) return;
+
+      const targetMeasureIndex = overviewSections[nextSectionIndex].startIndex;
+      const targetBeats = getBeatsFromMeasure(measures[targetMeasureIndex]);
+      if (targetBeats.length > 0) {
+        selectBeat(`${targetMeasureIndex}:0`);
+      }
+      jumpToMeasure(targetMeasureIndex);
+    },
+    [overviewSections, selection, focus.measureIndex, measures, selectBeat, jumpToMeasure],
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        if (
+          target.isContentEditable ||
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          tagName === 'SELECT'
+        ) {
+          return;
+        }
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        moveBeatSelection(-1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        moveBeatSelection(1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (event.shiftKey) moveSectionSelection(-1);
+        else moveMeasureSelection(-1);
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (event.shiftKey) moveSectionSelection(1);
+        else moveMeasureSelection(1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [moveBeatSelection, moveMeasureSelection, moveSectionSelection]);
+
   const activeNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex].beat) : [];
   const upcomingNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[activeBeatIndex + 1]?.beat) : [];
   const activeBeat = activeBeatIndex >= 0 ? beatSequence[activeBeatIndex] : null;
@@ -671,7 +777,6 @@ function SongStudyWorkspace({
   const detailMeasures = measures.slice(focus.measureIndex, focus.measureIndex + focus.windowSize);
   const detailEndIndex = Math.min(focus.measureIndex + focus.windowSize, measureCount) - 1;
 
-  const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
   const fullTabRows = useMemo(() => buildFullTabRows(overviewSections), [overviewSections]);
 
   const shapeEvents = useMemo(() => {
