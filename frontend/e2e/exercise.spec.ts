@@ -51,14 +51,16 @@ test('song drill material preserves rests and tuning; concept drill uses selecte
     ] } }
     const selected = songDrill(song, { type: 'range', startMeasureIndex: 0, endMeasureIndex: 0 }, { measureIndex: 1, windowSize: 2 })
     const missing = songDrill({ ...song, track: { tuning: [] } }, null, { measureIndex: 0 })
+    const invalid = songDrill({ ...song, track: { tuning: [64,59,55,50,45,NaN] } }, null, { measureIndex: 0 })
     const chord = conceptDrill({ tuning: ['E','B','G','D','A','E'], visualization: 'chord', selected_voicing: 1,
       voicings: [{ label: 'First', positions: [{ string: 1, fret: 0 }] }, { label: 'Second', positions: [{ string: 2, fret: 3 }] }] })
-    return { selected, missing, chord }
+    return { selected, missing, invalid, chord }
   })
   expect(result.selected.map((s: {beats: number}) => s.beats)).toEqual([1,0.5])
   expect(result.selected[0]).toMatchObject({ positions: [{ string: 6, fret: 0 }], tuning: [64,59,55,50,45,38] })
   expect(result.selected[1].positions).toEqual([])
   expect(result.missing).toEqual([])
+  expect(result.invalid).toEqual([])
   expect(result.chord[0].positions).toEqual([{ string: 2, fret: 3 }])
 })
 

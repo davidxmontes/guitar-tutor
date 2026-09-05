@@ -637,7 +637,8 @@ function SongStudyWorkspace({
     const durations = practiceBeats.map(entry => beatDuration(entry.beat));
     return durations.every((duration): duration is number => duration !== null) ? durations : [];
   }, [practiceBeats]);
-  const practice = usePractice(practiceDurations);
+  const guideSteps = useMemo(() => songDrill(payload, selection, focus), [payload, selection, focus]);
+  const practice = usePractice(practiceDurations, 80, guideSteps);
 
   // A different SongStudy was opened — reset local view state from its branch snapshot.
   useEffect(() => {

@@ -98,7 +98,7 @@ test('song range practice advances real tab timing without changing saved select
       tab_data: { measures: [
         { voices: [{ beats: [{ duration: [1, 4], notes: [{ string: 0, fret: 9 }] }] }] },
         { voices: [{ beats: [{ duration: [1, 4], notes: [{ string: 5, fret: 0 }] }, { duration: [1, 8], rest: true, notes: [] }] }] },
-        { voices: [{ beats: [{ duration: [3, 8], notes: [{ string: 1, fret: 2 }] }] }] },
+        { voices: [{ beats: [{ duration: [3, 8], notes: [{ string: 1, fret: 2 }, { string: 5, fret: 2 }] }] }] },
       ] }, shape_events: [], enrichment: null,
     },
   } }))
@@ -107,20 +107,72 @@ test('song range practice advances real tab timing without changing saved select
   await page.getByRole('button', { name: 'Practice selection' }).click()
   await page.getByLabel('Practice tempo').fill('120')
   await page.getByLabel('Count in', { exact: true }).selectOption('0')
-  await page.getByLabel('Metronome', { exact: true }).uncheck()
+  await page.getByLabel('Practice audio').selectOption('guide')
+  await page.evaluate(() => {
+    const original = AudioBufferSourceNode.prototype.start;
+    Object.assign(window, { guideNotes: [], guideStops: 0, guideClicks: 0 });
+    const stop = AudioBufferSourceNode.prototype.stop;
+    AudioBufferSourceNode.prototype.stop = function () {
+      (window as unknown as { guideStops: number }).guideStops++;
+      return stop.call(this);
+    };
+    const oscillator = AudioContext.prototype.createOscillator;
+    AudioContext.prototype.createOscillator = function () {
+      (window as unknown as { guideClicks: number }).guideClicks++;
+      return oscillator.call(this);
+    };
+    AudioBufferSourceNode.prototype.start = function (when = 0) {
+      (window as unknown as { guideNotes: unknown[] }).guideNotes.push({ when, duration: this.buffer?.duration });
+      return original.call(this, when);
+    };
+  })
   await page.clock.install()
   await page.getByRole('button', { name: 'Start', exact: true }).click()
   await page.clock.runFor(525)
+  expect(await page.evaluate(() => (window as unknown as { guideNotes: unknown[] }).guideNotes)).toHaveLength(1)
   await expect(page.getByTestId('practice-song-position')).toContainText('Current: measure 2, event 2')
   await expect(page.getByTestId('fretboard-active-note')).toHaveCount(0)
   await page.clock.runFor(250)
   await expect(page.getByTestId('practice-song-position')).toContainText('Current: measure 3, event 1')
   await expect(page.locator('[data-testid="fretboard-active-note"][data-string="2"][data-fret="2"]')).toBeVisible()
+  expect(await page.evaluate(() => (window as unknown as { guideClicks: number }).guideClicks)).toBe(0)
+  const notes = await page.evaluate(() => (window as unknown as { guideNotes: { when: number; duration: number }[] }).guideNotes)
+  expect(notes).toHaveLength(3)
+  expect(notes[0].duration).toBeCloseTo(0.5, 1)
+  expect(notes[1].when).toBe(notes[2].when)
+  expect(notes[1].duration).toBeCloseTo(0.75, 1)
   await page.clock.runFor(750)
   await expect(page.getByTestId('practice-song-position')).toContainText('Current: measure 2, event 1')
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
   await page.getByRole('button', { name: 'Focus practice', exact: true }).click()
-  await page.screenshot({ path: '/private/tmp/issue19-mobile.png', fullPage: true })
+  expect(await page.evaluate(() => (window as unknown as { guideStops: number }).guideStops)).toBeGreaterThanOrEqual(4)
+  await page.screenshot({ path: '/private/tmp/issue25-mobile.png', fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.screenshot({ path: '/private/tmp/issue25-desktop.png', fullPage: true })
+  await page.getByRole('button', { name: 'Restart', exact: true }).click()
+  await page.getByLabel('Practice audio').selectOption('both')
+  await page.getByLabel('Practice tempo').fill('60')
+  await page.getByLabel('Count in', { exact: true }).selectOption('4')
+  await page.getByLabel('Loop', { exact: true }).uncheck()
+  const before = await page.evaluate(() => (window as unknown as { guideNotes: unknown[] }).guideNotes.length)
+  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  await page.clock.runFor(3975)
+  expect(await page.evaluate(() => (window as unknown as { guideNotes: unknown[] }).guideNotes.length)).toBe(before)
+  await page.clock.runFor(50)
+  const slowNotes = await page.evaluate(() => (window as unknown as { guideNotes: { duration: number }[] }).guideNotes)
+  expect(slowNotes).toHaveLength(before + 1)
+  expect(slowNotes.at(-1)!.duration).toBeCloseTo(1, 1)
+  expect(await page.evaluate(() => (window as unknown as { guideClicks: number }).guideClicks)).toBeGreaterThan(0)
+  await page.clock.runFor(3000)
+  await expect(page.getByTestId('practice-status')).toHaveText('Finished')
+  await page.getByRole('button', { name: 'Restart', exact: true }).click()
+  await page.getByLabel('Practice audio').selectOption('metronome')
+  await page.getByLabel('Count in', { exact: true }).selectOption('0')
+  const noteCount = await page.evaluate(() => (window as unknown as { guideNotes: unknown[] }).guideNotes.length)
+  await page.getByRole('button', { name: 'Start', exact: true }).click()
+  await page.clock.runFor(1000)
+  expect(await page.evaluate(() => (window as unknown as { guideNotes: unknown[] }).guideNotes.length)).toBe(noteCount)
+
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click()
   const restored = await page.request.get(`/api/v2/sessions/${session.id}`).then(r => r.json())
   expect(restored.branches[0].selection).toEqual(selection)
