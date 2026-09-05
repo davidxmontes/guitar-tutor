@@ -125,27 +125,39 @@ class SongStudyPayload(BaseModel):
 
 
 class ProgressionVoicingPosition(BaseModel):
-    """One string/fret position within a saved chord's exact voicing —
-    deliberately just string+fret (no note/interval labels): those are
-    derivable, and the physical position + tuning below are what the spec
-    calls authoritative for reproducing a chosen voicing."""
-
-    string: int
-    fret: int
+    string: int = Field(ge=1, le=6, strict=True)
+    fret: int = Field(ge=0, le=36, strict=True)
 
 
 class ProgressionChord(BaseModel):
-    """One chord slot in a Progression: symbolic identity (root/quality) is
-    always present; `voicing`/`tuning` are populated only when
-    chord_service.get_chord found a curated voicing for this root/quality
-    (see app.v2.tutor.runner) — no entry is expected and normal, not an
-    error (spec #10: don't require every chord to exist in a canonical DB
-    before it can be displayed/saved)."""
+    """Exact physical positions and high-to-low MIDI tuning; symbolic names
+    may be uncertain. Legacy curated chords retain the standard tuning id."""
 
     root: str
     quality: str
     voicing: Optional[list[ProgressionVoicingPosition]] = None
-    tuning: Optional[str] = None  # tuning id (e.g. "standard") the voicing was resolved against
+    tuning: Optional[Literal["standard"] | Annotated[list[Annotated[int, Field(ge=0, le=127, strict=True)]], Field(min_length=6, max_length=6)]] = None
+
+    @model_validator(mode="after")
+    def validate_physical_shape(self):
+        if self.voicing is not None:
+            if not self.voicing or self.tuning is None:
+                raise ValueError("A voicing needs sounding strings and an explicit tuning")
+            if len({p.string for p in self.voicing}) != len(self.voicing):
+                raise ValueError("A voicing must have only one fret per string")
+        return self
+
+
+class ApplyVoicingRequest(BaseModel):
+    expected_updated_at: str
+    chord_index: int = Field(ge=0, strict=True)
+    chord: ProgressionChord
+
+    @model_validator(mode="after")
+    def require_voicing(self):
+        if not self.chord.voicing:
+            raise ValueError("Choose a physical voicing to apply")
+        return self
 
 
 class ProgressionPayload(BaseModel):

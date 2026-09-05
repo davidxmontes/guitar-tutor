@@ -415,3 +415,16 @@ def test_no_candidates_proposed_leaves_response_candidates_none() -> None:
     )
 
     assert response.candidates is None
+
+
+def test_creative_voicings_preserve_physical_data_and_bind_to_loaded_revision():
+    chord = {"root": "?", "quality": "sparse", "voicing": [{"string": 6, "fret": 0}, {"string": 2, "fret": 11}], "tuning": [64, 59, 55, 50, 45, 38]}
+    artifact = Artifact(id="p1", user_id="u1", kind="progression", title="Idea", payload={"title": "Idea", "chords": [chord]}, created_at="t0", updated_at="t1")
+    model = ScriptedTutorModel(outcomes=[{"message": "Try these", "voicing_candidates": [{"label": "Sparse", "chord_index": 0, "chord": chord}]}], usage_metadatas=[None])
+    response = run_tutor_turn(branch=_branch(), artifact=artifact, history=[], user_message="Stranger voicings", provider="openai", model="gpt-4o-mini", openai_api_key="k", model_factory=_factory_returning(model))
+    proposal = response.voicing_candidates[0]
+    assert proposal.chord.model_dump() == chord
+    assert proposal.artifact_id == "p1"
+    assert proposal.expected_updated_at == "t1"
+    assert '"tuning": [64, 59, 55, 50, 45, 38]' in model.calls[0][-1].content
+    assert artifact.payload["chords"] == [chord]

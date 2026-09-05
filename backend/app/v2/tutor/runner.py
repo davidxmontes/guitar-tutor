@@ -27,7 +27,7 @@ from langchain_core.messages import AIMessage
 
 from app.services.chord_service import get_chord
 from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
-from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage
+from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage, VoicingProposal
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 
@@ -65,7 +65,10 @@ def _resolve_candidate(
         except (LookupError, ValueError):
             pass  # no curated voicing for this root/quality -- expected, not an error
         else:
-            voicing = [ProgressionVoicingPosition(string=p.string, fret=p.fret) for p in resolved.voicings[0].positions]
+            # V1 includes octave overlays; a physical chord has one fret per string.
+            positions = resolved.voicings[0].positions
+            voicing = [ProgressionVoicingPosition(string=string, fret=min(p.fret for p in positions if p.string == string))
+                       for string in sorted({p.string for p in positions})]
             tuning = _VOICING_TUNING_ID
         chords.append(ProgressionChord(root=idea.root, quality=idea.quality, voicing=voicing, tuning=tuning))
     return ProgressionPayload(title=candidate.title, chords=chords, inspired_by=_inspired_by(branch, artifact))
@@ -169,6 +172,11 @@ def run_tutor_turn(
         focus=terminal.focus,
         concept_suggestion=terminal.concept_suggestion,
         candidates=resolved_candidates,
+        voicing_candidates=[
+            VoicingProposal(**candidate.model_dump(), artifact_id=artifact.id, expected_updated_at=artifact.updated_at)
+            for candidate in (terminal.voicing_candidates or [])
+            if candidate.chord.voicing and candidate.chord_index < len(artifact.payload.get("chords", []))
+        ] if artifact and artifact.kind == "progression" else None,
         provider=provider,
         model=model,
         latency_ms=latency_ms,

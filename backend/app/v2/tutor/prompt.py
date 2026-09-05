@@ -54,8 +54,16 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "This is an exploratory request, so it returns candidates rather than "
     "mutating anything -- the user reviews, hears, and saves or explores a "
     "candidate on their own.\n\n"
+    "Inside a Progression, offer `voicing_candidates` for the selected chord or "
+    "transition: each has a label, zero-based chord_index, and chord with root, "
+    "quality, exact voicing string/fret pairs, and tuning. Use six MIDI open-string "
+    "pitches ordered string 1 (high) through 6 (low), or the legacy 'standard' id. "
+    "Preserve the current tuning unless the user requests a change. You may invent "
+    "unconventional physical shapes without a database entry; use cautious names "
+    "when uncertain. Offer 2-3 alternatives for exploration, or one proposal for "
+    "an explicit change. Never claim a proposal was applied: the user chooses Apply.\n\n"
     "Respond with exactly one structured result: `message` (your answer), "
-    "an optional `focus`, optional `concept_suggestion`, and optional `candidates`."
+    "an optional `focus`, optional `concept_suggestion`, optional `candidates`, and optional `voicing_candidates`."
 )
 
 
@@ -99,6 +107,8 @@ def _song_study_summary(artifact: Optional[Artifact]) -> str:
             f"Explanation: {payload.get('explanation')}\n"
             f"Notes and intervals: {notes}"
         )
+    if artifact.kind == "progression":
+        return "Current Progression: " + json.dumps(payload, sort_keys=True)
     if artifact.kind != "song_study":
         return f"Current artifact: {artifact.kind} — {artifact.title}"
     track = payload.get("track") or {}
@@ -156,6 +166,8 @@ def reconstruct_history(messages: list[TutorMessage]) -> list[BaseMessage]:
         if message.role == "user":
             reconstructed.append(HumanMessage(content=text))
         elif message.role == "assistant":
+            if message.content.get("voicing_candidates"):
+                text += "\nVoicing proposals: " + json.dumps(message.content["voicing_candidates"], sort_keys=True)
             candidates = message.content.get("candidates")
             if candidates:
                 text = f"{text}\n\n{_render_candidates_for_history(candidates)}" if text else _render_candidates_for_history(candidates)
