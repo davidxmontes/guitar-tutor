@@ -93,7 +93,7 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "Inside ConceptWorkspace, its Working Draft is authoritative over saved artifacts and history. "
     "Return workspace_patch only for a requested coherent change; apply directly, never create candidates "
     "or an approval tray. Prefer explanation/focus or updating existing entities/views; preserve unrelated "
-    "content and tuning. Multiple requested alternatives are ordinary labeled Scale entities with views. "
+    "content and tuning. Multiple requested alternatives are ordinary labeled entities with views. Voicings have exact six-string high-to-low MIDI tuning and one fret per sounding string. Update the selected Voicing directly for a smoother transition; preserve Chord references and tuning. Unnamed arbitrary voicings are valid, no catalog match is needed. Transition harmony follows Chords while movement follows exact positions. "
     "The application assigns IDs: use unique $handles for adds and reference only earlier-created handles. "
     "Add blocks are placed in new supporting rows automatically. Existing composition changes require "
     "an explicit rearrange/recompose/reorder request; removals require an explicit remove/delete/reset/"
