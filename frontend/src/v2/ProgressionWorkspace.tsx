@@ -72,7 +72,7 @@ export function ProgressionWorkspace({ sessionId, branch, onBranchChange }: {
         </header>
 
         <PracticeControls practice={practice} available={durations.length > 0} label="progression" />
-        {practice.active && <label className="block text-sm">Beats per chord <select aria-label="Beats per chord" disabled={practice.running} value={beatsPerChord} onChange={e => { practice.reset(); setBeatsPerChord(Number(e.target.value)); }} className="min-h-11 rounded border px-2"><option value="1">1</option><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>}
+        {practice.active && <label className="block text-sm">Beats per chord <select aria-label="Beats per chord" disabled={practice.running} value={beatsPerChord} onChange={e => { practice.reset(); setBeatsPerChord(Number(e.target.value)); }} className="min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-input)] px-2 text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent-600)]"><option value="1">1</option><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>}
         {artifact.payload.chords.length === 0 ? (
           <p role="status">This progression has no chords yet.</p>
         ) : (
@@ -94,6 +94,7 @@ export function ProgressionWorkspace({ sessionId, branch, onBranchChange }: {
                     style={{
                       borderColor: displayIndex === index ? 'var(--accent-500)' : 'var(--border-primary)',
                       background: displayIndex === index ? 'var(--accent-50)' : 'var(--card-bg)',
+                      color: displayIndex === index ? 'var(--accent-900)' : 'var(--text-primary)',
                     }}
                   >
                     <strong className="block text-sm">{label}</strong>
