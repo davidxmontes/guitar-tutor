@@ -9,8 +9,9 @@ import type { SongFocus, SongSelection, SongStudyArtifact, V2Branch } from '../t
 const DEFAULT_WINDOW_SIZE = 4;
 // Supporting element, not a primary block (mock #overview callout 3: "large
 // enough to teach the current relationship, no larger by default") — 12
-// frets covers virtually every beat's shape; still horizontally scrollable
-// for outliers.
+// frets covers virtually every beat's shape by default. SongStudyFretboard
+// extends past this when an actual active/upcoming note needs a higher
+// fret, so a real note is never clipped out of view.
 const FRESH_FRETBOARD_FRET_COUNT = 12;
 
 interface FretNote {
@@ -130,7 +131,14 @@ function SongStudyFretboard({
   activeNotes: FretNote[];
   upcomingNotes: FretNote[];
 }) {
-  const frets = useMemo(() => Array.from({ length: FRESH_FRETBOARD_FRET_COUNT }, (_, f) => f), []);
+  // Default footprint is FRESH_FRETBOARD_FRET_COUNT, but never clip a real
+  // note out of view — extend past it when the current or next beat actually
+  // reaches further up the neck.
+  const neededFretCount = useMemo(() => {
+    const frets = [...activeNotes, ...upcomingNotes].map((n) => n.fret);
+    return Math.max(FRESH_FRETBOARD_FRET_COUNT, ...frets.map((f) => f + 1));
+  }, [activeNotes, upcomingNotes]);
+  const frets = useMemo(() => Array.from({ length: neededFretCount }, (_, f) => f), [neededFretCount]);
 
   return (
     <div
