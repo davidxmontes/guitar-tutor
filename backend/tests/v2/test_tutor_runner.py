@@ -7,11 +7,12 @@ stateless/provider/cache contract, asserted at run_tutor_turn's public seam
 from typing import Any
 
 import pytest
+from langchain.agents.structured_output import ProviderStrategy, ToolStrategy
 from langchain_core.messages import SystemMessage
 
 from app.v2.models import Artifact, Branch, TutorMessage
 from app.v2.tutor.providers import TutorCapabilityError
-from app.v2.tutor.runner import run_tutor_turn
+from app.v2.tutor.runner import _response_format, run_tutor_turn
 from tests.v2.tutor_fakes import ScriptedTutorModel
 
 
@@ -175,6 +176,57 @@ def test_capability_error_is_a_typed_exception_not_a_generic_crash() -> None:
             openai_api_key="k",
             model_factory=_factory_returning(model),
         )
+
+
+def test_forced_tool_choice_rejection_is_a_typed_capability_error_not_a_502() -> None:
+    """Safety net for a provider/model combo NOT in
+    _FORCED_TOOL_CHOICE_INCOMPATIBLE that turns out to reject forced
+    tool_choice too (a 400 rather than a bind_tools-time
+    NotImplementedError) -- this must still surface as a clear
+    TutorCapabilityError (422), not the generic 502 a router.py catch-all
+    Exception handler would otherwise return. (meta/muse-spark-1.3-contributor
+    itself is the one case this repo knows about and routes around entirely
+    via ProviderStrategy -- see test_known_incompatible_model_uses_provider_
+    strategy_and_never_hits_forced_tool_choice below -- so a different,
+    hypothetical model name is used here to keep exercising this fallback
+    path.)"""
+    model = ScriptedTutorModel(rejects_forced_tool_choice=True)
+
+    with pytest.raises(TutorCapabilityError):
+        run_tutor_turn(
+            branch=_branch(),
+            artifact=None,
+            history=[],
+            user_message="hi",
+            provider="openrouter",
+            model="some-other-vendor/some-other-model",
+            openrouter_api_key="k",
+            model_factory=_factory_returning(model),
+        )
+
+
+def test_known_incompatible_model_routes_to_provider_strategy_not_tool_strategy() -> None:
+    """meta/muse-spark-1.3-contributor (OpenRouter/Meta) is a known,
+    reproduced case: it accepts tool definitions but only supports
+    tool_choice="auto", not the forced/named choice ToolStrategy always
+    sets. _response_format must route it to ProviderStrategy (native
+    structured output, no forced tool_choice) instead — asserted directly
+    against the routing function rather than faking a full ProviderStrategy
+    round-trip through create_agent."""
+    strategy = _response_format("openrouter", "meta/muse-spark-1.3-contributor")
+
+    assert isinstance(strategy, ProviderStrategy)
+    # focus/candidates must be required-but-nullable in the strict schema
+    # (Optional[...] = None is otherwise omittable, which strict JSON
+    # schema mode rejects) — same fields, no default.
+    fields = strategy.schema.model_fields
+    assert fields["focus"].is_required()
+    assert fields["candidates"].is_required()
+
+
+def test_other_models_still_use_tool_strategy() -> None:
+    assert isinstance(_response_format("openai", "gpt-4o-mini"), ToolStrategy)
+    assert isinstance(_response_format("openrouter", "some-other-vendor/some-other-model"), ToolStrategy)
 
 
 def test_missing_api_key_fails_before_any_model_call() -> None:

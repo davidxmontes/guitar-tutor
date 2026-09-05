@@ -19,16 +19,44 @@ curated voicing simply keeps `voicing=None` -- expected, not an error.
 import time
 from typing import Any, Callable, Optional
 
+import anthropic
+import openai
 from langchain.agents import create_agent
-from langchain.agents.structured_output import ToolStrategy
+from langchain.agents.structured_output import ProviderStrategy, ToolStrategy
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
+from pydantic import create_model
 
 from app.services.chord_service import get_chord
 from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
-from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage
+from app.v2.tutor.contract import ProgressionCandidate, TutorFocus, TutorResponse, TutorTerminal, TutorUsage
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, usage_from_ai_message
+
+# (provider, model) pairs known to accept tool definitions but reject a
+# forced/named tool_choice -- ToolStrategy always forces one, so these need
+# ProviderStrategy's native structured-output mode instead. Real fix for a
+# known model, not a workaround: OpenRouter's Meta endpoint for
+# meta/muse-spark-1.3-contributor only permits tool_choice="auto".
+_FORCED_TOOL_CHOICE_INCOMPATIBLE: frozenset[tuple[str, str]] = frozenset(
+    {("openrouter", "meta/muse-spark-1.3-contributor")}
+)
+
+
+def _response_format(provider: str, model: str) -> ToolStrategy | ProviderStrategy:
+    if (provider, model) not in _FORCED_TOOL_CHOICE_INCOMPATIBLE:
+        return ToolStrategy(TutorTerminal)
+    # Strict native JSON schema requires every property in `required`;
+    # Optional[...] = None fields are otherwise omittable, which strict mode
+    # rejects. Redeclare them as required-but-nullable (same type, no
+    # default) rather than loosening TutorTerminal itself for every model.
+    strict_schema = create_model(
+        TutorTerminal.__name__,
+        __base__=TutorTerminal,
+        focus=(Optional[TutorFocus], ...),
+        candidates=(Optional[list[ProgressionCandidate]], ...),
+    )
+    return ProviderStrategy(strict_schema)
 
 _VOICING_TUNING_ID = "standard"
 
@@ -69,6 +97,21 @@ def _resolve_candidate(
         chords.append(ProgressionChord(root=idea.root, quality=idea.quality, voicing=voicing, tuning=tuning))
     return ProgressionPayload(title=candidate.title, chords=chords, inspired_by=_inspired_by(branch, artifact))
 
+def _is_forced_tool_choice_rejection(exc: Exception) -> bool:
+    """True when a provider rejected the request specifically because it
+    can't honor a forced/required `tool_choice` -- `create_agent`'s
+    structured-output `ToolStrategy` always sets one, but some
+    OpenRouter-routed models only support `tool_choice="auto"` and 400 on
+    anything else (reproduced live against `meta/muse-spark-1.3-contributor`).
+    Narrowed to this specific signal, rather than treating every 400 as a
+    capability failure, so an unrelated bad-request bug doesn't get
+    silently relabeled as "this model can't do tool calling"."""
+
+    if not isinstance(exc, (openai.BadRequestError, anthropic.BadRequestError)):
+        return False
+    return "tool_choice" in str(exc).lower()
+
+
 ModelFactory = Callable[..., BaseChatModel]
 
 
@@ -102,7 +145,7 @@ def run_tutor_turn(
     request_messages.extend(reconstruct_history(history))
     request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message))
 
-    agent = create_agent(model=chat_model, tools=[], response_format=ToolStrategy(TutorTerminal))
+    agent = create_agent(model=chat_model, tools=[], response_format=_response_format(provider, model))
 
     started = time.monotonic()
     try:
@@ -110,6 +153,13 @@ def run_tutor_turn(
     except NotImplementedError as exc:
         raise TutorCapabilityError(
             f"{provider}/{model} cannot satisfy required tutor capabilities (tool calling): {exc}"
+        ) from exc
+    except (openai.BadRequestError, anthropic.BadRequestError) as exc:
+        if not _is_forced_tool_choice_rejection(exc):
+            raise
+        raise TutorCapabilityError(
+            f"{provider}/{model} cannot satisfy required tutor capabilities "
+            f"(forced tool-choice for structured output): {exc}"
         ) from exc
     latency_ms = int((time.monotonic() - started) * 1000)
 

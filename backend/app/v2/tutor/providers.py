@@ -92,6 +92,20 @@ def build_tutor_model(
     if provider == "openrouter":
         if not openrouter_api_key:
             raise TutorCapabilityError("OPENROUTER_API_KEY is not configured for the V2 tutor")
+        kwargs: dict[str, Any] = {}
+        if model == "meta/muse-spark-1.3-contributor":
+            # Meta's OpenRouter endpoint requires streaming for tool calls
+            # to complete correctly (confirmed against enzo-ai's own fix for
+            # this exact model) -- matters once real domain tools exist;
+            # this model can still call tools optionally (tool_choice="auto"),
+            # just not via a forced/named choice (see runner.py's
+            # _response_format). stream_usage=True keeps usage_metadata
+            # attached to the aggregated response even in streaming mode --
+            # without it, ChatOpenAI silently drops token usage on a
+            # streamed call, which would otherwise break this ticket's
+            # usage/observability requirement for this model specifically.
+            kwargs["streaming"] = True
+            kwargs["stream_usage"] = True
         return ChatOpenAI(
             model=model,
             api_key=openrouter_api_key,
@@ -100,6 +114,7 @@ def build_tutor_model(
                 "session_id": cache_key,
                 "provider": _OPENROUTER_PROVIDER_ROUTING,
             },
+            **kwargs,
         )
 
     raise TutorCapabilityError(f"Unknown V2 tutor provider: {provider!r}")
