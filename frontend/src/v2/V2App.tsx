@@ -1,3 +1,4 @@
+import { ExerciseWorkspace, SavedExercises } from './ExerciseWorkspace';
 import { useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
@@ -168,6 +169,8 @@ export function V2App() {
                 onCancel={() => setShowConceptPicker(false)}
                 onWorkOnConcept={handleWorkOnConcept}
               />
+            ) : branch.current_artifact_kind === 'exercise' ? (
+              <ExerciseWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} />
             ) : branch.current_artifact_kind === 'concept_study' ? (
               <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
             ) : branch.current_artifact_kind === 'progression' ? (
@@ -209,6 +212,7 @@ export function V2App() {
           </div>
         </section>
       )}
+      <SavedExercises onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
       <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>
         Start something new

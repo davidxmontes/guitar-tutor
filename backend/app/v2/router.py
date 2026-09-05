@@ -521,6 +521,7 @@ async def create_tutor_turn(
             # text summary reconstruct_history renders for the model -- this
             # is what a history reload replays to the frontend so a candidate
             # from an earlier turn stays addressable/visible (ticket #14).
+            "exercise_suggestion": response.exercise_suggestion.model_dump() if response.exercise_suggestion else None,
             "voicing_candidates": [c.model_dump() for c in response.voicing_candidates] if response.voicing_candidates else None,
             "candidates": [c.model_dump() for c in response.candidates] if response.candidates else None,
         },

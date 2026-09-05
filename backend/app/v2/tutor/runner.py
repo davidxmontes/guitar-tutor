@@ -17,6 +17,7 @@ curated voicing simply keeps `voicing=None` -- expected, not an error.
 """
 
 import time
+
 from typing import Any, Callable, Optional
 
 import anthropic
@@ -27,7 +28,7 @@ from langchain_core.messages import AIMessage
 
 from app.services.chord_service import get_chord
 from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
-from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage, VoicingProposal
+from app.v2.tutor.contract import ExerciseProposal, ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage, VoicingProposal
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 
@@ -171,6 +172,9 @@ def run_tutor_turn(
         message=terminal.message,
         focus=terminal.focus,
         concept_suggestion=terminal.concept_suggestion,
+        exercise_suggestion=ExerciseProposal(**terminal.exercise_suggestion.model_dump(), source_artifact_id=artifact.id,
+            expected_updated_at=artifact.updated_at, source_selection=branch.selection)
+            if terminal.exercise_suggestion and artifact and artifact.kind in ("song_study", "progression", "concept_study") else None,
         candidates=resolved_candidates,
         voicing_candidates=[
             VoicingProposal(**candidate.model_dump(), artifact_id=artifact.id, expected_updated_at=artifact.updated_at)

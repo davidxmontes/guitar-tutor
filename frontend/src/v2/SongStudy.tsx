@@ -1,3 +1,5 @@
+import { ExerciseComposer } from './ExerciseComposer';
+import { songDrill } from './exerciseMaterial';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
@@ -972,6 +974,7 @@ function SongStudyWorkspace({
         )}
       </div>
 
+      {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection} steps={songDrill(payload, selection, focus)} />}
       <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
       {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}

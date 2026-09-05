@@ -62,8 +62,13 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "unconventional physical shapes without a database entry; use cautious names "
     "when uncertain. Offer 2-3 alternatives for exploration, or one proposal for "
     "an explicit change. Never claim a proposal was applied: the user chooses Apply.\n\n"
+    "When deliberate repetition would help, offer an exercise_suggestion with a title, "
+    "specific practice intent, tempo, and actual ordered timed steps (label, beats, "
+    "positions, tuning). Each step uses six actual MIDI open-string pitches high to low; "
+    "empty positions mean a rest. Preserve source tuning. Never invent missing tab rhythm "
+    "or claim a drill is saved. The user must review and explicitly save it.\n\n"
     "Respond with exactly one structured result: `message` (your answer), "
-    "an optional `focus`, optional `concept_suggestion`, optional `candidates`, and optional `voicing_candidates`."
+    "an optional `focus`, optional `concept_suggestion`, optional `candidates`, optional `voicing_candidates`, and optional `exercise_suggestion`."
 )
 
 
@@ -166,6 +171,8 @@ def reconstruct_history(messages: list[TutorMessage]) -> list[BaseMessage]:
         if message.role == "user":
             reconstructed.append(HumanMessage(content=text))
         elif message.role == "assistant":
+            if message.content.get("exercise_suggestion"):
+                text += "\nExercise proposed: " + json.dumps(message.content["exercise_suggestion"], sort_keys=True)
             if message.content.get("voicing_candidates"):
                 text += "\nVoicing proposals: " + json.dumps(message.content["voicing_candidates"], sort_keys=True)
             candidates = message.content.get("candidates")

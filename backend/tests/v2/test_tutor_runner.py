@@ -428,3 +428,16 @@ def test_creative_voicings_preserve_physical_data_and_bind_to_loaded_revision():
     assert proposal.expected_updated_at == "t1"
     assert '"tuning": [64, 59, 55, 50, 45, 38]' in model.calls[0][-1].content
     assert artifact.payload["chords"] == [chord]
+
+
+def test_exercise_suggestion_is_bound_to_source_without_mutation():
+    artifact = Artifact(id='source', user_id='u', kind='concept_study', title='Study', payload={}, created_at='x', updated_at='revision')
+    draft = {'title': 'Even notes', 'intent': 'Keep each note even', 'tempo': 80,
+             'steps': [{'label': 'Low E', 'beats': 1, 'positions': [{'string': 6, 'fret': 0}], 'tuning': [64,59,55,50,45,40]}]}
+    model = ScriptedTutorModel(outcomes=[{'message': 'Try this drill.', 'exercise_suggestion': draft}], usage_metadatas=[None])
+    response = run_tutor_turn(branch=_branch(selection={'index': 0}), artifact=artifact, history=[], user_message='Make a drill',
+                              provider='openai', model='gpt-4o-mini', openai_api_key='k', model_factory=_factory_returning(model))
+    assert response.exercise_suggestion.source_artifact_id == 'source'
+    assert response.exercise_suggestion.expected_updated_at == 'revision'
+    assert response.exercise_suggestion.steps[0].positions[0].string == 6
+    assert artifact.payload == {}

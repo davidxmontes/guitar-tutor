@@ -1,12 +1,14 @@
+import { ExerciseComposer } from './ExerciseComposer';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { ProgressionCandidate } from './ProgressionCandidate';
-import type { ConceptSuggestion, VoicingProposal, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
+import type { ExerciseProposal, ConceptSuggestion, VoicingProposal, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  exerciseSuggestion?: ExerciseProposal | null;
   conceptSuggestion?: ConceptSuggestion | null;
   // Progression candidates (ticket #14) carried on an assistant turn --
   // structurally persisted on TutorMessage.content.candidates so a history
@@ -26,6 +28,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
       id: m.id,
       role: m.role,
       text: typeof m.content.text === 'string' ? m.content.text : '',
+      exerciseSuggestion: m.content.exercise_suggestion,
       conceptSuggestion: m.content.concept_suggestion,
       candidates: m.content.candidates ?? null,
     }));
@@ -116,6 +119,7 @@ export function TutorChat({
         id: `local-assistant-${Date.now()}`,
         role: 'assistant',
         text: response.message,
+        exerciseSuggestion: response.exercise_suggestion,
         conceptSuggestion: response.concept_suggestion,
         candidates: response.candidates ?? null,
       }]);
@@ -215,6 +219,7 @@ export function TutorChat({
                 {m.text}
               </div>
             )}
+            {m.role === 'assistant' && m.exerciseSuggestion && <ExerciseComposer sourceId={m.exerciseSuggestion.source_artifact_id} revision={m.exerciseSuggestion.expected_updated_at} selection={m.exerciseSuggestion.source_selection} steps={m.exerciseSuggestion.steps} suggestion={m.exerciseSuggestion} />}
             {m.role === 'assistant' && m.conceptSuggestion && onWorkOnConcept && (
               <button
                 type="button"

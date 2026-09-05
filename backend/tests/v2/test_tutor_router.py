@@ -345,3 +345,25 @@ def test_voicing_proposals_survive_history_reload_without_mutation():
     assert history[-1]["content"]["voicing_candidates"] == response["voicing_candidates"]
     assert response["voicing_candidates"][0]["expected_updated_at"] == artifact["updated_at"]
     assert client.get(f"/api/v2/progressions/{artifact['id']}").json() == artifact
+
+
+def test_exercise_proposal_survives_history_and_only_explicit_save_creates_artifact():
+    store = InMemoryV2Store()
+    draft = {'title': 'Even bass', 'intent': 'Play evenly', 'tempo': 80,
+             'steps': [{'label': 'D', 'beats': 1, 'positions': [{'string': 6, 'fret': 0}], 'tuning': [64,59,55,50,45,38]}]}
+    model = ScriptedTutorModel(outcomes=[{'message': 'Try this.', 'exercise_suggestion': draft}, {'message': 'Keep the bass even.'}], usage_metadatas=[None, None])
+    client = _app(store, _scripted_factory(model))
+    sid, bid = _open_session_and_branch(client)
+    source = store.create_artifact('user_1', 'progression', 'Source', {})
+    branch = store.update_branch(sid, bid, 'user_1', current_artifact_kind='progression', current_artifact_id=source.id)
+    response = client.post('/api/v2/tutor/turns', json={'session_id': sid, 'branch_id': bid, 'message': 'Make a drill'})
+    assert response.status_code == 200, response.text
+    proposal = response.json()['exercise_suggestion']
+    history = client.get(f'/api/v2/tutor/threads/{branch.tutor_thread_id}/messages').json()
+    assert history[-1]['content']['exercise_suggestion'] == proposal
+    assert client.get('/api/v2/exercises').json() == []
+    assert client.post('/api/v2/exercises', json=proposal).status_code == 201
+    assert len(client.get('/api/v2/exercises').json()) == 1
+    followup = client.post('/api/v2/tutor/turns', json={'session_id': sid, 'branch_id': bid, 'message': 'Explain that drill'})
+    assert followup.status_code == 200
+    assert any('Even bass' in str(message.content) for message in model.calls[1])
