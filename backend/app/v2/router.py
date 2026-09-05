@@ -175,6 +175,7 @@ async def create_song_study(
         kind="song_study",
         title=f"{revision.artist} - {revision.title}",
         payload=payload.model_dump(),
+        saved=False,
     )
 
     try:
@@ -733,5 +734,90 @@ async def explore_circle(data: ExploreCircleRequest, user_id: str = Depends(get_
         return opened
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+class SaveArtifactRequest(BaseModel):
+    expected_updated_at: str
+
+
+class RestoreArtifactRequest(SaveArtifactRequest):
+    revision: str
+
+
+@router.get("/library")
+async def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    return [{**a.model_dump(exclude={"payload"}), "provenance": a.payload.get("created_from") or a.payload.get("inspired_by")}
+            for a in store.list_artifacts(user_id) if a.saved_at]
+
+
+@router.post("/library/{artifact_id}/save", response_model=Artifact)
+async def save_artifact(artifact_id: str, data: SaveArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+        return store.update_artifact(artifact_id, user_id, artifact.payload, data.expected_updated_at, save=True)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+def _saved_artifact(store: V2Store, artifact_id: str, user_id: str) -> Artifact:
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+        if not artifact.saved_at:
+            raise NotFoundError("Save this work before opening it from My Stuff")
+        return artifact
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/library/{artifact_id}/revisions")
+async def artifact_revisions(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    artifact = _saved_artifact(store, artifact_id, user_id)
+    return [{"revision": r.revision, "current": False} for r in artifact.revisions] + [{"revision": artifact.updated_at, "current": True}]
+
+
+@router.post("/library/{artifact_id}/restore", response_model=Artifact)
+async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    artifact = _saved_artifact(store, artifact_id, user_id)
+    revision = next((r for r in artifact.revisions if r.revision == data.revision), None)
+    if revision is None:
+        raise HTTPException(404, "Revision not found")
+    try:
+        return store.update_artifact(artifact_id, user_id, revision.payload, data.expected_updated_at)
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.post("/library/{artifact_id}/open", response_model=Session, status_code=201)
+async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    artifact = _saved_artifact(store, artifact_id, user_id)
+    session = store.create_session(user_id)
+    store.update_branch(session.id, session.branches[0].id, user_id, title=artifact.title,
+        current_artifact_kind=artifact.kind, current_artifact_id=artifact.id)
+    return store.get_session(session.id, user_id)
+
+
+class SaveConceptRequest(BaseModel):
+    expected_updated_at: str
+    payload: ConceptStudyPayload
+
+
+@router.patch("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
+async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    await get_concept_study(artifact_id, user_id, store)
+    p = data.payload
+    try:
+        payload = build_concept_study(p.root, p.concept_id, overlay=p.overlay,
+            comparison_id=getattr(p, "comparison_id", None),
+            selected_interval=getattr(p, "selected_interval", 7), selected_voicing=getattr(p, "selected_voicing", 0),
+            comparison_quality=getattr(p, "comparison_quality", None), caged_quality=getattr(p, "quality", "major"),
+            selected_region=getattr(p, "selected_region", "C"), comparison_region=getattr(p, "comparison_region", None),
+            selected_chord=getattr(p, "selected_chord", 0), selected_sequence=getattr(p, "selected_sequence", "primary"))
+        return store.update_artifact(artifact_id, user_id, payload.model_dump(), data.expected_updated_at, save=True)
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

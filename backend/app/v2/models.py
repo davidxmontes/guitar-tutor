@@ -367,6 +367,11 @@ class StudyCatalog(BaseModel):
     groups: list[StudyCatalogGroup]
 
 
+class ArtifactRevision(BaseModel):
+    revision: str
+    payload: dict[str, Any]
+
+
 class Artifact(BaseModel):
     """Common columns + a strict typed JSON payload per artifact kind.
     Concrete routes validate their payload before handing the plain JSON to
@@ -379,6 +384,8 @@ class Artifact(BaseModel):
     kind: ArtifactKind
     title: str
     payload: dict[str, Any]
+    saved_at: Optional[str] = None
+    revisions: list[ArtifactRevision] = Field(default_factory=list, exclude=True)
     created_at: str
     updated_at: str
 
