@@ -43,6 +43,7 @@ from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_s
 from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
+from app.v2.tutor.saved_work import saved_work_tools
 
 router = APIRouter()
 
@@ -499,6 +500,7 @@ async def create_tutor_turn(
             branch=branch,
             artifact=artifact,
             history=history,
+            lookup_tools=saved_work_tools(store, user_id),
             user_message=data.message,
             provider=settings.v2_tutor_provider,
             model=settings.v2_tutor_model_name,
