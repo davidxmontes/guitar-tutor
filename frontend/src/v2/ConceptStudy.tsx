@@ -25,19 +25,17 @@ export function ConceptStudyPicker({
   sessionId,
   branchId,
   openInNewBranch,
-  initial,
   onOpened,
   onCancel,
 }: {
   sessionId: string;
   branchId: string;
   openInNewBranch: boolean;
-  initial?: ConceptSuggestion;
   onOpened: (opened: OpenConceptStudyResponse) => void;
   onCancel?: () => void;
 }) {
-  const [root, setRoot] = useState(initial?.root ?? 'A');
-  const [conceptId, setConceptId] = useState<ConceptId>(initial?.concept_id ?? 'pentatonic_minor');
+  const [root, setRoot] = useState('A');
+  const [conceptId, setConceptId] = useState<ConceptId>('pentatonic_minor');
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,13 +176,13 @@ export function ConceptStudyPanel({ sessionId, branch, onBranchChange, onWorkOnC
           </div>
           <div className="flex gap-2">
             <button type="button" data-testid="concept-hear" onClick={() => playScale(payload.positions)} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-primary)' }}>Hear</button>
-            {!practiceState && <button type="button" data-testid="concept-enter-practice" onClick={() => setPractice({ type: 'concept_practice', tempo: 80, loop: true })} className="rounded-lg px-3 py-2 text-sm text-white" style={{ background: 'var(--accent-600)' }}>Practice</button>}
+            {!practiceState && <button type="button" data-testid="concept-enter-practice" onClick={() => setPractice({ type: 'concept_practice', tempo: 80 })} className="rounded-lg px-3 py-2 text-sm text-white" style={{ background: 'var(--accent-600)' }}>Practice</button>}
           </div>
         </header>
 
         {practiceState && <section data-testid="concept-practice" className="rounded-xl border p-4" style={{ background: '#fff6db', borderColor: '#edd48d', color: '#422006' }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h3 className="font-bold">Contextual practice</h3><p className="text-sm">{tempo} BPM · Loop on · play the shape up and back</p></div>
+            <div><h3 className="font-bold">Contextual practice</h3><p className="text-sm">{tempo} BPM · one ascending pass</p></div>
             <div className="flex gap-2">
               <button type="button" onClick={() => setPractice({ ...practiceState, tempo: Math.max(40, tempo - 5) })} className="rounded border px-3 py-2" aria-label="Slow practice by 5 BPM">−5</button>
               <button type="button" data-testid="concept-practice-faster" onClick={() => setPractice({ ...practiceState, tempo: Math.min(200, tempo + 5) })} className="rounded border px-3 py-2" aria-label="Speed practice by 5 BPM">+5</button>

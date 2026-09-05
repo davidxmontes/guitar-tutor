@@ -128,9 +128,9 @@ export function V2App() {
               onCancel={() => setShowConceptPicker(false)}
             />
           ) : branch.current_artifact_kind === 'concept_study' ? (
-            <ConceptStudyPanel sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+            <ConceptStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
           ) : (
-            <SongStudyPanel sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+            <SongStudyPanel key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
           )
         )}
       </div>

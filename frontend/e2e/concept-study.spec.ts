@@ -26,6 +26,7 @@ test('ConceptStudy opens explicitly, compares theory, practices locally, and reo
   await page.getByTestId('concept-study-open').click()
 
   await expect(page.getByTestId('concept-study-workspace')).toBeVisible()
+  const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
   await expect(page.getByRole('heading', { name: 'A minor pentatonic' })).toBeVisible()
   await expect(page.getByTestId('concept-study-note')).toHaveCount(5)
   await expect(page.getByTestId('concept-study-interval')).toContainText(['1', 'b3', '4', '5', 'b7'])
@@ -40,15 +41,17 @@ test('ConceptStudy opens explicitly, compares theory, practices locally, and reo
 
   await page.getByTestId('concept-hear').click()
   await page.getByTestId('concept-enter-practice').click()
-  await expect(page.getByTestId('concept-practice')).toContainText('80 BPM')
+  await expect(page.getByTestId('concept-practice')).toContainText('80 BPM · one ascending pass')
+  await expect(page.getByTestId('concept-practice')).not.toContainText(/loop|up and back/i)
   await page.getByTestId('concept-practice-faster').click()
   await expect(page.getByTestId('concept-practice')).toContainText('85 BPM')
+  let session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
+  expect(session.branches[0].selection).toEqual({ type: 'concept_practice', tempo: 85 })
   await page.getByTestId('concept-practice-start').click()
   await page.getByTestId('concept-exit-practice').click()
   await expect(page.getByTestId('concept-practice')).toHaveCount(0)
   expect(tutorTurns).toBe(0)
 
-  const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
   await page.reload()
   await page.locator(`[data-testid="v2-continue-session"][data-session-id="${sessionId}"]`).click()
   await expect(page.getByRole('heading', { name: 'A minor pentatonic' })).toBeVisible()
@@ -58,7 +61,7 @@ test('ConceptStudy opens explicitly, compares theory, practices locally, and reo
   await expect(page.getByText('D major is a useful comparison.')).toBeVisible()
   await expect(page.getByTestId('concept-tutor-focus-caption')).toContainText('comparison')
 
-  let session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
+  session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
   expect(session.branches).toHaveLength(1)
 
   await page.getByRole('button', { name: 'Work on D major triad' }).click()
@@ -66,6 +69,14 @@ test('ConceptStudy opens explicitly, compares theory, practices locally, and reo
   await expect(page.getByTestId('v2-branch-tab')).toHaveCount(2)
   session = await page.request.get(`/api/v2/sessions/${sessionId}`).then((response) => response.json())
   expect(session.branches).toHaveLength(2)
+
+  await page.getByTestId('concept-compare').click()
+  await expect(page.getByTestId('concept-relationship')).toBeVisible()
+  await page.getByTestId('v2-branch-tab').nth(0).click()
+  await expect(page.getByRole('heading', { name: 'A minor pentatonic' })).toBeVisible()
+  await page.getByTestId('v2-branch-tab').nth(1).click()
+  await expect(page.getByRole('heading', { name: 'D major triad' })).toBeVisible()
+  await expect(page.getByTestId('concept-relationship')).toHaveCount(0)
 
   await page.setViewportSize({ width: 320, height: 800 })
   await expect(page.getByTestId('concept-study-workspace')).toBeVisible()

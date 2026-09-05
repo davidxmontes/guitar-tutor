@@ -238,13 +238,15 @@ class SupabaseV2Store:
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
         self.get_session(session_id, user_id)
         _validate_artifact_kind(fields.get("current_artifact_kind"))
-        row = (
+        rows = (
             self._client.table("v2_branches")
             .insert({"session_id": session_id, "tutor_thread_id": _new_id(), **fields})
             .execute()
-            .data[0]
+            .data
         )
-        return self._row_to_branch(row)
+        if not rows:
+            raise RuntimeError("Supabase did not return the created branch")
+        return self._row_to_branch(rows[0])
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         self.get_session(session_id, user_id)  # raises NotFoundError if not owned
