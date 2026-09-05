@@ -7,7 +7,7 @@ import { TutorChat } from './TutorChat';
 import { SongEnrichmentPanel } from './SongEnrichment';
 import { SongShapeStrip } from './SongShapeStrip';
 import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
-import type { ConceptSuggestion, SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
+import type { ConceptSuggestion, ProgressionPayload, SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, TutorFocus, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 // Supporting element, not a primary block (mock #overview callout 3: "large
@@ -533,6 +533,7 @@ function SongStudyWorkspace({
   onBranchChange,
   onSearchAgain,
   onWorkOnConcept,
+  onExploreProgression,
   onSongStudyChange,
 }: {
   sessionId: string;
@@ -541,6 +542,7 @@ function SongStudyWorkspace({
   onBranchChange: (branch: V2Branch) => void;
   onSearchAgain: () => void;
   onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
+  onExploreProgression: (candidate: ProgressionPayload) => Promise<void>;
   onSongStudyChange: (artifact: SongStudyArtifact) => void;
 }) {
   const payload = songStudy.payload;
@@ -945,6 +947,7 @@ function SongStudyWorkspace({
         tutorThreadId={branch.tutor_thread_id}
         onFocusChange={setTutorFocus}
         onWorkOnConcept={onWorkOnConcept}
+        onExploreProgression={onExploreProgression}
       />
     </div>
   );
@@ -957,11 +960,13 @@ export function SongStudyPanel({
   branch,
   onBranchChange,
   onWorkOnConcept,
+  onExploreProgression,
 }: {
   sessionId: string;
   branch: V2Branch;
   onBranchChange: (branch: V2Branch) => void;
   onWorkOnConcept: (suggestion: ConceptSuggestion) => Promise<void>;
+  onExploreProgression: (candidate: ProgressionPayload) => Promise<void>;
 }) {
   const [songStudy, setSongStudy] = useState<SongStudyArtifact | null>(null);
   const [searchingAgain, setSearchingAgain] = useState(false);
@@ -1012,6 +1017,7 @@ export function SongStudyPanel({
       onBranchChange={onBranchChange}
       onSearchAgain={() => setSearchingAgain(true)}
       onWorkOnConcept={onWorkOnConcept}
+      onExploreProgression={onExploreProgression}
       onSongStudyChange={setSongStudy}
     />
   );

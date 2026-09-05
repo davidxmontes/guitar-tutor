@@ -24,10 +24,15 @@ function hearProgression(chords: ProgressionChord[]) {
 // artifact without navigating away, and an Explore button that is present
 // but inert -- opening a real Branch to develop it further is ticket #15's
 // scope, not this one's.
-export function ProgressionCandidate({ candidate }: { candidate: ProgressionPayload }) {
+export function ProgressionCandidate({ candidate, onExplore }: {
+  candidate: ProgressionPayload;
+  onExplore?: (candidate: ProgressionPayload) => Promise<void>;
+}) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [exploring, setExploring] = useState(false);
+  const [exploreError, setExploreError] = useState<string | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -39,6 +44,18 @@ export function ProgressionCandidate({ candidate }: { candidate: ProgressionPayl
       setSaveError(String(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExplore = async () => {
+    if (!onExplore) return;
+    setExploring(true);
+    setExploreError(null);
+    try {
+      await onExplore(candidate);
+    } catch (err) {
+      setExploreError(String(err));
+      setExploring(false);
     }
   };
 
@@ -91,6 +108,7 @@ export function ProgressionCandidate({ candidate }: { candidate: ProgressionPayl
           Saved.
         </p>
       )}
+      {exploreError && <p role="alert" className="text-[10px]" style={{ color: '#ef4444' }}>{exploreError}</p>}
 
       <div className="flex gap-2">
         <button
@@ -115,12 +133,12 @@ export function ProgressionCandidate({ candidate }: { candidate: ProgressionPayl
         <button
           type="button"
           data-testid="progression-candidate-explore"
-          disabled
-          title="Explore opens this in its own branch — coming soon"
+          disabled={!onExplore || exploring}
+          onClick={handleExplore}
           className="px-2.5 py-1 rounded-md border text-[10px] font-medium disabled:opacity-50"
           style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
         >
-          Explore
+          {exploring ? 'Opening...' : 'Explore'}
         </button>
       </div>
     </div>

@@ -22,11 +22,14 @@ class Branch(BaseModel):
     id: str
     session_id: str
     tutor_thread_id: str
+    title: str = "New workspace"
     current_artifact_kind: Optional[ArtifactKind] = None
     current_artifact_id: Optional[str] = None
     selection: Optional[dict[str, Any]] = None
     focus: Optional[dict[str, Any]] = None
     recent_ideas: list[dict[str, Any]] = Field(default_factory=list)
+    fork_context: Optional[dict[str, Any]] = None
+    closed: bool = False
     created_at: str
     updated_at: str
 

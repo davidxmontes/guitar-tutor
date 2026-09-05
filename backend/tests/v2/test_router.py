@@ -106,6 +106,28 @@ def test_update_branch_no_op_patch_returns_current_state(client):
     assert response.json()["id"] == branch_id
 
 
+def test_close_and_reopen_branch_survives_session_reload(client):
+    created = client.post("/api/v2/sessions").json()
+    branch_id = created["branches"][0]["id"]
+
+    closed = client.patch(
+        f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
+        json={"closed": True},
+    )
+    reloaded = client.get(f"/api/v2/sessions/{created['id']}")
+
+    assert closed.status_code == 200
+    assert reloaded.json()["branches"][0]["closed"] is True
+
+    reopened = client.patch(
+        f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
+        json={"closed": False},
+    )
+
+    assert reopened.status_code == 200
+    assert reopened.json()["closed"] is False
+
+
 def test_sessions_are_isolated_per_user(client):
     created = client.post("/api/v2/sessions").json()
 
