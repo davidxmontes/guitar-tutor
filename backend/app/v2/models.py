@@ -83,7 +83,7 @@ class SongDerivedRange(BaseModel):
 
 class SongEnrichment(BaseModel):
     tab_fingerprint: str
-    chordpro_fingerprint: str
+    chordpro_fingerprint: Optional[str] = None
     source_sections: list[SongSourceSection] = Field(default_factory=list)
     ranges: list[SongDerivedRange] = Field(default_factory=list)
     generated_at: str

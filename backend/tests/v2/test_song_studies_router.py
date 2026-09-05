@@ -334,3 +334,36 @@ def test_failed_ai_enrichment_leaves_raw_sources_usable(get_chordpro, client, se
     assert payload["tab_data"] == raw["payload"]["tab_data"]
     assert payload["chordpro"] == get_chordpro.return_value
     assert payload["enrichment"] is None
+
+
+@pytest.mark.parametrize("fetch_fails", [False, True])
+@patch("app.v2.router.songsterr.get_chordpro", new_callable=AsyncMock)
+def test_enhance_song_study_succeeds_without_optional_chordpro(
+    get_chordpro, fetch_fails, client, session_and_branch,
+):
+    raw = _create_raw_song_study(client, session_and_branch)
+    if fetch_fails:
+        get_chordpro.side_effect = RuntimeError("optional source unavailable")
+    else:
+        get_chordpro.return_value = None
+    model = _enrichment_model(
+        {
+            "start_measure": 1,
+            "end_measure": 1,
+            "section": "Opening phrase",
+            "lyrics": [],
+            "broad_harmony": [],
+            "detailed_harmony": [],
+            "confidence": "low",
+        }
+    )
+    client.app.dependency_overrides[get_enrichment_model_factory] = lambda: (lambda *_args, **_kwargs: model)
+
+    response = client.post(f"/api/v2/song-studies/{raw['id']}/enrichment")
+
+    assert response.status_code == 200
+    payload = response.json()["payload"]
+    assert payload["chordpro"] is None
+    assert payload["enrichment"]["chordpro_fingerprint"] is None
+    assert payload["enrichment"]["ranges"][0]["section"] == "Opening phrase"
+    assert payload["enrichment"]["ranges"][0]["provenance"] == "ai"

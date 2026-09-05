@@ -206,12 +206,11 @@ async def enhance_song_study(
     if payload.chordpro is None:
         try:
             chordpro = await songsterr.get_chordpro(payload.song_id)
-        except Exception as exc:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch ChordPro source") from exc
-        if not chordpro:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No ChordPro source available for this song")
-        payload = payload.model_copy(update={"chordpro": chordpro})
-        artifact = store.update_artifact(artifact.id, user_id, payload.model_dump())
+        except Exception:
+            chordpro = None
+        if chordpro:
+            payload = payload.model_copy(update={"chordpro": chordpro})
+            artifact = store.update_artifact(artifact.id, user_id, payload.model_dump())
 
     try:
         enrichment = run_song_enrichment(

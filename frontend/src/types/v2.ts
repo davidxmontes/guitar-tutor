@@ -60,7 +60,7 @@ export interface SongDerivedRange {
 
 export interface SongEnrichment {
   tab_fingerprint: string;
-  chordpro_fingerprint: string;
+  chordpro_fingerprint: string | null;
   source_sections: SongSourceSection[];
   ranges: SongDerivedRange[];
   generated_at: string;

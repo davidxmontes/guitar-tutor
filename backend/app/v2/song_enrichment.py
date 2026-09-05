@@ -34,8 +34,9 @@ class SongEnrichmentProposal(BaseModel):
 
 ENRICHMENT_INSTRUCTIONS = (
     "Align the supplied compact ChordPro and detailed-tab summaries into useful learning ranges. "
-    "Return approximate lyric-to-measure alignment, section labels, broad ChordPro harmony, and detailed guitar "
-    "chord/embellishment labels when present. Preserve broad and detailed harmony separately; never choose one "
+    "When ChordPro is supplied, return approximate lyric-to-measure alignment and broad ChordPro harmony; always "
+    "derive useful sections or phrases from the detailed tab summary. Include detailed guitar chord/embellishment "
+    "labels when present. Preserve broad and detailed harmony separately; never choose one "
     "as the winner. Confidence must be low, medium, or high and should reflect alignment uncertainty. Use only "
     "measure numbers inside the supplied track."
 )
@@ -109,15 +110,15 @@ def _chordpro_summary(chordpro: str) -> list[dict[str, Any]]:
     return lines
 
 
-def build_enrichment_context(tab_data: dict[str, Any], chordpro: str) -> dict[str, Any]:
+def build_enrichment_context(tab_data: dict[str, Any], chordpro: Optional[str]) -> dict[str, Any]:
     measures = [measure for measure in (tab_data.get("measures") or []) if isinstance(measure, dict)]
     return {
         "measure_count": len(measures),
         "tab_fingerprint": _fingerprint(tab_data),
-        "chordpro_fingerprint": _fingerprint(chordpro),
+        "chordpro_fingerprint": _fingerprint(chordpro) if chordpro else None,
         "source_sections": _source_sections(measures),
         "measures": [_measure_summary(measure, index + 1) for index, measure in enumerate(measures)],
-        "chordpro_lines": _chordpro_summary(chordpro),
+        "chordpro_lines": _chordpro_summary(chordpro) if chordpro else [],
     }
 
 
@@ -125,7 +126,7 @@ def run_song_enrichment(
     *,
     artifact_id: str,
     tab_data: dict[str, Any],
-    chordpro: str,
+    chordpro: Optional[str],
     provider: str,
     model: str,
     openai_api_key: Optional[str] = None,

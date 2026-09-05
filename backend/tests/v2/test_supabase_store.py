@@ -153,6 +153,7 @@ def test_update_artifact_updates_only_the_owned_row():
     client = MagicMock()
     row = _artifact_row()
     row["payload"] = {"song_id": 7, "chordpro": "[Em]Today"}
+    row["updated_at"] = "t1"
     chain = _chain([row])
     client.table.return_value = chain
 
@@ -160,7 +161,10 @@ def test_update_artifact_updates_only_the_owned_row():
     artifact = store.update_artifact("art-1", user_id="user_1", payload=row["payload"])
 
     assert artifact.payload["chordpro"] == "[Em]Today"
-    chain.update.assert_called_once_with({"payload": row["payload"]})
+    assert artifact.updated_at == "t1"
+    update = chain.update.call_args.args[0]
+    assert update["payload"] == row["payload"]
+    assert update["updated_at"] != "t0"
     chain.eq.assert_any_call("id", "art-1")
     chain.eq.assert_any_call("clerk_user_id", "user_1")
 

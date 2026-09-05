@@ -273,9 +273,10 @@ class SupabaseV2Store:
         return self._row_to_artifact(rows[0])
 
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any]) -> Artifact:
+        updated_at = _now()
         rows = (
             self._client.table("v2_artifacts")
-            .update({"payload": payload})
+            .update({"payload": payload, "updated_at": updated_at})
             .eq("id", artifact_id)
             .eq("clerk_user_id", user_id)
             .execute()
