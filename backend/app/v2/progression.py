@@ -29,12 +29,27 @@ def resolve_progression(idea: ProgressionIdeaDraft) -> dict:
                 midi = idea.tuning[position.string - 1] + position.fret
                 positions.append({**position.model_dump(), 'midi': midi, **by_pitch.get(midi % 12, chromatic_note(midi))})
         function = (function_in_key(step, idea.tonal_center) or 'Non-diatonic') if idea.tonal_center else None
-        steps.append({**step.model_dump(), 'positions': positions, 'notes': notes, 'function': function, 'voicings': voicings})
+        steps.append({**step.model_dump(), 'positions': positions, 'notes': notes, 'function': function, 'function_family': ({'I': 'Tonic', 'i': 'Tonic', 'iii': 'Tonic', 'III': 'Tonic', 'vi': 'Tonic', 'VI': 'Tonic', 'ii': 'Subdominant', 'ii°': 'Subdominant', 'IV': 'Subdominant', 'iv': 'Subdominant', 'V': 'Dominant', 'v': 'Dominant', 'vii°': 'Dominant', 'VII': 'Dominant'}.get(function) if function else None), 'voicings': voicings})
     transitions = []
     for first, second in zip(steps, steps[1:]):
         a, b = [{note['pitch_class'] for note in step['notes']} for step in (first, second)]
+        names = {note['pitch_class']: note['note'] for step in (first, second) for note in step['notes']}
         assigned = first['voicing'] is not None and second['voicing'] is not None
         transitions.append({'from_step_id': first['id'], 'to_step_id': second['id'],
             'shared': sorted(a & b), 'removed': sorted(a - b), 'added': sorted(b - a),
+            'shared_notes': [names[n] for n in sorted(a & b)], 'leaving_notes': [names[n] for n in sorted(a - b)], 'entering_notes': [names[n] for n in sorted(b - a)],
             'assigned': assigned, 'movement': physical_movement(first, second) if assigned else []})
     return {'steps': steps, 'transitions': transitions, 'key_status': 'Key set' if idea.tonal_center else 'Set a key'}
+
+
+def exercise_from_idea(idea: ProgressionIdeaDraft, title: str, intent: str, tempo: int, order: list[str]) -> dict:
+    from app.v2.models import ExercisePayload
+    resolved = {step['id']: step for step in resolve_progression(idea)['steps']}
+    if not order or len(order) > 256 or any(id not in resolved for id in order):
+        raise ValueError('Choose up to 256 existing steps')
+    if any(not resolved[id]['positions'] for id in order):
+        raise ValueError('Assign playable voicings before creating an exercise')
+    return ExercisePayload(title=title, intent=intent, tempo=tempo,
+        steps=[{'label': f"{resolved[id]['root']} {resolved[id]['quality']}", 'beats': resolved[id]['duration_beats'],
+                'positions': [{'string': p['string'], 'fret': p['fret']} for p in resolved[id]['positions']], 'tuning': idea.tuning} for id in order],
+        created_from={'kind': 'progression', 'idea': idea.model_dump()}).model_dump()

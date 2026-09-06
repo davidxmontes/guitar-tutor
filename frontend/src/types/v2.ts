@@ -177,42 +177,14 @@ export interface TutorUsage {
   reasoning_tokens?: number | null;
 }
 
-// --- Progression (backend kind retained) ---
-
-export interface ProgressionVoicingPosition {
-  string: number;
-  fret: number;
-}
-
-export interface ProgressionChord {
-  root: string;
-  quality: string;
-  voicing: ProgressionVoicingPosition[] | null;
-  tuning: string | number[] | null;
-}
-
-export interface ProgressionPayload {
-  title: string;
-  chords: ProgressionChord[];
-  inspired_by: Record<string, unknown> | null;
-}
-
 export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
   kind: 'progression';
-  payload: ProgressionPayload;
+  payload: { title: string } & Pick<import('../v2/progression').ProgressionIdea, 'tonal_center' | 'tuning' | 'chords' | 'provenance'>;
 };
-
-export interface VoicingProposal {
-  label: string;
-  artifact_id: string;
-  expected_updated_at: string;
-  chord_index: number;
-  chord: ProgressionChord;
-}
 
 export interface TutorResponse {
   message: string;
-  focus: import('../v2/progression').ProgressionFocus | null;
+  focus: Record<string, unknown> | null;
   attention: TutorAttention | null;
   mutation: ({ kind: 'noop' | 'set_tonal_center' | 'set_scale' | 'set_tuning' | 'scratch_add' | 'scratch_remove' | 'scratch_reorder' | 'add_kept_note_group' } & Record<string, unknown>) | null;
   presentation: Composition | null;

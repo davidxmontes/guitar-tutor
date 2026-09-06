@@ -4,12 +4,16 @@ import { physicalVoicing } from './harmony';
 import type { ChordRef, HarmonyResolved } from './harmony';
 import type { ComparePeer } from './compare';
 
-export function ChordInspector({ chord, data, hasKey, onExplore }: { onExplore?: () => void; chord: ChordRef; data: HarmonyResolved; hasKey: boolean }) {
-  return <section aria-label="Chord inspector"><h3>{chord.root} {chord.quality}</h3>
+export function ChordInspector({ context, chord, notes, functionLabel, hasKey, onExplore, onReplace }: {
+  context: 'harmony' | 'progression'; chord: ChordRef; notes: { note: string; degree: string }[];
+  functionLabel: string | null; hasKey: boolean; onExplore?: () => void; onReplace?: () => void;
+}) {
+  return <section aria-label="Chord inspector" data-context={context}><h3>{chord.root} {chord.quality}</h3>
     {onExplore && <button className="music-button" onClick={onExplore}>Explore →</button>}
-    <p>Chord tones: {data.chord_notes.map(note => note.note).join(' · ')}</p>
-    <p>Construction: {data.chord_notes.map(note => note.degree).join(' · ')}</p>
-    {hasKey && <p>Function in key: {data.function ?? 'Non-diatonic chord'}</p>}
+    {context === 'progression' && onReplace && <button className="music-button" onClick={onReplace}>Replace chord</button>}
+    <p>Chord tones: {notes.map(note => note.note).join(' · ')}</p>
+    <p>Construction: {notes.map(note => note.degree).join(' · ')}</p>
+    {hasKey ? <p>Function in key: {functionLabel ?? 'Non-diatonic chord'}</p> : context === 'progression' && <p>Set a key</p>}
   </section>;
 }
 

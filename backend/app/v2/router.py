@@ -750,3 +750,28 @@ async def edit_progression_surface(session_id: str, branch_id: str, edit: Progre
         return progression_response(updated, store, user_id)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+class IdeaExerciseRequest(StrictModel):
+    title: str
+    intent: str
+    tempo: int = 80
+    order: list[str]
+    expected_updated_at: str
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/progression/exercise', response_model=ExerciseArtifact, status_code=201)
+async def compose_idea_exercise(session_id: str, branch_id: str, data: IdeaExerciseRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    from app.v2.progression import exercise_from_idea
+    branch = owned_branch(store, session_id, branch_id, user_id)
+    if branch.updated_at != data.expected_updated_at:
+        raise HTTPException(409, 'Idea changed; review the current material')
+    workspace = branch.progression_workspace
+    idea = next((idea for idea in workspace.ideas if idea.id == workspace.active_idea_id), None) if workspace else None
+    if idea is None:
+        raise HTTPException(422, 'Choose an idea')
+    try:
+        payload = exercise_from_idea(idea, data.title, data.intent, data.tempo, data.order)
+        return store.create_artifact(user_id, 'exercise', data.title, payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

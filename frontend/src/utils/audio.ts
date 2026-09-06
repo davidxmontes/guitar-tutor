@@ -312,3 +312,16 @@ export function playChordSequence(chords: { positions: NoteToPlay[]; tuning: rea
   ))
   return () => sources.forEach(source => source.stop())
 }
+
+
+// Exercise rhythm shares one audio clock, preserving each copied step's duration.
+export function playTimedChords(steps: { positions: NoteToPlay[]; tuning: readonly number[]; beats: number }[], tempo: number): () => void {
+  const ctx = getAudioContext();
+  let at = ctx.currentTime;
+  const sources = steps.flatMap(step => {
+    const start = at, duration = step.beats * 60 / tempo;
+    at += duration;
+    return step.positions.map(p => createKarplusString(ctx, getFrequency(p.string, p.fret, step.tuning), start, duration, .4));
+  });
+  return () => sources.forEach(source => source.stop());
+}

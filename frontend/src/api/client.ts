@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, CreateBranchRequest, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionPayload, ProgressionArtifact } from '../types/v2';
+import type { Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, CreateBranchRequest, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionArtifact } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -326,6 +326,10 @@ class ApiClient {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/progression`, { method: 'PATCH', body: JSON.stringify(edit) });
   }
 
+  async composeIdeaExercise(branch: V2Branch, data: { title: string; intent: string; tempo: number; order: string[] }): Promise<ExerciseArtifact> {
+    return this.fetch(`/v2/sessions/${branch.session_id}/branches/${branch.id}/progression/exercise`, { method: 'POST', body: JSON.stringify({ ...data, expected_updated_at: branch.updated_at }) });
+  }
+
   async saveProgressionIdea(branch: V2Branch): Promise<{ branch: V2Branch; artifact: Artifact }> {
     return this.fetch(`/v2/sessions/${branch.session_id}/branches/${branch.id}/progression/save`, { method: 'POST', body: JSON.stringify({ expected_updated_at: branch.updated_at }) });
   }
@@ -416,22 +420,6 @@ class ApiClient {
     return this.fetch<TutorResponse>('/v2/tutor/turns', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
-  }
-
-  // --- V2: Progression artifact (ticket #14) ---
-
-  async createProgression(data: ProgressionPayload): Promise<ProgressionArtifact> {
-    return this.fetch<ProgressionArtifact>('/v2/progressions', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-
-  async applyVoicing(proposal: VoicingProposal): Promise<ProgressionArtifact> {
-    return this.fetch<ProgressionArtifact>(`/v2/progressions/${proposal.artifact_id}/voicing`, {
-      method: 'PATCH', body: JSON.stringify(proposal),
     });
   }
 
