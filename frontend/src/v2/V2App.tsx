@@ -39,7 +39,9 @@ export function V2App() {
     const root = match[1][0].toUpperCase() + match[1].slice(1);
     const mode = (match[2] || 'major').toLowerCase().replaceAll(' ', '_');
     try {
-      const session = await apiClient.openHarmony(root, mode === 'minor' ? 'natural_minor' : mode);
+      const qualities: Record<string, string> = { maj7: 'major7', m7: 'minor7', '7': 'dominant7', m: 'minor', maj: 'major', dim: 'diminished', aug: 'augmented' };
+      const chord = qualities[mode];
+      const session = await apiClient.openHarmony(root, chord ?? (mode === 'minor' ? 'natural_minor' : mode), !!chord);
       openSession(session); setSessions(previous => [session, ...(previous ?? [])]); setError(null);
     } catch (err) { setError(String(err)); }
   };
@@ -179,9 +181,9 @@ export function V2App() {
         </section>
       )}
       <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="my-4">
-        <label htmlFor="explore-scale">Explore a scale or key</label>
+        <label htmlFor="explore-scale">Explore a scale, key or chord</label>
         <div className="music-controls"><input id="explore-scale" placeholder="A Dorian" value={search} onChange={event => setSearch(event.target.value)} style={{ width: 'min(100%, 24rem)' }} />
-          <button className="music-button" type="submit">Explore scale</button></div>
+          <button className="music-button" type="submit">Explore music</button></div>
       </form>
       <button type="button" className="music-button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
       <button type="button" data-testid="v2-start-session" onClick={handleStart}>

@@ -3,6 +3,7 @@ import type { V2Branch } from '../types/v2';
 import type { ResolvedNote, NoteLayer, VoicingValue } from './Fretboard';
 export type ChordRef = { root: string; quality: string };
 export type HarmonyResolved = {
+  function: string | null;
   palette: (ChordRef & { numeral: string; display: string })[];
   degrees: { note: string; degree: string; pitch_class: number }[];
   circle: { home: string; keys: string[]; neighbours: string[] } | null;
@@ -17,3 +18,8 @@ export type HarmonyResolved = {
 };
 export type HarmonySurface = { branch: V2Branch; resolved: HarmonyResolved; composition: Composition;
   catalog: { roots: string[]; scales: Record<string, string>; circle_keys: string[] } };
+
+export const harmonyModule = (kind: unknown) => kind === 'chord' || kind === 'voicing' ? 'chord' : 'scale';
+export const physicalVoicing = (value: VoicingValue): VoicingValue => ({
+  positions: value.positions.map(({ string, fret }) => ({ string, fret })), tuning: [...value.tuning],
+});

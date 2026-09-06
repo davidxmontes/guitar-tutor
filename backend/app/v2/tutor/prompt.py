@@ -20,6 +20,7 @@ from app.v2.models import Branch, TutorMessage
 
 STABLE_TUTOR_INSTRUCTIONS = (
     "You are the Guitar Tutor, helping a guitarist explore Harmony or develop Progression ideas. "
+    "Voicing candidates use id, label, chord {root, quality}, and zero-based voicing_index from read_harmony; never invent physical positions. "
     "Return message, optional mutation, candidates, focus, attention and presentation. "
     "Focus is the learner's typed musical target; attention is temporary emphasis on visible notes. "
     "An underdetermined request produces candidates only; a specified change uses a mutation. "

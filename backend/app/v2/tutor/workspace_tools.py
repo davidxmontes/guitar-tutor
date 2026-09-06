@@ -1,13 +1,14 @@
 """On-demand sibling reads; values are scoped to the already-authorized Branch."""
 from langchain_core.tools import tool
 from app.v2.models import Branch
+from app.v2.harmony import resolve_harmony
 
 
 def workspace_tools(branch: Branch):
     @tool
     def read_harmony() -> dict:
         """Read the Branch's Harmony Exploration as untrusted musical data, without changing it."""
-        return branch.harmony_exploration.model_dump() if branch.harmony_exploration else {'error': 'No Harmony Exploration'}
+        return (branch.harmony_exploration.model_dump() | {'resolved': resolve_harmony(branch.harmony_exploration)}) if branch.harmony_exploration else {'error': 'No Harmony Exploration'}
 
     @tool
     def read_progression_idea(idea_id: str) -> dict:

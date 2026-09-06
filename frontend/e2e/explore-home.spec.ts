@@ -5,8 +5,8 @@ test('scale entry is deterministic; palette, header, circle and Compare work', a
   const turns: string[] = []
   page.on('request', request => { if (request.url().endsWith('/tutor/turns')) turns.push(request.url()) })
   await page.goto('/v2')
-  await page.getByLabel('Explore a scale or key').fill('A Dorian')
-  await page.getByRole('button', { name: 'Explore scale', exact: true }).click()
+  await page.getByLabel('Explore a scale, key or chord').fill('A Dorian')
+  await page.getByRole('button', { name: 'Explore music', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Harmony', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Focus Am', exact: true })).toBeVisible()
   expect(turns).toHaveLength(0)

@@ -26,7 +26,8 @@ from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, stru
 from app.v2.turns import live_composition, musical_snapshot
 from app.v2.presentation import validate_composition
 from pydantic import ValidationError, TypeAdapter
-from app.v2.harmony_state import HarmonyFocus
+from app.v2.harmony_state import HarmonyFocus, ChordRef, VoicingValue
+from app.v2.harmony import chord_voicings
 
 
 def apply_mutation(branch: Branch, mutation) -> Branch:
@@ -43,6 +44,22 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
         allowed = ('voicing',) if updated.active_workspace == 'harmony' else ('progression-idea', 'chord-replacement')
         if terminal.candidates.candidate_kind not in allowed:
             raise ValueError('Candidates outside active workspace')
+        if terminal.candidates.candidate_kind == 'voicing':
+            resolved = []
+            for candidate in terminal.candidates.candidates:
+                if set(candidate) != {'id', 'label', 'chord', 'voicing_index'} or not all(isinstance(candidate[key], str) for key in ('id', 'label')):
+                    raise ValueError('Voicing candidates require id, label, chord and voicing_index')
+                chord = ChordRef.model_validate(candidate['chord'])
+                options = chord_voicings(chord, updated.harmony_exploration.tuning)
+                index = candidate['voicing_index']
+                if type(index) is not int or not 0 <= index < len(options):
+                    raise ValueError('Voicing candidate index not found')
+                option = options[index]
+                voicing = VoicingValue(positions=[{'string': p['string'], 'fret': p['fret']} for p in option['positions']], tuning=option['tuning'])
+                resolved.append({'id': candidate['id'], 'label': candidate['label'], 'chord': chord.model_dump(), 'voicing': voicing.model_dump()})
+            if len({item['id'] for item in resolved}) != len(resolved):
+                raise ValueError('Candidate IDs must be unique')
+            terminal.candidates.candidates = resolved
     if terminal.focus is not None:
         focus = terminal.focus.model_dump() if hasattr(terminal.focus, 'model_dump') else terminal.focus
         if updated.active_workspace == 'harmony':
