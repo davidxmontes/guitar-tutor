@@ -136,6 +136,11 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     try { await change(await apiClient.materializeCagedRegion(workspace, chordId, shape)); }
     catch { setError('Could not keep this voicing. Your draft is unchanged.'); setStatus('Change not applied'); setBusy(false); onPendingChange(workspace !== saved.current); }
   };
+  const materializeChord = async (target: Extract<TypedInspection, { kind: 'chord'; root: number }>) => {
+    stop(); setBusy(true); onPendingChange(true); setError(null); setStatus('Materializing chord…');
+    try { await change(await apiClient.materializeInspection(workspace, target)); }
+    catch { setError('Could not materialize this chord. Your draft is unchanged.'); setStatus('Change not applied'); setBusy(false); onPendingChange(workspace !== saved.current); }
+  };
   const receiveTutorResult = async (result: WorkspaceTurnResult) => {
     stop();
     const next = result.branch.working_draft!;
@@ -344,7 +349,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
           </div>
           <button className={controlSm} disabled={locked} onClick={() => { change({ ...workspace, blocks: workspace.blocks.filter(item => item.id !== block.id), composition: workspace.composition.map(row => ({ items: row.items.filter(item => item.block_id !== block.id) })).filter(row => row.items.length) }); addButton.current?.focus(); }}>Remove View</button>
         </header>
-        {resolved && <ConceptWorkspaceBlock block={block} workspace={workspace} resolved={resolved} inspection={inspection} onInspect={setInspection} tutorFocus={tutorFocus} disabled={locked} onMaterializeRegion={shape => keepCaged(block.sources[0], shape)} />}
+        {resolved && <ConceptWorkspaceBlock block={block} workspace={workspace} resolved={resolved} inspection={inspection} onInspect={setInspection} tutorFocus={tutorFocus} disabled={locked} onMaterializeRegion={shape => keepCaged(block.sources[0], shape)} onMaterializeChord={materializeChord} />}
       </section>;
     })}</div>
     <button ref={addButton} className={controlSm} disabled={locked || workspace.blocks.length >= 12} aria-expanded={adding} onClick={() => setAdding(!adding)}>Add View</button>

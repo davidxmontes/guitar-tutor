@@ -74,3 +74,25 @@ def test_add_entity_accepts_a_note_group():
     result = turn(client, sid, branch, 'Highlight the blue notes').json()['workspace_result']
     assert result['status'] == 'applied'
     assert result['branch']['working_draft']['entities'][-1]['kind'] == 'noteGroup'
+
+
+def test_stateless_materialize_endpoint_adds_the_derived_chord_and_stays_resolvable():
+    """T5 (#93): the key-family Materialize gesture posts a bare workspace + inspection."""
+    _, _, client, sid, branch = physical()
+    draft = branch['working_draft']
+    facts = client.post('/api/v2/concept-workspaces/resolve', json=draft).json()
+    key = next(e for e in facts['entities'].values() if e['kind'] == 'key')
+    ii = key['diatonicChords'][1]  # ii of G major -> A minor
+    before = sum(e['kind'] == 'chord' for e in draft['entities'])
+    resp = client.post('/api/v2/concept-workspaces/materialize', json={
+        'workspace': draft,
+        'inspection': {'kind': 'chord', 'root': pitch_class(ii['root']), 'quality': ii['quality']}})
+    assert resp.status_code == 200
+    next_draft = resp.json()
+    assert sum(e['kind'] == 'chord' for e in next_draft['entities']) == before + 1
+    assert (next_draft['entities'][-1]['root'], next_draft['entities'][-1]['quality']) == (ii['root'], ii['quality'])
+    # the new Chord is bindable to a fretboard and the whole thing still resolves
+    fret = next(b for b in next_draft['blocks'] if b['kind'] == 'fretboard')
+    fret['sources'] = [next_draft['entities'][-1]['id']]
+    fret['source_id'] = fret['sources'][0]
+    assert client.post('/api/v2/concept-workspaces/resolve', json=next_draft).status_code == 200

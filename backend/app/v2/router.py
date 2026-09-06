@@ -18,7 +18,8 @@ from app.services import songsterr
 from app.v2.workspace_caged import CagedMaterialize, materialize_region, valid_caged_inspection
 from app.v2.workspace_progressions import ProgressionAction, edit_progression
 from app.v2.workspace_changes import (DerivedChordInspection, EntityChordInspection, InspectionTarget,
-    PitchInspection, RegionInspection, StepInspection, VoicingInspection, apply_workspace_patch)
+    PitchInspection, RegionInspection, StepInspection, VoicingInspection, apply_workspace_patch,
+    materialize_inspection)
 from app.v2.workspace import ConceptWorkspace, StrictModel, pitch_class, resolve_workspace
 from app.v2.models import (
     ApplyVoicingRequest,
@@ -900,3 +901,18 @@ async def keep_caged_region(data: CagedMaterialize, user_id: str = Depends(get_c
         return materialize_region(data)
     except ValueError as exc:
         raise HTTPException(422, 'That region cannot be kept within the current tuning or workspace bounds. Your draft is unchanged.') from exc
+
+
+class MaterializeInspectionRequest(StrictModel):
+    workspace: ConceptWorkspace
+    inspection: InspectionTarget
+
+
+@router.post('/concept-workspaces/materialize', response_model=ConceptWorkspace)
+async def materialize_workspace_inspection(data: MaterializeInspectionRequest, user_id: str = Depends(get_current_user)):
+    try:
+        return materialize_inspection(data.workspace, data.inspection)
+    except ValidationError as exc:
+        raise HTTPException(422, 'That selection cannot be materialized within workspace bounds. Your draft is unchanged.') from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

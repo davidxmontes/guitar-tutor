@@ -97,6 +97,10 @@ class ApiClient {
     return this.fetch('/v2/concept-workspaces/caged/materialize', { method: 'POST', body: JSON.stringify({workspace, chord_id: chordId, region}) });
   }
 
+  materializeInspection(workspace: ConceptWorkspace, inspection: import('../types/conceptWorkspace').TypedInspection): Promise<ConceptWorkspace> {
+    return this.fetch('/v2/concept-workspaces/materialize', { method: 'POST', body: JSON.stringify({ workspace, inspection }) });
+  }
+
   resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<Resolved> {
     return this.fetch('/v2/concept-workspaces/resolve', { method: 'POST', body: JSON.stringify(workspace) });
   }
