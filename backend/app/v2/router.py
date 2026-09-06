@@ -488,11 +488,12 @@ async def create_tutor_turn(
             detail=f"Tutor provider call to {settings.v2_tutor_provider} failed",
         ) from exc
 
-    if response.focus:
+    if response.comparison_groups:
         open_titles = {b.id: b.title for b in store.get_session(session.id, user_id).branches if not b.closed}
-        response.focus.groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]}) for group in response.focus.groups if group.branch_id in open_titles]
+        response.comparison_groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]}) for group in response.comparison_groups if group.branch_id in open_titles]
 
     content = {
+        'comparison_groups': [group.model_dump() for group in response.comparison_groups],
         'text': response.message, 'focus': response.focus.model_dump() if response.focus else None,
         'concept_suggestion': response.concept_suggestion.model_dump() if response.concept_suggestion else None,
         'exercise_suggestion': response.exercise_suggestion.model_dump() if response.exercise_suggestion else None,

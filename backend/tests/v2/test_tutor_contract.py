@@ -38,7 +38,7 @@ def test_focus_role_is_free_form_not_a_closed_enum() -> None:
 
 def test_focus_has_no_layout_or_navigation_fields() -> None:
     fields = set(TutorFocus.model_fields)
-    assert fields == {"role", "notes", "label", "groups"}
+    assert fields == {"role", "notes", "label"}
 
 
 def test_tutor_response_serializes_full_observability() -> None:
@@ -180,3 +180,24 @@ def test_tutor_response_candidates_default_to_none_and_carry_resolved_progressio
         message="Just an answer.", provider="openai", model="gpt-4o-mini", latency_ms=1, usage=TutorUsage(), tool_call_count=0
     )
     assert no_candidates.candidates is None
+
+
+def test_workspace_ops_resolve_source_role_handles_and_materialize():
+    from app.v2.workspace import physical_resolution
+    from app.v2.workspace_changes import apply_workspace_patch
+    draft = physical_resolution()
+    key = next(e for e in draft.entities if e.kind == 'key')
+    block = next(b for b in draft.blocks if b.kind == 'fretboard')
+    for op in ('add_block', 'update_view'):
+        fields = {'sources': [key.id, '$highlight'], 'source_roles': {'$highlight': 'highlight'}, 'settings': {'mode': 'notes'}}
+        view = {'op': 'add_block', 'block': {'id': '$view', 'kind': 'fretboard', **fields}} if op == 'add_block' else {'op': 'update_view', 'id': block.id, **fields}
+        result = apply_workspace_patch(draft, {'protocol_version': 1, 'base_version': draft.version, 'operations': [
+            {'op': 'add_entity', 'entity': {'id': '$highlight', 'kind': 'noteGroup', 'label': 'Chord tone', 'notes': [{'pitch_class': 7}]}},
+            view,
+            {'op': 'materialize', 'inspection': {'kind': 'chord', 'root': 9, 'quality': 'minor'}},
+        ]}, 'Highlight this chord tone')
+        highlight = next(e for e in result.entities if e.kind == 'noteGroup')
+        changed = result.blocks[-1] if op == 'add_block' else next(b for b in result.blocks if b.id == block.id)
+        assert changed.sources == [key.id, highlight.id]
+        assert changed.source_roles == {highlight.id: 'highlight'}
+        assert result.entities[-1].root == 'A' and result.entities[-1].quality == 'minor'

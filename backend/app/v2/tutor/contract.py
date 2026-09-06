@@ -46,7 +46,7 @@ class BranchFocusGroup(BaseModel):
 
 
 class TutorFocus(BaseModel):
-    """Cross-view attention, not navigation (spec #10's "the user owns
+    """One-turn attention on visible notes, not persistent groups or navigation (spec #10's "the user owns
     navigation; the tutor owns attention"). `role` is a free-form semantic
     label — the spec names context/active/upcoming/candidate/target/
     comparison as its starting vocabulary but explicitly leaves room for
@@ -55,7 +55,6 @@ class TutorFocus(BaseModel):
     role: str
     notes: list[FretPosition] = Field(default_factory=list)
     label: Optional[str] = None
-    groups: list[BranchFocusGroup] = Field(default_factory=list, max_length=4)
 
 
 class ConceptSuggestion(BaseModel):
@@ -121,6 +120,7 @@ class TutorTerminal(BaseModel):
     # Parse the patch after retaining the explanation: malformed model changes must not erase text.
     workspace_patch: Optional[dict[str, Any]] = None
     focus: Optional[TutorFocus] = None
+    comparison_groups: list[BranchFocusGroup] = Field(default_factory=list, max_length=4)
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionCandidate]] = None
     voicing_candidates: Optional[list[VoicingCandidate]] = None
@@ -166,6 +166,7 @@ class TutorResponse(BaseModel):
     workspace_result: Optional[WorkspaceTurnResult] = None
     message: str
     focus: Optional[TutorFocus] = None
+    comparison_groups: list[BranchFocusGroup] = Field(default_factory=list, max_length=4)
     concept_suggestion: Optional[ConceptSuggestion] = None
     candidates: Optional[list[ProgressionPayload]] = None
     voicing_candidates: Optional[list[VoicingProposal]] = None

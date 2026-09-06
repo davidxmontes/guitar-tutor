@@ -191,7 +191,6 @@ export interface TutorFocus {
   role: string;
   notes: TutorFretPosition[];
   label?: string | null;
-  groups?: BranchFocusGroup[];
 }
 
 export interface TutorUsage {
@@ -265,6 +264,7 @@ export interface TutorResponse {
   workspace_result?: WorkspaceTurnResult | null;
   message: string;
   focus: TutorFocus | null;
+  comparison_groups?: BranchFocusGroup[];
   concept_suggestion?: ConceptSuggestion | null;
   candidates: ProgressionPayload[] | null;
   exercise_suggestion?: ExerciseProposal | null;
@@ -290,7 +290,7 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { workspace_after?: ConceptWorkspace | null; workspace_change?: WorkspaceChange; exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
+  content: { workspace_after?: ConceptWorkspace | null; workspace_change?: WorkspaceChange; exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; comparison_groups?: BranchFocusGroup[]; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
   created_at: string;
 }
 

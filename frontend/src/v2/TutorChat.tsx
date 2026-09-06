@@ -4,13 +4,14 @@ import { ExerciseComposer } from './ExerciseComposer';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { ProgressionCandidate } from './ProgressionCandidate';
-import type { WorkspaceChange, WorkspaceTurnResult, ExerciseProposal, ConceptSuggestion, VoicingProposal, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
+import type { BranchFocusGroup, WorkspaceChange, WorkspaceTurnResult, ExerciseProposal, ConceptSuggestion, VoicingProposal, ProgressionPayload, TutorFocus, TutorMessage } from '../types/v2';
 
 interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   focus?: TutorFocus | null;
+  comparisonGroups?: BranchFocusGroup[];
   workspaceChange?: WorkspaceChange;
   snapshot?: ConceptWorkspace | null;
   exerciseSuggestion?: ExerciseProposal | null;
@@ -34,6 +35,7 @@ function toChatEntries(history: TutorMessage[]): ChatEntry[] {
       role: m.role,
       text: typeof m.content.text === 'string' ? m.content.text : '',
       focus: m.content.focus,
+      comparisonGroups: m.content.comparison_groups ?? (m.content.focus as (TutorFocus & { groups?: BranchFocusGroup[] }) | null)?.groups,
       workspaceChange: m.content.workspace_change,
       snapshot: m.content.workspace_after,
       exerciseSuggestion: m.content.exercise_suggestion,
@@ -143,6 +145,7 @@ export function TutorChat({
         role: 'assistant',
         text: response.message,
         focus: response.focus,
+        comparisonGroups: response.comparison_groups,
         exerciseSuggestion: response.exercise_suggestion,
         conceptSuggestion: response.concept_suggestion,
         candidates: response.candidates ?? null,
@@ -261,8 +264,8 @@ export function TutorChat({
               <p>{m.workspaceChange.status === 'applied' ? 'Tutor change applied' : m.workspaceChange.status === 'undone' ? 'Tutor change undone' : m.workspaceChange.status === 'restored' ? 'Earlier state restored' : m.workspaceChange.reason ?? 'No change was applied.'}</p>
               {m.id === latestChange?.id && m.workspaceChange.status === 'applied' && onWorkspaceResult && <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2" disabled={sending || disabled} onClick={() => undoChange(m.id)} title="Restore the whole pre-turn workspace, including any subsequent manual edits">Undo Tutor change</button>}
             </div>}
-            {m.role === 'assistant' && Boolean(m.focus?.groups?.length) && <section aria-label="Workspace comparison" className="flex flex-wrap gap-2">
-              {m.focus!.groups!.map((group, index) => <figure key={index} data-testid="branch-comparison-shape" className="rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] p-2">
+            {m.role === 'assistant' && Boolean(m.comparisonGroups?.length) && <section aria-label="Workspace comparison" className="flex flex-wrap gap-2">
+              {m.comparisonGroups!.map((group, index) => <figure key={index} data-testid="branch-comparison-shape" className="rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] p-2">
                 <figcaption className="max-w-48 text-xs"><strong className="block">{group.branch_title}</strong><span className="text-[var(--text-secondary)]">{group.label}</span></figcaption>
                 <PhysicalChordDiagram positions={group.notes} tuning={group.tuning} />
               </figure>)}
