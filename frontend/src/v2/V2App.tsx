@@ -3,6 +3,7 @@ import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
 import { BranchNavigation } from './BranchNavigation';
+import { HarmonyWorkspace } from './HarmonyWorkspace';
 import { WorkspacePlaceholder } from './WorkspacePlaceholder';
 import type { V2Branch, V2Session } from '../types/v2';
 
@@ -15,6 +16,7 @@ export function V2App() {
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +32,17 @@ export function V2App() {
     setActiveSession(session);
     setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
   }, []);
+
+  const handleConcept = async (value: string) => {
+    const match = /^([A-G](?:#|b)?)\s*(.*)$/i.exec(value.trim());
+    if (!match) { setError('Enter a root and scale, such as A Dorian.'); return; }
+    const root = match[1][0].toUpperCase() + match[1].slice(1);
+    const mode = (match[2] || 'major').toLowerCase().replaceAll(' ', '_');
+    try {
+      const session = await apiClient.openHarmony(root, mode === 'minor' ? 'natural_minor' : mode);
+      openSession(session); setSessions(previous => [session, ...(previous ?? [])]); setError(null);
+    } catch (err) { setError(String(err)); }
+  };
 
   const handleStart = async () => {
     try {
@@ -129,7 +142,7 @@ export function V2App() {
         />
         {branch && (
           <section id={`workspace-panel-${branch.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${branch.id}`}>
-            <WorkspacePlaceholder branch={branch} />
+            {branch.active_workspace === 'harmony' ? <HarmonyWorkspace key={branch.id} branch={branch} onChange={patchBranch} /> : <WorkspacePlaceholder branch={branch} />}
           </section>
         )}
       </main>
@@ -165,6 +178,12 @@ export function V2App() {
           </div>
         </section>
       )}
+      <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="my-4">
+        <label htmlFor="explore-scale">Explore a scale or key</label>
+        <div className="music-controls"><input id="explore-scale" placeholder="A Dorian" value={search} onChange={event => setSearch(event.target.value)} style={{ width: 'min(100%, 24rem)' }} />
+          <button className="music-button" type="submit">Explore scale</button></div>
+      </form>
+      <button type="button" className="music-button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
       <button type="button" data-testid="v2-start-session" onClick={handleStart}>
         Start something new
       </button>

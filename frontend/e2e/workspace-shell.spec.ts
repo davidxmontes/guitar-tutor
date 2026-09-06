@@ -3,14 +3,14 @@ import { expect, test } from '@playwright/test'
 // Ticket #101 (Seam 5): a new Session opens a Branch whose active_workspace is
 // 'harmony' and renders the placeholder; BranchNavigation switches between two
 // Branches.
-test('new session opens a Harmony placeholder and BranchNavigation switches two branches', async ({ page }) => {
+test('new session opens a Harmony workspace and BranchNavigation switches two branches', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/v2')
 
   await page.getByTestId('v2-start-session').click()
 
   const sessionId = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '')
-  await expect(page.getByTestId('workspace-placeholder-harmony')).toBeVisible()
+  await expect(page.getByTestId('harmony-workspace')).toBeVisible()
 
   // The new Branch really is a Harmony Exploration with active_workspace 'harmony'.
   const session = await page.request.get(`/api/v2/sessions/${sessionId}`).then(r => r.json())
@@ -31,5 +31,5 @@ test('new session opens a Harmony placeholder and BranchNavigation switches two 
   // Switch back to the first branch via the tab.
   await page.getByRole('tab', { name: 'New workspace' }).first().click()
   await expect(page.getByTestId('v2-active-branch')).toHaveText(`Branch ${firstBranchId}`)
-  await expect(page.getByTestId('workspace-placeholder-harmony')).toBeVisible()
+  await expect(page.getByTestId('harmony-workspace')).toBeVisible()
 })

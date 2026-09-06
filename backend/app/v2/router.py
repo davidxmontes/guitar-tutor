@@ -588,3 +588,82 @@ async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_cur
     # fresh-Progression-idea (DATA-03).
     session = store.create_session(user_id)
     return store.get_session(session.id, user_id)
+
+
+# --- Harmony: deterministic entry and learner-owned musical controls ---
+from uuid import uuid4
+from app.v2.harmony_state import ChordRef, HarmonyExploration, HarmonyFocus, TonalCenter, Tuning
+from app.v2.harmony import change_subject, change_tuning, resolve_harmony
+from app.v2.workspace import StrictModel
+from app.v2.turns import live_composition
+from app.v2.concepts import SCALE_NAMES, CIRCLE_KEYS
+from app.services.scale_service import VALID_ROOTS
+
+
+class HarmonyEdit(StrictModel):
+    tonal_center: TonalCenter | None = None
+    tuning: Tuning | None = None
+    focus: HarmonyFocus | None = None
+    add_scratch: ChordRef | None = None
+
+
+def owned_branch(store, session_id, branch_id, user_id):
+    try:
+        session = store.get_session(session_id, user_id)
+        branch = next((b for b in session.branches if b.id == branch_id), None)
+        if branch is None:
+            raise NotFoundError('Branch not found')
+        return branch
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def harmony_response(branch, store, user_id):
+    if branch.harmony_exploration is None:
+        raise HTTPException(status_code=422, detail='No Harmony Exploration')
+    return {'branch': branch, 'resolved': resolve_harmony(branch.harmony_exploration),
+            'composition': live_composition(branch, store.list_tutor_messages(branch.tutor_thread_id, user_id)),
+            'catalog': {'roots': VALID_ROOTS, 'scales': SCALE_NAMES, 'circle_keys': CIRCLE_KEYS}}
+
+
+@router.post('/harmony/open', response_model=Session)
+async def open_harmony(center: TonalCenter, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    session = store.create_session(user_id)
+    branch = session.branches[0]
+    store.update_branch(session.id, branch.id, user_id, title=f'{center.root} {center.scale.replace("_", " ")}',
+                        harmony_exploration=HarmonyExploration(tonal_center=center,
+                            provenance={'kind': 'concept-seed', 'concept': f'{center.root} {center.scale}'}))
+    return store.get_session(session.id, user_id)
+
+
+@router.post('/harmony/resolve')
+async def resolve_harmony_preview(state: HarmonyExploration, user_id: str = Depends(get_current_user)):
+    return resolve_harmony(state)
+
+
+@router.get('/sessions/{session_id}/branches/{branch_id}/harmony')
+async def read_harmony_surface(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    return harmony_response(owned_branch(store, session_id, branch_id, user_id), store, user_id)
+
+
+@router.patch('/sessions/{session_id}/branches/{branch_id}/harmony')
+async def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    branch = owned_branch(store, session_id, branch_id, user_id)
+    state = branch.harmony_exploration
+    if state is None:
+        raise HTTPException(status_code=422, detail='No Harmony Exploration')
+    try:
+        if 'tonal_center' in edit.model_fields_set:
+            state = change_subject(state, edit.tonal_center)
+        if edit.tuning is not None:
+            state = change_tuning(state, edit.tuning)
+        data = state.model_dump()
+        if edit.focus is not None:
+            data['focus'] = edit.focus.model_dump()
+        if edit.add_scratch is not None:
+            data['scratch'].append({'id': uuid4().hex, **edit.add_scratch.model_dump()})
+        state = HarmonyExploration.model_validate(data)
+        updated = store.update_branch(session_id, branch_id, user_id, harmony_exploration=state)
+        return harmony_response(updated, store, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

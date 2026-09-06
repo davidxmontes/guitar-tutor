@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { ViewConfig } from './Composition';
 import { CompositionView } from './Composition';
 import { comparisonComposition } from './compare';
 import type { ComparePeer } from './compare';
@@ -36,11 +37,11 @@ export function WorkspaceHeader({ title, focus, onBack, children }: { title: str
   </header>;
 }
 
-export function ComparisonView({ peers, onClear, renderPeer }: { peers: ComparePeer[]; onClear: () => void; renderPeer: (peer: ComparePeer) => ReactNode }) {
+export function ComparisonView({ peers, onClear, renderPeer }: { peers: ComparePeer[]; onClear: () => void; renderPeer: (peer: ComparePeer, config: ViewConfig, nudge: (value: ViewConfig) => void) => ReactNode }) {
   if (peers.length < 2) return null;
   return <section data-testid="comparison-view" aria-label="Comparison">
     <button type="button" className="music-button" onClick={onClear}>Clear comparison</button>
     <CompositionView composition={comparisonComposition(peers)} liveTurnId={peers.map(peer => peer.id).join('|')}
-      renderBlock={block => <div data-testid="comparison-peer">{renderPeer(block.subject as ComparePeer)}</div>} />
+      renderBlock={(block, _path, nudge) => <div data-testid="comparison-peer">{renderPeer(block.subject as ComparePeer, block.config ?? {}, nudge)}</div>} />
   </section>;
 }

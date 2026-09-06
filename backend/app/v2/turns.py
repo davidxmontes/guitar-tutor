@@ -10,10 +10,17 @@ def musical_snapshot(branch: Branch) -> dict:
 
 
 def starter_composition(branch: Branch) -> Composition:
-    # H2a/P2a replace these shell captions with the subject-specific starters.
-    return validate_composition(branch.active_workspace, {
+    if branch.active_workspace == 'harmony':
+        return validate_composition('harmony', {
+            'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
+                'hero': [{'kind': 'fretboard', 'subject': 'scale', 'config': {'labels': 'degrees'}}],
+                'support': [{'kind': 'chord-palette'}, {'kind': 'explanation', 'subject': 'scale',
+                            'config': {'text': 'Explore the scale notes and their diatonic chords.'}}],
+            }})
+    # P2a supplies the Progression starter when its editor lands.
+    return validate_composition('progression', {
         'pattern': 'explanation-led', 'focal': 'explanation', 'slots': {
-            'explanation': [{'kind': 'explanation', 'config': {'text': 'Explore a musical question with your Tutor.'}}],
+            'explanation': [{'kind': 'explanation', 'config': {'text': 'Develop an idea with your Tutor.'}}],
             'illustration': [{'kind': 'fretboard'}],
         }})
 
