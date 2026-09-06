@@ -81,8 +81,12 @@ class ApiClient {
     return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/save`, { method: 'POST', body: JSON.stringify({ expected_version: version, title, as_new: asNew }) });
   }
 
-  openConceptWorkspace(sessionId: string, recipe: ConceptWorkspace['provenance'] = 'scale-comparison'): Promise<V2Branch> {
-    return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces`, { method: 'POST', body: JSON.stringify({ recipe }) });
+  exploreCatalog(): Promise<import('../types/conceptWorkspace').ExploreRecipe[]> {
+    return this.fetch('/v2/concept-workspaces/catalog');
+  }
+
+  openConceptWorkspace(sessionId: string, recipe: ConceptWorkspace['provenance'] = 'scale-comparison', mode?: import('../types/conceptWorkspace').ScaleMode): Promise<V2Branch> {
+    return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces`, { method: 'POST', body: JSON.stringify({ recipe, mode }) });
   }
 
   transformWorkspaceProgression(workspace: ConceptWorkspace, blockId: string, action: import('../types/conceptWorkspace').ProgressionAction): Promise<ConceptWorkspace> {

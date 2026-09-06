@@ -104,7 +104,7 @@ export interface SongStudyPayload {
 }
 
 export interface ArtifactRevision { revision: string; current: boolean }
-export type LibraryItem = Omit<Artifact, 'payload'> & { provenance: Record<string, unknown> | null };
+export type LibraryItem = Omit<Artifact, 'payload'> & { is_concept_workspace?: boolean; provenance: Record<string, unknown> | null };
 
 export interface Artifact {
   id: string;

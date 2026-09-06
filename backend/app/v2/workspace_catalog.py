@@ -30,7 +30,7 @@ def open_recipe(request: OpenWorkspaceRequest):
 
 def explore_catalog():
     entries = [
-        ('scale-comparison','Explore major vs minor','What makes the same notes feel different?','Hear two scales, then find the changed notes.','scale major minor compare'),
+        ('scale-comparison','Explore major vs minor','How does major sound different from minor?','Hear two scales, then find the changed notes.','scale major minor compare'),
         ('physical-resolution','Why does D resolve to G?','Why does one chord lead to another?','Hear the change and follow each finger.','chord resolution transition voice leading circle fifths harmony'),
         ('caged-exploration','Connect CAGED shapes','How does one chord connect across the neck?','Compare neighboring shapes and keep one to play.','caged chord shapes regions fretboard'),
         ('four-chord-progression','Explore I–V–vi–IV','How do four chords become a song?','Hear a familiar pattern, then change a chord.','progression four chords 1 5 6 4 I V vi IV'),

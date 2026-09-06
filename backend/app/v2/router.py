@@ -807,7 +807,7 @@ class RestoreArtifactRequest(SaveArtifactRequest):
 
 @router.get("/library")
 async def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    return [{**a.model_dump(exclude={"payload"}), "provenance": a.payload.get("created_from") or a.payload.get("inspired_by") or ({"title": a.title, "song_id": a.payload.get("song_id"), "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
+    return [{**a.model_dump(exclude={"payload"}), "is_concept_workspace": a.kind == "concept_study" and "entities" in a.payload, "provenance": a.payload.get("created_from") or a.payload.get("inspired_by") or ({"title": a.title, "song_id": a.payload.get("song_id"), "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
             for a in store.list_artifacts(user_id) if a.saved_at]
 
 
