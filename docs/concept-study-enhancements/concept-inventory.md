@@ -1,237 +1,206 @@
-# Guitar Tutor V2 — Concept & Visualization Inventory
+# Guitar Tutor V2 — Concept & Block Catalog
 
-**Status:** Working design reference / discovery draft. Not a spec.
-**Purpose:** Map what learners should achieve → the concepts that get them there → the
-musical objects and visual primitives that express those concepts → which primitive is
-the *hero* for each concept. Everything downstream (starters, block kinds, layouts,
-Tutor recipes) should trace back to this document.
+**Status:** Working design reference. Not a spec, not a curriculum.
 **Grounded against:** `feature/workspace-ux-cleanup` at `bc2d4ad` (2026-09-05).
 **Companion docs:** `guitar_tutor_v2_composable_concept_workspace_brain_dump.md` (architecture),
 `guitar_tutor_v2_concept_workspace_grill_decisions.md` (decisions), `../../CONTEXT.md` (glossary).
 
-Glossary terms are used as defined in `CONTEXT.md`: **Entity**, **Relation**, **Block**,
-**Inspection**, **ConceptWorkspace**, **Tutor Focus**.
+Glossary terms per `CONTEXT.md`: **Entity**, **Relation**, **Block**, **Inspection**,
+**ConceptWorkspace**, **Tutor**, **Tutor Focus**.
 
 ---
 
-## 0. How to read this
+## 0. The model, in one paragraph
 
-Six layers, each feeding the next:
+There is **no hard-coded lesson or layout per concept.** The product is:
 
-1. **Learner & outcomes** — who this is for and what they can *do* afterward. _Owned by product; open questions below._
-2. **Concept units** — the teachable atoms.
-3. **Musical objects & relations** — the Entities/Relations that carry a concept.
-4. **Visual primitives** — the rendering vocabulary.
-5. **Concept → primitive mapping** — hero vs. support, per concept.
-6. **Interaction grammar** — the verbs that apply across all of it.
+> **a catalog of musical concepts + a catalog of visual blocks, and the Tutor has free
+> rein to pick, combine, arrange, and annotate them to explain whatever the learner
+> asks.**
 
-Layers 2–6 are seeded here from the codebase and prior analysis. Assumptions are marked
-**[ASSUMPTION]**. Layer 1 is mostly **[OPEN]**.
+This doc catalogs both halves and flags where the model or the blocks are too thin for
+the Tutor to compose well. The four current "starters" are just seed questions — entry
+points, not curated experiences.
 
----
-
-## 1. Learner & outcomes
-
-### 1.1 Who is the learner? **[OPEN]**
-
-Candidate profiles — we should pick a primary and maybe a secondary:
-
-| Profile | Knows | Wants |
-|---|---|---|
-| **A. Advanced beginner** | open chords, a couple of strum patterns, no theory | "why do these chords go together," "what do I play over this" |
-| **B. Plateaued intermediate** | many chords, some scales, plays songs | the fretboard to "click" as one system; improvise; transpose on the fly |
-| **C. Returning / self-taught** | scattered knowledge, gaps | fill the holes, connect what they half-know |
-
-**[ASSUMPTION]** The four current starters (major vs minor, why D→G, CAGED, I–V–vi–IV)
-target roughly **profile B** — they presume you already play chords and want the
-*why* and the *whole-neck* picture. If the real target is profile A, the starters and
-their entry framing need to change (more "here's a shape, here's the sound" and less
-"here's a comparison relation").
-
-### 1.2 Target outcomes **[OPEN — needs a real list]**
-
-Draft verbs, to be confirmed/trimmed. "The learner can…"
-
-- …hear the difference between major and minor and name the notes that change.
-- …harmonize in a key: build the I–ii–iii–IV–V–vi–vii° family and know which are major/minor.
-- …explain why a V chord pulls back to I (leading tone, common tone).
-- …play any major/minor chord in at least 3 places on the neck using the CAGED system.
-- …take a progression and transpose it to a new key without a capo.
-- …pick a scale to improvise with over a given key or progression.
-- …recognize the I–V–vi–IV loop and play it as a repeating phrase.
-- …read a chord diagram and a fretboard diagram and map one to the other.
-
-### 1.3 North-star **[OPEN]**
-
-One sentence. Something like: _"A guitarist who half-knows theory opens a question,
-hears and sees the answer on their own fretboard in under a minute, then pokes at it."_
-Confirm or replace.
+What we build: **blocks** (§3), the **model bindings** the Tutor needs to attach blocks
+to (§4), and **insight notes** (§5). Not per-concept heroes.
 
 ---
 
-## 2. Concept units
+## 1. Learner & intent
 
-Each concept: a one-line **"understands it when…"**, the primary **Entity/Relation** that
-carries it, and current **coverage** (✅ built, 🟡 partial, ⬜ not yet).
+**Who:** a player who can already hold a few chords and wants to **understand the theory
+behind what they play** and **discover new progressions and voicings.** Late-beginner
+through intermediate. Motivation is curiosity, not a course.
 
-| # | Concept | Understands it when… | Carrier | Coverage |
-|---|---|---|---|---|
-| C1 | **Intervals / half-steps** | can say two notes are "a half step / whole step / a fifth" apart | (none yet — implicit in every view) | 🟡 shown as fret distance, never named as a primitive |
-| C2 | **The major scale** | can spell a major scale from any root and number its degrees 1–7 | `Scale` | ✅ `degree_strip`, `fretboard` |
-| C3 | **Minor & the modes** | knows minor = ♭3 ♭6 ♭7 vs major; knows a mode is the same notes from a new "home" | `Scale`, `Compare` | 🟡 comparison works; "same notes, new home" is never shown |
-| C4 | **Pentatonic / blues** | knows these are the major/minor scale with notes removed (and blues adds ♭5) | `Scale` (modes `pentatonic_*`, `blues`) | 🟡 exist as modes; the "subset of" relationship is invisible |
-| C5 | **Chord construction (triads, 7ths)** | can build a chord as stacked 3rds: 1–3–5, 1–♭3–5, +7 | `Chord` | 🟡 chord tones shown; the "stack of 3rds" idea isn't |
-| C6 | **Diatonic harmony (the key family)** | can name the 7 chords in a key and which are major/minor/dim | `Key` → derived chords | 🟡 roman numerals appear in the progression; no "here's the whole family" view |
-| C7 | **Function & cadence (why chords move)** | can explain tension→resolution: V→I, the leading tone, common tones | `Transition` | 🟡 movement is computed; buried in prose |
-| C8 | **Keys & the circle of fifths** | knows which keys are "close," relative major/minor, sharps/flats | `Key` | ✅ `circle` block |
-| C9 | **Transposition** | can move a progression to a new key and know it's the *same music* higher/lower | `Progression` (transpose action) | ✅ transpose action; "same music, shifted" not visualized |
-| C10 | **The CAGED system** | can find one chord in 5 shapes up the neck and see how they overlap/chain | `Chord` (caged) | 🟡 regions + adjacency exist; "all 5 at once across the neck" not shown |
-| C11 | **Voicings & voice-leading** | knows one chord has many shapes; can pick smooth motion between two chords | `Voicing`, `Transition` | 🟡 diagrams + movement exist; per-finger motion is prose |
-| C12 | **Progressions as phrases** | hears 4 chords as a repeating loop, not a list; recognizes common loops | `Progression` | 🟡 chord cards exist; loop/repetition/rhythm absent |
-| C13 | **The fretboard as one system** | can locate any note, sees octaves and shapes tiling the neck | `Scale`/`Chord` on `fretboard` | 🟡 windowed fretboard only; no octave/tiling story |
-| C14 | **Chord–scale fit (what to play over what)** | can pick a scale that fits a chord or key for improvising | `Scale` + `Key`/`Chord` (no Relation yet) | ⬜ no Relation, no view |
+**Assume:** note names, basic open chords. **Don't assume:** intervals, modes, roman
+numerals, the word "voicing."
 
-**Gaps worth noting:** C1 (intervals as a first-class thing), C6 (the key family as a
-view), C14 (chord–scale fit) have no home in the current model.
+**North-star:** *A workspace for exploring musical ideas — visually and by ear — not a
+course. You open a question, hear and see the answer on a fretboard, change the inputs,
+and follow your curiosity. The Tutor is a guide you can ask.*
+
+**Explore areas the product owner named:** scales · triads · chords in a scale (diatonic
+harmony) · voicings · progressions · CAGED · circle of fifths · (and natural neighbours:
+intervals, modes, pentatonic/blues, chord–scale fit).
 
 ---
 
-## 3. Musical objects & relations
+## 2. Concept catalog
 
-### 3.1 Entities (current)
+Musical ideas the Tutor can build an explanation around. The **coverage** column is the
+useful part: it says where today's blocks/model fall short of expressing the idea.
 
-`Scale` · `Key` · `Chord` · `Voicing` · `Progression` — plus `NoteGroup` reserved in the
-glossary but not implemented.
-
-Backed by the theory engine: 13 scale modes (`SCALE_INTERVALS`), chord qualities
-major / minor / (7ths, sus in `CHORD_INTERVALS` but ConceptWorkspace `Chord` is
-restricted to major/minor), CAGED positions for major & minor.
-
-### 3.2 Relations (current)
-
-`Compare` (two Scales, or Chord vs Chord) · `Transition` (two Voicings + a Key).
-
-### 3.3 Relations we're missing **[ASSUMPTION — flag for domain modeling]**
-
-| Proposed Relation | Concept it unlocks | Example |
-|---|---|---|
-| **Contains** / `subset-of` | C4 pentatonic-as-subset, C3 mode-shares-notes | "A minor pentatonic ⊂ A natural minor" |
-| **Diatonic-to** (Key → its 7 Chords) | C6 the key family | "these 7 chords belong to G major" |
-| **Mode-of** (Scale → parent Scale) | C3 "same notes, new home" | "D dorian is C major from D" |
-| **Fits-over** (Scale ↔ Key/Chord/Progression) | C14 what-to-play-over | "A minor pentatonic fits over an Am–F–C–G loop" |
-
-Whether these become real Relations or stay derived facts is a modeling decision. The
-point of listing them: today they're **implicit**, so no Block can be *bound* to them,
-so the Tutor can't compose a view around them.
-
----
-
-## 4. Visual primitives
-
-The rendering vocabulary. Current **Blocks** are marked ●; proposed are ○.
-
-| Primitive | Good at | Bad at | Status |
+| # | Concept | The core idea | Coverage today |
 |---|---|---|---|
-| ● **Fretboard — windowed** (`fretboard`, N-fret slice) | "where is this note near here," one position | the whole-neck picture; octaves | built |
-| ○ **Fretboard — full neck** (0–15+) | C13 tiling, C10 all 5 CAGED shapes, octave shapes | detail in one spot; small screens | proposed |
-| ○ **Fretboard — zoned** (colored spans over the neck) | C10 CAGED regions & their overlaps, "position playing" | precise single notes | proposed |
-| ● **Chord diagram — static** (`PhysicalChordDiagram`) | one voicing, quick read | motion between chords; why | built |
-| ○ **Chord diagram — editable** (click a fret to move a finger) | C11 voicing tweaks without dropdowns | — | proposed (replaces the 12-select editor) |
-| ● **Degree strip** (`degree_strip`, one scale's 1..7) | C2 numbering a scale | comparison (needs two, side by side) | built |
-| ○ **Degree-comparison strip** (two scales stacked per degree) | C3/C4 "these 3 notes change," major↔minor | more than 2 scales | proposed |
-| ● **Circle of fifths** (`circle`) | C8 key distance, relative maj/min | C7 *why one specific chord resolves* | built |
-| ○ **Key-family view** (the 7 diatonic chords in a row, I..vii°) | C6 harmonize a key at a glance | non-diatonic music | proposed |
-| ○ **Movement / voice-leading diagram** (two shapes + per-string arrows) | C7/C11 "F# pulls up to G, D stays" | more than 2 chords at once | proposed (the D→G hero) |
-| ○ **Loop / bar timeline** (chords as bars that visibly repeat) | C12 progression-as-phrase, rhythm | harmonic analysis | proposed (the I–V–vi–IV hero) |
-| ○ **Interval ruler** (semitone strip; distance between two notes) | C1 naming intervals | chords, position | proposed |
-| ● **Progression chord cards** (`progression`) | listing chords + roman numerals + a diagram each | the *loop* feeling | built |
-| ○ **Piano/keyboard strip** | C5 stacked-3rds, C1 intervals for non-guitar intuition | it's a guitar app — use sparingly | maybe |
+| C1 | **Intervals / half-steps** | distance between two notes, named (m3, P5, tritone…) | 🟡 visible as fret gaps, never named or measurable |
+| C2 | **Major scale** | 7 notes, numbered 1–7, a pattern on the neck | ✅ degree strip + fretboard |
+| C3 | **Minor & modes** | minor = ♭3 ♭6 ♭7; a mode is the same notes from a new home | 🟡 compare works; "same notes, new home" unshown |
+| C4 | **Pentatonic / blues** | the scale with notes removed (blues adds ♭5) | 🟡 exist as modes; "subset of" invisible |
+| C5 | **Triads & 7ths** | a chord is stacked 3rds: 1–3–5 (+7); four triad qualities | 🟡 chord tones shown; stacking idea not; Chord limited to maj/min |
+| C6 | **Chords in a scale (diatonic harmony)** | the 7 chords a key contains, and which are maj/min/dim | 🟡 roman numerals leak into the progression view; no "the family" view |
+| C7 | **Function & cadence** | tension → resolution; V→I; leading tone; common tones | 🟡 movement computed; buried in prose |
+| C8 | **Keys / circle of fifths** | key distance, relative maj/min, sharps & flats, near-by chords | ✅ circle block |
+| C9 | **Transposition** | same music, moved to a new key | ✅ action exists; "same, shifted" not visualized |
+| C10 | **CAGED** | one chord, five shapes, connected up the neck | 🟡 regions + adjacency exist; not "all five across the whole neck" |
+| C11 | **Voicings & voice-leading** | one chord, many shapes; smooth motion between two chords | 🟡 diagrams + movement exist; per-finger motion is prose |
+| C12 | **Progressions as phrases** | 4 chords heard as a repeating loop, not a list | 🟡 chord cards; no loop / repetition / rhythm |
+| C13 | **The fretboard as one system** | any note, octaves, shapes tiling the neck | 🟡 windowed only; no whole-neck / tiling story |
+| C14 | **Chord–scale fit** | which scale to play over a chord / key / progression | ⬜ no model binding, no view |
+
+**Where the Tutor is currently blocked:** C6 and C14 have no Relation to bind a view to
+(§4). C1, C10, C12, C13 need blocks that don't exist yet (§3).
+
+---
+
+## 3. Block catalog
+
+The visual palette. `●` built, `○` proposed. "Binds to" = which Entities/Relations a
+block can be attached to (drives what the Tutor can do with it).
+
+| Block | Renders | Binds to | Strong at | Weak at |
+|---|---|---|---|---|
+| ● **Fretboard (windowed)** | notes of a scale/chord on an N-fret slice | scale, compare, chord, voicing, transition | "where is this, near here" | whole-neck picture, octaves |
+| ○ **Fretboard (full neck)** | same, frets 0–15+, horizontal scroll, optional region tint | same | C10, C13, seeing a scale *pattern* | detail density, small screens |
+| ● **Chord diagram (static)** | one voicing | voicing, chord, transition | quick read of a shape | motion, why |
+| ○ **Chord diagram (editable)** | click a fret to add/move/mute a finger | voicing | C11 without dropdowns | — |
+| ● **Degree strip** | one scale's notes as 1..7 | scale, compare | C2, C5 (chord tones as 1–3–5) | two-way comparison |
+| ○ **Degree-comparison strip** | two scales/chords stacked per degree, diffs lit | compare, + a new "subset/mode" relation | C3, C4, major↔minor at a glance | 3+ things |
+| ● **Circle of fifths** | 12 keys on a wheel, home + neighbours | key | C8, "which chords sit near home" | C7 "why *this* chord resolves" |
+| ○ **Key-family strip** | the 7 diatonic chords I..vii°, qualities marked | a new Key→chords relation (§4) | C6, feeds C12 | non-diatonic music |
+| ○ **Movement diagram** | two shapes side by side + per-string arrows | transition | C7, C11 per-finger motion | 3+ chords |
+| ○ **Loop timeline** | chords as bars on a repeating strip, play-loops | progression | C12 phrase feel, rhythm | analysis |
+| ● **Progression chord cards** | chords + roman numerals + a diagram each | key, progression | listing, roman numerals | the loop feel |
+| ○ **Interval ruler** | a semitone strip; pick two notes, see the interval | any two notes (Inspection) | C1 | chords, position |
+| ○ **Piano/keyboard strip** | notes on keys | scale, chord | C5 stacking, non-guitar intuition | it's a guitar app — sparing |
 
 Notes:
-- The **fretboard** is really 3 primitives (windowed / full / zoned) that today are collapsed into one.
-- "Hear" is not a primitive but is attached to almost every one (see §6).
+- **"Fretboard"** is really 3 blocks collapsed into one today; a full-neck, tint-capable
+  fretboard subsumes the proposed windowed + zoned + CAGED-neck ideas.
+- **Hear** is not a block — it's a verb (§6) attached to almost every block.
+- New blocks should each render a *range* of bindings, not one hard-coded case — that's
+  what keeps them composable.
 
 ---
 
-## 5. Concept → primitive mapping
+## 4. Model bindings the Tutor needs
 
-**Hero** = the single visual that answers the question. **Support** = available, demoted
-or collapsed by default. This table is the rule set that replaces per-flow judgement calls.
+A Block can only be placed against an Entity or a Relation. So the set of Relations
+directly limits what the Tutor can compose.
 
-| Concept | Hero | Support | Not this |
-|---|---|---|---|
-| C1 Intervals | Interval ruler | windowed fretboard | circle |
-| C2 Major scale | Degree strip | full-neck fretboard | — |
-| C3 Minor & modes | **Degree-comparison strip** | full-neck fretboard (changed notes only), "same notes new home" callout | full chromatic fretboard dump |
-| C4 Pentatonic/blues | Degree-comparison strip (vs parent scale) | zoned fretboard | — |
-| C5 Chord construction | Degree strip (chord tones as 1–3–5) | chord diagram, keyboard strip | — |
-| C6 Diatonic harmony | **Key-family view** | circle (relative min), progression | — |
-| C7 Function & cadence | **Movement / voice-leading diagram** | key-family view (small), Hear | **circle of fifths as a peer panel** |
-| C8 Keys / circle | Circle of fifths | key-family view | fretboard |
-| C9 Transposition | Loop timeline with a before/after key marker | chord diagrams | — |
-| C10 CAGED | **Full/zoned neck, all 5 shapes** | two adjacent chord diagrams, movement list (both on demand) | 0–5 windowed fretboard |
-| C11 Voicings / voice-leading | Movement diagram | editable chord diagrams | 12 fret-selects |
-| C12 Progressions as phrases | **Loop / bar timeline** | chord cards, roman numerals | — |
-| C13 Fretboard system | Full neck | windowed fretboard for detail | — |
-| C14 Chord–scale fit | Full neck (scale) + chord tones highlighted | Hear over the loop | — |
+### Current
+`Compare` (scale↔scale, chord↔chord) · `Transition` (voicing↔voicing + key).
 
-### 5.1 Applying this to the four starters
+### Gaps (recommended additions, in priority order)
 
-| Starter | Question | Concepts | Hero today | Hero it should have |
-|---|---|---|---|---|
-| scale-comparison | major vs minor | C3 | windowed fretboard (span 8) | degree-comparison strip |
-| physical-resolution | why D→G | C7, C11 | chord diagrams + **circle (wrong)** | voice-leading movement diagram |
-| caged-exploration | one chord across the neck | C10 | CAGED text panel + 2-shape fretboard | full/zoned neck, all 5 |
-| four-chord-progression | 4 chords → a song | C12, C6 | chord cards | loop timeline |
+| Add | Unlocks | Example |
+|---|---|---|
+| **Key → diatonic chords** (a derived set, or a `Diatonic` relation) | C6 "chords in a scale" — an explore area the owner named with **zero** current coverage; feeds progressions and the circle | "the 7 chords of G major" |
+| **Fits-over** (scale ↔ key / chord / progression) | C14 "what do I play over this" — pairs directly with "discover progressions" | "A minor pentatonic over Am–F–C–G" |
+| **Subset / parent** (scale ↔ scale) | C3 "same notes, new home"; C4 pentatonic-as-subset | "A minor pentatonic ⊂ A natural minor" |
 
-Every starter also gets the same shell: **hook** (question + Hear + one-line answer) →
-**hero** → **support (collapsed)** → Music bar + Tutor. "Add view" / "Remove view"
-becomes a **Customize** affordance, not default chrome.
+`Diatonic` and `Fits-over` are the two that expand the Tutor's reach into the areas the
+owner cares most about. `Subset/parent` is nice-to-have.
+
+Also worth doing: widen `Chord` beyond major/minor (the theory engine already has 7ths
+and sus in `CHORD_INTERVALS`) so C5 can actually be explored.
+
+---
+
+## 5. Insight notes (proposed capability)
+
+A short, Tutor-authored (or learner-authored) note **anchored to a Block, or to a
+position inside one**, rendered as a small callout rather than buried prose.
+
+- **Anchor:** a block id, optionally + a target inside it (a fret position, a scale
+  degree, a chord step, a circle node).
+- **Author:** `tutor` | `learner`.
+- **Lifecycle:** persists with the Working Draft; learner can dismiss or keep; a kept
+  note survives Tutor changes the way a kept voicing does.
+- **Why:** replaces the "String-by-string movement" / "How the fingers move" disclosure
+  dumps with contextual, on-the-diagram explanation the Tutor writes for *this* state.
+
+Rough shape:
+
+```
+InsightNote {
+  id
+  anchor: { block_id, target?: <fret | degree | step | node> }
+  text            // one or two sentences
+  author: 'tutor' | 'learner'
+}
+```
+
+Open: does it live on the ConceptWorkspace (persisted, editable) or on the Tutor Turn
+(ephemeral, like Tutor Focus)? Leaning **workspace** — the learner should be able to keep
+a good explanation.
 
 ---
 
 ## 6. Interaction grammar
 
-The verbs, and where each lives after the Music-bar consolidation (`bc2d4ad`).
-
 | Verb | What it does | Lives in |
 |---|---|---|
-| **Hear** | play the scale / chord / progression / transition | hook (primary), plus per-support-view where local |
-| **Inspect** | select one note/chord/region; highlight it across every compatible view | the views (click a note/card/zone) |
-| **Edit source** | change root / mode / quality / key / tuning / chord | **Music bar** (one place, every flow) |
-| **Edit selected** | change the currently-inspected chord/voicing | Music bar, contextual "Chord N…" section |
-| **Select / navigate** | pick a CAGED region, a progression step, a fret window | the views |
-| **Keep / materialize** | turn a derived thing into an editable Entity (CAGED "Keep voicing", progression "Work with these chords") | the views (it's an action on what you're looking at) |
-| **Ask Tutor** | natural-language question or change request on the same state | Tutor rail |
-| **Customize layout** | add/remove/rearrange support views | behind a Customize toggle (proposed) |
+| **Hear** | play the scale / chord / progression / transition | a primary button + per-block where local |
+| **Inspect** | select one note / chord / region; highlight across every compatible block | the blocks |
+| **Edit source** | root / mode / quality / key / tuning / chord list | the **Music bar** (one place, every flow) |
+| **Edit selected** | change the currently-inspected chord / voicing | Music bar, contextual section |
+| **Select / navigate** | pick a region, a step, a fret window | the blocks |
+| **Keep / materialize** | turn a derived thing into an editable Entity | the blocks |
+| **Annotate** | attach an insight note to a block or a position (§5) | Tutor mainly; learner optionally |
+| **Ask Tutor** | natural-language question or change on the same state | Tutor rail |
+| **Compose** | add / remove / rearrange blocks | Tutor freely; learner via a Customize affordance |
 
-Principle: **source edits are central, everything else is local.** A control changes the
-workspace's music → Music bar. A control changes what you're looking at or how → stays in
-the view.
-
----
-
-## 7. Open questions (blocking a real spec)
-
-1. **Primary learner profile** (§1.1) — A, B, or C?
-2. **The outcome list** (§1.2) — confirm/trim; this sets scope.
-3. **Curriculum breadth** — is this "the 4 starters + scale explorations," or a fuller
-   path through C1–C14? Determines how many heroes we build.
-4. **New Relations** (§3.3) — do Contains / Diatonic-to / Mode-of / Fits-over become
-   real Relations (Tutor-composable) or stay derived facts?
-5. **Circle of fifths' role** — demote it out of D→G; is it the hero for a *new* "keys"
-   starter, or only ever support?
-6. **Hero blocks vs. composability** — are the heroes new `Block` kinds the preset places
-   as primary (stays ADR-0001-composable), or is the first-run lesson explicitly curated
-   and outside the block model?
+Principle: **source edits are central; everything else is local to the block.**
 
 ---
 
-## 8. Suggested build order (once §7 is answered)
+## 7. What to build (priority)
 
-1. Degree-comparison strip → retrofit scale-comparison. Cheapest; proves the hook→hero→support shell.
-2. Voice-leading movement diagram → retrofit physical-resolution; remove circle from that flow; kill the 12 fret-selects.
-3. Loop / bar timeline → retrofit four-chord-progression.
-4. Full/zoned neck → retrofit caged-exploration.
-5. Key-family view + a "harmonize a key" starter (new).
-6. Interval ruler + chord-scale-fit (C1, C14) if the curriculum goes that wide.
+Not "a hero per concept." Expand the palette and the model so the Tutor can explain
+freely.
+
+1. **Full-neck, tint-capable fretboard.** Highest leverage: upgrades every scale/chord
+   view, *is* the CAGED picture (C10), and gives C13 a home. Subsumes 3 proposed blocks.
+2. **Key → diatonic chords binding + Key-family strip.** Opens "chords in a scale" (C6),
+   an explore area with zero current coverage; feeds progressions.
+3. **Insight notes (§5).** Cross-cutting; lets the Tutor stop dumping prose and start
+   annotating the actual visuals. Pairs with everything above.
+4. **Degree-comparison strip.** Cheap; fixes the major/minor entry (C3/C4).
+5. **Movement diagram** + kill the 12 fret-selects (C7/C11).
+6. **Loop timeline** (C12); **Fits-over** binding + chord–scale view (C14); **interval
+   ruler** (C1) — as the workspace grows.
+
+Each item is a self-contained block or model change the Tutor gains access to — none of
+it prescribes a layout.
+
+---
+
+## 8. Decisions log
+
+- **2026-09-05** — Not a curriculum. Explore workspace; Tutor composes; no hard-coded
+  per-concept lessons or layouts. This doc reframed from "hero per concept" to "concept
+  catalog + block catalog + agent free rein."
+- **2026-09-05** — Circle of fifths: keep, but it is *support* for most things and only a
+  lead visual for keys / how-progressions-are-built. Remove it from the D→G entry.
+- **2026-09-05** — Insight notes: adopt as a capability (§5); default to workspace-persisted.
