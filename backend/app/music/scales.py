@@ -118,6 +118,12 @@ def get_diatonic_chords(root: str, mode: str) -> List[Dict]:
         chord_template = MAJOR_DIATONIC_CHORDS
     elif mode in ["natural_minor", "aeolian", "dorian", "phrygian", "locrian"]:
         chord_template = MINOR_DIATONIC_CHORDS
+    elif mode == "harmonic_minor":
+        chord_template = [("i", "minor"), ("ii°", "diminished"), ("III+", "augmented"),
+                          ("iv", "minor"), ("V", "major"), ("VI", "major"), ("vii°", "diminished")]
+    elif mode == "melodic_minor":
+        chord_template = [("i", "minor"), ("ii", "minor"), ("III+", "augmented"),
+                          ("IV", "major"), ("V", "major"), ("vi°", "diminished"), ("vii°", "diminished")]
     else:
         # For scales without traditional diatonic chords, return empty
         return []
