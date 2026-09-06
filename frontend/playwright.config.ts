@@ -19,7 +19,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `../backend/.venv/bin/uvicorn app.main:app --port ${backendPort}`,
+      command: `../backend/.venv/bin/uvicorn tests.v2.workspace_browser_app:app --port ${backendPort}`,
       cwd: '../backend',
       port: backendPort,
       env: { AUTH_DEV_BYPASS: 'true', V2_STORAGE_BACKEND: 'memory' },

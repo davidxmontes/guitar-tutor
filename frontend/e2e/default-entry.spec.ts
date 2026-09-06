@@ -7,7 +7,7 @@ test('normal entry opens the V2 shell and Classic remains a functional secondary
   await page.goto('/')
   await expect(page.getByTestId('v2-start-session')).toBeVisible()
   await page.getByTestId('v2-start-session').click()
-  await expect(page.getByTestId('workspace-placeholder-harmony')).toBeVisible()
+  await expect(page.getByTestId('harmony-workspace')).toBeVisible()
 
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.getByRole('link', { name: 'Classic fallback', exact: true }).click()

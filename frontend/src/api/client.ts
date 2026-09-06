@@ -302,6 +302,22 @@ class ApiClient {
     return this.fetch<V2Session[]>('/v2/sessions');
   }
 
+  async openHarmony(root: string, scale: string): Promise<V2Session> {
+    return this.fetch('/v2/harmony/open', { method: 'POST', body: JSON.stringify({ root, scale }) });
+  }
+
+  async getHarmony(session: string, branch: string): Promise<import('../v2/harmony').HarmonySurface> {
+    return this.fetch(`/v2/sessions/${session}/branches/${branch}/harmony`);
+  }
+
+  async editHarmony(session: string, branch: string, edit: Record<string, unknown>): Promise<import('../v2/harmony').HarmonySurface> {
+    return this.fetch(`/v2/sessions/${session}/branches/${branch}/harmony`, { method: 'PATCH', body: JSON.stringify(edit) });
+  }
+
+  async resolveHarmony(state: import('../types/v2').HarmonyExploration): Promise<import('../v2/harmony').HarmonyResolved> {
+    return this.fetch('/v2/harmony/resolve', { method: 'POST', body: JSON.stringify(state) });
+  }
+
   async getV2Session(sessionId: string): Promise<V2Session> {
     return this.fetch<V2Session>(`/v2/sessions/${sessionId}`);
   }
