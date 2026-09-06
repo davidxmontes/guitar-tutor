@@ -47,15 +47,14 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
         if terminal.candidates.candidate_kind == 'voicing':
             resolved = []
             for candidate in terminal.candidates.candidates:
-                if set(candidate) != {'id', 'label', 'chord', 'voicing_index'} or not all(isinstance(candidate[key], str) for key in ('id', 'label')):
-                    raise ValueError('Voicing candidates require id, label, chord and voicing_index')
+                if set(candidate) != {'id', 'label', 'chord', 'voicing'} or not all(isinstance(candidate[key], str) for key in ('id', 'label')):
+                    raise ValueError('Voicing candidates require id, label, chord and by-value voicing')
                 chord = ChordRef.model_validate(candidate['chord'])
+                voicing = VoicingValue.model_validate(candidate['voicing'])
                 options = chord_voicings(chord, updated.harmony_exploration.tuning)
-                index = candidate['voicing_index']
-                if type(index) is not int or not 0 <= index < len(options):
-                    raise ValueError('Voicing candidate index not found')
-                option = options[index]
-                voicing = VoicingValue(positions=[{'string': p['string'], 'fret': p['fret']} for p in option['positions']], tuning=option['tuning'])
+                trusted = [VoicingValue(positions=[{'string': p['string'], 'fret': p['fret']} for p in option['positions']], tuning=option['tuning']) for option in options]
+                if voicing not in trusted:
+                    raise ValueError('Voicing candidate must match a resolved catalog value')
                 resolved.append({'id': candidate['id'], 'label': candidate['label'], 'chord': chord.model_dump(), 'voicing': voicing.model_dump()})
             if len({item['id'] for item in resolved}) != len(resolved):
                 raise ValueError('Candidate IDs must be unique')

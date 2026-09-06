@@ -59,7 +59,10 @@ def test_voicing_candidates_resolve_catalog_and_reject_invented_positions():
     from app.v2.tutor.runner import resolve_turn_music
     store = InMemoryV2Store()
     branch = store.create_session('user').branches[0]
-    candidate = {'id': 'v', 'label': 'Try this', 'chord': {'root': 'C', 'quality': 'major'}, 'voicing_index': 0}
+    from app.v2.harmony import chord_voicings
+    from app.v2.harmony_state import ChordRef
+    value = chord_voicings(ChordRef(root='C', quality='major'), branch.harmony_exploration.tuning)[0]
+    candidate = {'id': 'v', 'label': 'Try this', 'chord': {'root': 'C', 'quality': 'major'}, 'voicing': {'positions': [{'string': p['string'], 'fret': p['fret']} for p in value['positions']], 'tuning': value['tuning']}}
     terminal = TutorTerminal(message='Try', candidates={'candidate_kind': 'voicing', 'candidates': [candidate]})
     updated = resolve_turn_music(branch, terminal)
     assert updated.harmony_exploration.pinned_voicings == []
