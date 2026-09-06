@@ -189,8 +189,9 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const progressionBlock = workspace.blocks.find(b => b.kind === 'progression') ?? null;
   const progression = progressionBlock && resolved && resolved.entities[progressionBlock.sources[0]]?.kind === 'progression'
     ? resolved.entities[progressionBlock.sources[0]] as Extract<ResolvedEntity, { kind: 'progression' }> : null;
-  const progressionKey = progression && resolved && resolved.entities[progression.key_id]?.kind === 'key'
-    ? resolved.entities[progression.key_id] as Extract<ResolvedEntity, { kind: 'key' }> : null;
+  // A derived progression shares the key's id (backend), so entities[key_id] is the
+  // progression itself; either way its notes[0] is the tonic. T4 rebuilds this block.
+  const progressionKey = progression && resolved ? resolved.entities[progression.key_id] ?? null : null;
   const selectedStep = progression && inspection?.kind === 'step' && inspection.block_id === progressionBlock?.id ? inspection.index : 0;
   const selectedChord = progression ? progression.steps[selectedStep] ?? progression.steps[0] : null;
   const cagedBlock = workspace.blocks.find(b => b.settings.mode === 'caged') ?? null;

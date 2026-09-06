@@ -78,6 +78,50 @@ test('Explore comparison coordinates music, inspection, views, audio and autosav
   expect(tutorRequests).toEqual([]);
 });
 
+test('One fretboard renders a voicing, a noteGroup, both range policies and the tuning-conflict area', async ({ page }) => {
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Explore major vs minor' }).click();
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  const sid = (await page.getByTestId('v2-active-session').innerText()).replace('Session ', '');
+  const bid = (await page.getByTestId('v2-active-branch').innerText()).replace('Branch ', '');
+  const draft = await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid).working_draft);
+  const scale = draft.entities[0].id;
+  const voicing = 'v-dropd', group = 'ng-blue', fitBoard = 'blk-fit', tiledBoard = 'blk-tiled', groupBoard = 'blk-group';
+  draft.entities.push(
+    { id: voicing, kind: 'voicing', label: 'Drop D shape', chord_id: null, tuning: [64, 59, 55, 50, 45, 38], positions: [{ string: 6, fret: 5 }, { string: 5, fret: 5 }, { string: 4, fret: 7 }] },
+    { id: group, kind: 'noteGroup', label: 'Blue notes', notes: [{ pitch_class: 3 }, { pitch_class: 8 }] },
+  );
+  draft.blocks = [
+    { id: tiledBoard, kind: 'fretboard', sources: [scale], settings: {} },
+    { id: fitBoard, kind: 'fretboard', sources: [voicing, scale], settings: {} },
+    { id: groupBoard, kind: 'fretboard', sources: [group], settings: {} },
+  ];
+  draft.composition = [{ items: [{ block_id: tiledBoard, span: 6, priority: 'supporting' }] }, ...[fitBoard, groupBoard].map(id => ({ items: [{ block_id: id, span: 12, priority: 'supporting' }] }))];
+  const updated = await page.request.put(`/api/v2/sessions/${sid}/branches/${bid}/workspace`, { data: { expected_version: draft.version, workspace: draft } });
+  expect(updated.ok()).toBe(true);
+  await page.reload();
+  await page.locator(`[data-session-id="${sid}"]`).click();
+  await page.getByRole('tab', { name: /G major vs G minor/ }).click();
+  const boards = page.getByRole('region', { name: 'Fretboard', exact: true });
+  await expect(boards).toHaveCount(3);
+
+  // Tiled-only source -> overview window (all 19 frets, capped viewport that scrolls).
+  await expect(boards.nth(0).getByRole('group', { name: /Fretboard, frets 0 to 19/ })).toBeVisible();
+  const overview = boards.nth(0).getByLabel('Guitar fretboard');
+  expect(await overview.evaluate(el => (el.firstElementChild as SVGElement).getBoundingClientRect().width > el.clientWidth)).toBe(true);
+
+  // A bounded voicing layer -> fit window with padding + 5-fret minimum (voicing frets 5-7).
+  await expect(boards.nth(1).getByRole('group', { name: /Fretboard, frets 4 to 8/ })).toBeVisible();
+  // Its differently-tuned scale never overlays the grid; it lands in the callout.
+  await expect(boards.nth(1).getByLabel('Different tuning')).toContainText(/G (major|minor)/);
+  await expect(boards.nth(1).getByLabel('Different tuning')).toContainText('string');
+
+  // A noteGroup renders as its own layer; every note keeps a note/string/fret name.
+  const groupNote = boards.nth(2).getByRole('button', { name: /(Eb|Ab), degree .+, string \d+, fret \d+/ }).first();
+  await groupNote.focus();
+  await expect(groupNote).toBeFocused();
+});
+
 test('Failed autosave preserves editable music and retries without partial server state', async ({ page }) => {
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Explore major vs minor' }).click();
