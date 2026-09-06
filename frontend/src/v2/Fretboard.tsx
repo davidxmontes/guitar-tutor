@@ -48,6 +48,7 @@ function lit(layer: Layer, inspection: TypedInspection | null): (p: WorkspacePos
     return (p) => wanted.has(p.pitch_class);
   }
   if (inspection.kind === 'region' || inspection.kind === 'region_note' || inspection.kind === 'region_pair') {
+    if (layer.shape && layer.id !== `${inspection.source_id}:${layer.shape}`) return () => false;
     const [a, b] = String(inspection.key).split(':');
     // A plain (shapeless) layer still coordinates with a region_note pointer by pitch class.
     if (!layer.shape) return inspection.kind === 'region_note' ? (p) => p.pitch_class === Number(b) : () => false;
@@ -170,10 +171,11 @@ export function Fretboard({ block, resolved, inspection, onInspect, tutorFocus, 
               const relation = role(p);
               return `${layer.shape ? `${layer.shape} shape` : layer.label}: ${p.note}, degree ${p.degree}${relation ? `, ${relation}` : ''}`;
             }).join('; ') + `, string ${cell.string}, fret ${cell.fret}`;
-            const bg = anyShared || primaryEntry.layer.sourceRole === 'highlight' ? 'var(--accent-100)'
+            const bg = anyShared || cell.entries.some(({ layer }) => layer.sourceRole === 'highlight') ? 'var(--accent-100)'
               : primaryEntry.layer.sourceRole === 'context' ? 'var(--bg-secondary)' : 'var(--card-bg)';
             return (
               <g key={`${cell.string}:${cell.fret}`} role="button" tabIndex={readOnly ? -1 : 0}
+                className="focus-visible:[&>circle]:stroke-[var(--accent-700)] focus-visible:[&>circle]:stroke-4"
                 data-role={primaryEntry.layer.sourceRole} aria-label={label} aria-pressed={isLit}
                 onClick={() => !readOnly && onInspect(primaryEntry.layer.shape
                   ? { kind: 'region_note', source_id: primaryChord!.id, key: `${primaryEntry.layer.shape}:${primaryEntry.p.pitch_class}` }

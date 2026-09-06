@@ -84,7 +84,8 @@ export function adaptBlock(block: WorkspaceBlock, resolved: Resolved): AdaptedBl
     const entity = resolved.entities[id];
     if (entity) {
       if (accepts.includes(entity.kind)) {
-        sources.push(entity);
+        sources.push(block.kind === 'progression' && entity.kind === 'key' && entity.derivedProgression
+          ? entity.derivedProgression : entity);
         layerIds.push(id);
       } else {
         skipped.push(id);
@@ -102,7 +103,7 @@ export function adaptBlock(block: WorkspaceBlock, resolved: Resolved): AdaptedBl
 
   // A bound compare/transition relation contributes its two members as layers.
   const relation = relations[0];
-  if (relation) {
+  for (const relation of relations) {
     for (const memberId of relation.entity_ids) {
       const member = resolved.entities[memberId];
       if (member && !layerIds.includes(memberId)) {
@@ -117,7 +118,10 @@ export function adaptBlock(block: WorkspaceBlock, resolved: Resolved): AdaptedBl
   let comparison: AdaptedComparison | undefined;
 
   if (relation) {
-    for (const memberId of relation.entity_ids) sourceRoles[memberId] = 'primary';
+    for (const id of layerIds) sourceRoles[id] = 'context';
+    for (const bound of relations) {
+      for (const memberId of bound.entity_ids) sourceRoles[memberId] = 'primary';
+    }
     comparison = relationComparison(relation);
   } else if (layerIds.length === 2 && sources[0].kind === sources[1].kind) {
     sourceRoles[layerIds[0]] = 'primary';
@@ -145,7 +149,7 @@ export function adaptBlock(block: WorkspaceBlock, resolved: Resolved): AdaptedBl
   const primary = (primaryId && resolved.entities[primaryId]) || sources[0];
   const tuningMismatch = primary
     ? sources
-        .filter((entity) => sourceRoles[entity.id] !== 'primary' && !sameTuning(entity.tuning, primary.tuning))
+        .filter((entity) => entity.id !== primary.id && !sameTuning(entity.tuning, primary.tuning))
         .map((entity) => entity.id)
     : [];
 

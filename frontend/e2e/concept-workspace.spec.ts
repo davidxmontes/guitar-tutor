@@ -89,10 +89,10 @@ test('One fretboard renders a voicing, a noteGroup, both range policies and the 
   const voicing = 'v-dropd', group = 'ng-blue', fitBoard = 'blk-fit', tiledBoard = 'blk-tiled', groupBoard = 'blk-group';
   draft.entities.push(
     { id: voicing, kind: 'voicing', label: 'Drop D shape', chord_id: null, tuning: [64, 59, 55, 50, 45, 38], positions: [{ string: 6, fret: 5 }, { string: 5, fret: 5 }, { string: 4, fret: 7 }] },
-    { id: group, kind: 'noteGroup', label: 'Blue notes', notes: [{ pitch_class: 3 }, { pitch_class: 8 }] },
+    { id: group, kind: 'noteGroup', label: 'Blue notes', notes: [{ pitch_class: 3 }, { pitch_class: 8 }, { pitch_class: 7 }] },
   );
   draft.blocks = [
-    { id: tiledBoard, kind: 'fretboard', sources: [scale], settings: {} },
+    { id: tiledBoard, kind: 'fretboard', sources: [scale, group], settings: {} },
     { id: fitBoard, kind: 'fretboard', sources: [voicing, scale], settings: {} },
     { id: groupBoard, kind: 'fretboard', sources: [group], settings: {} },
   ];
@@ -118,8 +118,13 @@ test('One fretboard renders a voicing, a noteGroup, both range policies and the 
 
   // A noteGroup renders as its own layer; every note keeps a note/string/fret name.
   const groupNote = boards.nth(2).getByRole('button', { name: /(Eb|Ab), degree .+, string \d+, fret \d+/ }).first();
+  await page.keyboard.press('Tab');
   await groupNote.focus();
   await expect(groupNote).toBeFocused();
+  await expect(groupNote.locator('circle')).toHaveCSS('stroke-width', '4px');
+  // A highlight layer remains visible when its position overlaps the primary scale.
+  const overlap = boards.nth(0).getByRole('button', { name: /G major: G, .*Blue notes: G, .*string 6, fret 3/ });
+  expect(await overlap.locator('circle').evaluate(el => el.getAttribute('fill'))).toBe('var(--accent-100)');
 });
 
 test('Failed autosave preserves editable music and retries without partial server state', async ({ page }) => {

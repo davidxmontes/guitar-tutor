@@ -26,7 +26,7 @@ const noteGroup = (id: string, pcs: number[], tuning = STD): ResolvedEntity => (
 const settings: BlockSettings = { labels: 'notes', fret_start: null, fret_end: null };
 
 const block = (over: Partial<WorkspaceBlock>): WorkspaceBlock => ({
-  id: 'b', kind: 'fretboard', source_id: over.sources?.[0] ?? 'x', sources: ['x'], settings, ...over,
+  id: 'b', kind: 'fretboard', sources: ['x'], settings, ...over,
 });
 
 const resolved = (entities: ResolvedEntity[], relations: Record<string, ResolvedRelation> = {}): Resolved => ({
@@ -166,4 +166,34 @@ describe('chordPitchClasses', () => {
   it('falls back to a major triad for an unknown quality', () => {
     expect(chordPitchClasses(0, 'wat')).toEqual([0, 4, 7]);
   });
+});
+
+describe('integration source preservation', () => {
+  it('separates differently tuned voicings even when both roles are primary', () => {
+    const r = adaptBlock(block({ sources: ['a', 'b'] }), resolved([
+      voicing('a', [0], STD), voicing('b', [2], DROP_D),
+    ]));
+    expect(r.sourceRoles).toEqual({ a: 'primary', b: 'primary' });
+    expect(r.conflicts.tuningMismatch).toEqual(['b']);
+  });
+
+  it('includes every bound relation member and gives direct siblings a role', () => {
+    const r1: ResolvedRelation = { kind: 'compare', entity_ids: ['a', 'b'], shared: [], added: notes([2]), removed: notes([0]) };
+    const r2: ResolvedRelation = { kind: 'compare', entity_ids: ['b', 'c'], shared: [], added: notes([4]), removed: notes([2]) };
+    const r = adaptBlock(block({ sources: ['r1', 'r2', 'd'] }), resolved([
+      scale('a', [0]), scale('b', [2]), scale('c', [4]), chord('d', [7]),
+    ], { r1, r2 }));
+    expect(r.sources.map(e => e.id)).toEqual(['d', 'a', 'b', 'c']);
+    expect(r.sourceRoles).toEqual({ d: 'context', a: 'primary', b: 'primary', c: 'primary' });
+  });
+});
+
+
+it('adapts a key-derived progression without changing the key for other views', () => {
+  const progression = { id: 'k', kind: 'progression' as const, label: 'Pattern', notes: [], positions: [], tuning: STD, derived: true, key_id: 'k', steps: [] };
+  const key = { id: 'k', kind: 'key' as const, label: 'C major', notes: notes([0]), positions: [], tuning: STD, circle: ['C'], diatonicChords: [], derivedProgression: progression };
+  const facts = resolved([key]);
+  expect(adaptBlock(block({ kind: 'progression', sources: ['k'] }), facts).sources).toEqual([progression]);
+  expect(adaptBlock(block({ kind: 'circle', sources: ['k'] }), facts).sources).toEqual([key]);
+  expect(facts.entities.k.kind).toBe('key');
 });

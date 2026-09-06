@@ -68,7 +68,7 @@ export function CircleBlock({ block, workspace, resolved, inspection, onInspect,
   block: WorkspaceBlock; workspace: ConceptWorkspace; resolved: Resolved;
   inspection: TypedInspection | null; onInspect: (i: TypedInspection) => void; readOnly?: boolean;
 }) {
-  const key = resolved.entities[block.sources[0]];
+  const key = adaptBlock(block, resolved).sources.find(source => source.kind === 'key');
   if (key?.kind !== 'key') return null;
   const home = key.notes[0].note;
   // Pull-based: a derived {root, quality} inspection that is one of this key's own
@@ -77,7 +77,7 @@ export function CircleBlock({ block, workspace, resolved, inspection, onInspect,
   const derivedRootPc = inspection?.kind === 'chord' && 'root' in inspection
     && key.diatonicChords.some((dc, i) => key.notes[i].pitch_class === inspection.root && dc.quality === inspection.quality)
     ? inspection.root : null;
-  const transitions = workspace.relations.filter((r): r is TransitionRelation => r.kind === 'transition' && r.key_id === block.sources[0]);
+  const transitions = workspace.relations.filter((r): r is TransitionRelation => r.kind === 'transition' && r.key_id === key.id);
   const chords = [...new Map(transitions.flatMap(rel => {
     const resolvedRel = resolved.relations[rel.id];
     const functions = resolvedRel?.kind === 'transition' ? resolvedRel.functions : [];
