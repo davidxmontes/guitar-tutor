@@ -1,6 +1,10 @@
 # Spec draft — Re-standardize the ConceptWorkspace render model
 
-**Status:** Published — spec #79, tickets T1–T7 = #80–#86 (`blocked_by` ordered).
+**Status:** SUPERSEDED. The active spec is **#88** (`Spec: ConceptWorkspace uniform
+resolved model and multi-source Blocks`), with tickets **#89–96** cut by `ticket-master`.
+#79 and its tickets #80–86, and the `/to-spec` version #87, are closed. This file and
+`workspace-restandardization-prd.md` are kept as design history; `concept-inventory.md`
+remains the live design reference linked from #88.
 **Grounded against:** `feature/workspace-ux-cleanup` @ `9481536` (2026-09-05), plus
 `main-v2` @ `a4cf503`.
 **Design reference:** `concept-inventory.md` (this directory) — keep it linked from the
