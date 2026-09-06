@@ -65,3 +65,32 @@ def test_override_config_cannot_bypass_validation():
     for path, config in [('hero.0', {'labels': 'symbols'}), ('missing.0', {'labels': 'notes'})]:
         with pytest.raises(ValidationError):
             validate_composition('harmony', hero() | {'per_block_config': {path: config}})
+
+
+# Independent spec transcription: catches missing cells and widened config keys.
+@pytest.mark.parametrize('workspace, expected', [
+    ('harmony', {'fretboard': 'labels fret_window overlay', 'chord-inspector': 'subject',
+     'voicing-explorer': 'subject view', 'chord-palette': 'labels', 'scratch-sequence': '',
+     'circle-of-fifths': '', 'degree-map': 'labels', 'explanation': 'text subject',
+     'comparison': 'peers context', 'note-group-overlay': 'note_group_id', 'candidate-set': 'candidate_kind candidates'}),
+    ('progression', {'fretboard': 'labels fret_window overlay', 'chord-inspector': 'subject',
+     'progression-idea-list': '', 'progression-editor': 'beats_per_bar', 'voice-leading': 'between',
+     'harmonic-function': '', 'explanation': 'text subject', 'comparison': 'peers context',
+     'note-group-overlay': 'note_group_id', 'candidate-set': 'candidate_kind candidates'}),
+])
+def test_capability_table_matches_spec(workspace, expected):
+    from app.v2.presentation import CAPABILITIES
+    assert {kind: ' '.join(cell[1]) for kind, cell in CAPABILITIES[workspace].items()} == expected
+    for kind in expected:
+        assert validate_composition(workspace, hero({'kind': kind}))
+        with pytest.raises(ValidationError):
+            validate_composition(workspace, hero({'kind': kind, 'config': {'actions': ['save']}}))
+
+
+def test_model_instances_and_base_config_are_revalidated():
+    from app.v2.presentation import Composition
+    with pytest.raises(ValidationError):
+        validate_composition('progression', Composition.model_validate(hero({'kind': 'voicing-explorer'})))
+    with pytest.raises(ValidationError):
+        validate_composition('harmony', hero({'kind': 'fretboard', 'config': {'labels': 'invalid'}})
+                             | {'per_block_config': {'hero.0': {'labels': 'notes'}}})

@@ -86,7 +86,9 @@ class Composition(StrictModel):
             if self.per_block_config.keys() - blocks.keys():
                 raise ValueError('Config override must address an existing block')
             for path, block in blocks.items():
-                validate_block(workspace, block, block.config | self.per_block_config.get(path, {}))
+                validate_block(workspace, block, block.config)
+                if path in self.per_block_config:
+                    validate_block(workspace, block, block.config | self.per_block_config[path])
         return self
 
     def blocks(self, prefix=''):
