@@ -1,24 +1,11 @@
-"""TutorResponse contract: the semantic output of one stateless tutor turn,
-plus the observability fields ticket #13 requires (provider/model, latency,
-usage, tool-call count, terminal status).
-
-Ticket #101 hard cutover: the ConceptWorkspace mutation contract
-(`workspace_patch`, `workspace_result`), `concept_suggestion` (ConceptStudy
-promotion), and the artifact-bound `voicing_candidates` / `exercise_suggestion`
-are removed — the Branch no longer links an Artifact. The full Tutor per-turn
-contract — mutation, candidates, presentation (Spec #100 §5.7) — is rebuilt in
-ticket T3. What remains is a stateless message + one-turn `focus` + symbolic
-progression `candidates` + physical `comparison_groups`.
-
-`TutorTerminal` is the schema handed to the model as its structured-output
-tool (see runner.py); `TutorResponse` adds the API-only observability fields.
-"""
-
 from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.v2.models import ProgressionPayload, ProgressionVoicingPosition
+from app.v2.models import ProgressionVoicingPosition
+from app.v2.workspace import StrictModel
+from app.v2.harmony_state import HarmonyFocus
+from app.v2.presentation import Composition
 
 
 class FretPosition(BaseModel):
@@ -42,7 +29,7 @@ class BranchFocusGroup(BaseModel):
         return self
 
 
-class TutorFocus(BaseModel):
+class TutorAttention(BaseModel):
     """One-turn attention on visible notes (Tutor Attention, CONTEXT.md) —
     never persisted. `role` is a free-form semantic label."""
 
@@ -51,28 +38,26 @@ class TutorFocus(BaseModel):
     label: Optional[str] = None
 
 
-class ProgressionChordIdea(BaseModel):
-    """One symbolic chord in a tutor-proposed progression candidate — root +
-    quality only; runner.py resolves a voicing deterministically."""
-
-    root: str
-    quality: str
+class TutorMutation(StrictModel):
+    """No-op dispatch seam; H3/P3 add the concrete discriminated variants."""
+    kind: Literal['noop'] = 'noop'
 
 
-class ProgressionCandidate(BaseModel):
-    title: str
-    chords: list[ProgressionChordIdea]
+class CandidateSet(StrictModel):
+    candidate_kind: Literal['voicing', 'progression-idea', 'chord-replacement']
+    candidates: list[dict] = Field(default_factory=list)
 
 
-class TutorTerminal(BaseModel):
-    """The exact structured shape the model must return via tool-calling
-    (see runner.py's `ToolStrategy(TutorTerminal)`). A plain conversational
-    answer and a clarifying question are both just `message` text."""
-
+class TutorTerminal(StrictModel):
     message: str
-    focus: Optional[TutorFocus] = None
+    mutation: Optional[TutorMutation] = None
+    candidates: Optional[CandidateSet] = None
+    focus: Optional[HarmonyFocus | dict] = None
+    attention: Optional[TutorAttention] = None
+    # Deliberately raw until the separate presentation layer validates it.
+    # A bad layout must never prevent a valid musical result from being read.
+    presentation: Optional[dict] = None
     comparison_groups: list[BranchFocusGroup] = Field(default_factory=list, max_length=4)
-    candidates: Optional[list[ProgressionCandidate]] = None
 
 
 class TutorUsage(BaseModel):
@@ -96,9 +81,15 @@ class TutorResponse(BaseModel):
     exception instead (providers.TutorCapabilityError)."""
 
     message: str
-    focus: Optional[TutorFocus] = None
+    mutation: Optional[TutorMutation] = None
+    candidates: Optional[CandidateSet] = None
+    focus: Optional[HarmonyFocus | dict] = None
+    attention: Optional[TutorAttention] = None
+    presentation: Optional[Composition] = None
+    presentation_applied: bool = False
     comparison_groups: list[BranchFocusGroup] = Field(default_factory=list, max_length=4)
-    candidates: Optional[list[ProgressionPayload]] = None
+    musical_state: Optional[dict] = Field(default=None, exclude=True)
+    branch: Optional[dict] = None
     provider: str
     model: str
     latency_ms: int

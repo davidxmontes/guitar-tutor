@@ -186,3 +186,18 @@ shell), `src/types/conceptWorkspace.ts`, `adaptBlock` / `workspaceAdapter` /
 + `ProgressionPayload` editor path. Suites asserting those contracts were
 removed or rewritten in the same change. `song_study` / `exercise` /
 `progression` artifact kinds and their backend routes stay.
+
+## Tutor turn transaction (#105)
+
+`v2-workspace-turns.sql` defines the service-role-only `v2_workspace_turn` RPC
+for atomic commit, Undo and Restore. Load after `v2-schema.sql` on the wiped
+store. Each assistant message owns one immutable `presentation` and a
+`musical_snapshot`; Branch stores only the live-turn pointer. The RPC checks
+ownership and `updated_at` before changing anything. The disposable PostgreSQL
+check now verifies a forced mid-commit rollback, stale rejection, Undo and
+Restore in addition to the Branch schema. Attention is excluded from storage.
+
+T3 ships the no-op mutation dispatch seam and a deterministic shell surface;
+H3/P3 add concrete musical operations, and H2a/P2a replace shell starters.
+The removed legacy progression-candidate tests are replaced by the new Turn
+contract and transactional flow tests; candidate payload effects land in H2b/P3.

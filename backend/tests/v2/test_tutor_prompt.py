@@ -122,7 +122,7 @@ def test_reconstruct_history_makes_a_prior_turns_candidates_addressable() -> Non
     assert "Here are two ideas." in assistant_text
     assert "Wistful I-vi-IV-V" in assistant_text
     assert "Moody ii-V-I" in assistant_text
-    assert "Cmajor" in assistant_text
+    assert '"root": "C"' in assistant_text
 
 
 def test_reconstruct_history_assistant_message_with_no_candidates_is_unchanged() -> None:

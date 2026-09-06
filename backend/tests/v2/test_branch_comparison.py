@@ -33,7 +33,12 @@ def test_comparison_reads_only_referenced_branch_and_preserves_both_workspaces()
     assert 'Idea A' in after_read
     assert 'Private source conversation' not in after_read
     assert response.json()['comparison_groups'][0]['tuning'][-1] == 38
-    assert store.get_session(session.id, 'user_1').model_dump() == before
+    after = store.get_session(session.id, 'user_1').model_dump()
+    # A Tutor turn now advances presentation metadata, never the read music.
+    assert after['branches'][0]['live_presentation_turn_id']
+    for key in ('updated_at', 'live_presentation_turn_id'):
+        after['branches'][0][key] = before['branches'][0][key]
+    assert after == before
     assert len(store.list_tutor_messages(source.tutor_thread_id, 'user_1')) == 1
     assert store.list_tutor_messages(current.tutor_thread_id, 'user_1')[-1].content['comparison_groups']
 

@@ -76,6 +76,8 @@ class V2Store(Protocol):
     def list_sessions(self, user_id: str) -> list[Session]: ...
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch: ...
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
+    def commit_workspace_turn(self, branch: Branch, user_id: str, music: dict, question: str, content: dict) -> Branch: ...
+    def restore_workspace_turn(self, branch: Branch, user_id: str, turn_id: str, *, undo: bool = False) -> Branch: ...
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
@@ -151,6 +153,48 @@ class InMemoryV2Store:
             return updated
 
         raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
+
+    def commit_workspace_turn(self, branch: Branch, user_id: str, music: dict, question: str, content: dict) -> Branch:
+        from app.v2.turns import musical_snapshot
+        from app.v2.presentation import validate_composition
+        with self._branch_lock:
+            session = self.get_session(branch.session_id, user_id)
+            index = next((i for i, value in enumerate(session.branches) if value.id == branch.id), None)
+            if index is None:
+                raise NotFoundError('Branch not found')
+            current = session.branches[index]
+            if current.updated_at != branch.updated_at:
+                raise RevisionConflictError('Workspace changed during Tutor turn')
+            content = deepcopy(content)
+            content.pop('attention', None)
+            content['musical_snapshot'] = musical_snapshot(current)
+            content['presentation'] = validate_composition(music['active_workspace'], content['presentation']).model_dump()
+            now, turn_id = _now(), _new_id()
+            updated = Branch.model_validate(current.model_dump() | music | {
+                'live_presentation_turn_id': turn_id, 'updated_at': now})
+            messages = [TutorMessage(id=_new_id(), tutor_thread_id=current.tutor_thread_id,
+                                    role='user', content={'text': question}, created_at=now),
+                        TutorMessage(id=turn_id, tutor_thread_id=current.tutor_thread_id,
+                                    role='assistant', content=content, created_at=now)]
+            # Validate and prepare everything before publishing either value.
+            history = self._tutor_messages.get(current.tutor_thread_id, []) + messages
+            session.branches[index] = updated
+            self._tutor_messages[current.tutor_thread_id] = history
+            return deepcopy(updated)
+
+    def restore_workspace_turn(self, branch: Branch, user_id: str, turn_id: str, *, undo: bool = False) -> Branch:
+        with self._branch_lock:
+            current = next((value for value in self.get_session(branch.session_id, user_id).branches if value.id == branch.id), None)
+            if current is None:
+                raise NotFoundError('Branch not found')
+            if current.updated_at != branch.updated_at:
+                raise RevisionConflictError('Workspace changed')
+            turn = next((message for message in self.list_tutor_messages(current.tutor_thread_id, user_id)
+                         if message.id == turn_id and message.role == 'assistant' and message.content.get('presentation')), None)
+            if turn is None:
+                raise NotFoundError('Turn not found')
+            fields = turn.content['musical_snapshot'] if undo else {'live_presentation_turn_id': turn_id}
+            return deepcopy(self._update_branch(branch.session_id, branch.id, user_id, **fields))
 
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact:
         now = _now()
@@ -341,6 +385,32 @@ class SupabaseV2Store:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+    def commit_workspace_turn(self, branch: Branch, user_id: str, music: dict, question: str, content: dict) -> Branch:
+        from app.v2.presentation import validate_composition
+        Branch.model_validate(branch.model_dump() | music)
+        content = deepcopy(content)
+        content.pop('attention', None)
+        content['presentation'] = validate_composition(music['active_workspace'], content['presentation']).model_dump()
+        return self._workspace_turn_rpc(branch, user_id, 'commit', music=music, question=question, content=content)
+
+    def restore_workspace_turn(self, branch: Branch, user_id: str, turn_id: str, *, undo: bool = False) -> Branch:
+        return self._workspace_turn_rpc(branch, user_id, 'undo' if undo else 'restore', turn_id=turn_id)
+
+    def _workspace_turn_rpc(self, branch: Branch, user_id: str, action: str, **values) -> Branch:
+        from postgrest.exceptions import APIError
+        try:
+            row = self._client.rpc('v2_workspace_turn', {
+                'p_branch_id': branch.id, 'p_user_id': user_id, 'p_expected_updated_at': branch.updated_at,
+                'p_action': action, **{'p_' + key: value for key, value in values.items()},
+            }).execute().data
+        except APIError as exc:
+            if exc.code == '40001':
+                raise RevisionConflictError('Workspace changed during Tutor turn') from exc
+            if exc.code == 'P0002':
+                raise NotFoundError('Workspace or turn not found') from exc
+            raise
+        return self._row_to_branch(row)
 
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact:
         row = (
