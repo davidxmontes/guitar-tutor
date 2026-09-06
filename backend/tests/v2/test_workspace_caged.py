@@ -12,17 +12,19 @@ def test_caged_uses_trusted_regions_and_materializes_only_explicit_independent_v
     def resolve(w):
         r = client.post('/api/v2/concept-workspaces/resolve', json=w)
         assert r.status_code == 200, r.text
-        return r.json()['caged'][chord['id']]
-    facts = resolve(draft)
+        entity = r.json()['entities'][chord['id']]
+        assert {'id', 'kind', 'label', 'notes', 'positions', 'tuning'} <= set(entity)
+        return entity['cagedRegions']
+    regions = resolve(draft)
     trusted = caged_regions('C')
-    assert [[(p['string'],p['fret']) for p in region['positions']] for region in facts['regions']] == [[(p.string,p.fret) for p in region.positions] for region in trusted]
-    first, second = facts['regions'][:2]
+    assert [[(p['string'],p['fret']) for p in region['positions']] for region in regions] == [[(p.string,p.fret) for p in region.positions] for region in trusted]
+    first, second = regions[:2]
     shared = {(p['string'],p['fret']) for p in first['positions']} & {(p['string'],p['fret']) for p in second['positions']}
-    assert {(p['string'],p['fret']) for p in facts['pairs'][0]['shared']} == shared
+    assert shared  # neighbouring CAGED shapes chain by sharing at least one finger
     alternate = deepcopy(draft); alternate['tuning'][5] = 38; alternate['entities'][0]['root'] = 'F#'
     alt = resolve(alternate)
-    assert {p['note'] for region in alt['regions'] for p in region['positions']} == {'F#','A#','C#'}
-    assert all(p['midi'] == alternate['tuning'][p['string']-1] + p['fret'] for region in alt['regions'] for p in region['positions'])
+    assert {p['note'] for region in alt for p in region['positions']} == {'F#','A#','C#'}
+    assert all(p['midi'] == alternate['tuning'][p['string']-1] + p['fret'] for region in alt for p in region['positions'])
     materialized = client.post('/api/v2/concept-workspaces/caged/materialize', json={'workspace':draft,'chord_id':chord['id'],'region':first['shape']})
     assert materialized.status_code == 200, materialized.text
     materialized = materialized.json()
@@ -30,7 +32,7 @@ def test_caged_uses_trusted_regions_and_materializes_only_explicit_independent_v
     assert voicing['chord_id'] != chord['id']
     assert voicing['positions'] == [{'string':p['string'],'fret':p['fret']} for p in first['positions']]
     materialized['entities'][0]['root'] = 'D'
-    assert client.post('/api/v2/concept-workspaces/resolve', json=materialized).json()['voicings'][voicing['id']]['positions'] == first['positions']
+    assert client.post('/api/v2/concept-workspaces/resolve', json=materialized).json()['entities'][voicing['id']]['positions'] == first['positions']
     stored = client.put(f"/api/v2/sessions/{sid}/branches/{branch['id']}/workspace", json={'expected_version':1,'workspace':materialized})
     assert stored.status_code == 200, stored.text
     saved = client.post(f"/api/v2/sessions/{sid}/branches/{branch['id']}/workspace/save", json={'expected_version':2,'title':'CAGED work'}).json()
@@ -44,6 +46,6 @@ def test_caged_uses_trusted_regions_and_materializes_only_explicit_independent_v
         turn = client.post('/api/v2/tutor/turns', json={'session_id':sid,'branch_id':branch['id'],'message':'Explain this region','inspection':{'source_id':chord['id'],'kind':kind,'key':key}})
         assert turn.status_code == 422, turn.text
     minor = deepcopy(draft); minor['entities'][0]['quality'] = 'minor'
-    assert {p['note'] for region in resolve(minor)['regions'] for p in region['positions']} == {'C','Eb','G'}
+    assert {p['note'] for region in resolve(minor) for p in region['positions']} == {'C','Eb','G'}
     bad = deepcopy(draft); bad['entities'][0]['quality'] = 'dominant7'
     assert client.post('/api/v2/concept-workspaces/resolve', json=bad).status_code == 422

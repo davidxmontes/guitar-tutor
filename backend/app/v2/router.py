@@ -17,8 +17,10 @@ from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.workspace_caged import CagedMaterialize, materialize_region, valid_caged_inspection
 from app.v2.workspace_progressions import ProgressionAction, edit_progression
-from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
-from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace
+from app.v2.workspace_changes import (DerivedChordInspection, EntityChordInspection, InspectionTarget,
+    PitchInspection, RegionInspection, StepInspection, VoicingInspection, apply_workspace_patch,
+    materialize_inspection)
+from app.v2.workspace import ConceptWorkspace, StrictModel, pitch_class, resolve_workspace
 from app.v2.models import (
     ApplyVoicingRequest,
     ExerciseDraft,
@@ -378,6 +380,44 @@ class TutorTurnRequest(BaseModel):
     inspection: Optional[InspectionTarget] = None
 
 
+def _inspection_in_draft(inspection, entities: dict, draft) -> bool:
+    """Pull-based validity: a typed Inspection is valid iff the current resolved
+    draft still contains the thing it points at (spec INSP-01/INSP-02)."""
+    if isinstance(inspection, PitchInspection):
+        for entity in entities.values():
+            pitches = {n['pitch_class'] for n in entity.get('notes', [])}
+            pitches |= {p['pitch_class'] for p in entity.get('positions', [])}
+            if inspection.pitch_class in pitches:
+                return True
+        return False
+    if isinstance(inspection, EntityChordInspection):
+        entity = entities.get(inspection.entity_id)
+        return entity is not None and entity['kind'] == 'chord'
+    if isinstance(inspection, VoicingInspection):
+        entity = entities.get(inspection.entity_id)
+        return entity is not None and entity['kind'] == 'voicing'
+    if isinstance(inspection, DerivedChordInspection):
+        wanted = (inspection.root, inspection.quality)
+        for entity in entities.values():
+            if entity['kind'] == 'key' and any(
+                (pitch_class(c['root']), c['quality']) == wanted for c in entity['diatonicChords']):
+                return True
+            if entity['kind'] == 'progression' and any(
+                (pitch_class(s['root']), s['quality']) == wanted for s in entity['steps']):
+                return True
+        return False
+    if isinstance(inspection, StepInspection):
+        block = next((b for b in draft.blocks if b.id == inspection.block_id), None) if draft else None
+        source = entities.get(block.sources[0]) if block else None
+        if source and source['kind'] == 'key':
+            source = source.get('derivedProgression')
+        return source is not None and source['kind'] == 'progression' and inspection.index < len(source['steps'])
+    if isinstance(inspection, RegionInspection):
+        entity = entities.get(inspection.source_id) or {}
+        return valid_caged_inspection(entity.get('cagedRegions'), inspection.kind, inspection.key)
+    return False
+
+
 @router.post("/tutor/turns", response_model=TutorResponse)
 async def create_tutor_turn(
     data: TutorTurnRequest,
@@ -405,15 +445,11 @@ async def create_tutor_turn(
         raise HTTPException(422, 'This study is unsupported. Open a new exploration from Explore.')
 
     if data.inspection is not None:
-        facts = resolve_workspace(branch.working_draft) if branch.working_draft else {}
+        draft = branch.working_draft
+        facts = resolve_workspace(draft) if draft else {'entities': {}, 'relations': {}}
         inspection = data.inspection
-        source = next((facts.get(group, {}).get(inspection.source_id) for group in ('scales','chords','voicings','transitions') if inspection.source_id in facts.get(group, {})), None)
-        valid = source and (inspection.key in {note['pitch_class'] for note in source.get('notes', source.get('positions', []))} if inspection.kind == 'pitch' else inspection.key == inspection.source_id and inspection.source_id in facts.get(inspection.kind + 's', {}))
-        if inspection.kind == 'step':
-            progression = facts.get('progressions', {}).get(inspection.source_id)
-            valid = progression and isinstance(inspection.key, int) and inspection.key < len(progression['steps'])
-        if inspection.kind.startswith('region'):
-            valid = valid_caged_inspection(facts.get('caged', {}).get(inspection.source_id), inspection.kind, inspection.key)
+        entities = facts['entities']
+        valid = _inspection_in_draft(inspection, entities, draft)
         if not valid:
             raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select again.")
 
@@ -867,3 +903,18 @@ async def keep_caged_region(data: CagedMaterialize, user_id: str = Depends(get_c
         return materialize_region(data)
     except ValueError as exc:
         raise HTTPException(422, 'That region cannot be kept within the current tuning or workspace bounds. Your draft is unchanged.') from exc
+
+
+class MaterializeInspectionRequest(StrictModel):
+    workspace: ConceptWorkspace
+    inspection: InspectionTarget
+
+
+@router.post('/concept-workspaces/materialize', response_model=ConceptWorkspace)
+async def materialize_workspace_inspection(data: MaterializeInspectionRequest, user_id: str = Depends(get_current_user)):
+    try:
+        return materialize_inspection(data.workspace, data.inspection)
+    except ValidationError as exc:
+        raise HTTPException(422, 'That selection cannot be materialized within workspace bounds. Your draft is unchanged.') from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

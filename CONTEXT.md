@@ -66,15 +66,15 @@ Typed musical meaning between Entities, initially Compare or Transition.
 _Avoid_: Edge, link
 
 **Block**:
-A trusted visual representation bound to one Entity or Relation.
+A trusted visual representation bound to one or more Entities or Relations.
 _Avoid_: Widget, plugin
 
 **Inspection**:
-The learner's temporary selection of one musical object or derived detail across compatible Blocks.
+The learner's temporary typed pointer to one musical object or derived detail across compatible Blocks. A chord is identified by Entity id or root and quality.
 _Avoid_: Navigation, selection history
 
 **Tutor Focus**:
-Temporary attention directed by the Tutor for one turn without changing the saved ConceptStudy.
+Temporary attention directed by the Tutor for one turn only, without changing the saved ConceptStudy.
 _Avoid_: Inspection, persisted selection
 
 **Tutor Change**:
@@ -84,3 +84,6 @@ _Avoid_: Candidate, proposal
 **Restore**:
 Making a historical Turn Snapshot the new current Working Draft while preserving later conversation.
 _Avoid_: Rewind, truncate
+
+**NoteGroup**:
+A labelled set of pitch-class or physical note references, persisted in the Working Draft and used as a Block layer for highlights.

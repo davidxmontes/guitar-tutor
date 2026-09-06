@@ -10,7 +10,17 @@ Pitch = Annotated[str, Field(pattern=r'^[A-G](#{1,2}|b{1,2})?$')]
 Identifier = Annotated[str, Field(min_length=1, max_length=80)]
 Midi = Annotated[int, Field(strict=True, ge=0, le=127)]
 Mode = Literal['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues']
-BLOCK_SOURCES = {'fretboard': ('scale', 'compare', 'voicing', 'transition', 'chord'), 'degree_strip': ('scale', 'compare'), 'chord_diagrams': ('voicing', 'transition', 'chord'), 'circle': ('key',), 'progression': ('key', 'progression'), 'caged': ('chord',)}
+# Per-block-kind compatible source kinds (spec #88 §5). Internal block kinds stay
+# snake_case; the spec prose's `degree-strip` etc. name the same kinds.
+BLOCK_ACCEPTS = {
+    'fretboard': ('scale', 'chord', 'voicing', 'key', 'noteGroup', 'compare', 'transition'),
+    'degree_strip': ('scale', 'chord', 'compare'),
+    'chord_diagrams': ('voicing', 'chord'),
+    'circle': ('key',),
+    'progression': ('progression', 'key'),
+    'key_family': ('key',),
+}
+BLOCK_SOURCES = BLOCK_ACCEPTS  # back-compat alias for existing importers
 
 
 class StrictModel(BaseModel):
@@ -79,7 +89,26 @@ class Progression(StrictModel):
     steps: list[ProgressionStep] = Field(min_length=1, max_length=16)
 
 
-Entity = Scale | Key | Chord | Voicing | Progression
+class PitchRef(StrictModel):
+    pitch_class: int = Field(ge=0, le=11, strict=True)
+
+
+class PhysicalRef(StrictModel):
+    string: int = Field(ge=1, le=6, strict=True)
+    fret: int = Field(ge=0, le=24, strict=True)
+
+
+NoteRef = PitchRef | PhysicalRef
+
+
+class NoteGroup(StrictModel):
+    id: Identifier
+    kind: Literal['noteGroup'] = 'noteGroup'
+    label: str = Field(min_length=1, max_length=120)
+    notes: list[NoteRef] = Field(min_length=1, max_length=24)
+
+
+Entity = Scale | Key | Chord | Voicing | Progression | NoteGroup
 
 
 class Transition(StrictModel):
@@ -98,21 +127,26 @@ class Compare(StrictModel):
 class ViewSettings(StrictModel):
     pattern: Literal['I-V-vi-IV'] | None = None
     labels: Literal['notes', 'intervals'] = 'notes'
-    shared_only: bool = False
-    fret_start: int = Field(default=0, ge=0, le=19, strict=True)
-    fret_end: int = Field(default=5, ge=1, le=24, strict=True)
+    mode: Literal['notes', 'caged'] | None = None
+    comparison: Literal['highlight', 'plain', 'shared-only'] = 'highlight'
+    fret_start: int | None = Field(default=None, ge=0, le=19, strict=True)
+    fret_end: int | None = Field(default=None, ge=1, le=24, strict=True)
 
     @model_validator(mode='after')
     def ordered_range(self):
-        if not 1 <= self.fret_end - self.fret_start <= 12:
-            raise ValueError('Choose a fret range between 2 and 13 frets')
+        # null = auto range; only an explicit pair is bounded. The 12-fret cap is
+        # gone for the fretboard -- allow the full tiled window.
+        if self.fret_start is not None and self.fret_end is not None:
+            if not 1 <= self.fret_end - self.fret_start <= 19:
+                raise ValueError('Choose a fret range between 2 and 20 frets')
         return self
 
 
 class Block(StrictModel):
     id: Identifier
-    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'caged']
-    source_id: Identifier
+    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'key_family']
+    sources: list[Identifier] = Field(min_length=1, max_length=8)
+    source_roles: dict[str, Literal['primary', 'context', 'highlight']] | None = None
     settings: ViewSettings = Field(default_factory=ViewSettings)
 
 
@@ -127,7 +161,7 @@ class Row(StrictModel):
 
 
 class ConceptWorkspace(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     version: int = Field(default=1, ge=1, strict=True)
     title: str = Field(min_length=1, max_length=120)
     provenance: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression', 'caged-exploration'] = 'scale-comparison'
@@ -166,18 +200,29 @@ class ConceptWorkspace(StrictModel):
                     raise ValueError('Transition requires a Key context')
                 if entities[relation.entity_ids[0]].tuning != entities[relation.entity_ids[1]].tuning:
                     raise ValueError('A physical transition needs the same tuning on both voicings')
-        sources = {obj.id: obj.kind for obj in [*self.entities, *self.relations]}
+        source_kinds = {obj.id: obj.kind for obj in [*self.entities, *self.relations]}
         for block in self.blocks:
-            chord = entities.get(block.source_id)
-            if isinstance(chord, Chord) and chord.quality not in ('major', 'minor'):
-                raise ValueError('CAGED views support major or minor chords')
-            derived = block.kind == 'progression' and sources.get(block.source_id) == 'key'
+            accepts = BLOCK_ACCEPTS[block.kind]
+            for source_id in block.sources:
+                if source_id not in source_kinds:
+                    raise ValueError('A view points at a source that no longer exists')
+                if source_kinds[source_id] not in accepts:
+                    raise ValueError('View is not compatible with its musical source')
+            caged_view = block.kind == 'chord_diagrams' or (block.kind == 'fretboard' and block.settings.mode == 'caged')
+            if caged_view:
+                chords = [entities.get(s) for s in block.sources if isinstance(entities.get(s), Chord)]
+                if any(chord.quality not in ('major', 'minor') for chord in chords):
+                    raise ValueError('CAGED views support major or minor chords')
+                if block.kind == 'fretboard' and not chords:
+                    raise ValueError('A CAGED fretboard needs a major or minor chord source')
+            first_kind = source_kinds[block.sources[0]]
+            derived = block.kind == 'progression' and first_kind == 'key'
             if derived != (block.settings.pattern is not None):
                 raise ValueError('A derived Progression view requires a pattern; other views do not')
-            if sources.get(block.source_id) not in BLOCK_SOURCES[block.kind]:
-                raise ValueError('View is not compatible with its musical source')
-            if block.settings.shared_only and sources[block.source_id] not in ('compare', 'transition', 'chord'):
-                raise ValueError('Shared notes require a comparison')
+            comparison_ready = first_kind in ('compare', 'transition') or (
+                len(block.sources) == 2 and len({source_kinds[s] for s in block.sources}) == 1)
+            if block.settings.comparison == 'shared-only' and not comparison_ready:
+                raise ValueError('Shared notes need two same-kind sources or a compare/transition relation')
         placements = [item.block_id for row in self.composition for item in row.items]
         if sorted(placements) != sorted(block.id for block in self.blocks):
             raise ValueError('Place every block exactly once')
@@ -191,7 +236,7 @@ def scale_comparison() -> ConceptWorkspace:
     return ConceptWorkspace(title='G major vs G minor',
         entities=[Scale(id=primary, root='G', mode='major'), Scale(id=comparison, root='G', mode='natural_minor')],
         relations=[Compare(id=relation, entity_ids=[primary, comparison])],
-        blocks=[Block(id=fretboard, kind='fretboard', source_id=relation), Block(id=degrees, kind='degree_strip', source_id=relation)],
+        blocks=[Block(id=fretboard, kind='fretboard', sources=[relation]), Block(id=degrees, kind='degree_strip', sources=[relation])],
         composition=[Row(items=[Placement(block_id=fretboard, priority='primary', span=8), Placement(block_id=degrees, span=4)])])
 
 
@@ -202,38 +247,120 @@ def pitch_class(note: str) -> int:
     return (NATURAL_PITCHES[note[0]] + note.count('#') - note.count('b')) % 12
 
 
+CHROMATIC = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
+DIATONIC_TRIADS = list(zip(['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
+                           ['major', 'minor', 'minor', 'major', 'major', 'minor', 'diminished']))
+
+
+def chromatic_note(pitch: int) -> dict:
+    return {'note': CHROMATIC[pitch % 12], 'degree': '—', 'pitch_class': pitch % 12, 'offset': 0}
+
+
+def tiled_positions(notes: list[dict], tuning: list[int]) -> list[dict]:
+    """Every fret 0-19 where one of ``notes`` falls, spelled as that note."""
+    by_pitch = {note['pitch_class']: note for note in notes}
+    return [{'string': string, 'fret': fret, 'midi': midi + fret, **by_pitch[(midi + fret) % 12]}
+            for string, midi in enumerate(tuning, 1) for fret in range(20) if (midi + fret) % 12 in by_pitch]
+
+
+def unique_notes(positions: list[dict]) -> list[dict]:
+    seen: dict[int, dict] = {}
+    for position in positions:
+        seen.setdefault(position['pitch_class'], {key: position[key] for key in ('note', 'degree', 'pitch_class', 'offset')})
+    return list(seen.values())
+
+
 def resolve_workspace(workspace: ConceptWorkspace) -> dict:
-    scales = {}
-    for entity in workspace.entities:
-        if not isinstance(entity, Scale):
-            continue
-        root = pitch_class(entity.root)
-        notes = spelled_notes(entity.root, SCALE_INTERVALS[entity.mode], SCALE_DEGREE_NAMES[entity.mode])
-        by_pitch = {note['pitch_class']: note for note in notes}
-        positions = [{'string': string, 'fret': fret, 'midi': midi + fret, **by_pitch[(midi + fret) % 12]}
-                     for string, midi in enumerate(workspace.tuning, 1) for fret in range(25) if midi + fret <= 127 and (midi + fret) % 12 in by_pitch]
-        # Same register for both scales makes the comparison audible; choose real positions in the active tuning.
-        tonic = min(workspace.tuning) + (root - min(workspace.tuning)) % 12
-        playback = []
-        for offset in [*SCALE_INTERVALS[entity.mode], 12]:
-            midi = tonic + offset
-            choices = [p for p in positions if p['midi'] == midi]
-            if not choices:
-                raise ValueError('This tuning cannot play the scale in one octave; choose a closer tuning')
-            playback.append(min(choices, key=lambda p: (p['fret'], -p['string'])))
-        scales[entity.id] = {'label': entity.label or f"{entity.root} {entity.mode.replace('natural_minor', 'minor').replace('_', ' ')}", 'notes': notes, 'positions': positions, 'playback': playback}
-    comparisons = {}
-    for relation in workspace.relations:
-        if not isinstance(relation, Compare):
-            continue
-        first, second = [scales[id]['notes'] for id in relation.entity_ids]
-        first_pitches, second_pitches = [{n['pitch_class'] for n in notes} for notes in (first, second)]
-        comparisons[relation.id] = {'shared': [n['pitch_class'] for n in first if n['pitch_class'] in second_pitches],
-            'removed': [n for n in first if n['pitch_class'] not in second_pitches], 'added': [n for n in second if n['pitch_class'] not in first_pitches]}
+    """Uniform resolved model: ``{entities: {id: ResolvedEntity}, relations: {id: ResolvedRelation}}``.
+
+    Every entity resolves to the shared core ``{id, kind, label, notes, positions, tuning}``
+    plus typed per-kind extras (spec #88 §5).
+    """
+    from app.v2.concepts import CIRCLE_KEYS
+    from app.v2.workspace_caged import chord_caged_regions
     from app.v2.workspace_progressions import resolve_progressions
-    facts = {'scales': scales, 'comparisons': comparisons, 'block_sources': BLOCK_SOURCES, **resolve_physical(workspace)}
-    from app.v2.workspace_caged import resolve_caged
-    return facts | {'progressions': resolve_progressions(workspace, facts), 'caged': resolve_caged(workspace, facts)}
+    tuning = workspace.tuning
+    entities: dict[str, dict] = {}
+    by_id = {entity.id: entity for entity in workspace.entities}
+
+    for entity in workspace.entities:
+        if isinstance(entity, Scale):
+            notes = spelled_notes(entity.root, SCALE_INTERVALS[entity.mode], SCALE_DEGREE_NAMES[entity.mode])
+            label = entity.label or f"{entity.root} {entity.mode.replace('natural_minor', 'minor').replace('_', ' ')}"
+            entities[entity.id] = {'id': entity.id, 'kind': 'scale', 'label': label, 'notes': notes,
+                'positions': tiled_positions(notes, tuning), 'tuning': tuning}
+        elif isinstance(entity, Key):
+            notes = spelled_notes(entity.root, [0, 2, 4, 5, 7, 9, 11], ['1', '2', '3', '4', '5', '6', '7'])
+            entities[entity.id] = {'id': entity.id, 'kind': 'key', 'label': f'{entity.root} major', 'notes': notes,
+                'positions': tiled_positions(notes, tuning), 'tuning': tuning,
+                'circle': [entity.root if pitch_class(name) == pitch_class(entity.root) else name for name in CIRCLE_KEYS],
+                'diatonicChords': [{'numeral': numeral, 'root': notes[index]['note'], 'quality': quality}
+                                   for index, (numeral, quality) in enumerate(DIATONIC_TRIADS)]}
+        elif isinstance(entity, Chord):
+            formula = CHORD_INTERVALS[entity.quality]
+            notes = spelled_notes(entity.root, formula['intervals'], formula['names'])
+            resolved = {'id': entity.id, 'kind': 'chord', 'label': f'{entity.root} {entity.quality}', 'notes': notes,
+                'positions': tiled_positions(notes, tuning), 'tuning': tuning, 'quality': entity.quality}
+            if entity.quality in ('major', 'minor'):
+                resolved['cagedRegions'] = chord_caged_regions(entity, tuning)
+            entities[entity.id] = resolved
+
+    for entity in workspace.entities:
+        if isinstance(entity, Voicing):
+            entities[entity.id] = resolve_voicing(entity, entities)
+        elif isinstance(entity, NoteGroup):
+            entities[entity.id] = resolve_note_group(entity, tuning)
+
+    for progression_id, resolved in resolve_progressions(workspace, entities).items():
+        if resolved['derived']:
+            entities[progression_id]['derivedProgression'] = resolved
+        else:
+            entities[progression_id] = resolved
+
+    relations: dict[str, dict] = {}
+    for relation in workspace.relations:
+        if isinstance(relation, Compare):
+            first, second = [entities[id]['notes'] for id in relation.entity_ids]
+            first_pitches = {note['pitch_class'] for note in first}
+            second_pitches = {note['pitch_class'] for note in second}
+            relations[relation.id] = {'kind': 'compare', 'entity_ids': list(relation.entity_ids),
+                'shared': [note['pitch_class'] for note in first if note['pitch_class'] in second_pitches],
+                'removed': [note for note in first if note['pitch_class'] not in second_pitches],
+                'added': [note for note in second if note['pitch_class'] not in first_pitches]}
+        else:
+            relations[relation.id] = resolve_transition(relation, entities, by_id)
+
+    return {'entities': entities, 'relations': relations}
+
+
+def resolve_transition(relation: 'Transition', entities: dict, by_id: dict) -> dict:
+    first, second = [entities[id] for id in relation.entity_ids]
+    a, b = [{p['pitch_class'] for p in v['positions']} for v in (first, second)]
+    key_notes = entities[relation.key_id]['notes']
+    functions = []
+    for v in (first, second):
+        chord = entities.get(v['chord_id'])
+        functions.append(harmonic_function({'root': chord['notes'][0]['note'], 'quality': chord['quality']}, key_notes) if chord else 'unnamed')
+    home_key = functions == ['V', 'I'] and by_id[relation.key_id].root == 'G'
+    return {'kind': 'transition', 'entity_ids': list(relation.entity_ids), 'key_id': relation.key_id,
+        'label': f"{first['label']} → {second['label']}", 'functions': functions,
+        'shared': sorted(a & b), 'removed': sorted(a - b), 'added': sorted(b - a),
+        'movement': physical_movement(first, second),
+        'explanation': 'D builds expectation; G feels like home in G major. Hear the two shapes, then inspect what stays or moves.'
+        if home_key else 'Hear these shapes in the key context; inspect each string to see what stays or moves.'}
+
+
+def resolve_note_group(entity: NoteGroup, tuning: list[int]) -> dict:
+    positions: list[dict] = []
+    for ref in entity.notes:
+        if isinstance(ref, PitchRef):
+            positions.extend({'string': string, 'fret': fret, 'midi': midi + fret, **chromatic_note(ref.pitch_class)}
+                             for string, midi in enumerate(tuning, 1) for fret in range(20) if (midi + fret) % 12 == ref.pitch_class)
+        else:
+            midi = tuning[ref.string - 1] + ref.fret
+            positions.append({'string': ref.string, 'fret': ref.fret, 'midi': midi, **chromatic_note(midi)})
+    return {'id': entity.id, 'kind': 'noteGroup', 'label': entity.label, 'notes': unique_notes(positions),
+        'positions': positions, 'tuning': tuning}
 
 
 
@@ -246,7 +373,7 @@ def physical_resolution() -> ConceptWorkspace:
         Voicing(id=dv, chord_id=d, label='D open', tuning=tuning, positions=[Position(string=s, fret=f) for s, f in CAGED_POSITIONS['major']['D']]),
         Voicing(id=gv, chord_id=g, label='G open', tuning=tuning, positions=[Position(string=s, fret=f) for s, f in CAGED_POSITIONS['major']['G']])],
         relations=[Transition(id=transition, entity_ids=[dv, gv], key_id=key)],
-        blocks=[Block(id=diagrams, kind='chord_diagrams', source_id=transition), Block(id=fret, kind='fretboard', source_id=transition), Block(id=circle, kind='circle', source_id=key)],
+        blocks=[Block(id=diagrams, kind='chord_diagrams', sources=[dv, gv]), Block(id=fret, kind='fretboard', sources=[transition]), Block(id=circle, kind='circle', sources=[key])],
         composition=[Row(items=[Placement(block_id=diagrams, priority='primary', span=6), Placement(block_id=circle, span=6)]), Row(items=[Placement(block_id=fret)])])
 
 
@@ -260,48 +387,16 @@ def spelled_notes(root: str, offsets: list[int], degrees: list[str]) -> list[dic
     return notes
 
 
-def resolve_physical(workspace: ConceptWorkspace) -> dict:
-    from app.v2.concepts import CIRCLE_KEYS
-    keys, chords, voicings, transitions = {}, {}, {}, {}
-    for entity in workspace.entities:
-        if isinstance(entity, Key):
-            keys[entity.id] = {'label': f'{entity.root} major', 'root': entity.root,
-                'notes': spelled_notes(entity.root, [0,2,4,5,7,9,11], ['1','2','3','4','5','6','7']), 'circle': [entity.root if pitch_class(n) == pitch_class(entity.root) else n for n in CIRCLE_KEYS]}
-        elif isinstance(entity, Chord):
-            formula = CHORD_INTERVALS[entity.quality]
-            chords[entity.id] = {'label': f'{entity.root} {entity.quality}', 'root': entity.root,
-                'quality': entity.quality, 'notes': spelled_notes(entity.root, formula['intervals'], formula['names'])}
-    for entity in workspace.entities:
-        if not isinstance(entity, Voicing):
-            continue
-        voicings[entity.id] = resolve_voicing(entity, chords)
-    for relation in workspace.relations:
-        if not isinstance(relation, Transition):
-            continue
-        first, second = [voicings[id] for id in relation.entity_ids]
-        a, b = [{p['pitch_class'] for p in v['positions']} for v in (first, second)]
-        movement = physical_movement(first, second)
-        key_notes = keys[relation.key_id]['notes']
-        functions = []
-        for v in (first, second):
-            chord = chords.get(v['chord_id'])
-            functions.append(harmonic_function(chord, key_notes) if chord else 'unnamed')
-        transitions[relation.id] = {'label': f"{first['label']} → {second['label']}", 'functions': functions,
-            'shared': sorted(a & b), 'removed': sorted(a - b), 'added': sorted(b - a), 'movement': movement,
-            'explanation': 'D builds expectation; G feels like home in G major. Hear the two shapes, then inspect what stays or moves.' if functions == ['V','I'] and keys[relation.key_id]['root'] == 'G' else 'Hear these shapes in the key context; inspect each string to see what stays or moves.'}
-    return {'keys': keys, 'chords': chords, 'voicings': voicings, 'transitions': transitions}
-
-
-def resolve_voicing(entity: Voicing, chords: dict) -> dict:
-    context = chords.get(entity.chord_id, {})
+def resolve_voicing(entity: Voicing, entities: dict) -> dict:
+    context = entities.get(entity.chord_id or '', {})
     notes = {n['pitch_class']: n for n in context.get('notes', [])}
     positions = []
     for p in entity.positions:
         midi = entity.tuning[p.string - 1] + p.fret
-        pitch = midi % 12
-        note = notes.get(pitch) or {'note': ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'][pitch], 'degree':'—', 'pitch_class':pitch, 'offset':0}
+        note = notes.get(midi % 12) or chromatic_note(midi)
         positions.append(p.model_dump() | note | {'midi': midi})
-    return {'label': entity.label, 'chord_id': entity.chord_id, 'tuning': entity.tuning, 'positions': positions}
+    return {'id': entity.id, 'kind': 'voicing', 'label': entity.label, 'notes': unique_notes(positions),
+        'chord_id': entity.chord_id, 'tuning': entity.tuning, 'positions': positions}
 
 def harmonic_function(chord: dict, notes: list[dict]) -> str:
     index = next((i for i, n in enumerate(notes) if n['pitch_class'] == pitch_class(chord['root'])), None)

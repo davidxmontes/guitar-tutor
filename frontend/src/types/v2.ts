@@ -1,4 +1,4 @@
-import type { ConceptWorkspace, Inspection } from './conceptWorkspace';
+import type { ConceptWorkspace, TypedInspection } from './conceptWorkspace';
 import type { TabData } from './song';
 
 export type ArtifactKind = 'song_study' | 'progression' | 'concept_study' | 'exercise';
@@ -278,7 +278,7 @@ export interface TutorResponse {
 }
 
 export interface TutorTurnRequest {
-  inspection?: Inspection | null;
+  inspection?: TypedInspection | null;
   session_id: string;
   branch_id: string;
   message: string;

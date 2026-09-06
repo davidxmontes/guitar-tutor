@@ -1,50 +1,61 @@
-"""Thin CAGED adapter: trusted regions remain derived until explicitly kept."""
+"""Thin CAGED adapter: trusted regions feed every major/minor resolved chord;
+materialization stays an explicit editing boundary."""
 from typing import Literal
 from uuid import uuid4
+from app.music.chords import CHORD_INTERVALS
 from app.v2.workspace import (Block, Chord, ConceptWorkspace, Identifier, Placement, Position, Row,
-    StrictModel, ViewSettings, Voicing, physical_movement, pitch_class, resolve_voicing, resolve_workspace)
+    StrictModel, ViewSettings, Voicing, chromatic_note, pitch_class, resolve_workspace, spelled_notes)
+
+STANDARD_TUNING = [64, 59, 55, 50, 45, 40]
 
 
 def caged_starter() -> ConceptWorkspace:
     chord = Chord(id=uuid4().hex, root='C', quality='major')
-    blocks = [Block(id=uuid4().hex, kind=kind, source_id=chord.id) for kind in ('caged','chord_diagrams','fretboard')]
+    # `caged` is a fretboard mode now, not a block kind (spec #88 BLK-02).
+    blocks = [
+        Block(id=uuid4().hex, kind='fretboard', sources=[chord.id], settings=ViewSettings(mode='caged')),
+        Block(id=uuid4().hex, kind='chord_diagrams', sources=[chord.id]),
+        Block(id=uuid4().hex, kind='fretboard', sources=[chord.id]),
+    ]
     return ConceptWorkspace(title='Connect CAGED shapes', provenance='caged-exploration', entities=[chord], blocks=blocks,
         composition=[Row(items=[Placement(block_id=b.id, priority='primary' if i == 0 else 'supporting')]) for i,b in enumerate(blocks)])
 
 
-def resolve_caged(workspace: ConceptWorkspace, facts: dict) -> dict:
+def chord_caged_regions(chord: Chord, tuning: list[int]) -> list[dict]:
+    """Trusted CAGED regions for a major/minor chord, projected into ``tuning``.
+
+    Each region is ``{shape, label, fret_start, fret_end, positions}`` where
+    ``positions`` carry the chord's enharmonic spelling.
+    """
     from app.v2.concepts import caged_regions
     from app.music.chords import index_to_note
-    result = {}
-    for chord in workspace.entities:
-        if not isinstance(chord, Chord) or not any(b.source_id == chord.id for b in workspace.blocks):
-            continue
-        trusted = caged_regions(index_to_note(pitch_class(chord.root)), chord.quality)
-        regions = []
-        for region in trusted:
-            voicing = Voicing(id='derived', chord_id=chord.id, label=region.label, tuning=workspace.tuning,
-                positions=[Position(string=p.string, fret=p.fret + [64,59,55,50,45,40][p.string-1] - workspace.tuning[p.string-1]) for p in region.positions])
-            resolved = resolve_voicing(voicing, facts['chords'])
-            regions.append(resolved | {'shape':region.shape, 'fret_start':min(p.fret for p in voicing.positions), 'fret_end':max(p.fret for p in voicing.positions)})
-        regions.sort(key=lambda r:r['fret_start'])
-        pairs = []
-        for first, second in zip(regions, regions[1:]):
-            other = {(p['string'],p['fret']) for p in second['positions']}
-            pairs.append({'key':first['shape'] + ':' + second['shape'], 'shared':[p for p in first['positions'] if (p['string'],p['fret']) in other],
-                'movement':physical_movement(first,second)})
-        result[chord.id] = {'label':f'{chord.root} {chord.quality} CAGED', 'regions':regions, 'pairs':pairs}
-    return result
+    formula = CHORD_INTERVALS[chord.quality]
+    notes = {n['pitch_class']: n for n in spelled_notes(chord.root, formula['intervals'], formula['names'])}
+    regions = []
+    for region in caged_regions(index_to_note(pitch_class(chord.root)), chord.quality):
+        positions = []
+        for p in region.positions:
+            fret = p.fret + STANDARD_TUNING[p.string - 1] - tuning[p.string - 1]
+            midi = tuning[p.string - 1] + fret
+            positions.append({'string': p.string, 'fret': fret, 'midi': midi, **(notes.get(midi % 12) or chromatic_note(midi))})
+        regions.append({'shape': region.shape, 'label': region.label,
+            'fret_start': min(x['fret'] for x in positions), 'fret_end': max(x['fret'] for x in positions),
+            'positions': positions})
+    regions.sort(key=lambda r: r['fret_start'])
+    return regions
 
 
-def valid_caged_inspection(facts: dict | None, kind: str, key: int | str) -> bool:
-    if not facts or not isinstance(key, str):
+def valid_caged_inspection(regions: list[dict] | None, kind: str, key: int | str) -> bool:
+    if not regions or not isinstance(key, str):
         return False
-    region = next((r for r in facts['regions'] if r['shape'] == key.split(':')[0]), None)
     if kind == 'region':
-        return any(r['shape'] == key for r in facts['regions'])
+        return any(r['shape'] == key for r in regions)
     if kind == 'region_pair':
-        return any(p['key'] == key for p in facts['pairs'])
-    return kind == 'region_note' and region is not None and any(key == f"{region['shape']}:{p['pitch_class']}" for p in region['positions'])
+        return any(f"{first['shape']}:{second['shape']}" == key for first, second in zip(regions, regions[1:]))
+    if kind == 'region_note':
+        region = next((r for r in regions if r['shape'] == key.split(':')[0]), None)
+        return region is not None and any(key == f"{region['shape']}:{p['pitch_class']}" for p in region['positions'])
+    return False
 
 
 class CagedMaterialize(StrictModel):
@@ -55,10 +66,11 @@ class CagedMaterialize(StrictModel):
 
 def materialize_region(request: CagedMaterialize) -> ConceptWorkspace:
     draft = request.workspace.model_copy(deep=True)
-    facts = resolve_workspace(draft)['caged'].get(request.chord_id)
-    if not facts:
+    resolved = resolve_workspace(draft)['entities'].get(request.chord_id, {})
+    regions = resolved.get('cagedRegions')
+    if not regions:
         raise ValueError('Select a CAGED source')
-    region = next(r for r in facts['regions'] if r['shape'] == request.region)
+    region = next(r for r in regions if r['shape'] == request.region)
     source = next(e for e in draft.entities if e.id == request.chord_id)
     chord = source.model_copy(update={'id':uuid4().hex})
     voicing = Voicing(id=uuid4().hex, chord_id=chord.id, label=f'{source.root} {source.quality} · {region["label"]}', tuning=draft.tuning,
@@ -66,7 +78,7 @@ def materialize_region(request: CagedMaterialize) -> ConceptWorkspace:
     draft.entities.extend([chord,voicing])
     for kind in ('chord_diagrams','fretboard'):
         start = min(region['fret_start'], 19); end = max(start+1,region['fret_end'])
-        block = Block(id=uuid4().hex, kind=kind, source_id=voicing.id, settings=ViewSettings(fret_start=start,fret_end=end))
+        block = Block(id=uuid4().hex, kind=kind, sources=[voicing.id], settings=ViewSettings(fret_start=start,fret_end=end))
         draft.blocks.append(block); draft.composition.append(Row(items=[Placement(block_id=block.id)]))
     result = ConceptWorkspace.model_validate(draft.model_dump()); resolve_workspace(result)
     return result

@@ -16,10 +16,13 @@ def test_comparison_opens_edits_and_recovers_without_artifacts_or_tutor(client):
     draft = branch['working_draft']
     assert [(e['kind'], e['root'], e['mode']) for e in draft['entities']] == [('scale', 'G', 'major'), ('scale', 'G', 'natural_minor')]
     resolved = client.post('/api/v2/concept-workspaces/resolve', json=draft).json()
-    scales = list(resolved['scales'].values())
+    assert set(resolved) == {'entities', 'relations'}
+    scales = [resolved['entities'][e['id']] for e in draft['entities']]
     assert [n['note'] for n in scales[0]['notes']] == ['G', 'A', 'B', 'C', 'D', 'E', 'F#']
     assert [n['note'] for n in scales[1]['notes']] == ['G', 'A', 'Bb', 'C', 'D', 'Eb', 'F']
-    assert resolved['comparisons'][draft['relations'][0]['id']]['shared'] == [7, 9, 0, 2]
+    assert all(s['kind'] == 'scale' and s['tuning'] == draft['tuning'] for s in scales)
+    assert max(p['fret'] for s in scales for p in s['positions']) == 19
+    assert resolved['relations'][draft['relations'][0]['id']]['shared'] == [7, 9, 0, 2]
     for entity in draft['entities']:
         entity['root'] = 'F#'
     draft['tuning'] = [64, 59, 55, 50, 45, 38]
@@ -29,8 +32,8 @@ def test_comparison_opens_edits_and_recovers_without_artifacts_or_tutor(client):
     recovered = client.get(f'/api/v2/sessions/{session_id}').json()['branches'][-1]
     assert recovered['working_draft'] == response.json()['working_draft']
     resolved = client.post('/api/v2/concept-workspaces/resolve', json=recovered['working_draft']).json()
-    assert [n['note'] for n in next(iter(resolved['scales'].values()))['notes']] == ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#']
-    for scale in resolved['scales'].values():
+    assert [n['note'] for n in next(iter(resolved['entities'].values()))['notes']] == ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#']
+    for scale in resolved['entities'].values():
         for pos in scale['positions']:
             assert pos['midi'] == draft['tuning'][pos['string'] - 1] + pos['fret']
     assert client.put(url, json={'expected_version': 1, 'workspace': draft}).status_code == 409
@@ -42,7 +45,7 @@ def test_invalid_composition_and_unowned_updates_leave_draft_intact(client):
     session_id, branch, url = open_workspace(client)
     original = branch['working_draft']
     invalid = []
-    for path, value in [('source_id', 'missing'), ('kind', 'circle')]:
+    for path, value in [('sources', ['missing']), ('kind', 'circle')]:
         draft = deepcopy(original)
         draft['blocks'][0][path] = value
         invalid.append(draft)
@@ -68,7 +71,7 @@ def test_view_changes_keep_music_and_atomic_concurrent_saves(client):
     _, branch, url = open_workspace(client)
     original = branch['working_draft']
     draft = deepcopy(original)
-    draft['blocks'][0]['settings']['shared_only'] = True
+    draft['blocks'][0]['settings']['comparison'] = 'shared-only'
     dropped = draft['blocks'].pop()['id']
     draft['composition'] = [row for row in ({'items': [item for item in row['items'] if item['block_id'] != dropped]} for row in draft['composition']) if row['items']]
     with ThreadPoolExecutor(max_workers=2) as pool:

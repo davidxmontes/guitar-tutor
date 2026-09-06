@@ -12,7 +12,7 @@ from app.v2.workspace import (
 def progression_starter() -> ConceptWorkspace:
     key, block = uuid4().hex, uuid4().hex
     return ConceptWorkspace(title='Explore I–V–vi–IV', provenance='four-chord-progression',
-        entities=[Key(id=key, root='G')], blocks=[Block(id=block, kind='progression', source_id=key, settings=ViewSettings(pattern='I-V-vi-IV'))],
+        entities=[Key(id=key, root='G')], blocks=[Block(id=block, kind='progression', sources=[key], settings=ViewSettings(pattern='I-V-vi-IV'))],
         composition=[Row(items=[Placement(block_id=block, priority='primary')])])
 
 
@@ -27,14 +27,14 @@ def reference_voicing(chord: Chord, tuning: list[int]) -> Voicing:
     return Voicing(id=uuid4().hex, chord_id=chord.id, label=f'{chord.root} {chord.quality} voicing', tuning=tuning, positions=positions)
 
 
-def resolve_progressions(workspace: ConceptWorkspace, facts: dict) -> dict:
+def resolve_progressions(workspace: ConceptWorkspace, entities: dict) -> dict:
     progressions = {}
-    for block in workspace.blocks:
-        if block.kind != 'progression' or block.source_id in progressions:
+    source_ids = {source_id for block in workspace.blocks if block.kind == 'progression' for source_id in block.sources}
+    for source in workspace.entities:
+        if not isinstance(source, Progression) and not (isinstance(source, Key) and source.id in source_ids):
             continue
-        source = next(e for e in workspace.entities if e.id == block.source_id)
         key_id = source.id if isinstance(source, Key) else source.key_id
-        notes = facts['keys'][key_id]['notes']
+        notes = entities[key_id]['notes']
         steps = []
         if isinstance(source, Key):
             for degree, quality in [(0,'major'),(4,'major'),(5,'minor'),(3,'major')]:
@@ -44,13 +44,16 @@ def resolve_progressions(workspace: ConceptWorkspace, facts: dict) -> dict:
                     'positions':resolve_voicing(voicing, {chord.id: {'notes':spelled_notes(chord.root, CHORD_INTERVALS[quality]['intervals'], CHORD_INTERVALS[quality]['names'])}})['positions'], 'tuning':voicing.tuning})
         else:
             for step in source.steps:
-                chord = facts['chords'][step.chord_id]
-                voicing = facts['voicings'].get(step.voicing_id)
-                steps.append({'chord_id':step.chord_id, 'voicing_id':step.voicing_id, 'root':chord['root'], 'quality':chord['quality'],
+                chord = entities[step.chord_id]
+                voicing = entities.get(step.voicing_id)
+                steps.append({'chord_id':step.chord_id, 'voicing_id':step.voicing_id, 'root':chord['notes'][0]['note'], 'quality':chord['quality'],
                     'positions':voicing['positions'] if voicing else [], 'tuning':voicing['tuning'] if voicing else workspace.tuning})
         for step in steps:
             step['function'] = harmonic_function(step, notes)
-        progressions[source.id] = {'derived':isinstance(source, Key), 'key_id':key_id, 'label':'I–V–vi–IV' if isinstance(source, Key) else 'Your progression', 'steps':steps}
+        progressions[source.id] = {'id':source.id, 'kind':'progression',
+            'label':'I–V–vi–IV' if isinstance(source, Key) else 'Your progression',
+            'notes':[], 'positions':[], 'tuning':workspace.tuning,
+            'derived':isinstance(source, Key), 'key_id':key_id, 'steps':steps}
     return progressions
 
 
@@ -70,7 +73,9 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
     block = next((b for b in draft.blocks if b.id == request.block_id and b.kind == 'progression'), None)
     if not block:
         raise ValueError('Select an existing progression view')
-    facts = resolve_workspace(draft)['progressions'][block.source_id]
+    facts = resolve_workspace(draft)['entities'][block.sources[0]]
+    if facts['kind'] == 'key':
+        facts = facts['derivedProgression']
     if facts['derived']:
         steps = []
         for step in facts['steps']:
@@ -81,12 +86,14 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
         progression = Progression(id=uuid4().hex, key_id=facts['key_id'], steps=steps)
         draft.entities.append(progression)
         # All views of this same derived pattern follow its concrete identity.
-        source_id = block.source_id
+        source_id = block.sources[0]
         for view in draft.blocks:
-            if view.kind == 'progression' and view.source_id == source_id:
-                view.source_id = progression.id; view.settings.pattern = None
+            if view.kind == 'progression' and source_id in view.sources:
+                view.sources = [progression.id if id == source_id else id for id in view.sources]
+                if view.sources[0] == progression.id:
+                    view.settings.pattern = None
     else:
-        progression = next(e for e in draft.entities if e.id == block.source_id)
+        progression = next(e for e in draft.entities if e.id == block.sources[0])
     entities = {e.id:e for e in draft.entities}
     if request.action == 'edit':
         if request.step is None or request.step >= len(progression.steps):

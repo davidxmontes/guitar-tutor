@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('D to G coordinates physical views, Hear, direct Tutor reshaping and Undo', async ({ page }) => {
+// T4: the physical Blocks (chord-diagram / circle / fretboard) coordinate one
+// inspection pull-based and Hear runs on one clock — no Tutor. Proves BLK-04/05, INSP-01.
+test('D to G coordinates physical views and Hear on one clock', async ({ page }) => {
   let turns = 0;
   page.on('request', r => { if (r.url().endsWith('/tutor/turns')) turns++; });
   await page.goto('/v2');
@@ -23,6 +25,18 @@ test('D to G coordinates physical views, Hear, direct Tutor reshaping and Undo',
   await page.getByRole('button', { name: 'Stop playback' }).click();
   expect(turns).toBe(0);
   await page.screenshot({ path:'/private/tmp/issue64-desktop.png', fullPage:true });
+  await page.setViewportSize({ width:320, height:800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+// T7 (#96) owns the scripted-model Tutor reshaping / Undo / preview flow.
+test('D to G direct Tutor reshaping and Undo', async ({ page }) => {
+  let turns = 0;
+  page.on('request', r => { if (r.url().endsWith('/tutor/turns')) turns++; });
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Why does D resolve to G?' }).click();
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  const diagrams = page.getByRole('region', { name: 'Chord diagrams', exact: true });
   if (!(await page.getByRole('complementary', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Give me a smoother way to move from D to G');
   await page.getByTestId('tutor-chat-send').click();
