@@ -10,7 +10,7 @@ Pitch = Annotated[str, Field(pattern=r'^[A-G](#{1,2}|b{1,2})?$')]
 Identifier = Annotated[str, Field(min_length=1, max_length=80)]
 Midi = Annotated[int, Field(strict=True, ge=0, le=127)]
 Mode = Literal['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues']
-BLOCK_SOURCES = {'fretboard': ('scale', 'compare', 'voicing', 'transition'), 'degree_strip': ('scale', 'compare'), 'chord_diagrams': ('voicing', 'transition'), 'circle': ('key',), 'progression': ('key', 'progression')}
+BLOCK_SOURCES = {'fretboard': ('scale', 'compare', 'voicing', 'transition', 'chord'), 'degree_strip': ('scale', 'compare'), 'chord_diagrams': ('voicing', 'transition', 'chord'), 'circle': ('key',), 'progression': ('key', 'progression'), 'caged': ('chord',)}
 
 
 class StrictModel(BaseModel):
@@ -111,7 +111,7 @@ class ViewSettings(StrictModel):
 
 class Block(StrictModel):
     id: Identifier
-    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression']
+    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'caged']
     source_id: Identifier
     settings: ViewSettings = Field(default_factory=ViewSettings)
 
@@ -130,7 +130,7 @@ class ConceptWorkspace(StrictModel):
     schema_version: Literal[1] = 1
     version: int = Field(default=1, ge=1, strict=True)
     title: str = Field(min_length=1, max_length=120)
-    provenance: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression'] = 'scale-comparison'
+    provenance: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression', 'caged-exploration'] = 'scale-comparison'
     tuning: list[Midi] = Field(default_factory=lambda: [64, 59, 55, 50, 45, 40], min_length=6, max_length=6)
     entities: list[Entity] = Field(min_length=1, max_length=12)
     relations: list[Compare | Transition] = Field(default_factory=list, max_length=12)
@@ -168,12 +168,15 @@ class ConceptWorkspace(StrictModel):
                     raise ValueError('A physical transition needs the same tuning on both voicings')
         sources = {obj.id: obj.kind for obj in [*self.entities, *self.relations]}
         for block in self.blocks:
+            chord = entities.get(block.source_id)
+            if isinstance(chord, Chord) and chord.quality not in ('major', 'minor'):
+                raise ValueError('CAGED views support major or minor chords')
             derived = block.kind == 'progression' and sources.get(block.source_id) == 'key'
             if derived != (block.settings.pattern is not None):
                 raise ValueError('A derived Progression view requires a pattern; other views do not')
             if sources.get(block.source_id) not in BLOCK_SOURCES[block.kind]:
                 raise ValueError('View is not compatible with its musical source')
-            if block.settings.shared_only and sources[block.source_id] not in ('compare', 'transition'):
+            if block.settings.shared_only and sources[block.source_id] not in ('compare', 'transition', 'chord'):
                 raise ValueError('Shared notes require a comparison')
         placements = [item.block_id for row in self.composition for item in row.items]
         if sorted(placements) != sorted(block.id for block in self.blocks):
@@ -229,7 +232,8 @@ def resolve_workspace(workspace: ConceptWorkspace) -> dict:
             'removed': [n for n in first if n['pitch_class'] not in second_pitches], 'added': [n for n in second if n['pitch_class'] not in first_pitches]}
     from app.v2.workspace_progressions import resolve_progressions
     facts = {'scales': scales, 'comparisons': comparisons, 'block_sources': BLOCK_SOURCES, **resolve_physical(workspace)}
-    return facts | {'progressions': resolve_progressions(workspace, facts)}
+    from app.v2.workspace_caged import resolve_caged
+    return facts | {'progressions': resolve_progressions(workspace, facts), 'caged': resolve_caged(workspace, facts)}
 
 
 
@@ -276,13 +280,7 @@ def resolve_physical(workspace: ConceptWorkspace) -> dict:
             continue
         first, second = [voicings[id] for id in relation.entity_ids]
         a, b = [{p['pitch_class'] for p in v['positions']} for v in (first, second)]
-        movement = []
-        for string in range(1, 7):
-            before, after = [next((p for p in v['positions'] if p['string'] == string), None) for v in (first, second)]
-            if before or after:
-                movement.append({'string': string, 'before': before, 'after': after,
-                    'kind': 'added' if not before else 'removed' if not after else 'fixed' if before['fret'] == after['fret'] else 'moving',
-                    'semitones': after['midi'] - before['midi'] if before and after else None})
+        movement = physical_movement(first, second)
         key_notes = keys[relation.key_id]['notes']
         functions = []
         for v in (first, second):
@@ -308,3 +306,14 @@ def resolve_voicing(entity: Voicing, chords: dict) -> dict:
 def harmonic_function(chord: dict, notes: list[dict]) -> str:
     index = next((i for i, n in enumerate(notes) if n['pitch_class'] == pitch_class(chord['root'])), None)
     return ['I','ii','iii','IV','V','vi','vii°'][index] if index is not None and chord['quality'] == ['major','minor','minor','major','major','minor','diminished'][index] else 'outside key'
+
+
+def physical_movement(first: dict, second: dict) -> list[dict]:
+    movement = []
+    for string in range(1, 7):
+        before, after = [next((p for p in v['positions'] if p['string'] == string), None) for v in (first, second)]
+        if before or after:
+            movement.append({'string': string, 'before': before, 'after': after,
+                'kind': 'added' if not before else 'removed' if not after else 'fixed' if before['fret'] == after['fret'] else 'moving',
+                'semitones': after['midi'] - before['midi'] if before and after else None})
+    return movement
