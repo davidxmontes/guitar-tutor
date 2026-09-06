@@ -23,7 +23,7 @@ cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install 
 ## Known gate gaps (verified 2026-09-06)
 
 Verified against a clean archive of `main-v2` at `c2492c7` with the installed
-lockfile dependencies. These existing failures remain outside #94; no passing
+lockfile dependencies. These existing failures remain outside #96; no passing
 test may regress.
 
 - `npm run lint`: 16 errors / 4 warnings on both baseline and integration.
@@ -32,18 +32,17 @@ test may regress.
 - `python -m pytest -q`: the same single failure on both branches,
   `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`.
   It patches the removed `chords_router.get_voicing_positions` symbol.
-  Baseline: 248 passed; integration: 265 passed. All V2 backend tests pass.
-- `npm run test:e2e`: integration 38 passed / 4 failed; every rebuilt-Block
-  test passes. The four existing scripted Tutor/history failures are owned
-  by T7: `workspace-history`'s Preview/Return/Restore test, and
-  `workspace-tutor`'s direct apply/undo, alternatives, and failed post-turn
-  view-request tests. The clean baseline run also had a transient
-  `default-entry` failure; its isolated retry passed (1/1).
+  Baseline: 248 passed; after #96: 267 passed. All V2 backend tests pass.
+- #96 clears the four formerly failing Tutor/history browser tests. The full
+  browser suite now passes 43/43, including multi-source Tutor composition,
+  re-binding without duplicate Blocks, persistent NoteGroup emphasis, transient
+  attention expiry, and preview/restore with unsent-question preservation.
 
-#94 verification logs are captured alongside the integration PR: full backend,
-frontend lint, production build (including `VITE_AUTH_DEV_BYPASS=true`), adapter
-unit tests, full browser suite, and the clean-baseline comparisons. The bypass
-build emits only the existing large-chunk advisory.
+#96 verification: production build (including `VITE_AUTH_DEV_BYPASS=true`) and
+17 adapter tests pass; full gate output is in its PR. The bypass build emits
+only the existing large-chunk advisory. TutorFocus contains only one-turn
+attention; cross-workspace comparison shapes use separate `comparison_groups`
+response data. Existing historical comparison shapes remain readable.
 
 ## Local dev
 

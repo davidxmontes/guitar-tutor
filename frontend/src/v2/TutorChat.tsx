@@ -134,6 +134,7 @@ export function TutorChat({
     setMessages((prev) => [...prev, { id: `local-user-${Date.now()}`, role: 'user', text, candidates: null }]);
     setInput('');
     setSending(true); onSendingChange?.(true);
+    onFocusChange(null);
     setSendError(null);
     try {
       await beforeSend?.();
