@@ -55,3 +55,17 @@ def test_progression_editor_operations():
     workspace = edit_progression(workspace, ProgressionEdit(active_idea_id=b.id))
     assert workspace.focus is None
     with pytest.raises(ValueError): edit_progression(workspace, ProgressionEdit(order=[]))
+
+
+def test_function_families_and_exercise_copies_idea():
+    from app.v2.progression import exercise_from_idea
+    from app.v2.models import ExercisePayload
+    value = idea(tonal_center={'root': 'C', 'scale': 'major'})
+    resolved = resolve_progression(value)
+    assert [step['function_family'] for step in resolved['steps']] == ['Dominant', 'Tonic']
+    payload = exercise_from_idea(value, 'Cadence drill', 'Land softly', 80, ['b', 'a', 'b'])
+    checked = ExercisePayload.model_validate(payload)
+    assert [step.beats for step in checked.steps] == [2,4,2]
+    assert checked.steps[0].positions
+    value.label = 'Changed after copying'
+    assert checked.created_from['idea']['label'] == 'Cadence'

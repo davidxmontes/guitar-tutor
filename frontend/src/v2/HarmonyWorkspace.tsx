@@ -96,7 +96,7 @@ export function HarmonyWorkspace({ branch, onChange }: { branch: V2Branch; onCha
           onPlay={id => { const value = candidates.find(candidate => candidate.id === id)!.voicing; stopPreview.current?.(); stopPreview.current = playChord(value.positions, .03, 1.2, value.tuning); }}
           onKeep={id => { const candidate = candidates.find(value => value.id === id)!; if (!busy) void edit({ pin: { chord: candidate.chord, voicing: candidate.voicing } }); }}
           onDismiss={id => setCandidates(values => values.filter(value => value.id !== id))} />;
-        if (block.kind === 'chord-inspector' && chord) return <ChordInspector onExplore={() => void explore(chord)} chord={chord} data={data} hasKey={!!state.tonal_center} />;
+        if (block.kind === 'chord-inspector' && chord) return <ChordInspector context="harmony" notes={data.chord_notes} functionLabel={data.function} onExplore={() => void explore(chord)} chord={chord} hasKey={!!state.tonal_center} />;
         if (block.kind === 'voicing-explorer' && chord) return <VoicingExplorer key={`${branch.id}:${surface.branch.live_presentation_turn_id}`} chord={chord} data={data} tuning={state.tuning} initialView={block.config?.view} busy={busy} edit={edit} compare={compare.toggle} />;
         if (block.kind === 'fretboard') return <Fretboard context="harmony" layers={[...layers, ...data.note_groups]} config={block.config} onNudge={nudge}
           onSelect={note => { if (busy) return; const index = data.degrees.findIndex(degree => degree.pitch_class === note.pitch_class); if (index >= 0) void edit({ focus: { kind: 'degree', degree: index + 1 } }); }} />;
