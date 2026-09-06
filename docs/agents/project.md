@@ -209,3 +209,22 @@ service-role-only RPC atomically saves the active idea and artifact revision,
 checking both Branch and artifact timestamps. The disposable PostgreSQL check
 verifies rollback after the artifact write, ownership and stale rejection.
 Progression reopen creates a fresh draft and clears the live surface pointer.
+
+## Harmony/Progression ready-ticket delivery (#102–#112)
+
+Both workspace surfaces now use the shared Composition runtime. Tutor mutations
+are strict musical commands; Progression candidates are resolved before the
+turn transaction and kept from owned assistant-message data. Candidate idea IDs
+make Keep followed by Develop idempotent. Gesture writes use Branch timestamp
+checks. Harmony Develop copies scratch and provenance into a new idea and keeps
+the original exploration unchanged.
+
+Run all three SQL documents on the hard-cutover store: `v2-schema.sql`,
+`v2-workspace-turns.sql`, and `v2-progression-saves.sql`. The disposable PostgreSQL
+check exercises the turn and save transactions. Production reset/SQL installation
+is a separate deployment operation.
+
+Frontend restoration planning remains tracked in #113: SongStudy/library and
+saved Exercise practice surfaces were deleted in #101. The ready tickets restore
+Harmony/Progression entry, shared blocks and idea-based Exercise composition;
+#113 is not a completed implementation ticket.

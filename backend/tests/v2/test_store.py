@@ -159,3 +159,13 @@ def test_update_artifact_replaces_payload_without_changing_identity(store):
     assert store.get_artifact(created.id, "user_1") == updated
     with pytest.raises(NotFoundError):
         store.update_artifact(created.id, user_id="someone_else", payload={"x": True})
+
+
+def test_branch_gesture_compare_and_swap_rejects_stale_state(store):
+    from app.v2.store import RevisionConflictError
+    session = store.create_session('owner')
+    branch = session.branches[0]
+    updated = store.update_branch(session.id, branch.id, 'owner', title='First', expected_updated_at=branch.updated_at)
+    with pytest.raises(RevisionConflictError):
+        store.update_branch(session.id, branch.id, 'owner', title='Stale', expected_updated_at=branch.updated_at)
+    assert store.get_session(session.id, 'owner').branches[0] == updated

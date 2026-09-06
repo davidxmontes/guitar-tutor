@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, ANY
 
 import pytest
 
@@ -156,6 +156,7 @@ def test_update_branch_persists_workspace_fields():
     )
 
     updated_branch.update.assert_called_once_with({
+        "updated_at": ANY,
         "title": "Progression fork",
         "active_workspace": "progression",
         "progression_workspace": {"ideas": [], "active_idea_id": None, "focus": None},
@@ -375,3 +376,15 @@ def test_progression_save_rpc_round_trip_and_conflict():
     assert args['p_payload']['title'] == 'Draft'
     client.rpc.return_value.execute.side_effect = APIError({'message': 'stale', 'code': '40001', 'details': '', 'hint': ''})
     with pytest.raises(RevisionConflictError): store.save_progression_idea(branch, 'user_1')
+
+
+def test_branch_gesture_compare_and_swap_filters_timestamp():
+    from app.v2.store import RevisionConflictError
+    client = MagicMock(); store = SupabaseV2Store(client)
+    store.get_session = MagicMock()
+    chain = _chain([]); client.table.return_value = chain
+    with pytest.raises(RevisionConflictError):
+        store.update_branch('s','b','owner',expected_updated_at='t1',title='Changed')
+    assert ('updated_at','t1') in [call.args for call in chain.eq.call_args_list]
+    assert 'expected_updated_at' not in chain.update.call_args.args[0]
+    assert chain.update.call_args.args[0]['updated_at'] != 't1'

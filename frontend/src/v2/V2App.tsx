@@ -142,6 +142,7 @@ export function V2App() {
           onClose={(id) => runBranchClosedState(id, true)}
           onReopen={(id) => runBranchClosedState(id, false)}
         />
+        {branch?.harmony_exploration && branch.progression_workspace && <nav aria-label="Workspaces" className="music-controls">{(['harmony', 'progression'] as const).map(kind => <button key={kind} className="music-button" aria-pressed={branch.active_workspace === kind} onClick={() => { apiClient.updateV2Branch(branch.session_id, branch.id, { active_workspace: kind }).then(patchBranch).catch(err => setError(String(err))); }}>{kind === 'harmony' ? 'Harmony' : 'Progression'}</button>)}</nav>}
         {branch && (
           <section id={`workspace-panel-${branch.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${branch.id}`}>
             {branch.active_workspace === 'harmony' ? <HarmonyWorkspace key={branch.id} branch={branch} onChange={patchBranch} /> : <ProgressionWorkspace key={branch.id} branch={branch} onChange={patchBranch} />}

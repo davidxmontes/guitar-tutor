@@ -18,7 +18,8 @@ def workspace_tools(branch: Branch):
                 data = idea.model_dump() if hasattr(idea, 'model_dump') else idea
                 if data['id'] == idea_id:
                     from copy import deepcopy
-                    return deepcopy(data)
+                    from app.v2.progression import resolve_progression
+                    return deepcopy(data) | {'resolved': resolve_progression(idea)}
         return {'error': 'Idea not found'}
 
     return [read_harmony, read_progression_idea]

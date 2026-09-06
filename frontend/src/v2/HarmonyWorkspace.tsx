@@ -49,7 +49,7 @@ export function HarmonyWorkspace({ branch, onChange }: { branch: V2Branch; onCha
     } catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
   async function develop() {
-    try { setAnswer((await apiClient.developScratch(branch.session_id, branch.id)).message); }
+    try { const result = await apiClient.developScratch(branch.session_id, branch.id); setAnswer(result.message); onChange(result.branch); }
     catch (err) { setError(String(err)); }
   }
   async function ask() {

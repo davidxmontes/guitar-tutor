@@ -1,0 +1,62 @@
+import { expect, test } from '@playwright/test';
+
+test('candidate Keep/Develop is idempotent; direct and combined Tutor edits resolve', async ({ page }) => {
+  await page.goto('/v2'); await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
+  await expect(page.getByTestId('progression-workspace')).toBeVisible();
+  const sid = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '');
+  const current = async () => (await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json())).branches[0];
+  const libraryCount = (await page.request.get('/api/v2/library').then(r => r.json())).length;
+  async function ask(message: string) { await page.getByLabel('Ask the Tutor').fill(message); await page.getByRole('button', { name: 'Ask', exact: true }).click(); }
+  await ask('Give three progressions');
+  await expect(page.getByRole('group', { name: /^Candidate:/ })).toHaveCount(3);
+  expect((await current()).progression_workspace.ideas).toHaveLength(1);
+  const option = page.getByRole('group', { name: 'Candidate: Option 1', exact: true });
+  await option.getByRole('button', { name: 'Play', exact: true }).click();
+  await option.getByRole('button', { name: 'Keep', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Active idea' })).toHaveValue((await current()).progression_workspace.active_idea_id);
+  await option.getByRole('button', { name: 'Keep', exact: true }).click();
+  await option.getByRole('button', { name: 'Develop', exact: true }).click();
+  await expect(page.getByLabel('Progression editor')).toBeVisible();
+  expect((await current()).progression_workspace.ideas).toHaveLength(2);
+  await ask('Change chord 3 to Dm7');
+  await expect(page.getByText('Changed chord 3.', { exact: true })).toBeVisible();
+  let state = (await current()).progression_workspace;
+  expect(state.ideas.find((idea: {id:string}) => idea.id === state.active_idea_id).chords[2].quality).toBe('minor7');
+  const before = state.ideas.find((idea: {id:string}) => idea.id === state.active_idea_id).chords;
+  await ask('Make chord 3 darker');
+  await expect(page.getByRole('group', { name: 'Candidate: Em7 replacement', exact: true })).toBeVisible();
+  state = (await current()).progression_workspace;
+  expect(state.ideas.find((idea: {id:string}) => idea.id === state.active_idea_id).chords).toEqual(before);
+  await page.getByRole('group', { name: 'Candidate: Em7 replacement', exact: true }).getByRole('button', { name: 'Keep', exact: true }).click();
+  await expect(page.getByTestId('progression-workspace')).toHaveAttribute('aria-busy', 'false');
+  state = (await current()).progression_workspace;
+  const after = state.ideas.find((idea: {id:string}) => idea.id === state.active_idea_id).chords;
+  expect(after.slice(0,2)).toEqual(before.slice(0,2)); expect(after[2].root).toBe('E');
+  await ask('Transpose and give variations');
+  await expect(page.getByRole('group', { name: /^Candidate:/ })).toHaveCount(3);
+  await expect(page.getByLabel('Key root', { exact: true })).toHaveValue('E');
+  await page.getByRole('group', { name: 'Candidate: Option 2', exact: true }).getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await expect(page.getByRole('group', { name: /^Candidate:/ })).toHaveCount(2);
+  expect((await page.request.get('/api/v2/library').then(r => r.json())).length).toBe(libraryCount);
+  expect((await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json())).branches).toHaveLength(1);
+});
+
+test('Harmony Develop creates a frozen idea and keeps scratch', async ({ page }) => {
+  await page.goto('/v2'); await page.getByLabel('Explore a scale, key or chord').fill('G major');
+  await page.getByRole('button', { name: 'Explore music', exact: true }).click();
+  await expect(page.getByTestId('harmony-workspace')).toBeVisible();
+  const sid = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '');
+  const bid = (await page.getByTestId('v2-active-branch').textContent())!.replace('Branch ', '');
+  for (const [root, quality] of [['A','minor7'],['D','dominant7'],['G','major7']]) await page.request.patch(`/api/v2/sessions/${sid}/branches/${bid}/harmony`, { data: { add_scratch: { root, quality } } });
+  await page.getByLabel('Ask the Tutor').fill('Show scratch'); await page.getByRole('button', { name: 'Ask', exact: true }).click();
+  await page.getByRole('button', { name: 'Develop →', exact: true }).click();
+  await expect(page.getByTestId('progression-workspace')).toBeVisible();
+  const branch = (await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json())).branches[0];
+  const idea = branch.progression_workspace.ideas[0];
+  expect(idea.chords.map((c: {quality:string}) => c.quality)).toEqual(['minor7','dominant7','major7']);
+  expect(idea.tonal_center).toEqual({root:'G',scale:'major'});
+  expect(idea.provenance.kind).toBe('harmony-develop');
+  expect(idea.provenance.scratch).toEqual(branch.harmony_exploration.scratch);
+  await page.getByRole('navigation', { name:'Workspaces' }).getByRole('button', { name:'Harmony', exact:true }).click();
+  await expect(page.getByTestId('scratch-count')).toHaveText('3 scratch chords');
+});

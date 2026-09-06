@@ -140,6 +140,11 @@ class InMemoryV2Store:
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         # ponytail: one memory-store lock; split by branch only if contention matters.
         with self._branch_lock:
+            expected = fields.pop('expected_updated_at', None)
+            if expected is not None:
+                current = next((b for b in self.get_session(session_id, user_id).branches if b.id == branch_id), None)
+                if current is None: raise NotFoundError('Branch not found')
+                if current.updated_at != expected: raise RevisionConflictError('Workspace changed')
             return self._update_branch(session_id, branch_id, user_id, **fields)
 
     def _update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
@@ -393,11 +398,15 @@ class SupabaseV2Store:
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         self.get_session(session_id, user_id)  # raises NotFoundError if not owned
 
+        expected = fields.pop('expected_updated_at', None)
         fields = _dump_fields(fields)
+        if fields: fields["updated_at"] = _now()
         query = self._client.table("v2_branches")
         # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
         query = query.update(fields) if fields else query.select("*")
+        if expected is not None: query = query.eq("updated_at", expected)
         rows = query.eq("id", branch_id).eq("session_id", session_id).execute().data
+        if not rows and expected is not None: raise RevisionConflictError("Workspace changed")
         if not rows:
             raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
         return self._row_to_branch(rows[0])
