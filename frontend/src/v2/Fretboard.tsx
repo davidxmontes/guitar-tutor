@@ -45,8 +45,9 @@ function lit(layer: Layer, inspection: TypedInspection | null): (p: WorkspacePos
     return (p) => wanted.has(p.pitch_class);
   }
   if (inspection.kind === 'region' || inspection.kind === 'region_note' || inspection.kind === 'region_pair') {
-    if (!layer.shape) return () => false;
     const [a, b] = String(inspection.key).split(':');
+    // A plain (shapeless) layer still coordinates with a region_note pointer by pitch class.
+    if (!layer.shape) return inspection.kind === 'region_note' ? (p) => p.pitch_class === Number(b) : () => false;
     if (inspection.kind === 'region_pair') return () => layer.shape === a || layer.shape === b;
     if (inspection.kind === 'region_note') return (p) => layer.shape === a && p.pitch_class === Number(b);
     return () => layer.shape === a;
@@ -109,33 +110,22 @@ export function Fretboard({ block, resolved, inspection, onInspect, tutorFocus, 
     if (adapted.comparison.removed?.includes(p.pitch_class)) return 'removed';
     return 'changed';
   };
-
-  const note = (layer: Layer, p: WorkspacePosition, isLit: boolean, focused: boolean) => {
-    const parts = [layer.shape ? `${layer.shape} shape: ${p.note}` : `${layer.label}: ${p.note}`, `degree ${p.degree}`];
-    const relation = role(p);
-    if (relation) parts.push(relation);
-    parts.push(`string ${p.string}`, `fret ${p.fret}`);
-    const bg = relation === 'shared' ? 'var(--accent-100)'
-      : layer.sourceRole === 'highlight' ? 'var(--accent-100)'
-      : layer.sourceRole === 'context' ? 'var(--bg-secondary)' : 'var(--card-bg)';
-    return (
-      <g key={`${layer.id}:${p.string}:${p.fret}`} role="button" tabIndex={readOnly ? -1 : 0}
-        aria-label={parts.join(', ')} aria-pressed={isLit}
-        onClick={() => !readOnly && onInspect(layer.shape ? { kind: 'region_note', source_id: primaryChord!.id, key: `${layer.shape}:${p.pitch_class}` } : { kind: 'pitch', pitch_class: p.pitch_class })}
-        onKeyDown={(event) => { if (!readOnly && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); (event.currentTarget as SVGGElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); } }}
-        style={{ cursor: readOnly ? 'default' : 'pointer', outline: 'none' }}>
-        <circle cx={x(p.fret)} cy={y(p.string)} r={13}
-          fill={bg} stroke={isLit ? 'var(--accent-700)' : 'var(--text-secondary)'}
-          strokeWidth={isLit || focused ? 3 : 1}
-          style={focused ? { stroke: '#d97706', strokeWidth: 4 } : undefined} />
-        <text x={x(p.fret)} y={y(p.string) + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--text-primary)">
-          {useNotes ? p.note : p.degree}
-        </text>
-      </g>
-    );
-  };
-
   const focus = (p: WorkspacePosition) => Boolean(tutorFocus?.notes.some((n) => n.string === p.string && n.fret === p.fret));
+
+  // One focusable dot per (string, fret) — overlapping layers merge into one cell
+  // so no group ever sits on top of another and steals its clicks.
+  const litFns = new Map(layers.map((layer) => [layer.id, lit(layer, inspection)]));
+  const cells = new Map<string, { string: number; fret: number; entries: { layer: Layer; p: WorkspacePosition }[] }>();
+  for (const layer of layers) {
+    for (const p of layer.positions) {
+      if (p.fret < range.start || p.fret > lastFret) continue;
+      const key = `${p.string}:${p.fret}`;
+      const cell = cells.get(key) ?? { string: p.string, fret: p.fret, entries: [] };
+      cell.entries.push({ layer, p });
+      cells.set(key, cell);
+    }
+  }
+  const cellList = [...cells.values()].filter((cell) => !sharedOnly || cell.entries.some((e) => shared.has(e.p.pitch_class)));
 
   return (
     <div className="space-y-3">
@@ -167,16 +157,31 @@ export function Fretboard({ block, resolved, inspection, onInspect, tutorFocus, 
           {frets.filter((fret) => fret > 0).map((fret) => (
             <line key={`f${fret}`} x1={x(fret) - FW / 2} x2={x(fret) - FW / 2} y1={20} y2={height - 4} stroke="var(--border-primary)" />
           ))}
-          {layers.map((layer) => {
-            const isOn = lit(layer, inspection);
-            const seen = new Set<string>();
+          {cellList.map((cell) => {
+            const primaryEntry = cell.entries[0];
+            const isLit = cell.entries.some(({ layer, p }) => litFns.get(layer.id)!(p));
+            const focused = cell.entries.some(({ p }) => focus(p));
+            const anyShared = cell.entries.some(({ p }) => shared.has(p.pitch_class));
+            const label = cell.entries.map(({ layer, p }) => {
+              const relation = role(p);
+              return `${layer.shape ? `${layer.shape} shape` : layer.label}: ${p.note}, degree ${p.degree}${relation ? `, ${relation}` : ''}`;
+            }).join('; ') + `, string ${cell.string}, fret ${cell.fret}`;
+            const bg = anyShared || primaryEntry.layer.sourceRole === 'highlight' ? 'var(--accent-100)'
+              : primaryEntry.layer.sourceRole === 'context' ? 'var(--bg-secondary)' : 'var(--card-bg)';
             return (
-              <g key={layer.id} data-layer={layer.id} data-role={layer.sourceRole}>
-                {layer.positions
-                  .filter((p) => p.fret >= range.start && p.fret <= lastFret)
-                  .filter((p) => !sharedOnly || shared.has(p.pitch_class))
-                  .filter((p) => { const k = `${p.string}:${p.fret}`; if (seen.has(k)) return false; seen.add(k); return true; })
-                  .map((p) => note(layer, p, isOn(p), focus(p)))}
+              <g key={`${cell.string}:${cell.fret}`} role="button" tabIndex={readOnly ? -1 : 0}
+                data-role={primaryEntry.layer.sourceRole} aria-label={label} aria-pressed={isLit}
+                onClick={() => !readOnly && onInspect(primaryEntry.layer.shape
+                  ? { kind: 'region_note', source_id: primaryChord!.id, key: `${primaryEntry.layer.shape}:${primaryEntry.p.pitch_class}` }
+                  : { kind: 'pitch', pitch_class: primaryEntry.p.pitch_class })}
+                onKeyDown={(event) => { if (!readOnly && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); (event.currentTarget as SVGGElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); } }}
+                style={{ cursor: readOnly ? 'default' : 'pointer', outline: 'none' }}>
+                <circle cx={x(cell.fret)} cy={y(cell.string)} r={13} fill={bg}
+                  stroke={focused ? '#d97706' : isLit ? 'var(--accent-700)' : 'var(--text-secondary)'}
+                  strokeWidth={focused ? 4 : isLit ? 3 : 1} />
+                <text x={x(cell.fret)} y={y(cell.string) + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--text-primary)" style={{ pointerEvents: 'none' }}>
+                  {useNotes ? primaryEntry.p.note : primaryEntry.p.degree}
+                </text>
               </g>
             );
           })}
