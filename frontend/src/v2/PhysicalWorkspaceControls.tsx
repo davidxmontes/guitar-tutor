@@ -1,5 +1,5 @@
 import type { ConceptWorkspace } from '../types/conceptWorkspace';
-const control = 'h-9 max-w-full rounded-md border border-[var(--border-primary)] bg-[var(--card-bg)] px-2.5 text-sm';
+const control = 'ct-field';
 export function PhysicalWorkspaceControls({ workspace, disabled, onChange }: { workspace: ConceptWorkspace; disabled: boolean; onChange: (w: ConceptWorkspace) => void }) {
   return <fieldset disabled={disabled}><details className="text-sm"><summary className="cursor-pointer py-1 text-[var(--text-secondary)]">Key, tuning and exact frets</summary>
     <div className="space-y-3 pt-2">{workspace.entities.filter(e => e.kind === 'key').map(key => <label key={key.id} className="block">Context key <select className={control} value={key.root} onChange={event => onChange({ ...workspace, entities:workspace.entities.map(e => e.id === key.id ? { ...key, root:event.target.value } : e) })}>{['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'].map(root => <option key={root}>{root}</option>)}</select><span className="block text-sm">Reanalyzes the same chords; does not transpose them.</span></label>)}
