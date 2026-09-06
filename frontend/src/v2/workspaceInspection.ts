@@ -13,3 +13,11 @@ export function isInspected(id: string, notes: WorkspaceNote[], inspection: Insp
   };
   return related(id).some(id => related(inspection.source_id).includes(id)) && (inspection.kind !== 'pitch' || notes.some(n => n.pitch_class === inspection.key));
 }
+
+export function cagedSelection(sourceId: string, facts: ResolvedWorkspace, inspection: Inspection | null) {
+  const source = facts.caged[sourceId];
+  const key = inspection?.source_id === sourceId && inspection.kind.startsWith('region') ? String(inspection.key) : '';
+  const selected = source.regions.find(r => r.shape === key.split(':')[0]) ?? source.regions[0];
+  const pair = source.pairs.find(p => p.key === key) ?? source.pairs.find(p => p.key.startsWith(selected.shape + ':')) ?? source.pairs[source.pairs.length - 1];
+  return { selected, pair, regions: pair.key.split(':').map(shape => source.regions.find(r => r.shape === shape)!), pitch: inspection?.kind === 'region_note' && inspection.source_id === sourceId ? Number(key.split(':')[1]) : null };
+}

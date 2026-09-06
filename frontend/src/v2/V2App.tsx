@@ -42,7 +42,7 @@ export function V2App() {
     }
   };
 
-  const handleComparison = async (recipe: 'scale-comparison' | 'physical-resolution' | 'four-chord-progression' = 'scale-comparison') => {
+  const handleComparison = async (recipe: 'scale-comparison' | 'physical-resolution' | 'four-chord-progression' | 'caged-exploration' = 'scale-comparison') => {
     try {
       const session = activeSession ?? await apiClient.createV2Session();
       const branch = await apiClient.openConceptWorkspace(session.id, recipe);
@@ -162,7 +162,7 @@ export function V2App() {
           <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); setShowConceptPicker(false); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
         </fieldset>
-        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison()}>Explore major vs minor</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('physical-resolution')}>Why does D resolve to G?</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('four-chord-progression')}>Explore I–V–vi–IV</button>
+        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison()}>Explore major vs minor</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('physical-resolution')}>Why does D resolve to G?</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('four-chord-progression')}>Explore I–V–vi–IV</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('caged-exploration')}>Connect CAGED shapes</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
@@ -234,7 +234,7 @@ export function V2App() {
           </div>
         </section>
       )}
-      <section className="my-5 space-y-2"><h2 className="text-lg font-bold">Explore</h2><p>What changes between major and minor?</p><button type="button" className="min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison()}>Explore major vs minor</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('physical-resolution')}>Why does D resolve to G?</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('four-chord-progression')}>Explore I–V–vi–IV</button></section>
+      <section className="my-5 space-y-2"><h2 className="text-lg font-bold">Explore</h2><p>What changes between major and minor?</p><button type="button" className="min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison()}>Explore major vs minor</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('physical-resolution')}>Why does D resolve to G?</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('four-chord-progression')}>Explore I–V–vi–IV</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('caged-exploration')}>Connect CAGED shapes</button></section>
       <MyStuff onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
       <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>

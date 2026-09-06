@@ -36,8 +36,14 @@ def test_caged_uses_trusted_regions_and_materializes_only_explicit_independent_v
     saved = client.post(f"/api/v2/sessions/{sid}/branches/{branch['id']}/workspace/save", json={'expected_version':2,'title':'CAGED work'}).json()
     reopened = client.post(f"/api/v2/library/{saved['current_artifact_id']}/open").json()['branches'][0]['working_draft']
     assert reopened == saved['working_draft'] | {'version':1}
-    model.outcomes = [{'message':'Keep the common finger in place.'}]
-    turn = client.post('/api/v2/tutor/turns', json={'session_id':sid,'branch_id':branch['id'],'message':'Explain this region','inspection':{'source_id':chord['id'],'kind':'region','key':'C'}})
-    assert turn.status_code == 200, turn.text
+    model.outcomes = [{'message':'Keep the common finger in place.'}] * 3
+    for kind, key in [('region','C'), ('region_note','C:2'), ('region_pair','C:A')]:
+        turn = client.post('/api/v2/tutor/turns', json={'session_id':sid,'branch_id':branch['id'],'message':'Explain this region','inspection':{'source_id':chord['id'],'kind':kind,'key':key}})
+        assert turn.status_code == 200, turn.text
+    for kind, key in [('region','X'), ('region_note','C:1'), ('region_pair','C:E')]:
+        turn = client.post('/api/v2/tutor/turns', json={'session_id':sid,'branch_id':branch['id'],'message':'Explain this region','inspection':{'source_id':chord['id'],'kind':kind,'key':key}})
+        assert turn.status_code == 422, turn.text
+    minor = deepcopy(draft); minor['entities'][0]['quality'] = 'minor'
+    assert {p['note'] for region in resolve(minor)['regions'] for p in region['positions']} == {'C','Eb','G'}
     bad = deepcopy(draft); bad['entities'][0]['quality'] = 'dominant7'
     assert client.post('/api/v2/concept-workspaces/resolve', json=bad).status_code == 422

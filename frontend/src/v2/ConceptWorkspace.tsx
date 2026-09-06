@@ -1,4 +1,4 @@
-import { workspaceLabel } from './workspaceInspection';
+import { workspaceLabel, cagedSelection } from './workspaceInspection';
 import { PhysicalWorkspaceControls } from './PhysicalWorkspaceControls';
 import { TutorChat } from './TutorChat';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,7 +11,7 @@ import { ConceptWorkspaceBlock } from './ConceptWorkspaceBlocks';
 const control = 'min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] px-3 py-2 disabled:opacity-50';
 const roots = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const modes: ScaleMode[] = ['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues'];
-const names = { fretboard: 'Fretboard', degree_strip: 'Degree strip', chord_diagrams: 'Chord diagrams', circle: 'Circle', progression: 'Progression' };
+const names = { fretboard: 'Fretboard', degree_strip: 'Degree strip', chord_diagrams: 'Chord diagrams', circle: 'Circle', progression: 'Progression', caged: 'CAGED' };
 
 export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPendingChange }: { sessionId: string; branch: V2Branch; onBranchChange: (branch: V2Branch) => void; onPendingChange: (pending: boolean) => void }) {
   const [workspace, setWorkspace] = useState(branch.working_draft!);
@@ -92,10 +92,15 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       }
     } catch (error) { setError(`${String(error)}. Your draft is unchanged. Choose another edit or transpose distance.`); setStatus('Change not applied'); setBusy(false); onPendingChange(false); }
   };
-  const hearProgression = (steps: ResolvedWorkspace['progressions'][string]['steps']) => {
+  const hearProgression = (steps: {positions: {string: number; fret: number}[]; tuning: number[]}[]) => {
     stop();
     try { stopAudio.current = playChordSequence(steps); setPlaying(true); playbackTimer.current = setTimeout(() => { setPlaying(false); stopAudio.current = null; }, steps.length * 1200 + 200); }
     catch { setError('Audio could not start. Your draft is unchanged.'); }
+  };
+  const keepCaged = async (chordId: string, shape: string) => {
+    stop(); setBusy(true); onPendingChange(true); setError(null); setStatus('Keeping voicing…');
+    try { await change(await apiClient.materializeCagedRegion(workspace, chordId, shape)); }
+    catch { setError('Could not keep this voicing. Your draft is unchanged.'); setStatus('Change not applied'); setBusy(false); onPendingChange(workspace !== saved.current); }
   };
   const receiveTutorResult = async (result: WorkspaceTurnResult) => {
     stop();
@@ -146,13 +151,16 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const scales = workspace.entities.filter(e => e.kind === 'scale');
   const progressionBlock = workspace.blocks.find(b => b.kind === 'progression');
   const progression = resolved && progressionBlock ? resolved.progressions[progressionBlock.source_id] : null;
+  const cagedId = resolved && (inspection && resolved.caged[inspection.source_id] ? inspection.source_id : Object.keys(resolved.caged)[0]);
+  const caged = resolved && cagedId ? cagedSelection(cagedId, resolved, inspection) : null;
+  const inspectedRegion = caged && inspection?.kind.startsWith('region') ? inspection.kind === 'region_note' ? `${caged.selected.positions.find(p => p.pitch_class === caged.pitch)?.note} in ${caged.selected.shape} shape` : inspection.kind === 'region_pair' ? `${caged.pair.key.replace(':', ' → ')} shapes` : `${caged.selected.shape} shape` : null;
   const physical = !progression && workspace.entities.some(e => e.kind === 'voicing');
   const transition = resolved && relation?.kind === 'transition' ? resolved.transitions[relation.id] : null;
   const summary = resolved && relation ? resolved.comparisons[relation.id] : null;
   const title = resolved && relation?.kind === 'compare' ? relation.entity_ids.map(id => resolved.scales[id].label).join(' vs ') : workspace.title;
   const placements = workspace.composition.flatMap((row, rowIndex) => row.items.map(item => ({ ...item, row: rowIndex })));
   const source = [...workspace.entities, ...workspace.relations].find(item => item.id === sourceId);
-  const allowedViews = resolved && source ? Object.entries(resolved.block_sources).filter(([, kinds]) => kinds.includes(source.kind)).map(([kind]) => kind as WorkspaceBlock['kind']) : [];
+  const allowedViews = resolved && source ? Object.entries(resolved.block_sources).filter(([, kinds]) => kinds.includes(source.kind) && (source.kind !== 'chord' || ['major','minor'].includes(source.quality))).map(([kind]) => kind as WorkspaceBlock['kind']) : [];
 
   return <>{preview && <section className="min-w-0 space-y-5" aria-label="Turn snapshot preview">
     <header className="space-y-3">
@@ -181,6 +189,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       <div className="flex flex-wrap items-center gap-3"><button type="button" className={control} disabled={!resolved || locked || Boolean(progression?.steps.some(s => !s.positions.length))} onClick={() => {
         if (playing) { stop(); return; }
         try {
+          if (caged) { hearProgression(caged.regions); return; }
           if (progression) { hearProgression(progression.steps); return; }
           if (physical) {
             const ids = relation?.kind === 'transition' ? relation.entity_ids : workspace.entities.filter(e => e.kind === 'voicing').map(e => e.id);
@@ -192,7 +201,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
           stopAudio.current = playNoteSequence(notes, workspace.tuning); setPlaying(true);
           playbackTimer.current = setTimeout(() => { setPlaying(false); stopAudio.current = null; }, notes.length * 300 + 400);
         } catch { setError('Audio could not start. Try Hear again. Your draft is unchanged.'); }
-      }}>{playing ? 'Stop playback' : progression ? 'Hear progression' : physical ? 'Hear D to G' : 'Hear comparison'}</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
+      }}>{playing ? 'Stop playback' : caged ? 'Hear adjacent regions' : progression ? 'Hear progression' : physical ? 'Hear D to G' : 'Hear comparison'}</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
     </header>
     <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void saveStudy(); }}>
       <label className="min-w-0">Study name<input required maxLength={120} value={studyName} disabled={locked}
@@ -212,16 +221,16 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
         <label className="mt-3 block">Tuning<select aria-label="Tuning" className={`${control} ml-2`} value={JSON.stringify(workspace.tuning)} onChange={e => change({ ...workspace, tuning: JSON.parse(e.target.value) })}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]', '[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
       </details>
     </fieldset>}
-    <div className="flex min-h-11 flex-wrap items-center gap-3" role="status">{inspection ? <><button className={control} onClick={() => { setInspection(null); heading.current?.focus(); }}>Back</button><span>Inspecting {resolved ? inspection.kind === 'step' ? `chord ${Number(inspection.key) + 1}` : inspection.kind === 'pitch' ? [...(resolved.scales[inspection.source_id]?.notes ?? []), ...(resolved.voicings[inspection.source_id]?.positions ?? [])].find(n => n.pitch_class === inspection.key)?.note : workspaceLabel(inspection.source_id, resolved) : ''} across compatible views</span></> : <span>{progression ? 'Select a chord to edit it or hear its next transition.' : 'Select a note to inspect it across views.'}</span>}</div>
+    <div className="flex min-h-11 flex-wrap items-center gap-3" role="status">{inspection ? <><button className={control} onClick={() => { setInspection(null); heading.current?.focus(); }}>Back</button><span>Inspecting {resolved ? inspectedRegion ? inspectedRegion : inspection.kind === 'step' ? `chord ${Number(inspection.key) + 1}` : inspection.kind === 'pitch' ? [...(resolved.scales[inspection.source_id]?.notes ?? []), ...(resolved.voicings[inspection.source_id]?.positions ?? [])].find(n => n.pitch_class === inspection.key)?.note : workspaceLabel(inspection.source_id, resolved) : ''} across compatible views</span></> : <span>{progression ? 'Select a chord to edit it or hear its next transition.' : 'Select a note to inspect it across views.'}</span>}</div>
     <div className="cw-composition">{placements.map(placement => {
       const block = workspace.blocks.find(item => item.id === placement.block_id)!;
       return <section key={block.id} aria-label={names[block.kind]} className="cw-block min-w-0 space-y-3 rounded-xl border border-[var(--border-primary)] bg-[var(--card-bg)] p-3 sm:p-4" style={{ '--cw-span': placement.span, '--cw-row': placement.row + 1, '--cw-order': placement.priority === 'primary' ? 0 : placement.priority === 'supporting' ? 1 : 2 } as React.CSSProperties}>
         <header className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">{names[block.kind]}</h3><button className={control} disabled={locked} onClick={() => { change({ ...workspace, blocks: workspace.blocks.filter(item => item.id !== block.id), composition: workspace.composition.map(row => ({ items: row.items.filter(item => item.block_id !== block.id) })).filter(row => row.items.length) }); addButton.current?.focus(); }}>Remove View</button></header>
         <fieldset disabled={locked} className="flex flex-wrap items-center gap-3"><label>Labels <select className={control} value={block.settings.labels} onChange={e => updateSettings(block, { labels: e.target.value as 'notes' | 'intervals' })}><option value="notes">Notes</option><option value="intervals">Intervals</option></select></label>
-          {block.kind === 'fretboard' && <label>Frets <select className={control} value={`${block.settings.fret_start}-${block.settings.fret_end}`} onChange={e => { const [fret_start, fret_end] = e.target.value.split('-').map(Number); updateSettings(block, { fret_start, fret_end }); }}>{['0-5', '3-8', '5-10', '7-12'].map(range => <option key={range}>{range}</option>)}</select></label>}
-          {workspace.relations.some(r => r.id === block.source_id) && <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={block.settings.shared_only} onChange={e => updateSettings(block, { shared_only: e.target.checked })} />Shared notes only</label>}
+          {block.kind === 'fretboard' && !resolved?.caged[block.source_id] && <label>Frets <select className={control} value={`${block.settings.fret_start}-${block.settings.fret_end}`} onChange={e => { const [fret_start, fret_end] = e.target.value.split('-').map(Number); updateSettings(block, { fret_start, fret_end }); }}>{[...new Set([`${block.settings.fret_start}-${block.settings.fret_end}`, '0-5', '3-8', '5-10', '7-12'])].map(range => <option key={range}>{range}</option>)}</select></label>}
+          {(workspace.relations.some(r => r.id === block.source_id) || resolved?.caged[block.source_id]) && <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={block.settings.shared_only} onChange={e => updateSettings(block, { shared_only: e.target.checked })} />{resolved?.caged[block.source_id] ? 'Shared positions only' : 'Shared notes only'}</label>}
         </fieldset>
-        {resolved && <ConceptWorkspaceBlock block={block} workspace={workspace} resolved={resolved} inspection={inspection} onInspect={setInspection} tutorFocus={tutorFocus} disabled={locked} onWorkspaceChange={change} onProgressionAction={action => progressionAction(block.id, action)} onHear={hearProgression} />}
+        {resolved && <ConceptWorkspaceBlock block={block} workspace={workspace} resolved={resolved} inspection={inspection} onInspect={setInspection} tutorFocus={tutorFocus} disabled={locked} onWorkspaceChange={change} onProgressionAction={action => progressionAction(block.id, action)} onHear={hearProgression} onKeepRegion={shape => keepCaged(block.source_id, shape)} />}
       </section>;
     })}</div>
     <button ref={addButton} className={control} disabled={locked || workspace.blocks.length >= 12} aria-expanded={adding} onClick={() => setAdding(!adding)}>Add View</button>
