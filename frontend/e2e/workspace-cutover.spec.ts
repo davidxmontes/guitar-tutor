@@ -6,7 +6,7 @@ test('workspace Tutor is a dismissible panel and failures preserve editable musi
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   await page.setViewportSize({width:320,height:800});
   await page.getByRole('button',{name:'Open Tutor',exact:true}).click();
-  const panel=page.getByRole('dialog',{name:'Tutor',exact:true});
+  const panel=page.getByRole('complementary',{name:'Tutor',exact:true});
   await expect(panel).toBeVisible();
   await page.screenshot({path:'/private/tmp/issue68-mobile-tutor.png',fullPage:true});
   await page.keyboard.press('Escape');

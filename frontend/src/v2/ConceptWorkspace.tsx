@@ -10,6 +10,7 @@ import { playNoteSequence, playChordSequence } from '../utils/audio';
 import { ConceptWorkspaceBlock } from './ConceptWorkspaceBlocks';
 
 const control = 'min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] px-3 py-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-700)]';
+const controlSm = 'h-9 rounded-md border border-[var(--border-primary)] bg-[var(--card-bg)] px-2.5 text-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-700)]';
 const roots = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const modes: ScaleMode[] = ['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues'];
 const names = { fretboard: 'Fretboard', degree_strip: 'Degree strip', chord_diagrams: 'Chord diagrams', circle: 'Circle', progression: 'Progression', caged: 'CAGED' };
@@ -33,17 +34,34 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const [sourceId, setSourceId] = useState(workspace.relations[0]?.id ?? workspace.entities[0].id);
   const [viewKind, setViewKind] = useState<WorkspaceBlock['kind']>('fretboard');
   const [playing, setPlaying] = useState(false);
+  const [tutorOpen, setTutorOpen] = useState(true);
+  const tutorToggled = useRef(false);
+  const closeTutor = useCallback(() => { tutorToggled.current = true; setTutorOpen(false); }, []);
+  const openTutor = useCallback(() => { tutorToggled.current = true; setTutorOpen(true); }, []);
   const saved = useRef(workspace);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopAudio = useRef<(() => void) | null>(null);
   const playbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tutorPanel = useRef<HTMLDialogElement>(null);
   const tutorButton = useRef<HTMLButtonElement>(null);
+  const tutorCloseButton = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { (preview ? previewHeading : heading).current?.focus(); }, [preview]);
+
+  useEffect(() => {
+    if (!tutorToggled.current) return;
+    (tutorOpen ? tutorCloseButton : tutorButton).current?.focus();
+  }, [tutorOpen]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => { if (!tutorToggled.current) setTutorOpen(mq.matches); };
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -124,7 +142,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     finally { setBusy(false); onPendingChange(false); }
   };
   const previewTurn = async (messageId: string, snapshot: ConceptWorkspace, focus: TutorFocus | null) => {
-    tutorPanel.current?.close(); stop(); setBusy(true); onPendingChange(true); setError(null);
+    stop(); setBusy(true); onPendingChange(true); setError(null);
     try { const facts = await apiClient.resolveConceptWorkspace(snapshot); setPreviewError(null); setPreview({ messageId, snapshot, facts, focus }); }
     catch { setError('Could not preview that turn. Your current draft is unchanged. Try Preview again.'); }
     finally { setBusy(false); onPendingChange(false); }
@@ -183,7 +201,8 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     }))}</div>
   </section>}
 
-  <div hidden={Boolean(preview)} className="min-w-0 space-y-5">
+  <div hidden={Boolean(preview)} className="lg:flex lg:items-start lg:gap-5">
+   <div className="min-w-0 space-y-5 lg:flex-1">
     <header className="space-y-3 border-b border-[var(--border-primary)] pb-4">
       <p className="text-xs font-bold uppercase text-[var(--accent-700)]">Explore · working draft</p>
       <h2 ref={heading} tabIndex={-1} className="text-2xl font-bold">{title}</h2>
@@ -205,7 +224,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
           stopAudio.current = playNoteSequence(notes, workspace.tuning); setPlaying(true);
           playbackTimer.current = setTimeout(() => { setPlaying(false); stopAudio.current = null; }, notes.length * 300 + 400);
         } catch { setError('Audio could not start. Try Hear again. Your draft is unchanged.'); }
-      }}>{playing ? 'Stop playback' : caged ? 'Hear adjacent regions' : progression ? 'Hear progression' : physical ? 'Hear D to G' : 'Hear comparison'}</button><button ref={tutorButton} aria-haspopup="dialog" className={control} onClick={() => tutorPanel.current?.show()}>Open Tutor</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
+      }}>{playing ? 'Stop playback' : caged ? 'Hear adjacent regions' : progression ? 'Hear progression' : physical ? 'Hear D to G' : 'Hear comparison'}</button><button ref={tutorButton} hidden={tutorOpen} className={control} onClick={openTutor}>Open Tutor</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
     </header>
     <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void saveStudy(); }}>
       <label className="min-w-0">Study name<input required maxLength={120} value={studyName} disabled={locked}
@@ -244,13 +263,22 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       <button disabled={!allowedViews.length} className={control} onClick={() => { const id = crypto.randomUUID(); change({ ...workspace, blocks: [...workspace.blocks, { id, kind: allowedViews.includes(viewKind) ? viewKind : allowedViews[0], source_id: sourceId, settings: { pattern: (allowedViews.includes(viewKind) ? viewKind : allowedViews[0]) === 'progression' && source?.kind === 'key' ? 'I-V-vi-IV' : null, labels: 'notes', shared_only: false, fret_start: 0, fret_end: 5 } }], composition: [...workspace.composition, { items: [{ block_id: id, span: 12, priority: 'supporting' }] }] }); setAdding(false); addButton.current?.focus(); }}>Add selected view</button>
     </fieldset>}
     {resolved && branch.current_artifact_id && branch.saved_artifact_revision && <fieldset disabled={locked || workspace !== saved.current}><ExerciseComposer key={`${workspace.version}:${inspection?.source_id ?? ''}`} sourceId={branch.current_artifact_id} revision={branch.saved_artifact_revision} selection={{workspace_version:workspace.version}} steps={Object.values(resolved.scales).flatMap(scale => scale.playback.map(p => ({label:`${p.note} · ${p.degree}`,beats:1,positions:[p],tuning:workspace.tuning}))).concat((caged?.regions ?? progression?.steps ?? Object.values(resolved.voicings)).map((v,i) => ({label:'label' in v ? v.label : `Chord ${i+1}`,beats:4,positions:v.positions,tuning:v.tuning})))} /></fieldset>}
-    <dialog ref={tutorPanel} aria-label="Tutor" onClose={() => tutorButton.current?.focus()} onKeyDown={event => {if(event.key === 'Escape') {event.preventDefault(); tutorPanel.current?.close();}}} className="fixed inset-auto right-3 bottom-3 z-50 m-0 max-h-[85dvh] w-[calc(100%_-_1.5rem)] max-w-lg overflow-y-auto rounded-xl border border-[var(--border-primary)] bg-[var(--card-bg)] p-4 text-[var(--text-primary)] shadow-lg">
-      <header className="mb-3 flex items-center justify-between gap-3"><h2 className="font-bold">Tutor</h2><button className={control} onClick={() => tutorPanel.current?.close()}>Close Tutor</button></header>
+   </div>
+   {tutorOpen && <>
+    <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={closeTutor} />
+    <aside aria-label="Tutor"
+      onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeTutor(); } }}
+      className="fixed inset-x-2 bottom-2 z-40 flex max-h-[82dvh] flex-col rounded-xl bg-[var(--card-bg)] p-2 shadow-lg lg:sticky lg:inset-x-auto lg:bottom-auto lg:top-4 lg:z-auto lg:max-h-[calc(100dvh-2rem)] lg:w-[340px] lg:shrink-0 lg:self-start lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
+      <div className="mb-1 flex items-center justify-between gap-3 px-1 lg:mb-2 lg:px-0">
+        <h2 className="font-bold">Tutor</h2>
+        <button ref={tutorCloseButton} className={controlSm} onClick={closeTutor}>Close Tutor</button>
+      </div>
       <TutorChat wide historyVersion={historyVersion} sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id}
         onFocusChange={setTutorFocus} onPreview={previewTurn} inspection={inspection} workspaceVersion={workspace.version}
         disabled={busy || workspace !== saved.current} onWorkspaceResult={receiveTutorResult}
         onSendingChange={sending => { setTutorBusy(sending); onPendingChange(sending); }}
         emptyMessage="Ask about this music or request a change." />
-    </dialog>
+    </aside>
+   </>}
   </div></>;
 }
