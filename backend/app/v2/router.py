@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
-from app.v2.workspace_catalog import OpenWorkspaceRequest, explore_catalog, open_recipe
+from app.v2.workspace_catalog import OpenWorkspaceRequest, explore_catalog, open_recipe, concept_recipe
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
@@ -19,9 +19,7 @@ from app.v2.workspace_caged import CagedMaterialize, materialize_region, valid_c
 from app.v2.workspace_progressions import ProgressionAction, edit_progression
 from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
 from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace
-from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
-    CircleState,
     ApplyVoicingRequest,
     ExerciseDraft,
     ExercisePayload,
@@ -29,19 +27,12 @@ from app.v2.models import (
     Artifact,
     ArtifactKind,
     Branch,
-    CagedQualityId,
-    CagedShapeId,
-    ConceptId,
-    ConceptStudyPayload,
     ConceptStudyArtifact,
     ProgressionPayload,
-    ScaleConceptId,
     Session,
     SongStudyPayload,
     SongSavedRange,
     SongStudyTrack,
-    StudyCatalog,
-    ChordQualityId,
     TutorMessage,
 )
 from app.v2.song_enrichment import run_song_enrichment
@@ -217,24 +208,6 @@ async def get_song_study(
     return artifact
 
 
-class CreateConceptStudyRequest(BaseModel):
-    session_id: str
-    branch_id: str
-    root: str = Field(min_length=1)
-    concept_id: ConceptId
-    comparison_id: Optional[ScaleConceptId] = None
-    overlay: Literal["notes", "intervals"] = "notes"
-    selected_interval: int = Field(7, ge=0, le=11)
-    selected_voicing: int = Field(0, ge=0)
-    comparison_quality: Optional[ChordQualityId] = None
-    caged_quality: CagedQualityId = "major"
-    selected_region: CagedShapeId = "C"
-    comparison_region: Optional[CagedShapeId] = None
-    selected_chord: int = Field(0, ge=0, le=6)
-    selected_sequence: Literal["primary", "pop", "turnaround"] = "primary"
-    promotion: Literal["save", "work_on_this"]
-
-
 class OpenConceptStudyResponse(BaseModel):
     artifact: ConceptStudyArtifact
     branch: Branch
@@ -245,104 +218,12 @@ class WorkOnSavedConceptRequest(BaseModel):
     branch_id: str
 
 
-@router.get("/study/catalog", response_model=StudyCatalog)
-async def get_concept_catalog(user_id: str = Depends(get_current_user)):
-    return get_study_catalog()
-
-
-@router.get("/study/visualizations/{concept_id}", response_model=ConceptStudyPayload)
-async def get_study_visualization(
-    concept_id: ConceptId,
-    root: str,
-    comparison_id: Optional[ScaleConceptId] = None,
-    overlay: Literal["notes", "intervals"] = "notes",
-    selected_interval: int = 7,
-    selected_voicing: int = 0,
-    comparison_quality: Optional[ChordQualityId] = None,
-    caged_quality: CagedQualityId = "major",
-    selected_region: CagedShapeId = "C",
-    comparison_region: Optional[CagedShapeId] = None,
-    selected_chord: int = 0,
-    selected_sequence: str = "primary",
-    user_id: str = Depends(get_current_user),
-):
-    try:
-        return build_concept_study(
-            root,
-            concept_id,
-            comparison_id=comparison_id,
-            overlay=overlay,
-            selected_interval=selected_interval,
-            selected_voicing=selected_voicing,
-            comparison_quality=comparison_quality,
-            caged_quality=caged_quality,
-            selected_region=selected_region,
-            comparison_region=comparison_region,
-            selected_chord=selected_chord, selected_sequence=selected_sequence,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-
-
-@router.post("/concept-studies", response_model=OpenConceptStudyResponse, status_code=status.HTTP_201_CREATED)
-async def create_concept_study(
-    data: CreateConceptStudyRequest,
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    try:
-        session = store.get_session(data.session_id, user_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    if not any(branch.id == data.branch_id for branch in session.branches):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
-
-    try:
-        payload = build_concept_study(
-            data.root,
-            data.concept_id,
-            comparison_id=data.comparison_id,
-            overlay=data.overlay,
-            selected_interval=data.selected_interval,
-            selected_voicing=data.selected_voicing,
-            comparison_quality=data.comparison_quality,
-            caged_quality=data.caged_quality,
-            selected_region=data.selected_region,
-            comparison_region=data.comparison_region,
-            selected_chord=data.selected_chord, selected_sequence=data.selected_sequence,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-
-    source = next(branch for branch in session.branches if branch.id == data.branch_id)
-    payload = payload.model_copy(update={"created_from": {"title": source.title, "branch_id": source.id, "artifact_id": source.current_artifact_id}})
-    artifact = store.create_artifact(user_id, "concept_study", payload.display_name, payload.model_dump())
-    concept_artifact = ConceptStudyArtifact.model_validate(artifact.model_dump())
-    try:
-        if data.promotion == "work_on_this":
-            # ponytail: artifact + branch are two writes because the Supabase
-            # client has no cross-table transaction API. Move this into one RPC
-            # if orphaned artifacts are ever observed after branch-write errors.
-            branch = store.create_branch(
-                data.session_id,
-                user_id,
-                title=payload.display_name,
-                current_artifact_kind="concept_study",
-                current_artifact_id=artifact.id,
-            )
-        else:
-            branch = next(branch for branch in session.branches if branch.id == data.branch_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return OpenConceptStudyResponse(artifact=concept_artifact, branch=branch)
-
-
 @router.get("/concept-studies", response_model=list[ConceptStudyArtifact])
 async def list_concept_studies(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
-    return [ConceptStudyArtifact.model_validate(item.model_dump()) for item in store.list_artifacts(user_id, "concept_study")]
+    return [ConceptStudyArtifact.model_validate(item.model_dump()) for item in store.list_artifacts(user_id, "concept_study") if "entities" in item.payload]
 
 
 @router.get("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
@@ -357,6 +238,7 @@ async def get_concept_study(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if artifact.kind != "concept_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a ConceptStudy artifact")
+    _workspace_open_fields(artifact)
     return ConceptStudyArtifact.model_validate(artifact.model_dump())
 
 
@@ -518,6 +400,9 @@ async def create_tutor_turn(
     branch = next((b for b in session.branches if b.id == data.branch_id), None)
     if branch is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+
+    if branch.current_artifact_kind == 'concept_study' and branch.working_draft is None:
+        raise HTTPException(422, 'This study is unsupported. Open a new exploration from Explore.')
 
     if data.inspection is not None:
         facts = resolve_workspace(branch.working_draft) if branch.working_draft else {}
@@ -768,35 +653,6 @@ async def open_exercise(artifact_id: str, user_id: str = Depends(get_current_use
     return store.get_session(session.id, user_id)
 
 
-class ExploreCircleRequest(CircleState):
-    session_id: str
-    branch_id: str
-
-
-@router.post("/study/circle/explore", response_model=OpenProgressionResponse, status_code=201)
-async def explore_circle(data: ExploreCircleRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    try:
-        session = store.get_session(data.session_id, user_id)
-        source = next((b for b in session.branches if b.id == data.branch_id), None)
-        if source is None:
-            raise NotFoundError("Branch not found")
-        state = CircleState.model_validate(data.model_dump()).model_dump()
-        payload = build_concept_study(concept_id="circle", **state)
-        sequence = next(s for s in payload.sequences if s.id == payload.selected_sequence)
-        # Semantic transient Study state belongs to this branch, not its source artifact.
-        source = store.update_branch(data.session_id, data.branch_id, user_id,
-            recent_ideas=[idea for idea in source.recent_ideas if idea.get("type") != "circle_study"] + [{"type": "circle_study", **state}])
-        opened = await explore_progression(ExploreProgressionRequest(session_id=data.session_id, branch_id=data.branch_id,
-            progression=ProgressionPayload(title=f"{payload.root} · {sequence.label}", chords=[payload.chords[i].chord for i in sequence.degrees],
-                inspired_by={"study": "circle", **state})), user_id, store)
-        opened.source_branch = source
-        return opened
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-
 class SaveArtifactRequest(BaseModel):
     expected_updated_at: str
 
@@ -851,7 +707,7 @@ async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_
 
 
 def _workspace_open_fields(artifact: Artifact) -> dict:
-    if artifact.kind == 'concept_study' and 'schema_version' in artifact.payload:
+    if artifact.kind == 'concept_study':
         try:
             draft = ConceptWorkspace.model_validate(artifact.payload).model_copy(update={'version': 1})
             resolve_workspace(draft)
@@ -871,30 +727,21 @@ async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_cur
     return store.get_session(session.id, user_id)
 
 
-class SaveConceptRequest(BaseModel):
-    expected_updated_at: str
-    payload: ConceptStudyPayload
+class OpenConceptRequest(StrictModel):
+    concept_id: str
+    root: str
 
 
-@router.patch("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
-async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    original = await get_concept_study(artifact_id, user_id, store)
-    if isinstance(original.payload, ConceptWorkspace):
-        raise HTTPException(422, 'Open this study from My Stuff and use Save version in its workspace.')
-    p = data.payload
+@router.post('/sessions/{session_id}/concept-workspaces/from-concept', response_model=Branch, status_code=201)
+async def open_concept(session_id: str, data: OpenConceptRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
-        payload = build_concept_study(p.root, p.concept_id, overlay=p.overlay,
-            comparison_id=getattr(p, "comparison_id", None),
-            selected_interval=getattr(p, "selected_interval", 7), selected_voicing=getattr(p, "selected_voicing", 0),
-            comparison_quality=getattr(p, "comparison_quality", None), caged_quality=getattr(p, "quality", "major"),
-            selected_region=getattr(p, "selected_region", "C"), comparison_region=getattr(p, "comparison_region", None),
-            selected_chord=getattr(p, "selected_chord", 0), selected_sequence=getattr(p, "selected_sequence", "primary"))
-        payload = payload.model_copy(update={"created_from": original.payload.created_from})
-        return store.update_artifact(artifact_id, user_id, payload.model_dump(), data.expected_updated_at, save=True)
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
+        workspace = concept_recipe(data.concept_id, data.root)
+        resolve_workspace(workspace)
+        return store.create_branch(session_id,user_id,title=workspace.title,current_artifact_kind='concept_study',working_draft=workspace.model_dump())
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise HTTPException(422, 'This concept is unsupported. Choose an exploration from Explore.') from exc
 
 
 # ConceptWorkspace draft routes intentionally do not create saved artifacts.

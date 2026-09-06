@@ -1,4 +1,4 @@
-from tests.v2.test_concept_studies_router import client, store, session_and_branch
+from tests.v2.workspace_fixtures import client, store, session_and_branch
 
 
 def test_library_revisions_restore_and_fresh_conversation(client, store):
@@ -32,7 +32,7 @@ def test_library_revisions_restore_and_fresh_conversation(client, store):
 def test_only_promoted_work_is_in_library_and_save_is_idempotent(client, store, session_and_branch):
     sid, bid = session_and_branch
     store.update_branch(sid, bid, 'user_1', recent_ideas=[{'title': 'Unsaved idea'}])
-    assert client.get('/api/v2/study/visualizations/circle', params={'root': 'D'}).status_code == 200
+    assert client.get('/api/v2/concept-workspaces/catalog').status_code == 200
     assert client.get('/api/v2/library').json() == []
     raw = store.create_artifact('user_1', 'song_study', 'Raw song', {'tab_data': {}}, saved=False)
     assert client.get('/api/v2/library').json() == []
@@ -43,28 +43,12 @@ def test_only_promoted_work_is_in_library_and_save_is_idempotent(client, store, 
     assert len(client.get(f'/api/v2/library/{raw.id}/revisions').json()) == 1
 
 
-def test_saved_concept_selection_is_semantic_and_restorable(client, session_and_branch):
-    sid, bid = session_and_branch
-    original = client.post('/api/v2/concept-studies', json={'session_id': sid, 'branch_id': bid, 'root': 'E', 'concept_id': 'caged', 'promotion': 'save'}).json()['artifact']
-    chosen = client.get('/api/v2/study/visualizations/caged', params={'root': 'E', 'selected_region': 'G', 'comparison_region': 'C', 'overlay': 'intervals'}).json()
-    chosen['scroll'] = 300
-    updated = client.patch(f"/api/v2/concept-studies/{original['id']}", json={'expected_updated_at': original['updated_at'], 'payload': chosen})
-    assert updated.status_code == 200, updated.text
-    assert updated.json()['payload']['selected_region'] == 'G'
-    assert updated.json()['payload']['comparison_region'] == 'C'
-    assert updated.json()['payload']['overlay'] == 'intervals'
-    assert updated.json()['payload']['created_from'] == original['payload']['created_from']
-    assert original['payload']['created_from']['branch_id'] == bid
-    assert 'scroll' not in updated.json()['payload']
-    assert len(client.get(f"/api/v2/library/{original['id']}/revisions").json()) == 2
-
-
 def test_library_all_kinds_and_history_are_owner_scoped(client, store):
-    from app.v2.concepts import build_concept_study
+    from app.v2.workspace import scale_comparison
     payloads = {
         'song_study': {'title': 'Song', 'tab_data': {'measures': []}},
         'progression': {'title': 'Progression', 'chords': []},
-        'concept_study': build_concept_study('D', 'circle').model_dump(),
+        'concept_study': scale_comparison().model_dump(),
         'exercise': {'title': 'Exercise', 'intent': 'Slow down', 'steps': [], 'created_from': {'title': 'Song'}},
     }
     for kind, payload in payloads.items():

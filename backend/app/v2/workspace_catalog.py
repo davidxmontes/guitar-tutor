@@ -1,7 +1,8 @@
 """System-owned discovery metadata and typed slots for proven journeys."""
+from uuid import uuid4
 from typing import Literal, get_args
 from pydantic import model_validator
-from app.v2.workspace import Mode, StrictModel, scale_comparison, physical_resolution
+from app.v2.workspace import Mode, Pitch, Block, Row, Placement, StrictModel, scale_comparison, physical_resolution
 from app.v2.workspace_caged import caged_starter
 from app.v2.workspace_progressions import progression_starter
 from app.v2.concepts import SCALE_NAMES, DEFAULT_COMPARISONS
@@ -10,11 +11,17 @@ from app.v2.concepts import SCALE_NAMES, DEFAULT_COMPARISONS
 class OpenWorkspaceRequest(StrictModel):
     recipe: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression', 'caged-exploration']
     mode: Mode | None = None
+    root: Pitch | None = None
+    quality: Literal['major','minor'] | None = None
 
     @model_validator(mode='after')
     def compatible_slots(self):
         if self.mode is not None and self.recipe != 'scale-comparison':
             raise ValueError('A scale choice requires a scale exploration')
+        if self.root is not None and self.recipe == 'physical-resolution':
+            raise ValueError('The D-to-G starter has fixed physical voicings')
+        if self.quality is not None and self.recipe != 'caged-exploration':
+            raise ValueError('Chord quality requires CAGED exploration')
         return self
 
 
@@ -25,6 +32,12 @@ def open_recipe(request: OpenWorkspaceRequest):
         workspace.entities[0].mode = request.mode
         workspace.entities[1].mode = DEFAULT_COMPARISONS[request.mode]
         workspace.title = f'G {SCALE_NAMES[request.mode]} exploration'
+    if request.root:
+        for entity in workspace.entities:
+            entity.root = request.root
+        workspace.title = workspace.title.replace('G ', request.root + ' ', 1) if request.recipe == 'scale-comparison' else f'{request.root} · {workspace.title}'
+    if request.quality:
+        workspace.entities[0].quality = request.quality
     return workspace
 
 
@@ -41,3 +54,18 @@ def explore_catalog():
             search=mode.replace('_',' ') + (' ionian' if mode == 'major' else ' aeolian' if mode == 'natural_minor' else ''),starter=False,
             request=OpenWorkspaceRequest(recipe='scale-comparison',mode=mode).model_dump(exclude_none=True)))
     return result
+
+
+def concept_recipe(concept_id: str, root: str):
+    mode = {'ionian':'major','aeolian':'natural_minor'}.get(concept_id, concept_id)
+    if mode in get_args(Mode):
+        return open_recipe(OpenWorkspaceRequest(recipe='scale-comparison', mode=mode, root=root))
+    if concept_id in ('caged','chord_major','chord_minor'):
+        return open_recipe(OpenWorkspaceRequest(recipe='caged-exploration', root=root, quality='minor' if concept_id == 'chord_minor' else 'major'))
+    if concept_id == 'circle':
+        workspace = open_recipe(OpenWorkspaceRequest(recipe='four-chord-progression', root=root))
+        block = Block(id=uuid4().hex,kind='circle',source_id=workspace.entities[0].id)
+        workspace.blocks.insert(0,block); workspace.composition.insert(0,Row(items=[Placement(block_id=block.id,priority='primary')]))
+        workspace.title = f'{root} major harmony'
+        return workspace
+    raise ValueError('This concept is not supported. Choose a supported exploration from Explore.')

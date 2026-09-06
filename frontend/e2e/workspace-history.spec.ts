@@ -7,6 +7,7 @@ test('Preview replays focus, Return preserves the present, Restore appends histo
   const sid = (await page.getByTestId('v2-active-session').innerText()).replace('Session ', '');
   const bid = (await page.getByTestId('v2-active-branch').innerText()).replace('Branch ', '');
   const branch = () => page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid));
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Change the first scale to G Dorian');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText('Tutor change applied', { exact: true })).toBeVisible();
@@ -19,7 +20,9 @@ test('Preview replays focus, Return preserves the present, Restore appends histo
   await page.getByLabel('Both roots', { exact: true }).selectOption('D');
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
   const current = (await branch()).working_draft;
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('My unsent question');
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByRole('button', { name: 'Preview turn workspace', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Turn snapshot preview' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'G dorian vs G minor' })).toBeFocused();
@@ -35,18 +38,23 @@ test('Preview replays focus, Return preserves the present, Restore appends histo
   await expect(page.getByRole('heading', { name: 'D dorian vs D minor' })).toBeFocused();
   expect((await branch()).working_draft).toEqual(current);
   await expect(page.getByTestId('tutor-chat-input')).toHaveValue('My unsent question');
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByRole('button', { name: 'Preview turn workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Restore this state', exact: true }).click();
+  await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByText('Earlier state restored', { exact: true })).toBeVisible();
   await expect(page.getByTestId('tutor-chat-input')).toHaveValue('My unsent question');
   expect((await branch()).working_draft).toEqual({ ...snapshot, version: current.version + 1 });
   expect(await page.request.get(`/api/v2/concept-studies/${aid}`).then(r => r.json())).toEqual(savedArtifact);
   await expect(page.getByRole('button', { name: 'Undo Tutor change', exact: true })).toHaveCount(0);
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Preview turn workspace', exact: true })).toHaveCount(2);
   await page.reload();
   await page.locator(`[data-session-id="${sid}"]`).click();
   await page.getByLabel('Current workspace', { exact: true }).selectOption(bid);
+  await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByText('Earlier state restored', { exact: true })).toBeVisible();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByTestId('tutor-chat-message-assistant').first()).toContainText('G Dorian');
 });
 
@@ -54,12 +62,14 @@ test('Stale restore stays in preview and leaves the current server draft intact'
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Explore major vs minor' }).click();
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Change to Dorian');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText('Tutor change applied', { exact: true })).toBeVisible();
   const sid = (await page.getByTestId('v2-active-session').innerText()).replace('Session ', '');
   const bid = (await page.getByTestId('v2-active-branch').innerText()).replace('Branch ', '');
   const b = await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid));
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByRole('button', { name: 'Preview turn workspace' }).click();
   b.working_draft.entities[0].root = 'Eb';
   const updated = await page.request.put(`/api/v2/sessions/${sid}/branches/${bid}/workspace`, { data: { expected_version: b.working_draft.version, workspace: b.working_draft } }).then(r => r.json());

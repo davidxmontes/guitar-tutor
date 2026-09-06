@@ -13,15 +13,15 @@ def caged_starter() -> ConceptWorkspace:
 
 
 def resolve_caged(workspace: ConceptWorkspace, facts: dict) -> dict:
-    from app.v2.concepts import build_concept_study
+    from app.v2.concepts import caged_regions
     from app.music.chords import index_to_note
     result = {}
     for chord in workspace.entities:
         if not isinstance(chord, Chord) or not any(b.source_id == chord.id for b in workspace.blocks):
             continue
-        trusted = build_concept_study(index_to_note(pitch_class(chord.root)), 'caged', caged_quality=chord.quality)
+        trusted = caged_regions(index_to_note(pitch_class(chord.root)), chord.quality)
         regions = []
-        for region in trusted.regions:
+        for region in trusted:
             voicing = Voicing(id='derived', chord_id=chord.id, label=region.label, tuning=workspace.tuning,
                 positions=[Position(string=p.string, fret=p.fret + [64,59,55,50,45,40][p.string-1] - workspace.tuning[p.string-1]) for p in region.positions])
             resolved = resolve_voicing(voicing, facts['chords'])

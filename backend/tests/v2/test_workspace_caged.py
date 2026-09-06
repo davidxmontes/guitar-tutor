@@ -1,6 +1,6 @@
 from copy import deepcopy
 from tests.v2.test_workspace_tutor import setup
-from app.v2.concepts import build_concept_study
+from app.v2.concepts import caged_regions
 
 
 def test_caged_uses_trusted_regions_and_materializes_only_explicit_independent_voicings():
@@ -14,8 +14,8 @@ def test_caged_uses_trusted_regions_and_materializes_only_explicit_independent_v
         assert r.status_code == 200, r.text
         return r.json()['caged'][chord['id']]
     facts = resolve(draft)
-    trusted = build_concept_study('C','caged')
-    assert [[(p['string'],p['fret']) for p in region['positions']] for region in facts['regions']] == [[(p.string,p.fret) for p in region.positions] for region in trusted.regions]
+    trusted = caged_regions('C')
+    assert [[(p['string'],p['fret']) for p in region['positions']] for region in facts['regions']] == [[(p.string,p.fret) for p in region.positions] for region in trusted]
     first, second = facts['regions'][:2]
     shared = {(p['string'],p['fret']) for p in first['positions']} & {(p['string'],p['fret']) for p in second['positions']}
     assert {(p['string'],p['fret']) for p in facts['pairs'][0]['shared']} == shared

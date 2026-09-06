@@ -148,3 +148,19 @@ the transaction with historical snapshot restore and replaces the old RPC
 overload. Restore uses the same owned-thread lookup, branch version guard,
 and atomic draft/message commit; it never updates a saved Artifact. This SQL
 is prepared and verified in the disposable PostgreSQL check, not run in production.
+
+## ConceptStudy cutover (#68)
+
+Explore and explicit Tutor concept tangents now open ConceptWorkspace drafts.
+The fixed Study UI, payload variants, visualization/catalog/create/update
+endpoints, and transient Circle state have been removed. Saved workspace read
+and independent reopen endpoints remain. Unsupported old ConceptStudy payloads
+are left intact and offer recovery through Explore; no migration is performed.
+Trusted CAGED positions, region generation, scale metadata and Circle key order
+remain shared deterministic music helpers.
+
+Workspace Tutor uses a dismissible, non-modal native dialog panel on desktop
+and mobile; Close/Escape returns focus to its launcher. Saved workspace material
+can still be copied into Exercises through the existing composer. Fixed-page
+browser/domain tests were removed; workspace tests cover their current contracts,
+while SongStudy, Progression, Exercise and other V2 regression coverage remains.
