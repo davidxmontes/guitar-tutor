@@ -73,6 +73,6 @@ def test_progression_derives_then_materializes_and_transposes_without_losing_occ
 
     model.outcomes = [{'message':'This selected occurrence is independent.'}]
     explained = client.post('/api/v2/tutor/turns', json={'session_id':sid,'branch_id':branch['id'],'message':'Explain this chord',
-        'inspection':{'source_id':progression['id'],'kind':'step','key':0}})
+        'inspection':{'kind':'step','block_id':block['id'],'index':0}})
     assert explained.status_code == 200, explained.text
     assert explained.json()['workspace_result']['status'] == 'unchanged'

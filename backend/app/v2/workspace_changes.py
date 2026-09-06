@@ -7,10 +7,45 @@ from pydantic import Field
 from app.v2.workspace import Block, Compare, ConceptWorkspace, Identifier, Row, Entity, Transition, StrictModel, ViewSettings, resolve_workspace
 
 
-class InspectionTarget(StrictModel):
+PitchClass = Annotated[int, Field(ge=0, le=11, strict=True)]
+
+
+class PitchInspection(StrictModel):
+    kind: Literal['pitch'] = 'pitch'
+    pitch_class: PitchClass
+
+
+class DerivedChordInspection(StrictModel):
+    kind: Literal['chord'] = 'chord'
+    root: PitchClass
+    quality: str
+
+
+class EntityChordInspection(StrictModel):
+    kind: Literal['chord'] = 'chord'
+    entity_id: Identifier
+
+
+class VoicingInspection(StrictModel):
+    kind: Literal['voicing'] = 'voicing'
+    entity_id: Identifier
+
+
+class StepInspection(StrictModel):
+    kind: Literal['step'] = 'step'
+    block_id: Identifier
+    index: Annotated[int, Field(ge=0, le=15, strict=True)]
+
+
+class RegionInspection(StrictModel):
+    # CAGED pointers, unchanged from today: a chord source id + a shape/pair/note key.
+    kind: Literal['region', 'region_note', 'region_pair']
     source_id: Identifier
-    kind: Literal['pitch', 'chord', 'voicing', 'transition', 'step', 'region', 'region_note', 'region_pair']
-    key: Annotated[int, Field(ge=0, le=11, strict=True)] | Identifier
+    key: Identifier
+
+
+InspectionTarget = (PitchInspection | DerivedChordInspection | EntityChordInspection
+                    | VoicingInspection | StepInspection | RegionInspection)
 
 
 class EntityWrite(StrictModel):
@@ -32,6 +67,8 @@ class ViewUpdate(StrictModel):
     op: Literal['update_view']
     id: Identifier
     settings: ViewSettings
+    sources: list[Identifier] | None = Field(default=None, min_length=1, max_length=8)
+    source_roles: dict[str, Literal['primary', 'context', 'highlight']] | None = None
 
 
 class Remove(StrictModel):
@@ -44,7 +81,12 @@ class Recompose(StrictModel):
     composition: list[Row] = Field(max_length=12)
 
 
-Operation = Annotated[EntityWrite | RelationWrite | BlockAdd | ViewUpdate | Remove | Recompose, Field(discriminator='op')]
+class Materialize(StrictModel):
+    op: Literal['materialize']
+    inspection: InspectionTarget
+
+
+Operation = Annotated[EntityWrite | RelationWrite | BlockAdd | ViewUpdate | Remove | Recompose | Materialize, Field(discriminator='op')]
 
 
 class WorkspacePatch(StrictModel):
@@ -70,7 +112,9 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
         return handles.get(id, id)
 
     for operation in patch.operations:
-        if isinstance(operation, Recompose):
+        if isinstance(operation, Materialize):
+            draft = materialize_inspection(ConceptWorkspace.model_validate(draft), operation.inspection).model_dump()
+        elif isinstance(operation, Recompose):
             if not recompose:
                 raise ValueError('Rearranging existing views needs an explicit request')
             draft['composition'] = [{'items': [item.model_dump() | {'block_id': resolve(item.block_id)} for item in row.items]} for row in operation.composition]
@@ -90,6 +134,11 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
             if block is None:
                 raise ValueError('The view no longer exists')
             block['settings'] = operation.settings.model_dump()
+            if operation.sources is not None:
+                block['sources'] = [resolve(source_id) for source_id in operation.sources]
+                block['source_id'] = block['sources'][0]
+            if operation.source_roles is not None:
+                block['source_roles'] = operation.source_roles
         else:
             if isinstance(operation, EntityWrite):
                 collection, obj = 'entities', operation.entity.model_dump()
@@ -106,7 +155,8 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
                     obj['key_id'] = resolve(obj['key_id'])
             else:
                 collection, obj = 'blocks', operation.block.model_dump()
-                obj['source_id'] = resolve(obj['source_id'])
+                obj['sources'] = [resolve(source_id) for source_id in obj['sources']]
+                obj['source_id'] = obj['sources'][0]
             if operation.op.startswith('add_'):
                 handle = obj['id']
                 if not handle.startswith('$') or handle in handles:
@@ -124,3 +174,27 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
     result = ConceptWorkspace.model_validate(draft)
     resolve_workspace(result)
     return result
+
+
+def materialize_inspection(workspace: ConceptWorkspace, inspection) -> ConceptWorkspace:
+    """The one derived -> editable path (spec MAT-01). Switches on what is inspected:
+    a derived chord {root, quality} -> a Chord Entity; a CAGED region -> a Voicing
+    Entity; a derived progression step -> the concrete Progression.
+    """
+    from app.v2.workspace import CHROMATIC, Chord
+    from app.v2.workspace_caged import CagedMaterialize, materialize_region
+    from app.v2.workspace_progressions import ProgressionAction, edit_progression
+
+    if isinstance(inspection, DerivedChordInspection):
+        draft = workspace.model_copy(deep=True)
+        draft.entities.append(Chord(id=uuid4().hex, root=CHROMATIC[inspection.root], quality=inspection.quality))
+        return ConceptWorkspace.model_validate(draft.model_dump())
+    if isinstance(inspection, RegionInspection):
+        return materialize_region(CagedMaterialize(
+            workspace=workspace, chord_id=inspection.source_id, region=inspection.key.split(':')[0]))
+    if isinstance(inspection, StepInspection):
+        block = next((b for b in workspace.blocks if b.id == inspection.block_id), None)
+        if block is None:
+            raise ValueError('Select an existing progression view')
+        return edit_progression(ProgressionAction(workspace=workspace, block_id=block.id, action='materialize'))
+    raise ValueError('That selection has nothing to materialize')

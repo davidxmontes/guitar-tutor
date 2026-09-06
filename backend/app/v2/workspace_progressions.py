@@ -12,7 +12,7 @@ from app.v2.workspace import (
 def progression_starter() -> ConceptWorkspace:
     key, block = uuid4().hex, uuid4().hex
     return ConceptWorkspace(title='Explore I–V–vi–IV', provenance='four-chord-progression',
-        entities=[Key(id=key, root='G')], blocks=[Block(id=block, kind='progression', source_id=key, settings=ViewSettings(pattern='I-V-vi-IV'))],
+        entities=[Key(id=key, root='G')], blocks=[Block(id=block, kind='progression', sources=[key], settings=ViewSettings(pattern='I-V-vi-IV'))],
         composition=[Row(items=[Placement(block_id=block, priority='primary')])])
 
 
@@ -87,7 +87,7 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
         source_id = block.source_id
         for view in draft.blocks:
             if view.kind == 'progression' and view.source_id == source_id:
-                view.source_id = progression.id; view.settings.pattern = None
+                view.source_id = progression.id; view.sources = [progression.id]; view.settings.pattern = None
     else:
         progression = next(e for e in draft.entities if e.id == block.source_id)
     entities = {e.id:e for e in draft.entities}

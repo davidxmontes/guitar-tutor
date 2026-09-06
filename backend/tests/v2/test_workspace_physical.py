@@ -68,7 +68,7 @@ def test_arbitrary_tutor_voicing_is_ordinary_state_and_exactly_undoable():
     smooth = target | {'label': 'G over D · compact', 'positions': [{'string':1,'fret':3}, {'string':2,'fret':3}, {'string':3,'fret':4}]}
     model.outcomes = [{'message':'Keep D on the second string; move F# up to G.', 'workspace_patch': patch(branch, [{'op':'update_entity','entity':smooth}])},
         {'message':'Invalid grip rejected.', 'workspace_patch': {'protocol_version':1,'base_version':2,'operations':[{'op':'update_entity','entity':smooth | {'positions':[{'string':1,'fret':30}]}}]}}]
-    response = turn(client, sid, branch, 'Give me a smoother way to move from D to G', inspection={'source_id':target['id'],'kind':'voicing','key':target['id']})
+    response = turn(client, sid, branch, 'Give me a smoother way to move from D to G', inspection={'kind':'voicing','entity_id':target['id']})
     assert response.status_code == 200, response.text
     result = response.json()['workspace_result']
     assert result['status'] == 'applied'

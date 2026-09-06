@@ -64,7 +64,7 @@ def concept_recipe(concept_id: str, root: str):
         return open_recipe(OpenWorkspaceRequest(recipe='caged-exploration', root=root, quality='minor' if concept_id == 'chord_minor' else 'major'))
     if concept_id == 'circle':
         workspace = open_recipe(OpenWorkspaceRequest(recipe='four-chord-progression', root=root))
-        block = Block(id=uuid4().hex,kind='circle',source_id=workspace.entities[0].id)
+        block = Block(id=uuid4().hex,kind='circle',sources=[workspace.entities[0].id])
         workspace.blocks.insert(0,block); workspace.composition.insert(0,Row(items=[Placement(block_id=block.id,priority='primary')]))
         workspace.title = f'{root} major harmony'
         return workspace

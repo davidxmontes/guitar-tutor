@@ -45,7 +45,7 @@ def test_invalid_composition_and_unowned_updates_leave_draft_intact(client):
     session_id, branch, url = open_workspace(client)
     original = branch['working_draft']
     invalid = []
-    for path, value in [('source_id', 'missing'), ('kind', 'circle')]:
+    for path, value in [('sources', ['missing']), ('kind', 'circle')]:
         draft = deepcopy(original)
         draft['blocks'][0][path] = value
         invalid.append(draft)
@@ -71,7 +71,7 @@ def test_view_changes_keep_music_and_atomic_concurrent_saves(client):
     _, branch, url = open_workspace(client)
     original = branch['working_draft']
     draft = deepcopy(original)
-    draft['blocks'][0]['settings']['shared_only'] = True
+    draft['blocks'][0]['settings']['comparison'] = 'shared-only'
     dropped = draft['blocks'].pop()['id']
     draft['composition'] = [row for row in ({'items': [item for item in row['items'] if item['block_id'] != dropped]} for row in draft['composition']) if row['items']]
     with ThreadPoolExecutor(max_workers=2) as pool:

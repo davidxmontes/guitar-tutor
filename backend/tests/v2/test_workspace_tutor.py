@@ -30,7 +30,7 @@ def test_direct_change_receives_draft_and_inspection_and_undo_preserves_saved_wo
     store.update_branch(sid, branch['id'], 'user_1', current_artifact_id=artifact.id)
     model.outcomes = [{'message': 'I changed the first scale to G Dorian.', 'workspace_patch': patch(branch, [
         {'op': 'update_entity', 'entity': entity | {'mode': 'dorian'}}])}]
-    response = turn(client, sid, branch, inspection={'source_id': entity['id'], 'kind': 'pitch', 'key': 11})
+    response = turn(client, sid, branch, inspection={'kind': 'pitch', 'pitch_class': 11})
     assert response.status_code == 200, response.text
     result = response.json()['workspace_result']
     assert result['status'] == 'applied'
@@ -143,8 +143,9 @@ def test_manual_edit_during_model_run_wins_and_stale_text_is_recorded():
 
 def test_invalid_inspection_is_rejected_before_any_model_call():
     _, model, client, sid, branch = setup()
-    for source, key in [('missing', 7), (branch['working_draft']['entities'][0]['id'], 8)]:
-        response = turn(client, sid, branch, inspection={'source_id': source, 'kind': 'pitch', 'key': key})
+    # 1 and 8 are the two pitch classes absent from both G major and G minor.
+    for pitch_class in (1, 8):
+        response = turn(client, sid, branch, inspection={'kind': 'pitch', 'pitch_class': pitch_class})
         assert response.status_code == 422
     assert not model.calls
 

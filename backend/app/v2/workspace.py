@@ -10,7 +10,20 @@ Pitch = Annotated[str, Field(pattern=r'^[A-G](#{1,2}|b{1,2})?$')]
 Identifier = Annotated[str, Field(min_length=1, max_length=80)]
 Midi = Annotated[int, Field(strict=True, ge=0, le=127)]
 Mode = Literal['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues']
-BLOCK_SOURCES = {'fretboard': ('scale', 'compare', 'voicing', 'transition', 'chord', 'noteGroup'), 'degree_strip': ('scale', 'compare'), 'chord_diagrams': ('voicing', 'transition', 'chord'), 'circle': ('key',), 'progression': ('key', 'progression'), 'caged': ('chord',)}
+# Per-block-kind compatible source kinds (spec #88 §5). Internal block kinds stay
+# snake_case; the spec prose's `degree-strip` etc. name the same kinds. `key_family`
+# is a T5 block kind -- its accepts entry lives here now, but the kind itself is not
+# yet in Block.kind (T5 adds it).
+BLOCK_ACCEPTS = {
+    'fretboard': ('scale', 'chord', 'voicing', 'key', 'noteGroup', 'compare', 'transition'),
+    'degree_strip': ('scale', 'chord', 'compare'),
+    'chord_diagrams': ('voicing', 'chord'),
+    'circle': ('key',),
+    'progression': ('progression', 'key'),
+    'key_family': ('key',),
+    'caged': ('chord',),
+}
+BLOCK_SOURCES = BLOCK_ACCEPTS  # back-compat alias for existing importers
 
 
 class StrictModel(BaseModel):
@@ -117,22 +130,39 @@ class Compare(StrictModel):
 class ViewSettings(StrictModel):
     pattern: Literal['I-V-vi-IV'] | None = None
     labels: Literal['notes', 'intervals'] = 'notes'
-    shared_only: bool = False
-    fret_start: int = Field(default=0, ge=0, le=19, strict=True)
-    fret_end: int = Field(default=5, ge=1, le=24, strict=True)
+    mode: Literal['notes', 'caged'] | None = None
+    comparison: Literal['highlight', 'plain', 'shared-only'] = 'highlight'
+    fret_start: int | None = Field(default=None, ge=0, le=19, strict=True)
+    fret_end: int | None = Field(default=None, ge=1, le=24, strict=True)
 
     @model_validator(mode='after')
     def ordered_range(self):
-        if not 1 <= self.fret_end - self.fret_start <= 12:
-            raise ValueError('Choose a fret range between 2 and 13 frets')
+        # null = auto range; only an explicit pair is bounded. The 12-fret cap is
+        # gone for the fretboard -- allow the full tiled window.
+        if self.fret_start is not None and self.fret_end is not None:
+            if not 1 <= self.fret_end - self.fret_start <= 19:
+                raise ValueError('Choose a fret range between 2 and 20 frets')
         return self
 
 
 class Block(StrictModel):
     id: Identifier
     kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'caged']
-    source_id: Identifier
+    source_id: Identifier | None = None
+    sources: list[Identifier] | None = Field(default=None, min_length=1, max_length=8)
+    source_roles: dict[str, Literal['primary', 'context', 'highlight']] | None = None
     settings: ViewSettings = Field(default_factory=ViewSettings)
+
+    @model_validator(mode='after')
+    def _normalize_sources(self):
+        # Accept either the legacy single `source_id` or the new `sources[]`;
+        # after validation `sources` is authoritative and `source_id` mirrors sources[0].
+        if not self.sources:
+            if not self.source_id:
+                raise ValueError('A view needs at least one source')
+            self.sources = [self.source_id]
+        self.source_id = self.sources[0]
+        return self
 
 
 class Placement(StrictModel):
@@ -185,18 +215,27 @@ class ConceptWorkspace(StrictModel):
                     raise ValueError('Transition requires a Key context')
                 if entities[relation.entity_ids[0]].tuning != entities[relation.entity_ids[1]].tuning:
                     raise ValueError('A physical transition needs the same tuning on both voicings')
-        sources = {obj.id: obj.kind for obj in [*self.entities, *self.relations]}
+        source_kinds = {obj.id: obj.kind for obj in [*self.entities, *self.relations]}
         for block in self.blocks:
-            chord = entities.get(block.source_id)
-            if isinstance(chord, Chord) and chord.quality not in ('major', 'minor'):
-                raise ValueError('CAGED views support major or minor chords')
-            derived = block.kind == 'progression' and sources.get(block.source_id) == 'key'
+            accepts = BLOCK_ACCEPTS[block.kind]
+            for source_id in block.sources:
+                if source_id not in source_kinds:
+                    raise ValueError('A view points at a source that no longer exists')
+                if source_kinds[source_id] not in accepts:
+                    raise ValueError('View is not compatible with its musical source')
+            if block.kind in ('caged', 'chord_diagrams'):
+                for source_id in block.sources:
+                    chord = entities.get(source_id)
+                    if isinstance(chord, Chord) and chord.quality not in ('major', 'minor'):
+                        raise ValueError('CAGED views support major or minor chords')
+            first_kind = source_kinds[block.sources[0]]
+            derived = block.kind == 'progression' and first_kind == 'key'
             if derived != (block.settings.pattern is not None):
                 raise ValueError('A derived Progression view requires a pattern; other views do not')
-            if sources.get(block.source_id) not in BLOCK_SOURCES[block.kind]:
-                raise ValueError('View is not compatible with its musical source')
-            if block.settings.shared_only and sources[block.source_id] not in ('compare', 'transition', 'chord'):
-                raise ValueError('Shared notes require a comparison')
+            comparison_ready = first_kind in ('compare', 'transition') or (
+                len(block.sources) == 2 and len({source_kinds[s] for s in block.sources}) == 1)
+            if block.settings.comparison == 'shared-only' and not comparison_ready:
+                raise ValueError('Shared notes need two same-kind sources or a compare/transition relation')
         placements = [item.block_id for row in self.composition for item in row.items]
         if sorted(placements) != sorted(block.id for block in self.blocks):
             raise ValueError('Place every block exactly once')
@@ -210,7 +249,7 @@ def scale_comparison() -> ConceptWorkspace:
     return ConceptWorkspace(title='G major vs G minor',
         entities=[Scale(id=primary, root='G', mode='major'), Scale(id=comparison, root='G', mode='natural_minor')],
         relations=[Compare(id=relation, entity_ids=[primary, comparison])],
-        blocks=[Block(id=fretboard, kind='fretboard', source_id=relation), Block(id=degrees, kind='degree_strip', source_id=relation)],
+        blocks=[Block(id=fretboard, kind='fretboard', sources=[relation]), Block(id=degrees, kind='degree_strip', sources=[relation])],
         composition=[Row(items=[Placement(block_id=fretboard, priority='primary', span=8), Placement(block_id=degrees, span=4)])])
 
 
@@ -342,7 +381,7 @@ def physical_resolution() -> ConceptWorkspace:
         Voicing(id=dv, chord_id=d, label='D open', tuning=tuning, positions=[Position(string=s, fret=f) for s, f in CAGED_POSITIONS['major']['D']]),
         Voicing(id=gv, chord_id=g, label='G open', tuning=tuning, positions=[Position(string=s, fret=f) for s, f in CAGED_POSITIONS['major']['G']])],
         relations=[Transition(id=transition, entity_ids=[dv, gv], key_id=key)],
-        blocks=[Block(id=diagrams, kind='chord_diagrams', source_id=transition), Block(id=fret, kind='fretboard', source_id=transition), Block(id=circle, kind='circle', source_id=key)],
+        blocks=[Block(id=diagrams, kind='chord_diagrams', sources=[dv, gv]), Block(id=fret, kind='fretboard', sources=[transition]), Block(id=circle, kind='circle', sources=[key])],
         composition=[Row(items=[Placement(block_id=diagrams, priority='primary', span=6), Placement(block_id=circle, span=6)]), Row(items=[Placement(block_id=fret)])])
 
 

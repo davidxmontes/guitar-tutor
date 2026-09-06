@@ -11,7 +11,7 @@ STANDARD_TUNING = [64, 59, 55, 50, 45, 40]
 
 def caged_starter() -> ConceptWorkspace:
     chord = Chord(id=uuid4().hex, root='C', quality='major')
-    blocks = [Block(id=uuid4().hex, kind=kind, source_id=chord.id) for kind in ('caged','chord_diagrams','fretboard')]
+    blocks = [Block(id=uuid4().hex, kind=kind, sources=[chord.id]) for kind in ('caged','chord_diagrams','fretboard')]
     return ConceptWorkspace(title='Connect CAGED shapes', provenance='caged-exploration', entities=[chord], blocks=blocks,
         composition=[Row(items=[Placement(block_id=b.id, priority='primary' if i == 0 else 'supporting')]) for i,b in enumerate(blocks)])
 
@@ -73,7 +73,7 @@ def materialize_region(request: CagedMaterialize) -> ConceptWorkspace:
     draft.entities.extend([chord,voicing])
     for kind in ('chord_diagrams','fretboard'):
         start = min(region['fret_start'], 19); end = max(start+1,region['fret_end'])
-        block = Block(id=uuid4().hex, kind=kind, source_id=voicing.id, settings=ViewSettings(fret_start=start,fret_end=end))
+        block = Block(id=uuid4().hex, kind=kind, sources=[voicing.id], settings=ViewSettings(fret_start=start,fret_end=end))
         draft.blocks.append(block); draft.composition.append(Row(items=[Placement(block_id=block.id)]))
     result = ConceptWorkspace.model_validate(draft.model_dump()); resolve_workspace(result)
     return result
