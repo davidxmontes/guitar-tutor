@@ -1,0 +1,16 @@
+.music-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; font-size: .875rem; }
+.music-controls input { width: 3rem; }
+.music-controls input, .music-controls select, .music-button {
+  min-height: 2.75rem; border: 1px solid var(--border-primary, #64748b); border-radius: .375rem;
+  background: var(--card-bg, #fff); color: var(--text-primary, #17232d); padding: .375rem;
+}
+.music-controls label { display: flex; align-items: center; gap: .375rem; }
+.music-layer-legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0; list-style: none; font-size: .75rem; }
+.music-neck-scroll { max-width: 100%; overflow-x: auto; color: var(--text-secondary, #54616c); }
+.music-neck-scroll svg { display: block; }
+.music-note { cursor: pointer; }
+.music-note circle { fill: var(--card-bg, #fff); stroke: var(--text-secondary, #54616c); }
+.music-note text { fill: var(--text-primary, #17232d); font-size: 11px; pointer-events: none; }
+.music-note--focal circle { fill: var(--accent-100, #d8e9e5); stroke: var(--text-primary, #17232d); }
+.music-note:focus { outline: none; }
+.music-note:focus circle { stroke: var(--accent-600, #067565); stroke-width: 5px; }
