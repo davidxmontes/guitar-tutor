@@ -1,0 +1,41 @@
+import { expect, test } from '@playwright/test';
+
+test('Explore confirms key changes; scratch edits and Tutor mutations work', async ({ page }) => {
+  await page.goto('/v2');
+  await page.getByLabel('Explore a scale, key or chord').fill('C major');
+  await page.getByRole('button', { name: 'Explore music', exact: true }).click();
+  await page.getByRole('button', { name: 'Compare current scale' }).click();
+  await page.getByLabel('Root', { exact: true }).selectOption('D');
+  await page.getByRole('button', { name: 'Compare current scale' }).click();
+  const declined = new Promise<void>(resolve => page.once('dialog', async dialog => { await dialog.dismiss(); resolve(); }));
+  await page.getByRole('button', { name: 'Explore →', exact: true }).first().click();
+  await declined;
+  await expect(page.getByLabel('Root', { exact: true })).toHaveValue('D');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Explore →', exact: true }).first().click();
+  await expect(page.getByLabel('Root', { exact: true })).toHaveValue('C');
+  await page.getByRole('button', { name: 'Add C to scratch', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Dm to scratch', exact: true }).click();
+  await page.getByRole('button', { name: 'Focus C', exact: true }).click();
+  await page.getByRole('button', { name: 'Explore →', exact: true }).click();
+  await expect(page.getByLabel('Root', { exact: true })).toHaveValue('C');
+  async function ask(text: string) { await page.getByLabel('Ask the Tutor').fill(text); await page.getByRole('button', { name: 'Ask', exact: true }).click(); }
+  await ask('Show scratch');
+  const scratch = page.getByLabel('Scratch sequence', { exact: true });
+  await scratch.getByRole('button', { name: 'Move down' }).first().click();
+  await expect(scratch.getByRole('listitem').first()).toContainText('D minor');
+  await scratch.getByRole('button', { name: 'Add focused chord' }).click();
+  await expect(scratch.getByRole('listitem')).toHaveCount(3);
+  await scratch.getByRole('button', { name: 'Remove', exact: true }).last().click();
+  await scratch.getByRole('button', { name: 'Play scratch' }).click();
+  await scratch.getByRole('button', { name: 'Stop scratch' }).click();
+  await scratch.getByRole('button', { name: 'Loop scratch' }).click();
+  await scratch.getByRole('button', { name: 'Stop scratch' }).click();
+  await scratch.getByRole('button', { name: 'Develop →', exact: true }).click();
+  await expect(page.getByText('Develop is not yet available. Your scratch sequence is unchanged.')).toBeVisible();
+  await expect(scratch.getByRole('listitem')).toHaveCount(2);
+  await ask('Change the key to E minor');
+  await expect(page.getByLabel('Root', { exact: true })).toHaveValue('E');
+  await ask('Make it Dorian');
+  await expect(page.getByLabel('Scale', { exact: true })).toHaveValue('dorian');
+});

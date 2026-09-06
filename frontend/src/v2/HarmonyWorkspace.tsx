@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { V2Branch } from '../types/v2';
 import { CompositionView } from './Composition';
+import { ScratchSequence } from './ScratchSequence';
 import { ChordInspector, VoicingExplorer } from './ChordFocus';
 import { Hear } from './Fretboard';
 import type { VoicingValue } from './Fretboard';
@@ -35,6 +36,22 @@ export function HarmonyWorkspace({ branch, onChange }: { branch: V2Branch; onCha
       setSurface(value); onChange(value.branch);
     } catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
+  async function explore(subject: Record<string, unknown>) {
+    setBusy(true); setError('');
+    try {
+      let result = await apiClient.exploreSubject(branch.session_id, branch.id, subject);
+      if (result.requires_confirmation) {
+        if (!window.confirm('Switch the tonal centre of this Harmony exploration?')) return;
+        result = await apiClient.exploreSubject(branch.session_id, branch.id, subject, true);
+      }
+      compare.clear(); onChange(result.branch);
+      setSurface(await apiClient.getHarmony(branch.session_id, branch.id));
+    } catch (err) { setError(String(err)); } finally { setBusy(false); }
+  }
+  async function develop() {
+    try { setAnswer((await apiClient.developScratch(branch.session_id, branch.id)).message); }
+    catch (err) { setError(String(err)); }
+  }
   async function ask() {
     if (!question.trim()) return;
     setBusy(true); setError('');
@@ -57,28 +74,29 @@ export function HarmonyWorkspace({ branch, onChange }: { branch: V2Branch; onCha
   const notes = focus.kind === 'voicing' ? data.voicing_positions : focus.kind === 'chord' ? data.chord_positions : data.scale_positions;
   const focusedDegree = focus.kind === 'degree' ? data.degrees[Number(focus.degree) - 1] : null;
   const layers = focusedDegree
-    ? [{ id: 'scale', label: `${root} ${scale}`, positions: notes }, { id: 'degree', label: focusLabel, focal: true, positions: notes.filter(note => note.pitch_class === focusedDegree.pitch_class) }]
+    ? [{ id: 'scale', label: `${root} ${scale}`, subject: { root, scale }, positions: notes }, { id: 'degree', label: focusLabel, focal: true, positions: notes.filter(note => note.pitch_class === focusedDegree.pitch_class) }]
     : [{ id: 'music', label: focusLabel, focal: true, positions: notes }];
   return <section data-testid="harmony-workspace" data-module={harmonyModule(focus.kind)} aria-busy={busy}>
     <WorkspaceHeader title="Harmony" focus={focusLabel} onBack={focus.kind === 'scale' ? undefined : () => void edit({ focus: { kind: 'scale' } })}>
       <label>Root <select aria-label="Root" value={state.tonal_center ? root : ''} disabled={busy} onChange={e => void edit({ tonal_center: { root: e.target.value, scale } })}><option value="" disabled>Choose root</option>{surface.catalog.roots.map(value => <option key={value}>{value}</option>)}</select></label>
       <label>Scale <select aria-label="Scale" value={scale} disabled={busy || !state.tonal_center} onChange={e => void edit({ tonal_center: { root, scale: e.target.value } })}>{Object.entries(surface.catalog.scales).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label>Tuning <select aria-label="Tuning" disabled={busy} value={state.tuning[5] === 38 ? 'drop-d' : 'standard'} onChange={e => void edit({ tuning: [64, 59, 55, 50, 45, e.target.value === 'drop-d' ? 38 : 40] })}><option value="standard">Standard</option><option value="drop-d">Drop D</option></select></label>
-      <button className="music-button" disabled={!state.tonal_center || busy} onClick={() => compare.toggle({ kind: 'scale', id: `${root}:${scale}`, label: `${root} ${scale}`, positions: data.scale_positions })}>Compare current scale</button>
-      {chord && <button className="music-button" onClick={() => compare.toggle({ kind: 'chord', id: JSON.stringify(chord), label: `${chord.root} ${chord.quality}`, positions: data.chord_positions })}>Compare current chord</button>}
+      <button className="music-button" disabled={!state.tonal_center || busy} onClick={() => compare.toggle({ kind: 'scale', id: `${root}:${scale}`, label: `${root} ${scale}`, subject: { root, scale }, positions: data.scale_positions })}>Compare current scale</button>
+      {chord && <button className="music-button" onClick={() => compare.toggle({ kind: 'chord', id: JSON.stringify(chord), label: `${chord.root} ${chord.quality}`, subject: chord, positions: data.chord_positions })}>Compare current chord</button>}
     </WorkspaceHeader>
     <p data-testid="scratch-count">{state.scratch.length} scratch chord{state.scratch.length === 1 ? '' : 's'}</p>
     {error && <p role="alert">{error}</p>}
     <p role="status">{compare.error}</p>
     {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <>
-      <h3>{peer.label}</h3><Fretboard context="harmony" layers={[{ id: peer.id, label: peer.label, focal: true, positions: peer.positions as ResolvedNote[] }]} config={config} onNudge={nudge} onSelect={() => {}} />
+      <h3>{peer.label}</h3>{peer.subject != null && <button className="music-button" disabled={busy} onClick={() => void explore(peer.subject as Record<string, unknown>)}>Explore →</button>}<Fretboard context="harmony" layers={[{ id: peer.id, label: peer.label, focal: true, positions: peer.positions as ResolvedNote[] }]} config={config} onNudge={nudge} onSelect={() => {}} />
     </>} /> : <CompositionView composition={surface.composition} liveTurnId={`${branch.id}:${surface.branch.live_presentation_turn_id ?? 'starter'}`}
       renderBlock={(block, _path, nudge) => {
+        if (block.kind === 'scratch-sequence') return <ScratchSequence data={data.scratch} chord={chord} busy={busy} edit={edit} develop={develop} />;
         if (block.kind === 'candidate-set') return <CandidateSet candidates={candidates}
           onPlay={id => { const value = candidates.find(candidate => candidate.id === id)!.voicing; stopPreview.current?.(); stopPreview.current = playChord(value.positions, .03, 1.2, value.tuning); }}
           onKeep={id => { const candidate = candidates.find(value => value.id === id)!; if (!busy) void edit({ pin: { chord: candidate.chord, voicing: candidate.voicing } }); }}
           onDismiss={id => setCandidates(values => values.filter(value => value.id !== id))} />;
-        if (block.kind === 'chord-inspector' && chord) return <ChordInspector chord={chord} data={data} hasKey={!!state.tonal_center} />;
+        if (block.kind === 'chord-inspector' && chord) return <ChordInspector onExplore={() => void explore(chord)} chord={chord} data={data} hasKey={!!state.tonal_center} />;
         if (block.kind === 'voicing-explorer' && chord) return <VoicingExplorer key={`${branch.id}:${surface.branch.live_presentation_turn_id}`} chord={chord} data={data} tuning={state.tuning} initialView={block.config?.view} busy={busy} edit={edit} compare={compare.toggle} />;
         if (block.kind === 'fretboard') return <Fretboard context="harmony" layers={[...layers, ...data.note_groups]} config={block.config} onNudge={nudge}
           onSelect={note => { if (busy) return; const index = data.degrees.findIndex(degree => degree.pitch_class === note.pitch_class); if (index >= 0) void edit({ focus: { kind: 'degree', degree: index + 1 } }); }} />;

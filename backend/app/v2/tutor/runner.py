@@ -31,10 +31,13 @@ from app.v2.harmony import chord_voicings
 
 
 def apply_mutation(branch: Branch, mutation) -> Branch:
-    """Static dispatch seam. Concrete musical operations arrive in H3/P3."""
+    from app.v2.harmony_actions import mutate_harmony
+    updated = branch.model_copy(deep=True)
     if mutation is not None and mutation.kind != 'noop':
-        raise ValueError('Unsupported Tutor mutation')
-    return branch.model_copy(deep=True)
+        if updated.active_workspace != 'harmony' or updated.harmony_exploration is None:
+            raise ValueError('Harmony mutation requires the active Harmony Workspace')
+        updated.harmony_exploration = mutate_harmony(updated.harmony_exploration, mutation)
+    return updated
 
 
 def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:

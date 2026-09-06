@@ -595,6 +595,7 @@ from uuid import uuid4
 from app.v2.harmony_state import ChordRef, HarmonyExploration, HarmonyFocus, TonalCenter, Tuning, PinnedVoicing
 from app.v2.harmony import change_subject, change_tuning, resolve_harmony, pin_voicing, unpin_voicing
 from app.v2.workspace import StrictModel
+from app.v2.harmony_actions import HarmonyMutation, mutate_harmony
 from app.v2.turns import live_composition
 from app.v2.concepts import SCALE_NAMES, CIRCLE_KEYS
 from app.services.scale_service import VALID_ROOTS
@@ -605,6 +606,7 @@ class HarmonyEdit(StrictModel):
     tuning: Tuning | None = None
     focus: HarmonyFocus | None = None
     add_scratch: ChordRef | None = None
+    mutation: HarmonyMutation | None = None
     pin: PinnedVoicing | None = None
     unpin: PinnedVoicing | None = None
 
@@ -668,6 +670,8 @@ async def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdi
         if edit.add_scratch is not None:
             data['scratch'].append({'id': uuid4().hex, **edit.add_scratch.model_dump()})
         state = HarmonyExploration.model_validate(data)
+        if edit.mutation is not None:
+            state = mutate_harmony(state, edit.mutation)
         if edit.pin is not None:
             state = pin_voicing(state, edit.pin.chord, edit.pin.voicing)
         if edit.unpin is not None:
@@ -676,3 +680,25 @@ async def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdi
         return harmony_response(updated, store, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class ExploreRequest(StrictModel):
+    subject: ChordRef | TonalCenter
+    confirmed: bool = False
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/explore')
+async def explore_subject(session_id: str, branch_id: str, data: ExploreRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    from app.v2.harmony_actions import explore_harmony
+    current = owned_branch(store, session_id, branch_id, user_id)
+    updated, confirmation = explore_harmony(current, data.subject, data.confirmed)
+    if confirmation:
+        return {'branch': current, 'requires_confirmation': True}
+    branch = store.update_branch(session_id, branch_id, user_id, harmony_exploration=updated.harmony_exploration, active_workspace='harmony')
+    return {'branch': branch, 'requires_confirmation': False}
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/develop')
+async def develop_scratch(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    owned_branch(store, session_id, branch_id, user_id)
+    return {'available': False, 'message': 'Develop is not yet available. Your scratch sequence is unchanged.'}

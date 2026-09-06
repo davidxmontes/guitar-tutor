@@ -306,6 +306,14 @@ class ApiClient {
     return this.fetch('/v2/harmony/open', { method: 'POST', body: JSON.stringify(chord ? { root, quality: scale } : { root, scale }) });
   }
 
+  async exploreSubject(session: string, branch: string, subject: Record<string, unknown>, confirmed = false): Promise<{ branch: V2Branch; requires_confirmation: boolean }> {
+    return this.fetch(`/v2/sessions/${session}/branches/${branch}/explore`, { method: 'POST', body: JSON.stringify({ subject, confirmed }) });
+  }
+
+  async developScratch(session: string, branch: string): Promise<{ available: boolean; message: string }> {
+    return this.fetch(`/v2/sessions/${session}/branches/${branch}/develop`, { method: 'POST' });
+  }
+
   async getHarmony(session: string, branch: string): Promise<import('../v2/harmony').HarmonySurface> {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/harmony`);
   }
