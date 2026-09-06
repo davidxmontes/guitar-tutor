@@ -12,30 +12,33 @@ CREATE TABLE v2_sessions (
 );
 CREATE INDEX ON v2_sessions (clerk_user_id, created_at DESC);
 
+-- Branch = one conversational direction (Spec #100 §5.1): a shared Tutor
+-- thread plus a Harmony Exploration and/or a Progression Workspace. Hard
+-- cutover from the ConceptWorkspace era — the store is WIPED on deploy, so
+-- this is a replacement, not a migration. The old columns
+-- (current_artifact_kind/id, working_draft, saved_artifact_revision,
+-- selection, focus, recent_ideas, fork_context) are gone with no converter.
 CREATE TABLE v2_branches (
-  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id             uuid NOT NULL REFERENCES v2_sessions(id) ON DELETE CASCADE,
-  tutor_thread_id        uuid NOT NULL,
-  title                  text NOT NULL DEFAULT 'New workspace',
-  current_artifact_kind  text CHECK (current_artifact_kind IN ('song_study', 'progression', 'concept_study', 'exercise')),
-  current_artifact_id    text,
-  working_draft          jsonb,
-  selection              jsonb,
-  focus                  jsonb,
-  recent_ideas           jsonb NOT NULL DEFAULT '[]'::jsonb,
-  fork_context           jsonb,
-  closed                 boolean NOT NULL DEFAULT false,
-  created_at             timestamptz NOT NULL DEFAULT now(),
-  updated_at             timestamptz NOT NULL DEFAULT now()
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id                uuid NOT NULL REFERENCES v2_sessions(id) ON DELETE CASCADE,
+  tutor_thread_id           uuid NOT NULL,
+  title                     text NOT NULL DEFAULT 'New workspace',
+  harmony_exploration       jsonb,
+  progression_workspace     jsonb,
+  active_workspace          text NOT NULL DEFAULT 'harmony' CHECK (active_workspace IN ('harmony', 'progression')),
+  live_presentation_turn_id text,
+  closed                    boolean NOT NULL DEFAULT false,
+  created_at                timestamptz NOT NULL DEFAULT now(),
+  updated_at                timestamptz NOT NULL DEFAULT now(),
+  -- At least one workspace, and active_workspace names a present one.
+  CONSTRAINT v2_branches_active_workspace_present CHECK (
+    CASE active_workspace
+      WHEN 'harmony' THEN harmony_exploration IS NOT NULL
+      WHEN 'progression' THEN progression_workspace IS NOT NULL
+    END
+  )
 );
 CREATE INDEX ON v2_branches (session_id);
-
--- Existing V2 databases created before branch navigation shipped need the
--- same additive columns. IF NOT EXISTS also makes this safe after a fresh
--- CREATE TABLE run above.
-ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'New workspace';
-ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS fork_context jsonb;
-ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS closed boolean NOT NULL DEFAULT false;
 
 -- Artifact CRUD: common columns + a JSON payload, strictly typed by each
 -- concrete artifact route at the application layer.
@@ -49,7 +52,7 @@ ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS closed boolean NOT NULL DEFAULT
 CREATE TABLE v2_artifacts (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   clerk_user_id text NOT NULL,
-  kind         text NOT NULL CHECK (kind IN ('song_study', 'progression', 'concept_study', 'exercise')),
+  kind         text NOT NULL CHECK (kind IN ('song_study', 'progression', 'exercise')),
   title        text NOT NULL,
   payload      jsonb NOT NULL,
   created_at   timestamptz NOT NULL DEFAULT now(),
@@ -72,6 +75,3 @@ CREATE TABLE v2_tutor_messages (
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ON v2_tutor_messages (tutor_thread_id, created_at);
-
--- ConceptWorkspace: nullable branch-local JSON, no legacy payload conversion.
-ALTER TABLE v2_branches ADD COLUMN IF NOT EXISTS working_draft jsonb;

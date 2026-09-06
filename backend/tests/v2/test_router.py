@@ -50,50 +50,61 @@ def test_get_session_404_for_unknown_id(client):
     assert response.status_code == 404
 
 
-def test_update_branch_sets_selection_and_artifact_reference(client):
+def test_update_branch_sets_title_and_workspace_navigation(client):
     created = client.post("/api/v2/sessions").json()
     branch_id = created["branches"][0]["id"]
 
-    response = client.patch(
+    resolved = client.patch(
         f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
-        json={"current_artifact_kind": "progression", "current_artifact_id": "a1", "selection": {"x": 1}},
+        json={"title": "Renamed", "live_presentation_turn_id": "turn-1"},
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["current_artifact_kind"] == "progression"
-    assert body["selection"] == {"x": 1}
+    assert resolved.status_code == 200
+    body = resolved.json()
+    assert body["title"] == "Renamed"
+    assert body["live_presentation_turn_id"] == "turn-1"
+    assert body["active_workspace"] == "harmony"
 
 
-def test_update_branch_422_for_invalid_artifact_kind(client):
+def test_update_branch_422_when_active_workspace_names_an_absent_one(client):
     created = client.post("/api/v2/sessions").json()
     branch_id = created["branches"][0]["id"]
 
-    response = client.patch(
+    resolved = client.patch(
         f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
-        json={"current_artifact_kind": "not_real"},
+        json={"active_workspace": "progression"},
     )
 
-    assert response.status_code == 422
+    assert resolved.status_code == 422
 
 
-def test_update_branch_can_explicitly_clear_a_field_to_null(client):
+def test_update_branch_can_explicitly_clear_a_nullable_field(client):
     created = client.post("/api/v2/sessions").json()
     branch_id = created["branches"][0]["id"]
     client.patch(
         f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
-        json={"current_artifact_kind": "progression", "current_artifact_id": "a1"},
+        json={"live_presentation_turn_id": "turn-1"},
     )
 
-    response = client.patch(
+    resolved = client.patch(
         f"/api/v2/sessions/{created['id']}/branches/{branch_id}",
-        json={"current_artifact_id": None},
+        json={"live_presentation_turn_id": None},
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["current_artifact_id"] is None
-    assert body["current_artifact_kind"] == "progression"  # untouched — wasn't in this PATCH
+    assert resolved.status_code == 200
+    assert resolved.json()["live_presentation_turn_id"] is None
+
+
+def test_create_conversational_fork_branch(client):
+    created = client.post("/api/v2/sessions").json()
+    forked = client.post(f"/api/v2/sessions/{created['id']}/branches", json={"title": "Alternative"})
+    assert forked.status_code == 201
+    body = forked.json()
+    assert body["title"] == "Alternative"
+    assert body["active_workspace"] == "harmony"
+    assert body["harmony_exploration"] is not None
+    reloaded = client.get(f"/api/v2/sessions/{created['id']}").json()
+    assert [b["id"] for b in reloaded["branches"]] == [created["branches"][0]["id"], body["id"]]
 
 
 def test_update_branch_no_op_patch_returns_current_state(client):

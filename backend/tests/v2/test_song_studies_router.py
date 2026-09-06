@@ -120,25 +120,6 @@ def test_create_song_study_includes_shapes_projected_with_track_tuning(
     ]
 
 
-@patch("app.v2.router.songsterr.get_tab_data", new_callable=AsyncMock)
-@patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock)
-def test_create_song_study_sets_it_as_current_artifact_on_branch(
-    get_song_revision, get_tab_data, client, session_and_branch,
-):
-    session_id, branch_id = session_and_branch
-    get_song_revision.return_value = _revision()
-    get_tab_data.return_value = TAB_DATA
-
-    created = client.post(
-        "/api/v2/song-studies",
-        json={"session_id": session_id, "branch_id": branch_id, "song_id": 7, "track_index": 0},
-    ).json()
-
-    branch = client.get(f"/api/v2/sessions/{session_id}").json()["branches"][0]
-    assert branch["current_artifact_kind"] == "song_study"
-    assert branch["current_artifact_id"] == created["id"]
-
-
 @patch("app.v2.router.songsterr.get_song_revision", new_callable=AsyncMock)
 def test_create_song_study_404_for_out_of_range_track(get_song_revision, client, session_and_branch):
     session_id, branch_id = session_and_branch

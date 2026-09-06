@@ -1,7 +1,6 @@
-import type { ConceptWorkspace, Resolved } from '../types/conceptWorkspace';
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { WorkspaceTurnResult, Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse } from '../types/v2';
+import type { Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, CreateBranchRequest, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionPayload, ProgressionArtifact } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -69,49 +68,6 @@ class ApiClient {
     return response.json();
   }
 
-  undoWorkspaceChange(sessionId: string, branchId: string, messageId: string, version: number): Promise<WorkspaceTurnResult> {
-    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/undo`, { method: 'POST', body: JSON.stringify({ message_id: messageId, expected_version: version }) });
-  }
-
-  restoreWorkspaceSnapshot(sessionId: string, branchId: string, messageId: string, version: number): Promise<WorkspaceTurnResult> {
-    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/restore`, { method: 'POST', body: JSON.stringify({ message_id: messageId, expected_version: version }) });
-  }
-
-  saveWorkspaceStudy(sessionId: string, branchId: string, version: number, title: string, asNew = false): Promise<V2Branch> {
-    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace/save`, { method: 'POST', body: JSON.stringify({ expected_version: version, title, as_new: asNew }) });
-  }
-
-  exploreCatalog(): Promise<import('../types/conceptWorkspace').ExploreRecipe[]> {
-    return this.fetch('/v2/concept-workspaces/catalog');
-  }
-
-  openConceptWorkspace(sessionId: string, recipe: ConceptWorkspace['provenance'] = 'scale-comparison', mode?: import('../types/conceptWorkspace').ScaleMode): Promise<V2Branch> {
-    return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces`, { method: 'POST', body: JSON.stringify({ recipe, mode }) });
-  }
-
-  transformWorkspaceProgression(workspace: ConceptWorkspace, blockId: string, action: import('../types/conceptWorkspace').ProgressionAction): Promise<ConceptWorkspace> {
-    return this.fetch('/v2/concept-workspaces/progression', { method:'POST', body:JSON.stringify({ workspace, block_id:blockId, ...action }) });
-  }
-
-  materializeCagedRegion(workspace: ConceptWorkspace, chordId: string, region: string): Promise<ConceptWorkspace> {
-    return this.fetch('/v2/concept-workspaces/caged/materialize', { method: 'POST', body: JSON.stringify({workspace, chord_id: chordId, region}) });
-  }
-
-  materializeInspection(workspace: ConceptWorkspace, inspection: import('../types/conceptWorkspace').TypedInspection): Promise<ConceptWorkspace> {
-    return this.fetch('/v2/concept-workspaces/materialize', { method: 'POST', body: JSON.stringify({ workspace, inspection }) });
-  }
-
-  updateWorkspaceView(workspace: ConceptWorkspace, block: import('../types/conceptWorkspace').WorkspaceBlock): Promise<ConceptWorkspace> {
-    return this.fetch('/v2/concept-workspaces/update-view', { method: 'POST', body: JSON.stringify({ workspace, view: { op: 'update_view', id: block.id, settings: block.settings, sources: block.sources, source_roles: block.source_roles ?? {} } }) });
-  }
-
-  resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<Resolved> {
-    return this.fetch('/v2/concept-workspaces/resolve', { method: 'POST', body: JSON.stringify(workspace) });
-  }
-
-  saveConceptWorkspace(sessionId: string, branchId: string, workspace: ConceptWorkspace): Promise<V2Branch> {
-    return this.fetch(`/v2/sessions/${sessionId}/branches/${branchId}/workspace`, { method: 'PUT', body: JSON.stringify({ expected_version: workspace.version, workspace }) });
-  }
 
   // Parses an SSE ReadableStream into typed SseEvent objects.
   private async *_parseSseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<SseEvent> {
@@ -350,6 +306,13 @@ class ApiClient {
     return this.fetch<V2Session>(`/v2/sessions/${sessionId}`);
   }
 
+  async createV2Branch(sessionId: string, data: CreateBranchRequest = {}): Promise<V2Branch> {
+    return this.fetch<V2Branch>(`/v2/sessions/${sessionId}/branches`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async updateV2Branch(sessionId: string, branchId: string, data: UpdateBranchRequest): Promise<V2Branch> {
     return this.fetch<V2Branch>(`/v2/sessions/${sessionId}/branches/${branchId}`, {
       method: 'PATCH',
@@ -390,9 +353,6 @@ class ApiClient {
     return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}`);
   }
 
-  openConceptSuggestion(sessionId: string, suggestion: import('../types/v2').ConceptSuggestion): Promise<V2Branch> {
-    return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces/from-concept`, {method:'POST',body:JSON.stringify({concept_id:suggestion.concept_id,root:suggestion.root})});
-  }
 
   async saveSongRanges(artifactId: string, revision: string, ranges: import('../types/v2').SongSavedRange[]): Promise<SongStudyArtifact> {
     return this.fetch(`/v2/song-studies/${artifactId}/ranges`, { method: 'PUT', body: JSON.stringify({ expected_updated_at: revision, ranges }) });
@@ -428,12 +388,6 @@ class ApiClient {
     });
   }
 
-  async exploreProgression(sessionId: string, branchId: string, progression: ProgressionPayload): Promise<OpenProgressionResponse> {
-    return this.fetch<OpenProgressionResponse>('/v2/progressions/explore', {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, branch_id: branchId, progression }),
-    });
-  }
 
   async applyVoicing(proposal: VoicingProposal): Promise<ProgressionArtifact> {
     return this.fetch<ProgressionArtifact>(`/v2/progressions/${proposal.artifact_id}/voicing`, {

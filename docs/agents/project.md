@@ -29,10 +29,17 @@ test may regress.
 - `npm run lint`: 16 errors / 4 warnings on both baseline and integration.
   Existing Classic components and `src/stores/useAppStore.ts` own these;
   the changed V2 files introduce no new lint diagnostics.
-- `python -m pytest -q`: the same single failure on both branches,
+- `python -m pytest -q`: the same single failure on every branch,
   `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`.
   It patches the removed `chords_router.get_voicing_positions` symbol.
-  Baseline: 248 passed; after #95: 268 passed. All V2 backend tests pass.
+  Counts: 248 passed at `c2492c7`; 268 after #95–96; **210 after #101** (the
+  ConceptWorkspace / workspace-turn suites were deleted with the code they
+  asserted). No pre-existing passing test regressed.
+- Playwright (`npm run test:e2e`): after #101 the harness boots the real
+  `app.main:app` (the ConceptWorkspace-model browser harness is deleted) and
+  runs the shell/entry specs (`v2-foundation`, `default-entry`,
+  `workspace-shell`). The concept/workspace/song/tutor/progression specs were
+  removed with their surfaces.
 - #96 clears the four formerly failing Tutor/history browser tests. The full
   browser suite now passes 43/43, including multi-source Tutor composition,
   re-binding without duplicate Blocks, persistent NoteGroup emphasis, transient
@@ -127,56 +134,55 @@ Treat `main-v2` as this repo's main for every V2 ticket:
   presentation cues from it, but expect its interaction/visuals to be
   refined in this pass rather than carried over unchanged.
 
-## ConceptWorkspace storage
+## Branch storage — Harmony + Progression re-carve (#100, ticket #101)
 
-For Supabase deployments, apply the additive `working_draft` column in
-`docs/agents/v2-schema.sql` before deploying the #60 backend. No existing
-ConceptStudy payloads are converted. Memory storage needs no setup.
+**Hard cutover with a wiped store.** On deploy, the V2 data store (sessions,
+branches, artifacts, tutor threads) is **cleared**. There is no converter, no
+compatibility layer, and no legacy-shape routing — after the wipe there is no
+old data to read. Running that wipe / production DDL is a deploy step; this
+repo only prepares the SQL.
 
-Before deploying #62, also apply `docs/agents/v2-workspace-turns.sql` with
-an administrative database connection. Its service-role-only RPC commits the
-Working Draft, exact before/after snapshots, and Tutor messages in one
-transaction; Undo uses the same transaction. Deployments missing the RPC
-cannot apply workspace Tutor turns. No saved artifact revisions are changed.
-The SQL is prepared in-repo; applying production DDL remains a manual step.
+`docs/agents/v2-schema.sql` holds the **replaced** `v2_branches` table
+(Spec #100 §5.1): `harmony_exploration jsonb`, `progression_workspace jsonb`,
+`active_workspace text` (`'harmony'|'progression'`), `live_presentation_turn_id
+text`, plus a table CHECK enforcing "at least one workspace present, and
+`active_workspace` names a present one". The old columns
+(`current_artifact_kind`/`current_artifact_id`, `working_draft`,
+`saved_artifact_revision`, `selection`, `focus`, `recent_ideas`,
+`fork_context`) are gone. `concept_study` is removed from every artifact-kind
+CHECK. A Branch never links an Artifact — the link moves onto the Progression
+idea draft (ticket P1).
 
-Run the database rollback/ownership check against a disposable local PostgreSQL
-cluster (PostgreSQL 16 tools on PATH) from `backend`:
-`.venv/bin/python tests/v2/check_workspace_transaction.py`.
-`npm run test:e2e` includes scripted workspace Tutor acceptance without live
-model calls; the model override exists only in the test server module.
+The ConceptWorkspace-era RPCs (`v2-workspace-turns.sql`,
+`v2-workspace-saves.sql`, `v2_commit_workspace_turn`, `v2_save_workspace_study`)
+are **deleted outright**. The new turn transaction (Spec §5.7) lands with
+ticket T3.
 
-Known #62 simplification: destructive Tutor operations require a narrow
-English action prefix in the learner's request. This is a conservative guard,
-not a natural-language intent classifier; ambiguous or localized requests may
-be rejected. Broaden to explicit product intent support when those journeys
-are needed (small/medium follow-up). Snapshot undo remains the recovery path.
+**Seam 3 check** — run against a disposable local PostgreSQL 16 cluster
+(tools on PATH) from `backend`:
+`.venv/bin/python tests/v2/check_workspace_transaction.py`. It loads the
+replaced schema and round-trips the new Branch shape (active-workspace switch,
+live-turn pointer, the workspace invariant, and the artifact-kind CHECK).
 
-Before deploying #61, apply `docs/agents/v2-workspace-saves.sql`. It adds the
-branch's saved-artifact revision token and a service-role-only save transaction.
-The token survives reload, so a stale branch cannot overwrite a newer saved
-study. Save as a new study is the recovery path that preserves both versions.
-The existing disposable PostgreSQL check also verifies this transaction,
-including rollback after a branch-write failure. Production DDL is manual.
+**Frontend shell (#101).** `Session → Branch → Workspace` routing on
+`branch.active_workspace` with thin placeholder panels; `BranchNavigation`
+kept for rare conversational forks (UX-05). A new Session / conversational
+fork opens a Branch with an empty Harmony Exploration. The real Harmony
+surface is ticket H1, Progression P1, the presentation runtime T2, the Tutor
+per-turn contract T3 — between shell and those, the Progression workflow may
+be non-functional (Spec §8), the only hard rule per merge being the gate.
 
-Before deploying #63, reapply `docs/agents/v2-workspace-turns.sql`. It extends
-the transaction with historical snapshot restore and replaces the old RPC
-overload. Restore uses the same owned-thread lookup, branch version guard,
-and atomic draft/message commit; it never updates a saved Artifact. This SQL
-is prepared and verified in the disposable PostgreSQL check, not run in production.
-
-## ConceptStudy cutover (#68)
-
-Explore and explicit Tutor concept tangents now open ConceptWorkspace drafts.
-The fixed Study UI, payload variants, visualization/catalog/create/update
-endpoints, and transient Circle state have been removed. Saved workspace read
-and independent reopen endpoints remain. Unsupported old ConceptStudy payloads
-are left intact and offer recovery through Explore; no migration is performed.
-Trusted CAGED positions, region generation, scale metadata and Circle key order
-remain shared deterministic music helpers.
-
-Workspace Tutor uses a dismissible, non-modal native dialog panel on desktop
-and mobile; Close/Escape returns focus to its launcher. Saved workspace material
-can still be copied into Exercises through the existing composer. Fixed-page
-browser/domain tests were removed; workspace tests cover their current contracts,
-while SongStudy, Progression, Exercise and other V2 regression coverage remains.
+**Deleted with this cutover.** Backend: `ConceptWorkspace` and everything in
+`app.v2.workspace` except the retained helpers (`NoteGroup`, `NoteRef`,
+`workspace_caged` CAGED region generation, note-spelling / diatonic-triad
+helpers); `resolve_workspace`; `app.v2.workspace_changes` (`WorkspacePatch`
+ops, the Inspection union, `materialize_inspection`); `app.v2.workspace_catalog`
+and `app.v2.workspace_progressions`; the ConceptWorkspace catalog / create /
+update / resolve / save / turn endpoints; `TutorTerminal.workspace_patch` and
+`concept_suggestion`; the `concept_study` ArtifactKind and `ConceptStudyArtifact`.
+Frontend: the whole `src/v2` UI except `BranchNavigation` (rebuilt as the
+shell), `src/types/conceptWorkspace.ts`, `adaptBlock` / `workspaceAdapter` /
+`ConceptWorkspacePanel` / `ConceptWorkspaceBlocks` / the old `ProgressionWorkspace`
++ `ProgressionPayload` editor path. Suites asserting those contracts were
+removed or rewritten in the same change. `song_study` / `exercise` /
+`progression` artifact kinds and their backend routes stay.

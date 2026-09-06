@@ -1,21 +1,37 @@
-import type { ConceptWorkspace, TypedInspection } from './conceptWorkspace';
 import type { TabData } from './song';
 
-export type ArtifactKind = 'song_study' | 'progression' | 'concept_study' | 'exercise';
+export type ArtifactKind = 'song_study' | 'progression' | 'exercise';
+export type WorkspaceKind = 'harmony' | 'progression';
+
+// Branch state (Spec #100 §5.1). Ticket #101 hard cutover: the old
+// concept_study / working_draft / selection / focus / recent_ideas /
+// fork_context fields are gone. HarmonyExploration (H1) and
+// ProgressionWorkspaceState (P1) internals are intentionally loose here.
+export interface HarmonyExploration {
+  tonal_center: Record<string, unknown> | null;
+  tuning: number[];
+  scratch: Record<string, unknown>[];
+  focus: Record<string, unknown>;
+  pinned_voicings: Record<string, unknown>[];
+  kept_note_groups: Record<string, unknown>[];
+  provenance: Record<string, unknown> | null;
+}
+
+export interface ProgressionWorkspaceState {
+  ideas: Record<string, unknown>[];
+  active_idea_id: string | null;
+  focus: Record<string, unknown> | null;
+}
 
 export interface V2Branch {
   id: string;
   session_id: string;
   tutor_thread_id: string;
   title: string;
-  current_artifact_kind: ArtifactKind | null;
-  current_artifact_id: string | null;
-  working_draft?: ConceptWorkspace | null;
-  saved_artifact_revision?: string | null;
-  selection: Record<string, unknown> | null;
-  focus: Record<string, unknown> | null;
-  recent_ideas: Record<string, unknown>[];
-  fork_context: Record<string, unknown> | null;
+  harmony_exploration: HarmonyExploration | null;
+  progression_workspace: ProgressionWorkspaceState | null;
+  active_workspace: WorkspaceKind;
+  live_presentation_turn_id: string | null;
   closed: boolean;
   created_at: string;
   updated_at: string;
@@ -29,17 +45,18 @@ export interface V2Session {
   updated_at: string;
 }
 
+export interface CreateBranchRequest {
+  title?: string;
+}
+
 export interface UpdateBranchRequest {
   title?: string;
-  current_artifact_kind?: ArtifactKind;
-  current_artifact_id?: string;
-  selection?: Record<string, unknown> | null;
-  focus?: Record<string, unknown> | null;
-  recent_ideas?: Record<string, unknown>[];
+  active_workspace?: WorkspaceKind;
+  live_presentation_turn_id?: string | null;
   closed?: boolean;
 }
 
-// --- SongStudy artifact (ticket #12) ---
+// --- SongStudy artifact (backend kind retained; frontend surface is rebuilt later) ---
 
 export interface SongStudyTrack {
   index: number;
@@ -104,7 +121,7 @@ export interface SongStudyPayload {
 }
 
 export interface ArtifactRevision { revision: string; current: boolean }
-export type LibraryItem = Omit<Artifact, 'payload'> & { is_concept_workspace?: boolean; provenance: Record<string, unknown> | null };
+export type LibraryItem = Omit<Artifact, 'payload'> & { provenance: Record<string, unknown> | null };
 
 export interface Artifact {
   id: string;
@@ -129,50 +146,7 @@ export interface CreateSongStudyRequest {
   track_index: number;
 }
 
-// Supported concept tangents open fresh ConceptWorkspace drafts.
-
-export type ConceptId =
-  | 'major'
-  | 'ionian'
-  | 'dorian'
-  | 'phrygian'
-  | 'lydian'
-  | 'mixolydian'
-  | 'aeolian'
-  | 'natural_minor'
-  | 'locrian'
-  | 'harmonic_minor'
-  | 'melodic_minor'
-  | 'pentatonic_major'
-  | 'pentatonic_minor'
-  | 'blues'
-  | 'caged' | 'circle' | 'chord_major' | 'chord_minor';
-
-export interface ConceptSuggestion {
-  concept_id: ConceptId;
-  root: string;
-  label: string;
-}
-
-// Branch.selection/focus shapes this ticket writes/reads — a beat pick or a
-// contiguous measure range, and a focused measure window. Stored as an
-// opaque dict on the branch (hence the index signatures below, so these
-// assign directly to UpdateBranchRequest's Record<string, unknown> fields);
-// this is a frontend-only contract, not something the backend validates.
-export type SongSelection = { [key: string]: unknown } & (
-  | { type: 'beat'; measureIndex: number; beatIndex: number }
-  | { type: 'range'; startMeasureIndex: number; endMeasureIndex: number }
-);
-
-export interface SongFocus {
-  [key: string]: unknown;
-  measureIndex: number;
-  windowSize: number;
-}
-
-// --- Tutor (ticket #13) — mirrors backend/app/v2/tutor/contract.py. `focus`
-// here is ephemeral cross-view attention the tutor expresses on a turn, not
-// navigation state — never written into V2Branch.selection/focus above.
+// --- Tutor (stateless message turn — full contract is ticket T3, Spec §5.7) ---
 
 export interface TutorFretPosition {
   string: number;
@@ -202,25 +176,11 @@ export interface TutorUsage {
   reasoning_tokens?: number | null;
 }
 
-// --- Progression (ticket #14). `voicing`/`tuning` are populated only when
-// the backend's chord_service had a curated voicing for that root/quality --
-// no entry is expected/normal, not an error; the diagram simply has nothing
-// to draw for that chord.
+// --- Progression (backend kind retained) ---
 
 export interface ProgressionVoicingPosition {
   string: number;
   fret: number;
-}
-
-export interface ProgressionFingering extends ProgressionVoicingPosition {
-  finger: string | number;
-  provenance: 'source' | 'suggested';
-}
-
-export interface ProgressionBarre {
-  fret: number;
-  fromString: number;
-  toString: number;
 }
 
 export interface ProgressionChord {
@@ -228,8 +188,6 @@ export interface ProgressionChord {
   quality: string;
   voicing: ProgressionVoicingPosition[] | null;
   tuning: string | number[] | null;
-  barre?: ProgressionBarre | null;
-  fingering?: ProgressionFingering[];
 }
 
 export interface ProgressionPayload {
@@ -243,12 +201,6 @@ export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
   payload: ProgressionPayload;
 };
 
-export interface OpenProgressionResponse {
-  source_branch?: V2Branch | null;
-  artifact: ProgressionArtifact;
-  branch: V2Branch;
-}
-
 export interface VoicingProposal {
   label: string;
   artifact_id: string;
@@ -257,18 +209,11 @@ export interface VoicingProposal {
   chord: ProgressionChord;
 }
 
-export interface WorkspaceChange { status: 'applied' | 'rejected' | 'unchanged' | 'undone' | 'restored'; reason?: string | null; undo_of?: string }
-export interface WorkspaceTurnResult extends WorkspaceChange { message_id: string; branch: V2Branch }
-
 export interface TutorResponse {
-  workspace_result?: WorkspaceTurnResult | null;
   message: string;
   focus: TutorFocus | null;
   comparison_groups?: BranchFocusGroup[];
-  concept_suggestion?: ConceptSuggestion | null;
   candidates: ProgressionPayload[] | null;
-  exercise_suggestion?: ExerciseProposal | null;
-  voicing_candidates?: VoicingProposal[] | null;
   provider: string;
   model: string;
   latency_ms: number;
@@ -278,7 +223,6 @@ export interface TutorResponse {
 }
 
 export interface TutorTurnRequest {
-  inspection?: TypedInspection | null;
   session_id: string;
   branch_id: string;
   message: string;
@@ -290,7 +234,13 @@ export interface TutorMessage {
   id: string;
   tutor_thread_id: string;
   role: TutorMessageRole;
-  content: { workspace_after?: ConceptWorkspace | null; workspace_change?: WorkspaceChange; exercise_suggestion?: ExerciseProposal | null; voicing_candidates?: VoicingProposal[] | null; text?: string; focus?: TutorFocus | null; comparison_groups?: BranchFocusGroup[]; concept_suggestion?: ConceptSuggestion | null; candidates?: ProgressionPayload[] | null; [key: string]: unknown };
+  content: {
+    text?: string;
+    focus?: TutorFocus | null;
+    comparison_groups?: BranchFocusGroup[];
+    candidates?: ProgressionPayload[] | null;
+    [key: string]: unknown;
+  };
   created_at: string;
 }
 

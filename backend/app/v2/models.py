@@ -1,23 +1,49 @@
 """V2 domain models — Session, Branch, Artifact, and the artifact-kind vocabulary.
 
 Session = an ongoing exploration containing multiple branches.
-Branch = one independent working context (current artifact reference,
-selection, focus, recent ideas, tutor-thread identity).
-Artifact = a durable musical thing (SongStudy, Progression, ConceptStudy,
-Exercise) saved/reopened independently of the branch that created it —
-common columns plus a JSON payload, strictly typed per concrete artifact
-route. SongStudy, Progression, and ConceptStudy payloads exist so far.
+Branch = one conversational direction: a shared Tutor thread plus a Harmony
+Exploration and/or a Progression Workspace (Spec #100 §5.1).
+Artifact = a durable musical thing (SongStudy, Progression, Exercise)
+saved/reopened independently of the branch that created it — common columns
+plus a JSON payload, strictly typed per concrete artifact route.
 """
 
 from typing import Annotated, Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.v2.workspace import ConceptWorkspace
-
-ArtifactKind = Literal["song_study", "progression", "concept_study", "exercise"]
+ArtifactKind = Literal["song_study", "progression", "exercise"]
 
 ARTIFACT_KINDS: tuple[str, ...] = get_args(ArtifactKind)
+
+WorkspaceKind = Literal["harmony", "progression"]
+
+_STANDARD_TUNING: list[int] = [64, 59, 55, 50, 45, 40]
+
+
+class HarmonyExploration(BaseModel):
+    """Branch-local Harmony Workspace state (Spec §5.2). #101 only needs an
+    empty, constructible shape for "new session"; ticket H1 fleshes out the
+    internals (Scratch chords, pinned voicings, kept NoteGroups, focus kinds).
+    ponytail: fields are permissive dicts until H1 tightens them.
+    """
+
+    tonal_center: Optional[dict[str, Any]] = None
+    tuning: list[int] = Field(default_factory=lambda: list(_STANDARD_TUNING), min_length=6, max_length=6)
+    scratch: list[dict[str, Any]] = Field(default_factory=list)
+    focus: dict[str, Any] = Field(default_factory=lambda: {"kind": "scale"})
+    pinned_voicings: list[dict[str, Any]] = Field(default_factory=list)
+    kept_note_groups: list[dict[str, Any]] = Field(default_factory=list)
+    provenance: Optional[dict[str, Any]] = None
+
+
+class ProgressionWorkspaceState(BaseModel):
+    """Branch-local Progression Workspace state (Spec §5.3). #101 only needs a
+    constructible shape; ticket P1 fleshes out the idea drafts and focus."""
+
+    ideas: list[dict[str, Any]] = Field(default_factory=list)
+    active_idea_id: Optional[str] = None
+    focus: Optional[dict[str, Any]] = None  # ProgressionFocus; P1 tightens this
 
 
 class Branch(BaseModel):
@@ -25,17 +51,22 @@ class Branch(BaseModel):
     session_id: str
     tutor_thread_id: str
     title: str = "New workspace"
-    current_artifact_kind: Optional[ArtifactKind] = None
-    current_artifact_id: Optional[str] = None
-    working_draft: Optional[ConceptWorkspace] = None
-    saved_artifact_revision: Optional[str] = None
-    selection: Optional[dict[str, Any]] = None
-    focus: Optional[dict[str, Any]] = None
-    recent_ideas: list[dict[str, Any]] = Field(default_factory=list)
-    fork_context: Optional[dict[str, Any]] = None
+    harmony_exploration: Optional[HarmonyExploration] = None
+    progression_workspace: Optional[ProgressionWorkspaceState] = None
+    active_workspace: WorkspaceKind = "harmony"
+    live_presentation_turn_id: Optional[str] = None
     closed: bool = False
     created_at: str
     updated_at: str
+
+    @model_validator(mode="after")
+    def _active_workspace_present(self) -> "Branch":
+        present = {"harmony": self.harmony_exploration, "progression": self.progression_workspace}
+        if all(value is None for value in present.values()):
+            raise ValueError("A Branch must have at least one workspace")
+        if present[self.active_workspace] is None:
+            raise ValueError(f"active_workspace {self.active_workspace!r} names an absent workspace")
+        return self
 
 
 class Session(BaseModel):
@@ -210,7 +241,6 @@ ScaleConceptId = Literal[
 ]
 CagedQualityId = Literal["major", "minor"]
 CagedShapeId = Literal["C", "A", "G", "E", "D"]
-ConceptId = ScaleConceptId | Literal["caged", "circle", "chord_major", "chord_minor"]
 
 
 class ConceptNote(BaseModel):
@@ -252,11 +282,6 @@ class Artifact(BaseModel):
     revisions: list[ArtifactRevision] = Field(default_factory=list, exclude=True)
     created_at: str
     updated_at: str
-
-
-class ConceptStudyArtifact(Artifact):
-    kind: Literal["concept_study"]
-    payload: ConceptWorkspace
 
 
 TutorMessageRole = Literal["user", "assistant", "tool"]

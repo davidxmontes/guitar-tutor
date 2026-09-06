@@ -21,7 +21,7 @@ def drill(source):
                 tempo=90, steps=[dict(label='D bass', beats=1.5, positions=[dict(string=6, fret=0)], tuning=[64,59,55,50,45,38]),
                                  dict(label='Rest', beats=0.5, positions=[], tuning=[64,59,55,50,45,38])])
 
-@pytest.mark.parametrize('kind', ['song_study', 'progression', 'concept_study'])
+@pytest.mark.parametrize('kind', ['song_study', 'progression'])
 def test_save_copies_drill_and_reopens_with_fresh_conversation(setup, kind):
     client, store = setup
     source = store.create_artifact('learner', kind, 'Source', {'original': True})
@@ -37,7 +37,6 @@ def test_save_copies_drill_and_reopens_with_fresh_conversation(setup, kind):
     second = client.post(f"/api/v2/exercises/{saved['id']}/open").json()
     assert first['id'] != second['id']
     assert first['branches'][0]['tutor_thread_id'] != second['branches'][0]['tutor_thread_id']
-    assert first['branches'][0]['current_artifact_id'] == saved['id']
     assert client.get(f"/api/v2/exercises/{saved['id']}").json()['payload'] == saved['payload']
     assert len(client.get('/api/v2/exercises').json()) == 1
     assert store.get_artifact(source.id, 'learner').payload == {'changed': True}

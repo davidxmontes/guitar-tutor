@@ -10,7 +10,7 @@ import pytest
 from langchain.agents.structured_output import ProviderStrategy, ToolStrategy
 from langchain_core.messages import SystemMessage
 
-from app.v2.models import Artifact, Branch, TutorMessage
+from app.v2.models import Branch, HarmonyExploration, TutorMessage
 from app.v2.tutor.contract import TutorTerminal
 from app.v2.tutor.providers import TutorCapabilityError, structured_response_format
 from app.v2.tutor.runner import run_tutor_turn
@@ -22,6 +22,7 @@ def _branch(**overrides) -> Branch:
         id="b1",
         session_id="s1",
         tutor_thread_id="thread-1",
+        harmony_exploration=HarmonyExploration(),
         created_at="2026-01-01T00:00:00Z",
         updated_at="2026-01-01T00:00:00Z",
     )
@@ -44,7 +45,6 @@ def test_run_tutor_turn_returns_message_focus_and_observability() -> None:
 
     response = run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=[],
         user_message="What chord is this?",
         provider="openai",
@@ -74,7 +74,6 @@ def test_request_messages_place_stable_prefix_before_reconstructed_history_and_n
 
     run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=history,
         user_message="new question",
         provider="openai",
@@ -103,7 +102,6 @@ def test_two_separately_constructed_agent_instances_preserve_branch_context() ->
     )
     first_response = run_tutor_turn(
         branch=branch,
-        artifact=None,
         history=[],
         user_message="Remember: I like D major.",
         provider="openai",
@@ -123,7 +121,6 @@ def test_two_separately_constructed_agent_instances_preserve_branch_context() ->
     )
     run_tutor_turn(
         branch=branch,
-        artifact=None,
         history=history_after_first_turn,
         user_message="What key do I like?",
         provider="openai",
@@ -150,7 +147,6 @@ def test_switching_provider_between_turns_does_not_lose_branch_context() -> None
 
     run_tutor_turn(
         branch=branch,
-        artifact=None,
         history=history,
         user_message="What's the first chord?",
         provider="anthropic",
@@ -169,7 +165,7 @@ def test_capability_error_is_a_typed_exception_not_a_generic_crash() -> None:
     with pytest.raises(TutorCapabilityError):
         run_tutor_turn(
             branch=_branch(),
-            artifact=None,
+
             history=[],
             user_message="hi",
             provider="openai",
@@ -196,7 +192,7 @@ def test_forced_tool_choice_rejection_is_a_typed_capability_error_not_a_502() ->
     with pytest.raises(TutorCapabilityError):
         run_tutor_turn(
             branch=_branch(),
-            artifact=None,
+
             history=[],
             user_message="hi",
             provider="openrouter",
@@ -243,7 +239,7 @@ def test_missing_api_key_fails_before_any_model_call() -> None:
     with pytest.raises(TutorCapabilityError):
         run_tutor_turn(
             branch=_branch(),
-            artifact=None,
+
             history=[],
             user_message="hi",
             provider="openai",
@@ -258,7 +254,6 @@ def test_tool_call_count_excludes_the_structured_response_tool_itself() -> None:
 
     response = run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=[],
         user_message="hi",
         provider="openai",
@@ -288,7 +283,6 @@ def test_disabling_or_missing_cache_metrics_does_not_change_the_semantic_respons
 
     warm_response = run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=[],
         user_message="hi",
         provider="openai",
@@ -298,7 +292,6 @@ def test_disabling_or_missing_cache_metrics_does_not_change_the_semantic_respons
     )
     cold_response = run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=[],
         user_message="hi",
         provider="openai",
@@ -341,7 +334,6 @@ def test_progression_candidate_chords_get_resolved_voicings_deterministically() 
 
     response = run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=[],
         user_message="make me something wistful",
         provider="openai",
@@ -361,51 +353,12 @@ def test_progression_candidate_chords_get_resolved_voicings_deterministically() 
     assert candidate.chords[2].tuning is None
 
 
-def test_progression_candidate_carries_lightweight_song_study_provenance() -> None:
-    artifact = Artifact(
-        id="a1",
-        user_id="u1",
-        kind="song_study",
-        title="Artist - Title",
-        payload={"song_id": 1, "artist": "Artist", "title": "Title", "track": {"index": 0, "name": "Guitar", "instrument": "guitar"}, "tab_data": {}},
-        created_at="x",
-        updated_at="x",
-    )
-    branch = _branch(selection={"type": "range", "startMeasureIndex": 0, "endMeasureIndex": 3})
-    model = ScriptedTutorModel(
-        outcomes=[
-            {
-                "message": "An idea.",
-                "focus": None,
-                "candidates": [{"title": "Idea", "chords": [{"root": "C", "quality": "major"}]}],
-            }
-        ],
-        usage_metadatas=[None],
-    )
-
-    response = run_tutor_turn(
-        branch=branch,
-        artifact=artifact,
-        history=[],
-        user_message="make me something",
-        provider="openai",
-        model="gpt-4o-mini",
-        openai_api_key="k",
-        model_factory=_factory_returning(model),
-    )
-
-    inspired_by = response.candidates[0].inspired_by
-    assert inspired_by["artifact_id"] == "a1"
-    assert inspired_by["artifact_kind"] == "song_study"
-    assert inspired_by["selection"] == {"type": "range", "startMeasureIndex": 0, "endMeasureIndex": 3}
-
 
 def test_no_candidates_proposed_leaves_response_candidates_none() -> None:
     model = ScriptedTutorModel(outcomes=[{"message": "Just an answer.", "focus": None}], usage_metadatas=[None])
 
     response = run_tutor_turn(
         branch=_branch(),
-        artifact=None,
         history=[],
         user_message="what key is this?",
         provider="openai",
@@ -417,27 +370,4 @@ def test_no_candidates_proposed_leaves_response_candidates_none() -> None:
     assert response.candidates is None
 
 
-def test_creative_voicings_preserve_physical_data_and_bind_to_loaded_revision():
-    chord = {"root": "?", "quality": "sparse", "voicing": [{"string": 6, "fret": 0}, {"string": 2, "fret": 11}], "tuning": [64, 59, 55, 50, 45, 38]}
-    artifact = Artifact(id="p1", user_id="u1", kind="progression", title="Idea", payload={"title": "Idea", "chords": [chord]}, created_at="t0", updated_at="t1")
-    model = ScriptedTutorModel(outcomes=[{"message": "Try these", "voicing_candidates": [{"label": "Sparse", "chord_index": 0, "chord": chord}]}], usage_metadatas=[None])
-    response = run_tutor_turn(branch=_branch(), artifact=artifact, history=[], user_message="Stranger voicings", provider="openai", model="gpt-4o-mini", openai_api_key="k", model_factory=_factory_returning(model))
-    proposal = response.voicing_candidates[0]
-    assert proposal.chord.model_dump() == chord
-    assert proposal.artifact_id == "p1"
-    assert proposal.expected_updated_at == "t1"
-    assert '"tuning": [64, 59, 55, 50, 45, 38]' in model.calls[0][-1].content
-    assert artifact.payload["chords"] == [chord]
 
-
-def test_exercise_suggestion_is_bound_to_source_without_mutation():
-    artifact = Artifact(id='source', user_id='u', kind='concept_study', title='Study', payload={}, created_at='x', updated_at='revision')
-    draft = {'title': 'Even notes', 'intent': 'Keep each note even', 'tempo': 80,
-             'steps': [{'label': 'Low E', 'beats': 1, 'positions': [{'string': 6, 'fret': 0}], 'tuning': [64,59,55,50,45,40]}]}
-    model = ScriptedTutorModel(outcomes=[{'message': 'Try this drill.', 'exercise_suggestion': draft}], usage_metadatas=[None])
-    response = run_tutor_turn(branch=_branch(selection={'index': 0}), artifact=artifact, history=[], user_message='Make a drill',
-                              provider='openai', model='gpt-4o-mini', openai_api_key='k', model_factory=_factory_returning(model))
-    assert response.exercise_suggestion.source_artifact_id == 'source'
-    assert response.exercise_suggestion.expected_updated_at == 'revision'
-    assert response.exercise_suggestion.steps[0].positions[0].string == 6
-    assert artifact.payload == {}

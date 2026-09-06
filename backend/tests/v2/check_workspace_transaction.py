@@ -1,5 +1,13 @@
 """Run from backend/: python tests/v2/check_workspace_transaction.py.
 Uses an isolated temporary PostgreSQL cluster, never a configured database.
+
+Seam 3 for ticket #101: the replaced Branch DDL (Spec #100 §5.1) loads on a
+disposable Postgres 16 cluster and a Branch round-trips the new shape --
+harmony_exploration / progression_workspace / active_workspace /
+live_presentation_turn_id -- with the "at least one workspace, active names a
+present one" invariant enforced as a table CHECK. The turn/save transaction
+RPCs are ConceptWorkspace-era and were deleted with a hard cutover; the new
+turn transaction (§5.7) lands with ticket T3.
 """
 import json
 from pathlib import Path
@@ -22,87 +30,48 @@ def check():
                 result = subprocess.run([str(bindir / 'psql'), '-h', str(root), '-d', 'postgres', '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', statement], text=True, capture_output=True)
                 assert (result.returncode == 0) == success, result.stderr
                 return result.stdout.strip()
+
             def literal(value):
                 return "'" + json.dumps(value).replace("'", "''") + "'::jsonb"
+
             repo = Path(__file__).resolve().parents[3]
             sql('CREATE ROLE service_role;')
             sql((repo / 'docs/agents/v2-schema.sql').read_text())
-            sql((repo / 'docs/agents/v2-workspace-turns.sql').read_text())
-            sql((repo / 'docs/agents/v2-workspace-saves.sql').read_text())
+
             sid = sql("INSERT INTO v2_sessions(clerk_user_id) VALUES ('owner') RETURNING id;").splitlines()[0]
-            original = {'schema_version': 1, 'version': 1, 'title': 'Original', 'entities': []}
-            bid = sql(f"INSERT INTO v2_branches(session_id,tutor_thread_id,working_draft) VALUES ('{sid}',gen_random_uuid(),{literal(original)}) RETURNING id;").splitlines()[0]
-            def call(version, draft, text, undo=None, owner='owner', success=True):
-                assistant = {'text': text, 'workspace_change': {'status': 'applied', 'reason': None}}
-                result = sql(f"SELECT v2_commit_workspace_turn('{sid}','{bid}','{owner}',{version},{literal(draft) if draft else 'NULL'},'User request',{literal(assistant)},{repr(undo) if undo else 'NULL'});", success)
-                return json.loads(result) if success else None
-            applied = call(1, original | {'title': 'Dorian'}, 'Changed')
-            assert applied['branch']['working_draft']['version'] == 2
-            assert applied['message']['content']['workspace_before'] == original
-            assert applied['message']['content']['workspace_after'] == applied['branch']['working_draft']
-            stale = call(1, original, 'Stale explanation')
-            assert stale['message']['content']['workspace_change']['status'] == 'rejected'
-            assert stale['branch']['working_draft'] == applied['branch']['working_draft']
-            assert call(2, original, 'Other owner', owner='other') == {'error': 'not_found'}
-            sql("""CREATE FUNCTION fail_assistant() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-                IF NEW.content->>'text' = 'force rollback' THEN RAISE EXCEPTION 'injected failure'; END IF;
-                RETURN NEW; END; $$;
-                CREATE TRIGGER fail_assistant BEFORE INSERT ON v2_tutor_messages FOR EACH ROW EXECUTE FUNCTION fail_assistant();""")
-            count = sql('SELECT count(*) FROM v2_tutor_messages;')
-            call(2, original, 'force rollback', success=False)
-            assert sql('SELECT count(*) FROM v2_tutor_messages;') == count
-            assert json.loads(sql(f"SELECT working_draft FROM v2_branches WHERE id='{bid}';")) == applied['branch']['working_draft']
-            restored = call(2, None, 'Undo', undo=applied['message']['id'])
-            assert restored['branch']['working_draft'] == original | {'version': 3}
-            assert call(3, None, 'Undo twice', undo=applied['message']['id']) == {'error': 'conflict'}
-            assert call(3, None, 'Undo marker', undo=restored['message']['id']) == {'error': 'conflict'}
-            sql('CREATE ROLE browser_user;')
-            assert sql("SELECT has_function_privilege('browser_user', 'v2_commit_workspace_turn(uuid,uuid,text,integer,jsonb,text,jsonb,uuid,uuid)', 'EXECUTE');") == 'f'
-            def save(branch_id, version, title='Saved study', as_new=False, success=True):
-                result = sql(f"SELECT v2_save_workspace_study('{sid}','{branch_id}','owner',{version},'{title}',{str(as_new).lower()});", success)
-                return json.loads(result) if success else None
-            first = save(bid, 3)['branch']
-            aid = first['current_artifact_id']
-            first_payload = json.loads(sql(f"SELECT payload FROM v2_artifacts WHERE id='{aid}';"))
-            assert first_payload['title'] == 'Saved study' and first_payload['_library']['revisions'] == []
-            assert save(bid, 4)['branch']['saved_artifact_revision'] == first['saved_artifact_revision']
-            second_bid = sql(f"INSERT INTO v2_branches(session_id,tutor_thread_id,working_draft,current_artifact_kind,current_artifact_id,saved_artifact_revision) SELECT session_id,gen_random_uuid(),working_draft,current_artifact_kind,current_artifact_id,saved_artifact_revision FROM v2_branches WHERE id='{bid}' RETURNING id;").splitlines()[0]
-            sql(f"UPDATE v2_branches SET working_draft=jsonb_set(working_draft,'{{version}}','5') WHERE id='{bid}';")
-            saved = save(bid, 5)['branch']
-            new_payload = json.loads(sql(f"SELECT payload FROM v2_artifacts WHERE id='{aid}';"))
-            assert new_payload['_library']['revisions'][0]['payload'] == {k:v for k,v in first_payload.items() if k != '_library'}
-            assert save(second_bid, 4) == {'error': 'conflict'}
-            assert save(second_bid, 3, as_new=True) == {'error': 'conflict'}
-            assert save(second_bid, 4, 'Independent', True)['branch']['current_artifact_id'] != aid
-            sql("""CREATE FUNCTION fail_branch_save() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-                IF NEW.title = 'force rollback' THEN RAISE EXCEPTION 'injected branch failure'; END IF;
-                RETURN NEW; END; $$;
-                CREATE TRIGGER fail_branch_save BEFORE UPDATE ON v2_branches FOR EACH ROW EXECUTE FUNCTION fail_branch_save();""")
-            count = sql('SELECT count(*) FROM v2_artifacts;')
-            save(bid, 5, 'force rollback', True, success=False)
-            assert sql('SELECT count(*) FROM v2_artifacts;') == count
-            save(bid, 5, 'force rollback', success=False)
-            assert json.loads(sql(f"SELECT payload FROM v2_artifacts WHERE id='{aid}';")) == new_payload
-            assert sql("SELECT has_function_privilege('browser_user', 'v2_save_workspace_study(uuid,uuid,text,integer,text,boolean)', 'EXECUTE');") == 'f'
-            assert json.loads(sql(f"SELECT v2_save_workspace_study('{sid}','{bid}','other',5,'Private',false);")) == {'error':'not_found'}
-            def restore(version, target=applied['message']['id'], text='Restore earlier state', success=True):
-                result = sql(f"SELECT v2_commit_workspace_turn('{sid}','{bid}','owner',{version},NULL,NULL,{literal({'text':text,'workspace_change':{'status':'restored'}})},NULL,'{target}');", success)
-                return json.loads(result) if success else None
-            count = int(sql('SELECT count(*) FROM v2_tutor_messages;'))
-            restored_history = restore(5)
-            assert restored_history['branch']['working_draft'] == applied['branch']['working_draft'] | {'version':6}
-            assert restored_history['message']['content']['workspace_change']['status'] == 'restored'
-            assert int(sql('SELECT count(*) FROM v2_tutor_messages;')) == count + 1
-            assert json.loads(sql(f"SELECT payload FROM v2_artifacts WHERE id='{aid}';")) == new_payload
-            assert restore(5) == {'error':'conflict'}
-            assert restore(6, target='00000000-0000-0000-0000-000000000000') == {'error':'not_found'}
-            assert call(6, None, 'Old Undo', undo=applied['message']['id']) == {'error':'conflict'}
-            restore(6, text='force rollback', success=False)
-            assert int(sql('SELECT count(*) FROM v2_tutor_messages;')) == count + 1
-            assert json.loads(sql(f"SELECT working_draft FROM v2_branches WHERE id='{bid}';")) == restored_history['branch']['working_draft']
-            print('PostgreSQL historical restore: exact snapshot, new present, retained history/artifact, stale rejection and rollback passed.')
-            print('PostgreSQL study saves: first save, versions, no-op retry, stale draft/study, independent copy, rollback and permissions passed.')
-            print('PostgreSQL workspace transaction: apply, snapshots, stale, undo, ownership, rollback, permissions passed.')
+            harmony = {'tonal_center': None, 'tuning': [64, 59, 55, 50, 45, 40], 'scratch': [],
+                       'focus': {'kind': 'scale'}, 'pinned_voicings': [], 'kept_note_groups': [], 'provenance': None}
+            progression = {'ideas': [], 'active_idea_id': None, 'focus': None}
+
+            # New-session shape: a Harmony Exploration only, active_workspace 'harmony'.
+            bid = sql(f"INSERT INTO v2_branches(session_id,tutor_thread_id,harmony_exploration,active_workspace) "
+                      f"VALUES ('{sid}',gen_random_uuid(),{literal(harmony)},'harmony') RETURNING id;").splitlines()[0]
+            row = json.loads(sql(f"SELECT to_jsonb(b) FROM v2_branches b WHERE id='{bid}';"))
+            assert row['harmony_exploration'] == harmony
+            assert row['progression_workspace'] is None
+            assert row['active_workspace'] == 'harmony'
+            assert row['live_presentation_turn_id'] is None
+
+            # Both workspaces present, switch active to progression, set the live turn pointer.
+            sql(f"UPDATE v2_branches SET progression_workspace={literal(progression)}, active_workspace='progression', "
+                f"live_presentation_turn_id='turn-1' WHERE id='{bid}';")
+            row = json.loads(sql(f"SELECT to_jsonb(b) FROM v2_branches b WHERE id='{bid}';"))
+            assert row['active_workspace'] == 'progression'
+            assert row['progression_workspace'] == progression
+            assert row['live_presentation_turn_id'] == 'turn-1'
+
+            # Invariant: active_workspace must name a present workspace.
+            sql(f"UPDATE v2_branches SET active_workspace='progression', harmony_exploration=NULL, progression_workspace=NULL WHERE id='{bid}';", success=False)
+            sql(f"INSERT INTO v2_branches(session_id,tutor_thread_id,active_workspace) VALUES ('{sid}',gen_random_uuid(),'harmony');", success=False)
+            sql(f"INSERT INTO v2_branches(session_id,tutor_thread_id,progression_workspace,active_workspace) VALUES ('{sid}',gen_random_uuid(),{literal(progression)},'harmony');", success=False)
+
+            # concept_study is gone from the artifact-kind CHECK; the surviving kinds still insert.
+            sql("INSERT INTO v2_artifacts(clerk_user_id,kind,title,payload) VALUES ('owner','concept_study','x','{}'::jsonb);", success=False)
+            for kind in ('song_study', 'progression', 'exercise'):
+                sql(f"INSERT INTO v2_artifacts(clerk_user_id,kind,title,payload) VALUES ('owner','{kind}','x','{{}}'::jsonb);")
+
+            print('PostgreSQL Branch DDL: new-shape round-trip, active-workspace switch, live-turn pointer, '
+                  'workspace invariant, and artifact-kind CHECK passed.')
         finally:
             subprocess.run([str(bindir / 'pg_ctl'), '-D', str(data), '-m', 'fast', '-w', 'stop'], check=True, capture_output=True)
 

@@ -1,46 +1,43 @@
 """V2 routes — Session/Branch state, SongStudy raw data and enrichment,
-ConceptStudy artifact create/open, and stateless tutor turns.
+Progression / Exercise artifacts, the library, and stateless tutor turns.
 
-Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev
-user). Exercise saves copy deliberate drills independently of their source.
+Ticket #101 hard cutover: the ConceptWorkspace catalog / create / update /
+resolve / save / turn endpoints and the Progression fork (`/progressions/
+explore`) are removed. A Branch no longer links an Artifact — opening a
+library artifact just creates a fresh Session (DATA-03 reopen-to-fresh-draft
+is ticket P1). The full Tutor per-turn contract is ticket T3.
+
+Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev user).
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from app.v2.workspace_catalog import OpenWorkspaceRequest, explore_catalog, open_recipe, concept_recipe
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
-from app.v2.workspace_caged import CagedMaterialize, materialize_region, valid_caged_inspection
-from app.v2.workspace_progressions import ProgressionAction, edit_progression
-from app.v2.workspace_changes import (ViewUpdate, DerivedChordInspection, EntityChordInspection, InspectionTarget,
-    PitchInspection, RegionInspection, StepInspection, VoicingInspection, apply_workspace_patch,
-    materialize_inspection)
-from app.v2.workspace import ConceptWorkspace, StrictModel, pitch_class, resolve_workspace
 from app.v2.models import (
     ApplyVoicingRequest,
+    Artifact,
+    Branch,
     ExerciseDraft,
     ExercisePayload,
     ExerciseArtifact,
-    Artifact,
-    ArtifactKind,
-    Branch,
-    ConceptStudyArtifact,
     ProgressionPayload,
     Session,
     SongStudyPayload,
     SongSavedRange,
     SongStudyTrack,
     TutorMessage,
+    WorkspaceKind,
 )
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
-from app.v2.tutor.contract import TutorResponse, WorkspaceTurnResult
+from app.v2.tutor.contract import TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_tools
@@ -49,14 +46,7 @@ from app.v2.tutor.branch_comparison import branch_tools
 router = APIRouter()
 
 
-class UpdateBranchRequest(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=120)
-    current_artifact_kind: Optional[ArtifactKind] = None
-    current_artifact_id: Optional[str] = None
-    selection: Optional[dict[str, Any]] = None
-    focus: Optional[dict[str, Any]] = None
-    recent_ideas: Optional[list[dict[str, Any]]] = None
-    closed: Optional[bool] = None
+# --- Sessions / Branches ---------------------------------------------------
 
 
 @router.post("/sessions", response_model=Session, status_code=status.HTTP_201_CREATED)
@@ -87,6 +77,34 @@ async def get_session(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+class CreateBranchRequest(BaseModel):
+    """A conversational fork (UX-05): explicit alternative direction. Opens an
+    empty Harmony Exploration unless a workspace is supplied (P1/H1 will)."""
+
+    title: Optional[str] = Field(None, min_length=1, max_length=120)
+
+
+@router.post("/sessions/{session_id}/branches", response_model=Branch, status_code=status.HTTP_201_CREATED)
+async def create_branch(
+    session_id: str,
+    data: CreateBranchRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    fields = data.model_dump(exclude_none=True)
+    try:
+        return store.create_branch(session_id, user_id, **fields)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+class UpdateBranchRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=120)
+    active_workspace: Optional[WorkspaceKind] = None
+    live_presentation_turn_id: Optional[str] = None
+    closed: Optional[bool] = None
+
+
 @router.patch("/sessions/{session_id}/branches/{branch_id}", response_model=Branch)
 async def update_branch(
     session_id: str,
@@ -96,7 +114,7 @@ async def update_branch(
     store: V2Store = Depends(get_v2_store),
 ):
     # exclude_unset (not `is not None`): a client explicitly clearing a field
-    # to null must reach the store as null, distinct from simply omitting it.
+    # to null must reach the store as null, distinct from omitting it.
     fields = data.model_dump(exclude_unset=True)
     try:
         return store.update_branch(session_id, branch_id, user_id, **fields)
@@ -104,6 +122,9 @@ async def update_branch(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+# --- SongStudy -----------------------------------------------------------
 
 
 class CreateSongStudyRequest(BaseModel):
@@ -119,16 +140,9 @@ async def create_song_study(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
-    """Load the entire selected track (all measures) once and open it as the
-    Branch's current SongStudy. No further tutor/agent call is required to
-    browse the raw track afterward.
-    """
-    # Validate session/branch ownership up front — before the external
-    # Songsterr fetch and the artifact write — so a stale/unowned branch_id
-    # 404s cheaply instead of paying for a wasted fetch and an orphaned
-    # Artifact row. update_branch() below re-checks the session anyway; that
-    # duplication is fine, it's cheap and keeps this the single source of
-    # truth for the actual write.
+    """Load the entire selected track once and persist it as a SongStudy
+    artifact. Ticket #101: no longer linked onto the Branch (the branch↔
+    artifact link is gone) — the artifact stands on its own."""
     try:
         session = store.get_session(data.session_id, user_id)
     except NotFoundError as exc:
@@ -172,27 +186,13 @@ async def create_song_study(
         shape_events=project_song_shapes(tab_data, tuning),
     )
 
-    artifact = store.create_artifact(
+    return store.create_artifact(
         user_id=user_id,
         kind="song_study",
         title=f"{revision.artist} - {revision.title}",
         payload=payload.model_dump(),
         saved=False,
     )
-
-    try:
-        store.update_branch(
-            data.session_id,
-            data.branch_id,
-            user_id,
-            title=payload.title,
-            current_artifact_kind="song_study",
-            current_artifact_id=artifact.id,
-        )
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-
-    return artifact
 
 
 @router.get("/song-studies/{artifact_id}", response_model=Artifact)
@@ -208,70 +208,6 @@ async def get_song_study(
     if artifact.kind != "song_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a SongStudy artifact")
     return artifact
-
-
-class OpenConceptStudyResponse(BaseModel):
-    artifact: ConceptStudyArtifact
-    branch: Branch
-
-
-class WorkOnSavedConceptRequest(BaseModel):
-    session_id: str
-    branch_id: str
-
-
-@router.get("/concept-studies", response_model=list[ConceptStudyArtifact])
-async def list_concept_studies(
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    return [ConceptStudyArtifact.model_validate(item.model_dump()) for item in store.list_artifacts(user_id, "concept_study") if "entities" in item.payload]
-
-
-@router.get("/concept-studies/{artifact_id}", response_model=ConceptStudyArtifact)
-async def get_concept_study(
-    artifact_id: str,
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    try:
-        artifact = store.get_artifact(artifact_id, user_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    if artifact.kind != "concept_study":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a ConceptStudy artifact")
-    _workspace_open_fields(artifact)
-    return ConceptStudyArtifact.model_validate(artifact.model_dump())
-
-
-@router.post("/concept-studies/{artifact_id}/work-on-this", response_model=OpenConceptStudyResponse, status_code=status.HTTP_201_CREATED)
-async def work_on_saved_concept(
-    artifact_id: str,
-    data: WorkOnSavedConceptRequest,
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    try:
-        session = store.get_session(data.session_id, user_id)
-        if not any(branch.id == data.branch_id for branch in session.branches):
-            raise NotFoundError("Branch not found")
-        artifact = store.get_artifact(artifact_id, user_id)
-        if artifact.kind != "concept_study":
-            raise NotFoundError("Not a ConceptStudy artifact")
-        branch = store.create_branch(
-            data.session_id,
-            user_id,
-            title=artifact.title,
-            current_artifact_kind="concept_study",
-            current_artifact_id=artifact.id,
-            **_workspace_open_fields(artifact),
-        )
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return OpenConceptStudyResponse(
-        artifact=ConceptStudyArtifact.model_validate(artifact.model_dump()),
-        branch=branch,
-    )
 
 
 def get_enrichment_model_factory() -> ModelFactory:
@@ -366,10 +302,11 @@ async def remove_song_study_enrichment(
     return _save_song_study(store, artifact, user_id, payload)
 
 
+# --- Tutor ------------------------------------------------------------------
+
+
 def get_tutor_model_factory() -> ModelFactory:
-    """Overridable in tests (`app.dependency_overrides[get_tutor_model_factory]`)
-    to inject a recording/scripted chat-model factory with no real network
-    call, same as `get_v2_store` above."""
+    """Overridable in tests to inject a recording/scripted chat-model factory."""
     return build_tutor_model
 
 
@@ -377,45 +314,6 @@ class TutorTurnRequest(BaseModel):
     session_id: str
     branch_id: str
     message: str = Field(min_length=1, max_length=12000)
-    inspection: Optional[InspectionTarget] = None
-
-
-def _inspection_in_draft(inspection, entities: dict, draft) -> bool:
-    """Pull-based validity: a typed Inspection is valid iff the current resolved
-    draft still contains the thing it points at (spec INSP-01/INSP-02)."""
-    if isinstance(inspection, PitchInspection):
-        for entity in entities.values():
-            pitches = {n['pitch_class'] for n in entity.get('notes', [])}
-            pitches |= {p['pitch_class'] for p in entity.get('positions', [])}
-            if inspection.pitch_class in pitches:
-                return True
-        return False
-    if isinstance(inspection, EntityChordInspection):
-        entity = entities.get(inspection.entity_id)
-        return entity is not None and entity['kind'] == 'chord'
-    if isinstance(inspection, VoicingInspection):
-        entity = entities.get(inspection.entity_id)
-        return entity is not None and entity['kind'] == 'voicing'
-    if isinstance(inspection, DerivedChordInspection):
-        wanted = (inspection.root, inspection.quality)
-        for entity in entities.values():
-            if entity['kind'] == 'key' and any(
-                (pitch_class(c['root']), c['quality']) == wanted for c in entity['diatonicChords']):
-                return True
-            if entity['kind'] == 'progression' and any(
-                (pitch_class(s['root']), s['quality']) == wanted for s in entity['steps']):
-                return True
-        return False
-    if isinstance(inspection, StepInspection):
-        block = next((b for b in draft.blocks if b.id == inspection.block_id), None) if draft else None
-        source = entities.get(block.sources[0]) if block else None
-        if source and source['kind'] == 'key':
-            source = source.get('derivedProgression')
-        return source is not None and source['kind'] == 'progression' and inspection.index < len(source['steps'])
-    if isinstance(inspection, RegionInspection):
-        entity = entities.get(inspection.source_id) or {}
-        return valid_caged_inspection(entity.get('cagedRegions'), inspection.kind, inspection.key)
-    return False
 
 
 @router.post("/tutor/turns", response_model=TutorResponse)
@@ -426,13 +324,9 @@ async def create_tutor_turn(
     settings: Settings = Depends(get_settings),
     model_factory: ModelFactory = Depends(get_tutor_model_factory),
 ):
-    """One stateless tutor turn (ticket #13): reconstructs the Branch's
-    persisted conversation plus current SongStudy/selection/focus, runs a
-    fresh disposable agent execution, persists the new user/assistant
-    messages, and returns the semantic TutorResponse. Session/branch
-    ownership is validated up front — before any provider call — same
-    discipline as create_song_study above.
-    """
+    """One stateless tutor turn: reconstruct the Branch's persisted
+    conversation, run a fresh disposable agent execution, persist the new
+    user/assistant messages, return the semantic `TutorResponse`."""
     try:
         session = store.get_session(data.session_id, user_id)
     except NotFoundError as exc:
@@ -441,36 +335,17 @@ async def create_tutor_turn(
     if branch is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
-    if branch.current_artifact_kind == 'concept_study' and branch.working_draft is None:
-        raise HTTPException(422, 'This study is unsupported. Open a new exploration from Explore.')
-
-    if data.inspection is not None:
-        draft = branch.working_draft
-        facts = resolve_workspace(draft) if draft else {'entities': {}, 'relations': {}}
-        inspection = data.inspection
-        entities = facts['entities']
-        valid = _inspection_in_draft(inspection, entities, draft)
-        if not valid:
-            raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select again.")
-
-    artifact: Optional[Artifact] = None
-    if branch.current_artifact_id:
-        try:
-            artifact = store.get_artifact(branch.current_artifact_id, user_id)
-        except NotFoundError:
-            artifact = None
-
     history = store.list_tutor_messages(branch.tutor_thread_id, user_id)
 
     try:
-        response = await run_in_threadpool(run_tutor_turn,
+        response = await run_in_threadpool(
+            run_tutor_turn,
             branch=branch,
-            artifact=artifact,
             history=history,
             lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id),
-            siblings=[{"id": b.id, "title": b.title, "artifact_kind": b.current_artifact_kind} for b in session.branches if not b.closed and b.id != branch.id],
+            siblings=[{"id": b.id, "title": b.title, "active_workspace": b.active_workspace}
+                      for b in session.branches if not b.closed and b.id != branch.id],
             user_message=data.message,
-            inspection=data.inspection,
             provider=settings.v2_tutor_provider,
             model=settings.v2_tutor_model_name,
             openai_api_key=settings.openai_api_key,
@@ -481,8 +356,6 @@ async def create_tutor_turn(
     except TutorCapabilityError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except Exception as exc:
-        # Provider network/timeout/other API failures — fail clearly without
-        # echoing the raw provider exception (it can carry key fragments).
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Tutor provider call to {settings.v2_tutor_provider} failed",
@@ -490,32 +363,17 @@ async def create_tutor_turn(
 
     if response.comparison_groups:
         open_titles = {b.id: b.title for b in store.get_session(session.id, user_id).branches if not b.closed}
-        response.comparison_groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]}) for group in response.comparison_groups if group.branch_id in open_titles]
+        response.comparison_groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]})
+                                      for group in response.comparison_groups if group.branch_id in open_titles]
 
-    content = {
-        'comparison_groups': [group.model_dump() for group in response.comparison_groups],
-        'text': response.message, 'focus': response.focus.model_dump() if response.focus else None,
-        'concept_suggestion': response.concept_suggestion.model_dump() if response.concept_suggestion else None,
-        'exercise_suggestion': response.exercise_suggestion.model_dump() if response.exercise_suggestion else None,
-        'voicing_candidates': [c.model_dump() for c in response.voicing_candidates] if response.voicing_candidates else None,
-        'candidates': [c.model_dump() for c in response.candidates] if response.candidates else None,
+    content: dict[str, Any] = {
+        "text": response.message,
+        "focus": response.focus.model_dump() if response.focus else None,
+        "comparison_groups": [group.model_dump() for group in response.comparison_groups],
+        "candidates": [c.model_dump() for c in response.candidates] if response.candidates else None,
     }
-    if branch.working_draft is not None:
-        workspace = None
-        content['workspace_change'] = {'status': 'unchanged', 'reason': None}
-        if response.workspace_patch is not None:
-            try:
-                workspace = apply_workspace_patch(branch.working_draft, response.workspace_patch, data.message)
-                content['workspace_change']['status'] = 'applied'
-            except ValueError:
-                content['workspace_change'] = {'status': 'rejected', 'reason': 'No change was applied: the patch is invalid, unsupported, or based on an older draft. Ask again using the current workspace.'}
-        updated, message = store.commit_workspace_turn(session.id, branch.id, user_id,
-            expected_version=branch.working_draft.version, workspace=workspace, user_text=data.message, assistant=content)
-        response.workspace_result = WorkspaceTurnResult(**message.content['workspace_change'], message_id=message.id, branch=updated)
-    else:
-        store.create_tutor_message(branch.tutor_thread_id, 'user', {'text': data.message})
-        store.create_tutor_message(branch.tutor_thread_id, 'assistant', content)
-
+    store.create_tutor_message(branch.tutor_thread_id, "user", {"text": data.message})
+    store.create_tutor_message(branch.tutor_thread_id, "assistant", content)
     return response
 
 
@@ -525,13 +383,13 @@ async def list_tutor_thread_messages(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
-    """Prior tutor messages for a Branch's thread (frontend history load on
-    mount/branch change) — thin read over the existing store method, same
-    auth/ownership/404 pattern as every other route above."""
     try:
         return store.list_tutor_messages(tutor_thread_id, user_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+# --- Progression artifacts ------------------------------------------------
 
 
 @router.post("/progressions", response_model=Artifact, status_code=status.HTTP_201_CREATED)
@@ -540,64 +398,9 @@ async def create_progression(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
-    """Persist a tutor-proposed candidate as a durable Progression artifact
-    (ticket #14). Deliberately does not touch any Branch's
-    current_artifact_kind/current_artifact_id -- saving a candidate must
-    keep the SongStudy branch the user was working in current/active.
-    """
+    """Persist a progression as a durable artifact. Ticket P1 rebuilds the
+    per-idea Save/revision lifecycle (DATA-02)."""
     return store.create_artifact(user_id=user_id, kind="progression", title=data.title, payload=data.model_dump())
-
-
-class ExploreProgressionRequest(BaseModel):
-    session_id: str
-    branch_id: str
-    progression: ProgressionPayload
-
-
-class OpenProgressionResponse(BaseModel):
-    artifact: Artifact
-    branch: Branch
-    source_branch: Optional[Branch] = None
-
-
-@router.post("/progressions/explore", response_model=OpenProgressionResponse, status_code=status.HTTP_201_CREATED)
-async def explore_progression(
-    data: ExploreProgressionRequest,
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    try:
-        session = store.get_session(data.session_id, user_id)
-        source = next((branch for branch in session.branches if branch.id == data.branch_id), None)
-        if source is None:
-            raise NotFoundError("Branch not found")
-
-        artifact = store.create_artifact(
-            user_id=user_id,
-            kind="progression",
-            title=data.progression.title,
-            payload=data.progression.model_dump(),
-        )
-        branch = store.create_branch(
-            data.session_id,
-            user_id,
-            title=data.progression.title,
-            current_artifact_kind="progression",
-            current_artifact_id=artifact.id,
-            selection={"type": "progression_chord", "index": 0},
-            focus={"type": "progression_chord", "index": 0},
-            fork_context={
-                "source_branch_id": source.id,
-                "source_artifact_kind": source.current_artifact_kind,
-                "source_artifact_id": source.current_artifact_id,
-                "source_selection": source.selection,
-                "source_focus": source.focus,
-                "intent": f"Explore {data.progression.title}",
-            },
-        )
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return OpenProgressionResponse(artifact=artifact, branch=branch)
 
 
 @router.get("/progressions/{artifact_id}", response_model=Artifact)
@@ -628,7 +431,6 @@ async def apply_progression_voicing(
             raise NotFoundError("Not a Progression artifact")
         if data.expected_updated_at != artifact.updated_at:
             raise RevisionConflictError("Progression changed; request fresh voicings before applying")
-        # Validate the replacement at the request boundary; preserve legacy slots.
         chords = list(artifact.payload["chords"])
         if data.chord_index >= len(chords):
             raise HTTPException(status_code=422, detail="Chord slot no longer exists")
@@ -638,6 +440,9 @@ async def apply_progression_voicing(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RevisionConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+# --- Exercise artifacts --------------------------------------------------
 
 
 class CreateExerciseRequest(ExerciseDraft):
@@ -652,8 +457,8 @@ async def create_exercise(data: CreateExerciseRequest, user_id: str = Depends(ge
         source = store.get_artifact(data.source_artifact_id, user_id)
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
-    if source.kind not in ("song_study", "progression", "concept_study"):
-        raise HTTPException(422, "Choose song, progression or concept material")
+    if source.kind not in ("song_study", "progression"):
+        raise HTTPException(422, "Choose song or progression material")
     if source.updated_at != data.expected_updated_at:
         raise HTTPException(409, "Source changed; review the current material before saving")
     payload = ExercisePayload(
@@ -682,12 +487,14 @@ async def get_exercise(artifact_id: str, user_id: str = Depends(get_current_user
 
 @router.post("/exercises/{artifact_id}/open", response_model=Session, status_code=201)
 async def open_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    artifact = await get_exercise(artifact_id, user_id, store)
-    # Same two-write session/branch persistence used elsewhere; no conversation is copied.
+    await get_exercise(artifact_id, user_id, store)
+    # Ticket #101: reopen no longer links the artifact onto the branch; a
+    # fresh Session with a main Harmony Branch. P1 wires artifact reopen.
     session = store.create_session(user_id)
-    store.update_branch(session.id, session.branches[0].id, user_id, title=artifact.title,
-                        current_artifact_kind="exercise", current_artifact_id=artifact.id)
     return store.get_session(session.id, user_id)
+
+
+# --- Library ------------------------------------------------------------
 
 
 class SaveArtifactRequest(BaseModel):
@@ -700,7 +507,10 @@ class RestoreArtifactRequest(SaveArtifactRequest):
 
 @router.get("/library")
 async def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    return [{**a.model_dump(exclude={"payload"}), "is_concept_workspace": a.kind == "concept_study" and "entities" in a.payload, "provenance": a.payload.get("created_from") or a.payload.get("inspired_by") or ({"title": a.title, "song_id": a.payload.get("song_id"), "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
+    return [{**a.model_dump(exclude={"payload"}),
+             "provenance": a.payload.get("created_from") or a.payload.get("inspired_by")
+             or ({"title": a.title, "song_id": a.payload.get("song_id"),
+                  "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
             for a in store.list_artifacts(user_id) if a.saved_at]
 
 
@@ -743,195 +553,11 @@ async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_
         raise HTTPException(409, str(exc)) from exc
 
 
-def _workspace_open_fields(artifact: Artifact) -> dict:
-    if artifact.kind == 'concept_study':
-        try:
-            draft = ConceptWorkspace.model_validate(artifact.payload).model_copy(update={'version': 1})
-            resolve_workspace(draft)
-        except ValueError as exc:
-            raise HTTPException(422, 'This study is unsupported. Open a new exploration from Home.') from exc
-        return {'working_draft': draft.model_dump(), 'saved_artifact_revision': artifact.updated_at}
-    return {}
-
-
 @router.post("/library/{artifact_id}/open", response_model=Session, status_code=201)
 async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    artifact = _saved_artifact(store, artifact_id, user_id)
-    fields = _workspace_open_fields(artifact)
+    _saved_artifact(store, artifact_id, user_id)
+    # Ticket #101: opening a saved artifact yields a fresh Session with a main
+    # Harmony Branch (UX-05: opening does not fork). P1 rebuilds reopen-to-
+    # fresh-Progression-idea (DATA-03).
     session = store.create_session(user_id)
-    store.update_branch(session.id, session.branches[0].id, user_id, title=artifact.title,
-        current_artifact_kind=artifact.kind, current_artifact_id=artifact.id, **fields)
     return store.get_session(session.id, user_id)
-
-
-class OpenConceptRequest(StrictModel):
-    concept_id: str
-    root: str
-
-
-@router.post('/sessions/{session_id}/concept-workspaces/from-concept', response_model=Branch, status_code=201)
-async def open_concept(session_id: str, data: OpenConceptRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    try:
-        workspace = concept_recipe(data.concept_id, data.root)
-        resolve_workspace(workspace)
-        return store.create_branch(session_id,user_id,title=workspace.title,current_artifact_kind='concept_study',working_draft=workspace.model_dump())
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(422, 'This concept is unsupported. Choose an exploration from Explore.') from exc
-
-
-# ConceptWorkspace draft routes intentionally do not create saved artifacts.
-
-
-@router.get('/concept-workspaces/catalog')
-async def get_explore_catalog(user_id: str = Depends(get_current_user)):
-    return explore_catalog()
-
-
-@router.post('/sessions/{session_id}/concept-workspaces', response_model=Branch, status_code=201)
-async def open_concept_workspace(session_id: str, data: OpenWorkspaceRequest,
-    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    try:
-        workspace = open_recipe(data)
-        return store.create_branch(session_id, user_id, title=workspace.title,
-            current_artifact_kind='concept_study', working_draft=workspace.model_dump())
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-
-
-@router.post('/concept-workspaces/resolve')
-async def resolve_concept_workspace(data: ConceptWorkspace, user_id: str = Depends(get_current_user)):
-    try:
-        return resolve_workspace(data)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-
-class SaveWorkspaceRequest(StrictModel):
-    expected_version: int = Field(ge=1, strict=True)
-    workspace: ConceptWorkspace
-
-
-@router.put('/sessions/{session_id}/branches/{branch_id}/workspace', response_model=Branch)
-async def save_workspace(session_id: str, branch_id: str, data: SaveWorkspaceRequest,
-    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    try:
-        session = store.get_session(session_id, user_id)
-        branch = next((b for b in session.branches if b.id == branch_id), None)
-        if branch is None:
-            raise NotFoundError('Branch not found')
-        resolve_workspace(data.workspace)
-        workspace = data.workspace.model_copy(update={'version': data.expected_version + 1})
-        return store.update_branch(session_id, branch_id, user_id,
-            working_draft=workspace.model_dump(), expected_workspace_version=data.expected_version)
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-
-class UndoWorkspaceRequest(StrictModel):
-    message_id: str = Field(min_length=1, max_length=80)
-    expected_version: int = Field(ge=1, strict=True)
-
-
-@router.post('/sessions/{session_id}/branches/{branch_id}/workspace/undo', response_model=WorkspaceTurnResult)
-async def undo_workspace_change(session_id: str, branch_id: str, data: UndoWorkspaceRequest,
-    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    try:
-        branch, message = store.commit_workspace_turn(session_id, branch_id, user_id,
-            expected_version=data.expected_version, workspace=None, user_text=None,
-            assistant={'text': 'Undid the latest Tutor change. The pre-turn workspace is current again; conversation and saved studies are unchanged.', 'workspace_change': {'status': 'undone', 'reason': None}},
-            undo_message_id=data.message_id)
-        return WorkspaceTurnResult(**message.content['workspace_change'], branch=branch, message_id=message.id)
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
-
-
-class SaveWorkspaceStudyRequest(StrictModel):
-    expected_version: int = Field(ge=1, strict=True)
-    title: str = Field(min_length=1, max_length=120)
-    as_new: bool = False
-
-
-@router.post('/sessions/{session_id}/branches/{branch_id}/workspace/save', response_model=Branch)
-async def save_workspace_study(session_id: str, branch_id: str, data: SaveWorkspaceStudyRequest,
-    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    if not data.title.strip():
-        raise HTTPException(422, 'Give your study a name.')
-    try:
-        return store.save_workspace_study(session_id, branch_id, user_id, expected_version=data.expected_version,
-            title=data.title.strip(), as_new=data.as_new)
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
-
-
-@router.post('/sessions/{session_id}/branches/{branch_id}/workspace/restore', response_model=WorkspaceTurnResult)
-async def restore_workspace_snapshot(session_id: str, branch_id: str, data: UndoWorkspaceRequest,
-    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    try:
-        branch, message = store.commit_workspace_turn(session_id, branch_id, user_id,
-            expected_version=data.expected_version, workspace=None, user_text=None,
-            assistant={'text': 'Restored an earlier Tutor snapshot as the current draft. Later conversation and saved studies are unchanged.',
-                'workspace_change': {'status': 'restored', 'reason': None}}, restore_message_id=data.message_id)
-        return WorkspaceTurnResult(**message.content['workspace_change'], branch=branch, message_id=message.id)
-    except NotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
-
-
-@router.post('/concept-workspaces/progression', response_model=ConceptWorkspace)
-async def transform_progression(data: ProgressionAction, user_id: str = Depends(get_current_user)):
-    try:
-        return edit_progression(data)
-    except ValidationError as exc:
-        raise HTTPException(422, 'That change exceeds fret, tuning or workspace bounds. Try a smaller distance or another fingering.') from exc
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-
-
-@router.post('/concept-workspaces/caged/materialize', response_model=ConceptWorkspace)
-async def keep_caged_region(data: CagedMaterialize, user_id: str = Depends(get_current_user)):
-    try:
-        return materialize_region(data)
-    except ValueError as exc:
-        raise HTTPException(422, 'That region cannot be kept within the current tuning or workspace bounds. Your draft is unchanged.') from exc
-
-
-class UpdateWorkspaceViewRequest(StrictModel):
-    workspace: ConceptWorkspace
-    view: ViewUpdate
-
-
-@router.post('/concept-workspaces/update-view', response_model=ConceptWorkspace)
-async def update_workspace_view(data: UpdateWorkspaceViewRequest, user_id: str = Depends(get_current_user)):
-    try:
-        return apply_workspace_patch(data.workspace, {
-            'protocol_version': 1, 'base_version': data.workspace.version,
-            'operations': [data.view.model_dump(exclude_none=True)],
-        }, '')
-    except (ValidationError, ValueError) as exc:
-        raise HTTPException(422, 'Those sources or settings are incompatible with this view. Your draft is unchanged.') from exc
-
-
-class MaterializeInspectionRequest(StrictModel):
-    workspace: ConceptWorkspace
-    inspection: InspectionTarget
-
-
-@router.post('/concept-workspaces/materialize', response_model=ConceptWorkspace)
-async def materialize_workspace_inspection(data: MaterializeInspectionRequest, user_id: str = Depends(get_current_user)):
-    try:
-        return materialize_inspection(data.workspace, data.inspection)
-    except ValidationError as exc:
-        raise HTTPException(422, 'That selection cannot be materialized within workspace bounds. Your draft is unchanged.') from exc
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc

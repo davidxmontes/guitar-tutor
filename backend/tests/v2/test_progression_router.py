@@ -51,23 +51,6 @@ def test_create_progression_persists_a_progression_artifact() -> None:
     assert saved.kind == "progression"
 
 
-def test_create_progression_does_not_change_any_branch_current_artifact() -> None:
-    """Explicit acceptance criterion: saving a Progression must not move the
-    SongStudy branch away from being current/active."""
-    store = InMemoryV2Store()
-    client = _app(store)
-    created = client.post("/api/v2/sessions").json()
-    session_id, branch_id = created["id"], created["branches"][0]["id"]
-    store.update_branch(session_id, branch_id, "user_1", current_artifact_kind="song_study", current_artifact_id="song-1")
-
-    response = client.post("/api/v2/progressions", json=CANDIDATE)
-    assert response.status_code == 201
-
-    branch = store.get_session(session_id, "user_1").branches[0]
-    assert branch.current_artifact_kind == "song_study"
-    assert branch.current_artifact_id == "song-1"
-
-
 def test_create_progression_is_scoped_to_the_authenticated_user() -> None:
     store = InMemoryV2Store()
     client = _app(store)
@@ -76,74 +59,6 @@ def test_create_progression_is_scoped_to_the_authenticated_user() -> None:
     assert created["user_id"] == "user_1"
     with pytest.raises(NotFoundError):
         store.get_artifact(created["id"], "someone_else")
-
-
-def test_explore_progression_opens_independent_branch_with_compact_source_context() -> None:
-    store = InMemoryV2Store()
-    client = _app(store)
-    session = client.post("/api/v2/sessions").json()
-    source = session["branches"][0]
-    store.update_branch(
-        session["id"],
-        source["id"],
-        "user_1",
-        title="Little Wing",
-        current_artifact_kind="song_study",
-        current_artifact_id="song-1",
-        selection={"type": "range", "startMeasureIndex": 2, "endMeasureIndex": 5},
-        focus={"measureIndex": 2, "windowSize": 4},
-        recent_ideas=[{"title": "parent-only idea"}],
-    )
-    store.create_tutor_message(source["tutor_thread_id"], "user", {"text": "What is happening here?"})
-
-    response = client.post(
-        "/api/v2/progressions/explore",
-        json={"session_id": session["id"], "branch_id": source["id"], "progression": CANDIDATE},
-    )
-
-    assert response.status_code == 201
-    opened = response.json()
-    assert opened["artifact"]["kind"] == "progression"
-    assert opened["artifact"]["payload"] == CANDIDATE
-    assert opened["branch"]["title"] == "Wistful I-vi-IV-V"
-    assert opened["branch"]["current_artifact_id"] == opened["artifact"]["id"]
-    assert opened["branch"]["tutor_thread_id"] != source["tutor_thread_id"]
-    assert opened["branch"]["selection"] == {"type": "progression_chord", "index": 0}
-    assert opened["branch"]["focus"] == {"type": "progression_chord", "index": 0}
-    assert opened["branch"]["recent_ideas"] == []
-    assert opened["branch"]["fork_context"] == {
-        "source_branch_id": source["id"],
-        "source_artifact_kind": "song_study",
-        "source_artifact_id": "song-1",
-        "source_selection": {"type": "range", "startMeasureIndex": 2, "endMeasureIndex": 5},
-        "source_focus": {"measureIndex": 2, "windowSize": 4},
-        "intent": "Explore Wistful I-vi-IV-V",
-    }
-    assert store.list_tutor_messages(opened["branch"]["tutor_thread_id"], "user_1") == []
-
-    restored_source = store.get_session(session["id"], "user_1").branches[0]
-    assert restored_source.selection == {"type": "range", "startMeasureIndex": 2, "endMeasureIndex": 5}
-    assert restored_source.focus == {"measureIndex": 2, "windowSize": 4}
-    assert restored_source.recent_ideas == [{"title": "parent-only idea"}]
-
-
-def test_get_progression_returns_explored_artifact() -> None:
-    store = InMemoryV2Store()
-    client = _app(store)
-    session = client.post("/api/v2/sessions").json()
-    opened = client.post(
-        "/api/v2/progressions/explore",
-        json={
-            "session_id": session["id"],
-            "branch_id": session["branches"][0]["id"],
-            "progression": CANDIDATE,
-        },
-    ).json()
-
-    response = client.get(f"/api/v2/progressions/{opened['artifact']['id']}")
-
-    assert response.status_code == 200
-    assert response.json() == opened["artifact"]
 
 
 def test_apply_exact_voicing_is_owned_revision_safe_and_reopens():
