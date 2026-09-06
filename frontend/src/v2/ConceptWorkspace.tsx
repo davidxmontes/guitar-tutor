@@ -203,23 +203,8 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     }))}</div>
   </section>}
 
-  <div hidden={Boolean(preview)} className="flex flex-col lg:flex-row lg:items-start lg:gap-4">
-   {(scales.length > 0 || physical) && <aside aria-label="Music controls" className="order-last mt-4 lg:order-first lg:mt-0 lg:sticky lg:top-4 lg:w-[248px] lg:shrink-0">
-    <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">The music</h2>
-    {physical && <PhysicalWorkspaceControls workspace={workspace} disabled={locked} onChange={change} />}
-    {scales.length > 0 && <fieldset disabled={locked} className="space-y-3">
-      <label className="flex items-center justify-between gap-2 text-sm">Both roots<select aria-label="Both roots" className={`${field} w-24`} value={scales.every(e => e.root === scales[0].root) ? scales[0].root : ''} onChange={e => editScale(null, { root: e.target.value })}><option value="" disabled>Mixed</option>{roots.map(root => <option key={root}>{root}</option>)}</select></label>
-      {scales.map((entity, index) => <div key={entity.id} className="space-y-1.5 rounded-lg border border-[var(--border-primary)] p-2">
-        <p className="text-sm font-semibold">Scale {index + 1}</p>
-        <label className="block text-sm text-[var(--text-secondary)]">Root<select aria-label={`Scale ${index + 1} root`} className={`${field} mt-0.5 block w-full`} value={entity.root} onChange={e => editScale(entity.id, { root: e.target.value })}>{roots.map(root => <option key={root}>{root}</option>)}</select></label>
-        <label className="block text-sm text-[var(--text-secondary)]">Mode<select aria-label={`Scale ${index + 1} mode`} className={`${field} mt-0.5 block w-full`} value={entity.mode} onChange={e => editScale(entity.id, { mode: e.target.value as ScaleMode })}>{modes.map(mode => <option key={mode} value={mode}>{mode.replaceAll('_', ' ')}</option>)}</select></label>
-        {workspace.entities.length > 1 && <button className={`${control} w-full`} onClick={() => removeScale(entity.id)}>Remove scale {index + 1}</button>}
-      </div>)}
-      <label className="block text-sm text-[var(--text-secondary)]">Tuning<select aria-label="Tuning" className={`${field} mt-0.5 block w-full`} value={JSON.stringify(workspace.tuning)} onChange={e => change({ ...workspace, tuning: JSON.parse(e.target.value) })}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]', '[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
-    </fieldset>}
-   </aside>}
-   <div className="order-first min-w-0 space-y-5 lg:order-2 lg:flex-1">
-    <header className="space-y-2 border-b border-[var(--border-primary)] pb-3">
+  <div hidden={Boolean(preview)} className="space-y-4">
+    <header className="space-y-2 pb-1">
       <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--accent-700)]">Explore · working draft</p>
       <h2 ref={heading} tabIndex={-1} className="text-xl font-bold">{title}</h2>
       {transition && <p className="text-sm text-[var(--text-secondary)]">{transition.explanation}</p>}
@@ -255,6 +240,22 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     {error && <div role="alert" className="space-y-2"><p>{error}</p>{!resolved && !busy && <button className={control} onClick={() => window.location.reload()}>Reload workspace</button>}{workspace !== saved.current && <div className="flex flex-wrap gap-2"><button className={control} disabled={locked} onClick={() => persist(workspace)}>Retry autosave</button><button className={control} onClick={() => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'concept-workspace.json'; link.click(); URL.revokeObjectURL(url); onPendingChange(false);
     }}>Download draft</button></div>}</div>}
+    {(scales.length > 0 || physical) && <div className="z-20 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-2 text-sm sm:-mx-6 sm:px-6 lg:sticky lg:top-0">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Music</span>
+      {physical && <PhysicalWorkspaceControls workspace={workspace} disabled={locked} onChange={change} />}
+      {scales.length > 0 && <fieldset disabled={locked} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-1.5">Both roots<select aria-label="Both roots" className={`${field} w-20`} value={scales.every(e => e.root === scales[0].root) ? scales[0].root : ''} onChange={e => editScale(null, { root: e.target.value })}><option value="" disabled>Mixed</option>{roots.map(root => <option key={root}>{root}</option>)}</select></label>
+        {scales.map((entity, index) => <div key={entity.id} className="flex items-center gap-1.5">
+          <span className="font-semibold text-[var(--text-secondary)]">Scale {index + 1}</span>
+          <select aria-label={`Scale ${index + 1} root`} className={`${field} w-16`} value={entity.root} onChange={e => editScale(entity.id, { root: e.target.value })}>{roots.map(root => <option key={root}>{root}</option>)}</select>
+          <select aria-label={`Scale ${index + 1} mode`} className={`${field} w-36`} value={entity.mode} onChange={e => editScale(entity.id, { mode: e.target.value as ScaleMode })}>{modes.map(mode => <option key={mode} value={mode}>{mode.replaceAll('_', ' ')}</option>)}</select>
+          {workspace.entities.length > 1 && <button aria-label={`Remove scale ${index + 1}`} className={`${controlSm} px-2`} onClick={() => removeScale(entity.id)}>✕</button>}
+        </div>)}
+        <label className="flex items-center gap-1.5">Tuning<select aria-label="Tuning" className={`${field} w-32`} value={JSON.stringify(workspace.tuning)} onChange={e => change({ ...workspace, tuning: JSON.parse(e.target.value) })}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]', '[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
+      </fieldset>}
+    </div>}
+    <div className="lg:flex lg:items-start lg:gap-4">
+     <div className="min-w-0 space-y-5 lg:flex-1">
     <div className="flex min-h-9 flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]" role="status">{inspection ? <><button className={controlSm} onClick={() => { setInspection(null); heading.current?.focus(); }}>Back</button><span>Inspecting {resolved ? inspectedRegion ? inspectedRegion : inspection.kind === 'step' ? `chord ${Number(inspection.key) + 1}` : inspection.kind === 'pitch' ? [...(resolved.scales[inspection.source_id]?.notes ?? []), ...(resolved.voicings[inspection.source_id]?.positions ?? [])].find(n => n.pitch_class === inspection.key)?.note : workspaceLabel(inspection.source_id, resolved) : ''} across compatible views</span></> : <span>{progression ? 'Select a chord to edit it or hear its next transition.' : 'Select a note to inspect it across views.'}</span>}</div>
     <div className="cw-composition">{placements.map(placement => {
       const block = workspace.blocks.find(item => item.id === placement.block_id)!;
@@ -284,7 +285,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={closeTutor} />
     <aside aria-label="Tutor"
       onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeTutor(); } }}
-      className="fixed inset-x-2 bottom-2 z-40 flex max-h-[82dvh] flex-col rounded-xl bg-[var(--card-bg)] p-2 shadow-lg lg:order-3 lg:sticky lg:inset-x-auto lg:bottom-auto lg:top-4 lg:z-auto lg:h-[calc(100dvh-2rem)] lg:w-[320px] lg:shrink-0 lg:self-start lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
+      className="fixed inset-x-2 bottom-2 z-40 flex max-h-[82dvh] flex-col rounded-xl bg-[var(--card-bg)] p-2 shadow-lg lg:sticky lg:inset-x-auto lg:bottom-auto lg:top-16 lg:z-auto lg:h-[calc(100dvh-5rem)] lg:w-[320px] lg:shrink-0 lg:self-start lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
       <div className="mb-1 flex items-center justify-between gap-3 px-1 lg:mb-2 lg:px-0">
         <h2 className="font-bold">Tutor</h2>
         <button ref={tutorCloseButton} className={controlSm} onClick={closeTutor}>Close Tutor</button>
@@ -296,5 +297,6 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
         emptyMessage="Ask about this music or request a change." />
     </aside>
    </>}
+   </div>
   </div></>;
 }
