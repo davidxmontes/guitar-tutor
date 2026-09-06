@@ -11,7 +11,12 @@ STANDARD_TUNING = [64, 59, 55, 50, 45, 40]
 
 def caged_starter() -> ConceptWorkspace:
     chord = Chord(id=uuid4().hex, root='C', quality='major')
-    blocks = [Block(id=uuid4().hex, kind=kind, sources=[chord.id]) for kind in ('caged','chord_diagrams','fretboard')]
+    # `caged` is a fretboard mode now, not a block kind (spec #88 BLK-02).
+    blocks = [
+        Block(id=uuid4().hex, kind='fretboard', sources=[chord.id], settings=ViewSettings(mode='caged')),
+        Block(id=uuid4().hex, kind='chord_diagrams', sources=[chord.id]),
+        Block(id=uuid4().hex, kind='fretboard', sources=[chord.id]),
+    ]
     return ConceptWorkspace(title='Connect CAGED shapes', provenance='caged-exploration', entities=[chord], blocks=blocks,
         composition=[Row(items=[Placement(block_id=b.id, priority='primary' if i == 0 else 'supporting')]) for i,b in enumerate(blocks)])
 

@@ -21,7 +21,6 @@ BLOCK_ACCEPTS = {
     'circle': ('key',),
     'progression': ('progression', 'key'),
     'key_family': ('key',),
-    'caged': ('chord',),
 }
 BLOCK_SOURCES = BLOCK_ACCEPTS  # back-compat alias for existing importers
 
@@ -147,7 +146,7 @@ class ViewSettings(StrictModel):
 
 class Block(StrictModel):
     id: Identifier
-    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'caged']
+    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression']
     source_id: Identifier | None = None
     sources: list[Identifier] | None = Field(default=None, min_length=1, max_length=8)
     source_roles: dict[str, Literal['primary', 'context', 'highlight']] | None = None
@@ -223,11 +222,13 @@ class ConceptWorkspace(StrictModel):
                     raise ValueError('A view points at a source that no longer exists')
                 if source_kinds[source_id] not in accepts:
                     raise ValueError('View is not compatible with its musical source')
-            if block.kind in ('caged', 'chord_diagrams'):
-                for source_id in block.sources:
-                    chord = entities.get(source_id)
-                    if isinstance(chord, Chord) and chord.quality not in ('major', 'minor'):
-                        raise ValueError('CAGED views support major or minor chords')
+            caged_view = block.kind == 'chord_diagrams' or (block.kind == 'fretboard' and block.settings.mode == 'caged')
+            if caged_view:
+                chords = [entities.get(s) for s in block.sources if isinstance(entities.get(s), Chord)]
+                if any(chord.quality not in ('major', 'minor') for chord in chords):
+                    raise ValueError('CAGED views support major or minor chords')
+                if block.kind == 'fretboard' and not chords:
+                    raise ValueError('A CAGED fretboard needs a major or minor chord source')
             first_kind = source_kinds[block.sources[0]]
             derived = block.kind == 'progression' and first_kind == 'key'
             if derived != (block.settings.pattern is not None):
