@@ -13,7 +13,7 @@ export interface CompareRelation { id: string; kind: 'compare'; entity_ids: stri
 export type ComparisonMode = 'highlight' | 'plain' | 'shared-only';
 export interface BlockSettings { pattern?: 'I-V-vi-IV' | null; labels: 'notes' | 'intervals'; mode?: 'notes' | 'caged' | null; comparison?: ComparisonMode; fret_start: number | null; fret_end: number | null }
 export type SourceRole = 'primary' | 'context' | 'highlight';
-export interface WorkspaceBlock { id: string; kind: 'fretboard' | 'degree_strip' | 'chord_diagrams' | 'circle' | 'progression' | 'key_family'; source_id: string; sources: string[]; source_roles?: Record<string, SourceRole> | null; settings: BlockSettings }
+export interface WorkspaceBlock { id: string; kind: 'fretboard' | 'degree_strip' | 'chord_diagrams' | 'circle' | 'progression' | 'key_family'; sources: string[]; source_roles?: Record<string, SourceRole> | null; settings: BlockSettings }
 export interface ConceptWorkspace {
   schema_version: 2; version: number; title: string; provenance: 'scale-comparison' | 'physical-resolution' | 'four-chord-progression' | 'caged-exploration'; tuning: number[];
   entities: WorkspaceEntity[]; relations: (CompareRelation | TransitionRelation)[]; blocks: WorkspaceBlock[];
@@ -31,7 +31,7 @@ export interface ResolvedEntityCore { id: string; label: string; notes: Workspac
 export interface ResolvedCagedRegion { shape: string; label: string; fret_start: number; fret_end: number; positions: WorkspacePosition[] }
 export interface ResolvedScale extends ResolvedEntityCore { kind: 'scale' }
 export interface ResolvedChord extends ResolvedEntityCore { kind: 'chord'; quality: string; cagedRegions?: ResolvedCagedRegion[] }
-export interface ResolvedKey extends ResolvedEntityCore { kind: 'key'; circle: string[]; diatonicChords: { numeral: string; root: string; quality: string }[] }
+export interface ResolvedKey extends ResolvedEntityCore { kind: 'key'; derivedProgression?: ResolvedProgression; circle: string[]; diatonicChords: { numeral: string; root: string; quality: string }[] }
 export interface ResolvedVoicing extends ResolvedEntityCore { kind: 'voicing'; chord_id: string | null }
 export interface ResolvedProgressionStep { chord_id: string | null; voicing_id: string | null; root: string; quality: string; function: string; positions: WorkspacePosition[]; tuning: number[] }
 export interface ResolvedProgression extends ResolvedEntityCore { kind: 'progression'; derived: boolean; key_id: string; steps: ResolvedProgressionStep[] }

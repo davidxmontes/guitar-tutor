@@ -1,14 +1,14 @@
 import type { Resolved, ResolvedProgression, TypedInspection, WorkspaceBlock } from '../types/conceptWorkspace';
+import { adaptBlock } from './workspaceAdapter';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 const control = 'min-h-11 max-w-full rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] px-3 py-2 disabled:opacity-50';
 
 // `progression` stays self-contained: it renders its own resolved `steps` (spec #88 §4).
-// A derived pattern shares the key's entity id, so `entities[sources[0]]` is the progression dict either way.
 export function WorkspaceProgressionBlock({ block, resolved, inspection, onInspect, readOnly, disabled }: {
   block: WorkspaceBlock; resolved: Resolved; inspection: TypedInspection | null; onInspect: (i: TypedInspection) => void;
   readOnly: boolean; disabled: boolean;
 }) {
-  const progression = resolved.entities[block.sources[0]] as ResolvedProgression | undefined;
+  const progression = adaptBlock(block, resolved).sources.find(source => source.kind === 'progression') as ResolvedProgression | undefined;
   if (progression?.kind !== 'progression') return null;
   const index = inspection?.kind === 'step' && inspection.block_id === block.id ? inspection.index : 0;
   return <div className="space-y-3">

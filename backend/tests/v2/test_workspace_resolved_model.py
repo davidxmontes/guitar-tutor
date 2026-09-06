@@ -42,7 +42,7 @@ def test_note_group_pitch_refs_tile_and_literal_refs_pin(client):
 def test_note_group_is_bindable_to_a_fretboard(client):
     ws = _workspace(
         [{'id': 'ng', 'kind': 'noteGroup', 'label': 'Blues notes', 'notes': [{'pitch_class': 3}, {'pitch_class': 6}]}],
-        blocks=[{'id': 'b', 'kind': 'fretboard', 'source_id': 'ng'}],
+        blocks=[{'id': 'b', 'kind': 'fretboard', 'sources': ['ng']}],
         composition=[{'items': [{'block_id': 'b', 'span': 12, 'priority': 'primary'}]}])
     assert client.post('/api/v2/concept-workspaces/resolve', json=ws).status_code == 200
 

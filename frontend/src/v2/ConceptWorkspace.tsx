@@ -192,11 +192,9 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const summary = relationResolved?.kind === 'compare' ? relationResolved : null;
   const scales = workspace.entities.filter(e => e.kind === 'scale');
   const progressionBlock = workspace.blocks.find(b => b.kind === 'progression') ?? null;
-  const progression = progressionBlock && resolved && resolved.entities[progressionBlock.sources[0]]?.kind === 'progression'
-    ? resolved.entities[progressionBlock.sources[0]] as Extract<ResolvedEntity, { kind: 'progression' }> : null;
-  // The resolved progression carries `key_id`; a derived pattern reuses the key's own
-  // id, so `resolved.entities[key_id]` is the progression dict. Read the key's root
-  // from the `key` entity in the draft instead.
+  const progressionSource = progressionBlock && resolved ? resolved.entities[progressionBlock.sources[0]] : null;
+  const progression = progressionSource?.kind === 'progression' ? progressionSource
+    : progressionSource?.kind === 'key' ? progressionSource.derivedProgression ?? null : null;
   const progressionKeyRoot = progression
     ? (workspace.entities.find((e): e is KeyEntity => e.kind === 'key' && e.id === progression.key_id)?.root ?? null)
     : null;
@@ -356,7 +354,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     {adding && <fieldset disabled={locked} className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border-primary)] p-3 text-sm"><legend className="px-1 text-[var(--text-secondary)]">Add a compatible view</legend>
       <label className="flex items-center gap-1.5">Musical source<select className={`${field} max-w-[12rem]`} value={sourceId} onChange={e => setSourceId(e.target.value)}>{[...workspace.relations, ...workspace.entities].map(item => <option key={item.id} value={item.id}>{resolved ? resolved.entities[item.id]?.label ?? item.kind : item.kind}</option>)}</select></label>
       <label className="flex items-center gap-1.5">View type<select className={`${field} w-36`} value={allowedViews.includes(viewKind) ? viewKind : allowedViews[0] ?? ''} onChange={e => setViewKind(e.target.value as WorkspaceBlock['kind'])}>{allowedViews.map(kind => <option key={kind} value={kind}>{names[kind]}</option>)}</select></label>
-      <button disabled={!allowedViews.length} className={controlSm} onClick={() => { const id = crypto.randomUUID(); const kind = allowedViews.includes(viewKind) ? viewKind : allowedViews[0]; change({ ...workspace, blocks: [...workspace.blocks, { id, kind, source_id: sourceId, sources: [sourceId], settings: { pattern: kind === 'progression' && source?.kind === 'key' ? 'I-V-vi-IV' : null, labels: 'notes', comparison: 'highlight', fret_start: null, fret_end: null } }], composition: [...workspace.composition, { items: [{ block_id: id, span: 12, priority: 'supporting' }] }] }); setAdding(false); addButton.current?.focus(); }}>Add selected view</button>
+      <button disabled={!allowedViews.length} className={controlSm} onClick={() => { const id = crypto.randomUUID(); const kind = allowedViews.includes(viewKind) ? viewKind : allowedViews[0]; change({ ...workspace, blocks: [...workspace.blocks, { id, kind, sources: [sourceId], settings: { pattern: kind === 'progression' && source?.kind === 'key' ? 'I-V-vi-IV' : null, labels: 'notes', comparison: 'highlight', fret_start: null, fret_end: null } }], composition: [...workspace.composition, { items: [{ block_id: id, span: 12, priority: 'supporting' }] }] }); setAdding(false); addButton.current?.focus(); }}>Add selected view</button>
     </fieldset>}
     {resolved && branch.current_artifact_id && branch.saved_artifact_revision && <fieldset disabled={locked || workspace !== saved.current}><ExerciseComposer key={`${workspace.version}:${inspection?.kind ?? ''}`} sourceId={branch.current_artifact_id} revision={branch.saved_artifact_revision} selection={{workspace_version:workspace.version}} steps={exerciseSteps} /></fieldset>}
    </div>

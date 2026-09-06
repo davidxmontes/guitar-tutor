@@ -8,7 +8,7 @@ instead of a single `source_id`, and one pure frontend adapter,
 `adaptBlock(block, resolved)`, turns that list into what each Block draws.
 ADR-0001's core still holds: this is a local typed workspace of Entities,
 Relations, and Blocks, not a global entity graph. This ADR retires the per-kind
-resolved records and, in a following ticket, the `caged` Block kind.
+resolved records and the `caged` Block kind.
 
 Layer role and comparison are two different axes. `sourceRoles`
 (`primary` / `context` / `highlight`) says what each layer is; `comparison`
@@ -37,7 +37,11 @@ progression step) into a `Chord` Entity, a CAGED region into a `Voicing`
 Entity, and a derived progression into a concrete one. Inspecting a derived
 object never materializes it.
 
-One SVG `fretboard` component will render scales, chords, voicings, keys, note
+One SVG `fretboard` component renders scales, chords, voicings, keys, note
 groups, comparisons and CAGED (as `settings.mode: 'caged'`), replacing the
-windowed-grid, CAGED-grid, and voicing-comparison renderers. That consolidation
-lands with the Block rebuilds that follow this ticket.
+windowed-grid, CAGED-grid, and voicing-comparison renderers. That consolidation lands with the Block rebuilds in the atomic integration.
+
+A Key retains its resolved identity and music when it also drives a Progression
+Block. Its derived pattern lives in `derivedProgression`; the adapter selects
+that projection for Progression Blocks. Materialization creates an independent
+Progression Entity and replaces that source binding without dropping other sources.

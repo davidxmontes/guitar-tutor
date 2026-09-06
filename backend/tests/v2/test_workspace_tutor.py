@@ -61,7 +61,7 @@ def test_invalid_and_stale_patches_keep_text_and_never_partially_apply():
     model.outcomes = [
         {'message': 'My proposed change was invalid.', 'workspace_patch': patch(branch, [
             {'op': 'update_entity', 'entity': entity | {'mode': 'dorian'}},
-            {'op': 'add_block', 'block': {'id': '$view', 'kind': 'executable', 'source_id': entity['id']}}])},
+            {'op': 'add_block', 'block': {'id': '$view', 'kind': 'executable', 'sources': [entity['id']]}}])},
         {'message': 'This answer used the old draft.', 'workspace_patch': patch(branch, [{'op': 'update_entity', 'entity': entity | {'mode': 'dorian'}}])},
     ]
     invalid = turn(client, sid, branch)
@@ -87,7 +87,7 @@ def test_alternatives_use_application_ids_and_preserve_existing_composition():
         {'op': 'add_entity', 'entity': {'id': '$bright', 'root': 'G', 'mode': 'lydian', 'label': 'Brighter option'}},
         {'op': 'add_entity', 'entity': {'id': '$dark', 'root': 'G', 'mode': 'phrygian', 'label': 'Darker option'}},
         {'op': 'add_relation', 'relation': {'id': '$compare', 'entity_ids': ['$bright', '$dark']}},
-        {'op': 'add_block', 'block': {'id': '$view', 'kind': 'degree_strip', 'source_id': '$compare'}},
+        {'op': 'add_block', 'block': {'id': '$view', 'kind': 'degree_strip', 'sources': ['$compare']}},
     ])}]
     response = turn(client, sid, branch, 'Show me two alternatives')
     assert response.status_code == 200, response.text
@@ -98,7 +98,7 @@ def test_alternatives_use_application_ids_and_preserve_existing_composition():
     assert draft['composition'][:len(original['composition'])] == original['composition']
     assert not any(obj['id'].startswith('$') for obj in draft['entities'] + draft['relations'] + draft['blocks'])
     assert draft['relations'][-1]['entity_ids'] == [e['id'] for e in draft['entities'][-2:]]
-    assert draft['blocks'][-1]['source_id'] == draft['relations'][-1]['id']
+    assert draft['blocks'][-1]['sources'][0] == draft['relations'][-1]['id']
     assert [e['label'] for e in draft['entities'][-2:]] == ['Brighter option', 'Darker option']
 
 
@@ -173,7 +173,7 @@ def test_invalid_references_and_patch_envelopes_never_mutate_the_draft():
     original = branch['working_draft']
     invalid_patches = [
         patch(branch, [{'op': 'add_entity', 'entity': {'id': '$same', 'root': 'G', 'mode': 'major'}}] * 2),
-        patch(branch, [{'op': 'add_block', 'block': {'id': '$view', 'kind': 'fretboard', 'source_id': '$missing'}}]),
+        patch(branch, [{'op': 'add_block', 'block': {'id': '$view', 'kind': 'fretboard', 'sources': ['$missing']}}]),
         patch(branch, [{'op': 'remove_entity', 'id': original['entities'][0]['id']}]),
         patch(branch, [{'op': 'recompose', 'composition': []}]),
         {'protocol_version': 2, 'base_version': 1, 'operations': []},

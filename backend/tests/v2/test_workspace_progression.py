@@ -10,7 +10,8 @@ def test_progression_derives_then_materializes_and_transposes_without_losing_occ
     def facts(w):
         r = client.post('/api/v2/concept-workspaces/resolve', json=w)
         assert r.status_code == 200, r.text
-        return r.json()['entities'][w['blocks'][0]['source_id']]
+        source = r.json()['entities'][w['blocks'][0]['sources'][0]]
+        return source.get('derivedProgression', source)
     def action(w, **fields):
         return client.post('/api/v2/concept-workspaces/progression', json={'workspace':w,'block_id':block['id'], **fields})
     assert [e['kind'] for e in draft['entities']] == ['key']
@@ -26,7 +27,7 @@ def test_progression_derives_then_materializes_and_transposes_without_losing_occ
     draft['blocks'].append(second)
     draft['composition'].append({'items':[{'block_id':'second-view','span':12,'priority':'supporting'}]})
     materialized = action(draft, action='materialize').json()
-    assert len({b['source_id'] for b in materialized['blocks']}) == 1
+    assert len({b['sources'][0] for b in materialized['blocks']}) == 1
     assert [s['positions'] for s in facts(materialized)['steps']] == [s['positions'] for s in derived['steps']]
     concrete = action(draft, action='edit', step=1, root='A', quality='major')
     assert concrete.status_code == 200, concrete.text
@@ -76,3 +77,23 @@ def test_progression_derives_then_materializes_and_transposes_without_losing_occ
         'inspection':{'kind':'step','block_id':block['id'],'index':0}})
     assert explained.status_code == 200, explained.text
     assert explained.json()['workspace_result']['status'] == 'unchanged'
+
+
+def test_derived_progression_preserves_key_and_other_source_bindings():
+    from app.v2.workspace import Block, Key, Placement, Row, resolve_workspace
+    from app.v2.workspace_progressions import progression_starter, edit_progression, ProgressionAction
+    draft = progression_starter()
+    key = draft.entities[0]
+    draft.entities.append(Key(id='other-key', root='C'))
+    draft.blocks[0].sources.append('other-key')
+    draft.blocks.append(Block(id='circle', kind='circle', sources=[key.id]))
+    draft.composition.append(Row(items=[Placement(block_id='circle')]))
+    facts = resolve_workspace(draft)['entities']
+    assert facts[key.id]['kind'] == 'key'
+    assert len(facts[key.id]['notes']) == 7
+    assert len(facts[key.id]['diatonicChords']) == 7
+    assert facts[key.id]['derivedProgression']['steps'][0]['root'] == 'G'
+    assert facts['other-key']['derivedProgression']['steps'][0]['root'] == 'C'
+    materialized = edit_progression(ProgressionAction(workspace=draft, block_id=draft.blocks[0].id, action='materialize'))
+    assert materialized.blocks[0].sources[1] == 'other-key'
+    assert materialized.blocks[1].sources == [key.id]

@@ -22,11 +22,11 @@ class WorkspaceBrowserModel(ScriptedTutorModel):
                 {'op': 'add_entity', 'entity': {'id': '$bright', 'root': 'G', 'mode': 'lydian', 'label': 'Brighter option'}},
                 {'op': 'add_entity', 'entity': {'id': '$dark', 'root': 'G', 'mode': 'phrygian', 'label': 'Darker option'}},
                 {'op': 'add_relation', 'relation': {'id': '$compare', 'entity_ids': ['$bright', '$dark']}},
-                {'op': 'add_block', 'block': {'id': '$view', 'kind': 'degree_strip', 'source_id': '$compare'}},
+                {'op': 'add_block', 'block': {'id': '$view', 'kind': 'degree_strip', 'sources': ['$compare']}},
             ]
             message = 'Added brighter and darker scales to compare, edit, or remove.'
         if 'invalid' in request and workspace['provenance'] != 'physical-resolution':
-            operations.append({'op': 'add_block', 'block': {'id': '$bad', 'kind': 'untrusted_html', 'source_id': workspace['entities'][0]['id']}})
+            operations.append({'op': 'add_block', 'block': {'id': '$bad', 'kind': 'untrusted_html', 'sources': [workspace['entities'][0]['id']]}})
             message = 'This explanation remains visible even though my change is invalid.'
         if 'slow' in request:
             time.sleep(1)

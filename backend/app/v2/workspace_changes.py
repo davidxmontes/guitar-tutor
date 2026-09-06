@@ -136,7 +136,6 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
             block['settings'] = operation.settings.model_dump()
             if operation.sources is not None:
                 block['sources'] = [resolve(source_id) for source_id in operation.sources]
-                block['source_id'] = block['sources'][0]
             if operation.source_roles is not None:
                 block['source_roles'] = operation.source_roles
         else:
@@ -156,7 +155,6 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
             else:
                 collection, obj = 'blocks', operation.block.model_dump()
                 obj['sources'] = [resolve(source_id) for source_id in obj['sources']]
-                obj['source_id'] = obj['sources'][0]
             if operation.op.startswith('add_'):
                 handle = obj['id']
                 if not handle.startswith('$') or handle in handles:

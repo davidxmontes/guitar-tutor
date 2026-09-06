@@ -10,10 +10,11 @@ def _caged(client, sid):
     return branch, branch['working_draft'], branch['working_draft']['entities'][0]
 
 
-def test_presets_migrate_source_id_to_sources_list():
+def test_presets_use_only_required_sources_list():
     _, _, client, sid, branch = setup()
     for block in branch['working_draft']['blocks']:
-        assert block['sources'] == [block['source_id']]
+        assert block['sources']
+        assert 'source_id' not in block
 
 
 def test_add_block_with_incompatible_source_is_rejected_not_applied():
@@ -94,5 +95,13 @@ def test_stateless_materialize_endpoint_adds_the_derived_chord_and_stays_resolva
     # the new Chord is bindable to a fretboard and the whole thing still resolves
     fret = next(b for b in next_draft['blocks'] if b['kind'] == 'fretboard')
     fret['sources'] = [next_draft['entities'][-1]['id']]
-    fret['source_id'] = fret['sources'][0]
     assert client.post('/api/v2/concept-workspaces/resolve', json=next_draft).status_code == 200
+
+
+def test_block_rejects_legacy_source_and_missing_sources():
+    import pytest
+    from pydantic import ValidationError
+    from app.v2.workspace import Block
+    for fields in ({}, {'source_id': 'key'}, {'sources': ['key'], 'source_id': 'key'}, {'sources': []}):
+        with pytest.raises(ValidationError):
+            Block(id='block', kind='circle', **fields)

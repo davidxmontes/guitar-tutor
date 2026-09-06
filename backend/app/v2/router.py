@@ -409,6 +409,8 @@ def _inspection_in_draft(inspection, entities: dict, draft) -> bool:
     if isinstance(inspection, StepInspection):
         block = next((b for b in draft.blocks if b.id == inspection.block_id), None) if draft else None
         source = entities.get(block.sources[0]) if block else None
+        if source and source['kind'] == 'key':
+            source = source.get('derivedProgression')
         return source is not None and source['kind'] == 'progression' and inspection.index < len(source['steps'])
     if isinstance(inspection, RegionInspection):
         entity = entities.get(inspection.source_id) or {}

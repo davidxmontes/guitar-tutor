@@ -29,10 +29,10 @@ def reference_voicing(chord: Chord, tuning: list[int]) -> Voicing:
 
 def resolve_progressions(workspace: ConceptWorkspace, entities: dict) -> dict:
     progressions = {}
-    for block in workspace.blocks:
-        if block.kind != 'progression' or block.source_id in progressions:
+    source_ids = {source_id for block in workspace.blocks if block.kind == 'progression' for source_id in block.sources}
+    for source in workspace.entities:
+        if not isinstance(source, Progression) and not (isinstance(source, Key) and source.id in source_ids):
             continue
-        source = next(e for e in workspace.entities if e.id == block.source_id)
         key_id = source.id if isinstance(source, Key) else source.key_id
         notes = entities[key_id]['notes']
         steps = []
@@ -73,7 +73,9 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
     block = next((b for b in draft.blocks if b.id == request.block_id and b.kind == 'progression'), None)
     if not block:
         raise ValueError('Select an existing progression view')
-    facts = resolve_workspace(draft)['entities'][block.source_id]
+    facts = resolve_workspace(draft)['entities'][block.sources[0]]
+    if facts['kind'] == 'key':
+        facts = facts['derivedProgression']
     if facts['derived']:
         steps = []
         for step in facts['steps']:
@@ -84,12 +86,14 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
         progression = Progression(id=uuid4().hex, key_id=facts['key_id'], steps=steps)
         draft.entities.append(progression)
         # All views of this same derived pattern follow its concrete identity.
-        source_id = block.source_id
+        source_id = block.sources[0]
         for view in draft.blocks:
-            if view.kind == 'progression' and view.source_id == source_id:
-                view.source_id = progression.id; view.sources = [progression.id]; view.settings.pattern = None
+            if view.kind == 'progression' and source_id in view.sources:
+                view.sources = [progression.id if id == source_id else id for id in view.sources]
+                if view.sources[0] == progression.id:
+                    view.settings.pattern = None
     else:
-        progression = next(e for e in draft.entities if e.id == block.source_id)
+        progression = next(e for e in draft.entities if e.id == block.sources[0])
     entities = {e.id:e for e in draft.entities}
     if request.action == 'edit':
         if request.step is None or request.step >= len(progression.steps):

@@ -145,21 +145,9 @@ class ViewSettings(StrictModel):
 class Block(StrictModel):
     id: Identifier
     kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'key_family']
-    source_id: Identifier | None = None
-    sources: list[Identifier] | None = Field(default=None, min_length=1, max_length=8)
+    sources: list[Identifier] = Field(min_length=1, max_length=8)
     source_roles: dict[str, Literal['primary', 'context', 'highlight']] | None = None
     settings: ViewSettings = Field(default_factory=ViewSettings)
-
-    @model_validator(mode='after')
-    def _normalize_sources(self):
-        # Accept either the legacy single `source_id` or the new `sources[]`;
-        # after validation `sources` is authoritative and `source_id` mirrors sources[0].
-        if not self.sources:
-            if not self.source_id:
-                raise ValueError('A view needs at least one source')
-            self.sources = [self.source_id]
-        self.source_id = self.sources[0]
-        return self
 
 
 class Placement(StrictModel):
@@ -324,7 +312,10 @@ def resolve_workspace(workspace: ConceptWorkspace) -> dict:
             entities[entity.id] = resolve_note_group(entity, tuning)
 
     for progression_id, resolved in resolve_progressions(workspace, entities).items():
-        entities[progression_id] = resolved
+        if resolved['derived']:
+            entities[progression_id]['derivedProgression'] = resolved
+        else:
+            entities[progression_id] = resolved
 
     relations: dict[str, dict] = {}
     for relation in workspace.relations:
