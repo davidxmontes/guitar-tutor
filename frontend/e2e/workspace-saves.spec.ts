@@ -9,7 +9,8 @@ test('Save named work, save a version, reload and reopen exact musical state', a
   const branch = () => page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid));
   await page.getByLabel('Both roots', { exact: true }).selectOption('Bb');
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
-  await page.getByRole('region', { name: 'Fretboard', exact: true }).getByLabel('Labels').selectOption('intervals');
+  await page.getByRole('region', { name: 'Fretboard', exact: true }).getByRole('button', { name: 'Select Fretboard', exact: true }).click();
+  await page.getByRole('region', { name: 'Music context', exact: true }).getByLabel('Labels').selectOption('intervals');
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
   await page.getByLabel('Study name', { exact: true }).fill('Warm scale comparison');
   await page.getByRole('button', { name: 'Save as study', exact: true }).click();
@@ -33,7 +34,8 @@ test('Save named work, save a version, reload and reopen exact musical state', a
   await page.getByRole('button', { name: 'My Stuff', exact: true }).click();
   await page.getByRole('button', { name: 'Open Warm scale comparison', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'D major vs D minor' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Fretboard', exact: true }).getByLabel('Labels')).toHaveValue('intervals');
+  await page.getByRole('region', { name: 'Fretboard', exact: true }).getByRole('button', { name: 'Select Fretboard', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Music context', exact: true }).getByLabel('Labels')).toHaveValue('intervals');
   expect((await page.getByTestId('v2-active-session').innerText())).not.toContain(sid);
   await page.screenshot({ path: '/private/tmp/issue61-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 320, height: 800 });

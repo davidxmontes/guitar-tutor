@@ -16,7 +16,8 @@ test('derive, edit, reanalyze, transpose and reopen an exact progression without
   await page.getByRole('button', { name:'Select chord 2: E major', exact:true }).click();
   await page.getByLabel('Selected chord root', { exact:true }).selectOption('A');
   await expect(page.getByText('Concrete music · key changes only reanalyze', { exact:true })).toBeVisible();
-  await expect(page.getByRole('button', { name:'Select chord 2: A major', exact:true })).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('button', { name:'Select chord 2: A major', exact:true })).toHaveAttribute('aria-pressed','false');
+  await page.getByRole('button', { name:'Select chord 2: A major', exact:true }).click();
   await expect(page.getByText('Draft autosaved', { exact:true })).toBeVisible();
   const initial = await draft();
   await page.getByText('Edit this occurrence’s frets', { exact:true }).click();
@@ -44,7 +45,8 @@ test('derive, edit, reanalyze, transpose and reopen an exact progression without
   await page.getByRole('button', { name:'Transpose progression', exact:true }).click();
   await expect(page.getByRole('alert')).toContainText('unchanged');
   expect(await draft()).toEqual(shifted);
-  await page.getByRole('region', {name:'Progression', exact:true}).getByLabel('Labels').selectOption('intervals');
+  await page.getByRole('region', {name:'Progression', exact:true}).getByRole('button', { name: 'Select Progression', exact: true }).click();
+  await page.getByRole('region', { name: 'Music context', exact: true }).getByLabel('Labels').selectOption('intervals');
   await expect(page.getByText('Draft autosaved', { exact:true })).toBeVisible();
   await page.getByLabel('Study name', { exact:true }).fill('My authored progression');
   await page.getByRole('button', { name:'Save as study', exact:true }).click();
@@ -58,7 +60,8 @@ test('derive, edit, reanalyze, transpose and reopen an exact progression without
   await page.getByRole('button', {name:'My Stuff', exact:true}).click();
   await page.getByRole('button', {name:'Open My authored progression', exact:true}).click();
   await expect(page.getByRole('button', {name:'Select chord 3: G# minor', exact:true})).toBeVisible();
-  await expect(page.getByRole('region', {name:'Progression', exact:true}).getByLabel('Labels')).toHaveValue('intervals');
+  await page.getByRole('region', {name:'Progression', exact:true}).getByRole('button', { name: 'Select Progression', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Music context', exact: true }).getByLabel('Labels')).toHaveValue('intervals');
   const newSid = (await page.getByTestId('v2-active-session').innerText()).replace('Session ', '');
   const newBid = (await page.getByTestId('v2-active-branch').innerText()).replace('Branch ', '');
   const reopened = await page.request.get(`/api/v2/sessions/${newSid}`).then(r => r.json()).then(s => s.branches.find((b:{id:string}) => b.id === newBid).working_draft);
