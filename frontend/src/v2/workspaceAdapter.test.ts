@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adaptBlock } from './workspaceAdapter';
+import { adaptBlock, chordPitchClasses } from './workspaceAdapter';
 import type {
   BlockSettings, Resolved, ResolvedEntity, ResolvedRelation, WorkspaceBlock,
 } from '../types/conceptWorkspace';
@@ -154,5 +154,16 @@ describe('adaptBlock — conflicts', () => {
     );
     expect(r.conflicts.skipped).toEqual(['v1']);
     expect(r.sources.map((e) => e.id)).toEqual(['s1']);
+  });
+});
+
+describe('chordPitchClasses', () => {
+  it('builds every tone of a derived triad, wrapping mod 12', () => {
+    expect(chordPitchClasses(9, 'minor')).toEqual([9, 0, 4]); // A minor -> A C E
+    expect(chordPitchClasses(6, 'diminished')).toEqual([6, 9, 0]); // F# dim -> F# A C
+    expect(chordPitchClasses(7, 'major')).toEqual([7, 11, 2]); // G major -> G B D
+  });
+  it('falls back to a major triad for an unknown quality', () => {
+    expect(chordPitchClasses(0, 'wat')).toEqual([0, 4, 7]);
   });
 });

@@ -1,7 +1,7 @@
 // The one SVG fretboard (spec #88 BLK-01/02/03, COMP-05, INSP-01, A11Y-01).
 // Consumes the adapter output; `layers` is fretboard-internal (no shared layer array).
 import { useMemo } from 'react';
-import { adaptBlock } from './workspaceAdapter';
+import { adaptBlock, chordPitchClasses } from './workspaceAdapter';
 import type {
   Resolved, ResolvedCagedRegion, ResolvedChord, SourceRole, TypedInspection,
   WorkspaceBlock, WorkspacePosition,
@@ -43,7 +43,8 @@ function lit(layer: Layer, inspection: TypedInspection | null): (p: WorkspacePos
     return () => layer.id === entity_id || layer.chordId === entity_id;
   }
   if (inspection.kind === 'chord') {
-    const wanted = new Set(layer.positions.filter((p) => p.pitch_class === inspection.root).map((p) => p.pitch_class));
+    // Light every tone of the derived chord, not just its root (spec #88 INSP-01).
+    const wanted = new Set(chordPitchClasses(inspection.root, inspection.quality));
     return (p) => wanted.has(p.pitch_class);
   }
   if (inspection.kind === 'region' || inspection.kind === 'region_note' || inspection.kind === 'region_pair') {

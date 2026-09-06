@@ -19,6 +19,16 @@ export const BLOCK_ACCEPTS: Record<string, readonly string[]> = {
 const pitchClasses = (notes: { pitch_class: number }[]): number[] =>
   [...new Set(notes.map((note) => note.pitch_class))];
 
+// Pitch classes of a derived {root, quality} chord — for pull-based cross-view
+// highlight (spec #88 INSP-01). Mirrors backend CHORD_INTERVALS; unknown quality
+// falls back to a major triad.
+const CHORD_INTERVALS: Record<string, number[]> = {
+  major: [0, 4, 7], minor: [0, 3, 7], diminished: [0, 3, 6], augmented: [0, 4, 8],
+  dominant7: [0, 4, 7, 10], major7: [0, 4, 7, 11], minor7: [0, 3, 7, 10],
+};
+export const chordPitchClasses = (root: number, quality: string): number[] =>
+  (CHORD_INTERVALS[quality] ?? CHORD_INTERVALS.major).map((interval) => (root + interval) % 12);
+
 const sameTuning = (a: number[], b: number[]): boolean =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
