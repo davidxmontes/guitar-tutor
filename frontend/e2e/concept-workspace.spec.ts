@@ -74,7 +74,6 @@ test('Failed autosave preserves editable music and retries without partial serve
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'My Stuff', exact: true })).toBeEnabled();
-  await page.getByText('Edit each scale and tuning', { exact: true }).click();
   await page.getByLabel('Scale 2 mode').selectOption('dorian');
   await expect(page.getByRole('heading', { name: 'Bb major vs Bb dorian' })).toBeVisible();
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();

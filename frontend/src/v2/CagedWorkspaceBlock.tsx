@@ -3,10 +3,10 @@ import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { cagedSelection } from './workspaceInspection';
 
 const control = 'min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] px-3 py-2 disabled:opacity-50 aria-pressed:ring-2 aria-pressed:ring-[var(--accent-700)]';
-export function CagedWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, readOnly, disabled, onWorkspaceChange, onKeepRegion }: {
+export function CagedWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, readOnly, disabled, onKeepRegion }: {
   block: WorkspaceBlock; workspace: ConceptWorkspace; resolved: ResolvedWorkspace; inspection: Inspection | null;
   onInspect: (inspection: Inspection) => void; readOnly: boolean; disabled: boolean;
-  onWorkspaceChange?: (workspace: ConceptWorkspace) => void; onKeepRegion?: (shape: string) => void;
+  onKeepRegion?: (shape: string) => void;
 }) {
   const source = resolved.caged[block.source_id];
   const { selected, pair, regions, pitch } = cagedSelection(block.source_id, resolved, inspection);
@@ -24,11 +24,6 @@ export function CagedWorkspaceBlock({ block, workspace, resolved, inspection, on
     if (chord.kind !== 'chord') return null;
     return <div className="space-y-3">
       <p>One chord, five connected shapes. Select a region to find its notes in both views.</p>
-      {!readOnly && <fieldset disabled={disabled} className="flex flex-wrap gap-3">
-        <label>CAGED root<select aria-label="CAGED root" className={`${control} block`} value={chord.root} onChange={e => onWorkspaceChange?.({...workspace, entities:workspace.entities.map(item => item.id === chord.id ? {...chord, root:e.target.value} : item)})}>{['C','C#','Db','D','Eb','E','F','F#','Gb','G','Ab','A','Bb','B'].map(root => <option key={root}>{root}</option>)}</select></label>
-        <label>CAGED quality<select aria-label="CAGED quality" className={`${control} block`} value={chord.quality} onChange={e => onWorkspaceChange?.({...workspace, entities:workspace.entities.map(item => item.id === chord.id ? {...chord, quality:e.target.value} : item)})}><option value="major">Major</option><option value="minor">Minor</option></select></label>
-        <label>CAGED tuning<select aria-label="CAGED tuning" className={`${control} block`} value={JSON.stringify(workspace.tuning)} onChange={e => onWorkspaceChange?.({...workspace,tuning:JSON.parse(e.target.value)})}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]','[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
-      </fieldset>}
       <div className="flex flex-wrap gap-2">{source.regions.map(region => <button key={region.shape} className={control} disabled={readOnly} aria-label={`Inspect ${region.shape} shape`} aria-pressed={selected.shape === region.shape} onClick={() => inspect('region', region.shape)}>{region.shape} shape · frets {region.fret_start}–{region.fret_end}</button>)}</div>
       <div className="flex flex-wrap gap-2">{tones(selected.positions).map(p => <button key={p.pitch_class} className={control} {...noteButton(selected.shape,p)}>{block.settings.labels === 'notes' ? p.note : p.degree}</button>)}</div>
       <button className={control} disabled={readOnly} onClick={() => inspect('region_pair', pair.key)}>Inspect adjacent regions · {pair.key.replace(':',' → ')}</button>

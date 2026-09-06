@@ -201,7 +201,7 @@ export function TutorChat({
   return (
     <div
       data-testid="tutor-chat"
-      className={`flex min-w-0 flex-col gap-3 rounded-lg border p-3 w-full ${wide ? "" : "xl:w-[300px] xl:flex-none xl:sticky xl:top-3 xl:max-h-[calc(100vh-24px)]"}`}
+      className={`flex min-w-0 flex-col gap-3 rounded-lg border p-3 w-full ${wide ? "min-h-0 flex-1" : "xl:w-[300px] xl:flex-none xl:sticky xl:top-3 xl:max-h-[calc(100vh-24px)]"}`}
       style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
     >
       {!wide && <div className="flex items-center justify-between gap-2">
