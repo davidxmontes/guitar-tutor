@@ -14,7 +14,6 @@ export const BLOCK_ACCEPTS: Record<string, readonly string[]> = {
   circle: ['key'],
   progression: ['progression', 'key'],
   key_family: ['key'],
-  caged: ['chord'],
 };
 
 const pitchClasses = (notes: { pitch_class: number }[]): number[] =>
