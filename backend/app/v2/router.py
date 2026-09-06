@@ -592,8 +592,8 @@ async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_cur
 
 # --- Harmony: deterministic entry and learner-owned musical controls ---
 from uuid import uuid4
-from app.v2.harmony_state import ChordRef, HarmonyExploration, HarmonyFocus, TonalCenter, Tuning
-from app.v2.harmony import change_subject, change_tuning, resolve_harmony
+from app.v2.harmony_state import ChordRef, HarmonyExploration, HarmonyFocus, TonalCenter, Tuning, PinnedVoicing
+from app.v2.harmony import change_subject, change_tuning, resolve_harmony, pin_voicing, unpin_voicing
 from app.v2.workspace import StrictModel
 from app.v2.turns import live_composition
 from app.v2.concepts import SCALE_NAMES, CIRCLE_KEYS
@@ -605,6 +605,8 @@ class HarmonyEdit(StrictModel):
     tuning: Tuning | None = None
     focus: HarmonyFocus | None = None
     add_scratch: ChordRef | None = None
+    pin: PinnedVoicing | None = None
+    unpin: PinnedVoicing | None = None
 
 
 def owned_branch(store, session_id, branch_id, user_id):
@@ -627,12 +629,15 @@ def harmony_response(branch, store, user_id):
 
 
 @router.post('/harmony/open', response_model=Session)
-async def open_harmony(center: TonalCenter, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+async def open_harmony(subject: TonalCenter | ChordRef, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     session = store.create_session(user_id)
     branch = session.branches[0]
-    store.update_branch(session.id, branch.id, user_id, title=f'{center.root} {center.scale.replace("_", " ")}',
-                        harmony_exploration=HarmonyExploration(tonal_center=center,
-                            provenance={'kind': 'concept-seed', 'concept': f'{center.root} {center.scale}'}))
+    is_scale = isinstance(subject, TonalCenter)
+    label = f'{subject.root} {subject.scale if is_scale else subject.quality}'
+    state = HarmonyExploration(tonal_center=subject if is_scale else None,
+        focus={'kind': 'scale'} if is_scale else {'kind': 'chord', 'chord': subject},
+        provenance={'kind': 'concept-seed', 'concept': label})
+    store.update_branch(session.id, branch.id, user_id, title=label.replace('_', ' '), harmony_exploration=state)
     return store.get_session(session.id, user_id)
 
 
@@ -663,6 +668,10 @@ async def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdi
         if edit.add_scratch is not None:
             data['scratch'].append({'id': uuid4().hex, **edit.add_scratch.model_dump()})
         state = HarmonyExploration.model_validate(data)
+        if edit.pin is not None:
+            state = pin_voicing(state, edit.pin.chord, edit.pin.voicing)
+        if edit.unpin is not None:
+            state = unpin_voicing(state, edit.unpin.chord, edit.unpin.voicing)
         updated = store.update_branch(session_id, branch_id, user_id, harmony_exploration=state)
         return harmony_response(updated, store, user_id)
     except ValueError as exc:

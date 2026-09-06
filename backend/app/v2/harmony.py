@@ -77,7 +77,8 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
     for item in exploration.scratch:
         voicings = chord_voicings(item, exploration.tuning)
         scratch.append({**item.model_dump(), 'voicing': voicings[0] if voicings else None})
-    return {'degrees': degrees, 'palette': palette, 'circle': circle,
+    function = next((item['numeral'] for item in palette if chord and pitch_class(item['root']) == pitch_class(chord.root) and all(note['pitch_class'] in {degree['pitch_class'] for degree in degrees} for note in notes)), None) if center else None
+    return {'function': function, 'degrees': degrees, 'palette': palette, 'circle': circle,
             'scale_positions': note_positions(degrees, exploration.tuning),
             'chord_positions': note_positions(notes, exploration.tuning), 'chord_notes': notes,
             'voicing_positions': physical, 'caged_regions': regions,

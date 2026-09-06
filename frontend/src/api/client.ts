@@ -302,8 +302,8 @@ class ApiClient {
     return this.fetch<V2Session[]>('/v2/sessions');
   }
 
-  async openHarmony(root: string, scale: string): Promise<V2Session> {
-    return this.fetch('/v2/harmony/open', { method: 'POST', body: JSON.stringify({ root, scale }) });
+  async openHarmony(root: string, scale: string, chord = false): Promise<V2Session> {
+    return this.fetch('/v2/harmony/open', { method: 'POST', body: JSON.stringify(chord ? { root, quality: scale } : { root, scale }) });
   }
 
   async getHarmony(session: string, branch: string): Promise<import('../v2/harmony').HarmonySurface> {

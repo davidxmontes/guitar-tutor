@@ -18,14 +18,14 @@ export function NoteGroupOverlay({ group, children }: { group: NoteLayer; childr
 export function CandidateSet({ candidates, onPlay, onKeep, onDevelop, onDismiss }: {
   candidates: { id: string; label: string }[];
   onPlay: (id: string) => void; onKeep: (id: string) => void;
-  onDevelop: (id: string) => void; onDismiss: (id: string) => void;
+  onDevelop?: (id: string) => void; onDismiss: (id: string) => void;
 }) {
   return <section aria-label="Candidates">
     {candidates.map(candidate => <div key={candidate.id} role="group" aria-label={`Candidate: ${candidate.label}`}>
       <h3>{candidate.label}</h3>
       <div className="music-controls">
         {([['Play', onPlay], ['Keep', onKeep], ['Develop', onDevelop], ['Dismiss', onDismiss]] as const).map(([label, handler]) =>
-          <button key={label} type="button" className="music-button" onClick={() => handler(candidate.id)}>{label}</button>)}
+          handler && <button key={label} type="button" className="music-button" onClick={() => handler(candidate.id)}>{label}</button>)}
       </div>
     </div>)}
   </section>;
