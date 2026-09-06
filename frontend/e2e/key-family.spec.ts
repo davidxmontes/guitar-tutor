@@ -19,9 +19,9 @@ test('key-family inspects diatonic chords across views and materializes them', a
 
   // --- Add a key-family view bound to the G-major key (also: key-family in Add view) ---
   await page.getByRole('button', { name: 'Add View', exact: true }).click();
+  await page.getByLabel('View type').selectOption('key_family');
   await page.getByLabel('Musical source').selectOption(keyId);
   await expect(page.getByLabel('View type')).toContainText('Key family');
-  await page.getByLabel('View type').selectOption('key_family');
   await page.getByRole('button', { name: 'Add selected view', exact: true }).click();
 
   const keyFamily = page.getByRole('region', { name: 'Key family', exact: true });
@@ -35,8 +35,8 @@ test('key-family inspects diatonic chords across views and materializes them', a
 
   // --- Add a fretboard bound to the same key so a numeral can light its tones ---
   await page.getByRole('button', { name: 'Add View', exact: true }).click();
-  await page.getByLabel('Musical source').selectOption(keyId);
   await page.getByLabel('View type').selectOption('fretboard');
+  await page.getByLabel('Musical source').selectOption(keyId);
   await page.getByRole('button', { name: 'Add selected view', exact: true }).click();
 
   // DOM order of fretboard regions: [0] the transition board, [1] the key board.
@@ -66,8 +66,8 @@ test('key-family inspects diatonic chords across views and materializes them', a
 
   // --- Bind the new Chord to a fretboard via Add view; it renders ---
   await page.getByRole('button', { name: 'Add View', exact: true }).click();
-  await page.getByLabel('Musical source').selectOption(amId);
   await page.getByLabel('View type').selectOption('fretboard');
+  await page.getByLabel('Musical source').selectOption(amId);
   await page.getByRole('button', { name: 'Add selected view', exact: true }).click();
 
   const amFret = page.getByRole('region', { name: 'Fretboard', exact: true }).last();

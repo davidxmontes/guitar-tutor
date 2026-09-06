@@ -17,7 +17,7 @@ from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.workspace_caged import CagedMaterialize, materialize_region, valid_caged_inspection
 from app.v2.workspace_progressions import ProgressionAction, edit_progression
-from app.v2.workspace_changes import (DerivedChordInspection, EntityChordInspection, InspectionTarget,
+from app.v2.workspace_changes import (ViewUpdate, DerivedChordInspection, EntityChordInspection, InspectionTarget,
     PitchInspection, RegionInspection, StepInspection, VoicingInspection, apply_workspace_patch,
     materialize_inspection)
 from app.v2.workspace import ConceptWorkspace, StrictModel, pitch_class, resolve_workspace
@@ -904,6 +904,22 @@ async def keep_caged_region(data: CagedMaterialize, user_id: str = Depends(get_c
         return materialize_region(data)
     except ValueError as exc:
         raise HTTPException(422, 'That region cannot be kept within the current tuning or workspace bounds. Your draft is unchanged.') from exc
+
+
+class UpdateWorkspaceViewRequest(StrictModel):
+    workspace: ConceptWorkspace
+    view: ViewUpdate
+
+
+@router.post('/concept-workspaces/update-view', response_model=ConceptWorkspace)
+async def update_workspace_view(data: UpdateWorkspaceViewRequest, user_id: str = Depends(get_current_user)):
+    try:
+        return apply_workspace_patch(data.workspace, {
+            'protocol_version': 1, 'base_version': data.workspace.version,
+            'operations': [data.view.model_dump(exclude_none=True)],
+        }, '')
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(422, 'Those sources or settings are incompatible with this view. Your draft is unchanged.') from exc
 
 
 class MaterializeInspectionRequest(StrictModel):

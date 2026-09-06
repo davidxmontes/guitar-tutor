@@ -23,7 +23,7 @@ cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install 
 ## Known gate gaps (verified 2026-09-06)
 
 Verified against a clean archive of `main-v2` at `c2492c7` with the installed
-lockfile dependencies. These existing failures remain outside #96; no passing
+lockfile dependencies. These existing failures remain outside #95; no passing
 test may regress.
 
 - `npm run lint`: 16 errors / 4 warnings on both baseline and integration.
@@ -32,7 +32,7 @@ test may regress.
 - `python -m pytest -q`: the same single failure on both branches,
   `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`.
   It patches the removed `chords_router.get_voicing_positions` symbol.
-  Baseline: 248 passed; after #96: 267 passed. All V2 backend tests pass.
+  Baseline: 248 passed; after #95: 268 passed. All V2 backend tests pass.
 - #96 clears the four formerly failing Tutor/history browser tests. The full
   browser suite now passes 43/43, including multi-source Tutor composition,
   re-binding without duplicate Blocks, persistent NoteGroup emphasis, transient
@@ -43,6 +43,14 @@ test may regress.
 only the existing large-chunk advisory. TutorFocus contains only one-turn
 attention; cross-workspace comparison shapes use separate `comparison_groups`
 response data. Existing historical comparison shapes remain readable.
+
+#95 verification: 46/46 browser tests, 17 adapter tests, and both production
+build modes pass. The Music bar now owns selected-Block settings and source
+chips; inspected notes/chords/steps take precedence, with a bottom sheet at
+320px. `update-view` delegates to the existing validated `update_view` operation.
+One initial full-suite run hit the existing SongStudy test's immediate server
+read before its asynchronous selection save completed; its isolated rerun and
+the final full suite passed. If this recurs, wait for that save in the test.
 
 ## Local dev
 

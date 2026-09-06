@@ -27,7 +27,8 @@ test('CAGED regions coordinate views and become independent editable voicings on
   await expect(cagedFret.getByText(/Shared positions:/)).toBeVisible();
 
   // Changing a view setting never materializes anything.
-  await cagedFret.getByLabel('Labels').selectOption('intervals');
+  await cagedFret.getByRole('button', { name: 'Select Fretboard', exact: true }).click();
+  await page.getByRole('region', { name: 'Music context', exact: true }).getByLabel('Labels').selectOption('intervals');
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   expect((await draft()).entities).toEqual(before.entities);
 
@@ -38,6 +39,7 @@ test('CAGED regions coordinate views and become independent editable voicings on
   await cagedFret.getByRole('button',{name:'Inspect A shape',exact:true}).click();
   await cagedFret.getByRole('button',{name:'Keep selected voicing',exact:true}).click();
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
+  await expect.poll(async () => (await draft()).entities.filter((e:{kind:string}) => e.kind === 'voicing').length).toBe(1);
   const kept=await draft();
   expect(kept.entities.filter((e:{kind:string})=>e.kind==='voicing')).toHaveLength(1);
 
@@ -56,11 +58,12 @@ test('CAGED regions coordinate views and become independent editable voicings on
   await expect(page.getByRole('region',{name:'Fretboard',exact:true})).toHaveCount(3);
   await page.getByRole('button',{name:'Add View',exact:true}).click();
   await page.getByLabel('Musical source').selectOption(before.entities[0].id);
-  await expect(page.getByLabel('View type').getByRole('option')).toHaveText(['Fretboard','Degree strip','Chord diagrams']);
+  await expect(page.getByLabel('View type').getByRole('option')).toHaveText(['Fretboard','Degree strip','Chord diagrams','Circle','Progression','Key family']);
   await page.getByRole('button',{name:'Add selected view',exact:true}).click();
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   await expect(page.getByRole('region',{name:'Fretboard',exact:true})).toHaveCount(4);
-  await page.getByRole('region',{name:'Fretboard',exact:true}).last().getByRole('button',{name:'Remove View',exact:true}).click();
+  await page.getByRole('region',{name:'Fretboard',exact:true}).last().getByRole('button',{name:'Select Fretboard',exact:true}).click();
+  await page.getByRole('region',{name:'Music context',exact:true}).getByRole('button',{name:'Remove View',exact:true}).click();
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   await expect(page.getByRole('region',{name:'Fretboard',exact:true})).toHaveCount(3);
 

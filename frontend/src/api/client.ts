@@ -101,6 +101,10 @@ class ApiClient {
     return this.fetch('/v2/concept-workspaces/materialize', { method: 'POST', body: JSON.stringify({ workspace, inspection }) });
   }
 
+  updateWorkspaceView(workspace: ConceptWorkspace, block: import('../types/conceptWorkspace').WorkspaceBlock): Promise<ConceptWorkspace> {
+    return this.fetch('/v2/concept-workspaces/update-view', { method: 'POST', body: JSON.stringify({ workspace, view: { op: 'update_view', id: block.id, settings: block.settings, sources: block.sources, source_roles: block.source_roles ?? {} } }) });
+  }
+
   resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<Resolved> {
     return this.fetch('/v2/concept-workspaces/resolve', { method: 'POST', body: JSON.stringify(workspace) });
   }
