@@ -11,13 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from app.v2.workspace_catalog import OpenWorkspaceRequest, explore_catalog, open_recipe
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
-from app.v2.workspace_caged import CagedMaterialize, caged_starter, materialize_region, valid_caged_inspection
-from app.v2.workspace_progressions import ProgressionAction, edit_progression, progression_starter
+from app.v2.workspace_caged import CagedMaterialize, materialize_region, valid_caged_inspection
+from app.v2.workspace_progressions import ProgressionAction, edit_progression
 from app.v2.workspace_changes import InspectionTarget, apply_workspace_patch
-from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace, scale_comparison, physical_resolution
+from app.v2.workspace import ConceptWorkspace, StrictModel, resolve_workspace
 from app.v2.concepts import build_concept_study, get_study_catalog
 from app.v2.models import (
     CircleState,
@@ -806,7 +807,7 @@ class RestoreArtifactRequest(SaveArtifactRequest):
 
 @router.get("/library")
 async def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    return [{**a.model_dump(exclude={"payload"}), "provenance": a.payload.get("created_from") or a.payload.get("inspired_by") or ({"title": a.title, "song_id": a.payload.get("song_id"), "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
+    return [{**a.model_dump(exclude={"payload"}), "is_concept_workspace": a.kind == "concept_study" and "entities" in a.payload, "provenance": a.payload.get("created_from") or a.payload.get("inspired_by") or ({"title": a.title, "song_id": a.payload.get("song_id"), "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
             for a in store.list_artifacts(user_id) if a.saved_at]
 
 
@@ -899,15 +900,16 @@ async def save_concept_selection(artifact_id: str, data: SaveConceptRequest, use
 # ConceptWorkspace draft routes intentionally do not create saved artifacts.
 
 
-class OpenWorkspaceRequest(StrictModel):
-    recipe: Literal['scale-comparison', 'physical-resolution', 'four-chord-progression', 'caged-exploration']
+@router.get('/concept-workspaces/catalog')
+async def get_explore_catalog(user_id: str = Depends(get_current_user)):
+    return explore_catalog()
 
 
 @router.post('/sessions/{session_id}/concept-workspaces', response_model=Branch, status_code=201)
 async def open_concept_workspace(session_id: str, data: OpenWorkspaceRequest,
     user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
-        workspace = caged_starter() if data.recipe == 'caged-exploration' else progression_starter() if data.recipe == 'four-chord-progression' else physical_resolution() if data.recipe == 'physical-resolution' else scale_comparison()
+        workspace = open_recipe(data)
         return store.create_branch(session_id, user_id, title=workspace.title,
             current_artifact_kind='concept_study', working_draft=workspace.model_dump())
     except NotFoundError as exc:

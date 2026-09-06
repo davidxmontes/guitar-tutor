@@ -29,3 +29,5 @@ export interface ResolvedWorkspace {
   block_sources: Record<WorkspaceBlock['kind'], (WorkspaceEntity['kind'] | 'compare' | 'transition')[]>;
 }
 export interface Inspection { source_id: string; kind: 'pitch' | 'chord' | 'voicing' | 'transition' | 'step' | 'region' | 'region_note' | 'region_pair'; key: number | string }
+
+export interface ExploreRecipe { id: string; title: string; question: string; description: string; search: string; starter: boolean; request: {recipe: ConceptWorkspace['provenance']; mode?: ScaleMode} }

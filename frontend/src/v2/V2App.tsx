@@ -1,3 +1,5 @@
+import { ExploreHome } from './ExploreHome';
+import type { ScaleMode } from '../types/conceptWorkspace';
 import { ConceptWorkspacePanel } from './ConceptWorkspace';
 import { MyStuff } from './MyStuff';
 import { circleContext } from './circleState';
@@ -42,10 +44,10 @@ export function V2App() {
     }
   };
 
-  const handleComparison = async (recipe: 'scale-comparison' | 'physical-resolution' | 'four-chord-progression' | 'caged-exploration' = 'scale-comparison') => {
+  const handleComparison = async (recipe: 'scale-comparison' | 'physical-resolution' | 'four-chord-progression' | 'caged-exploration' = 'scale-comparison', mode?: ScaleMode) => {
     try {
       const session = activeSession ?? await apiClient.createV2Session();
-      const branch = await apiClient.openConceptWorkspace(session.id, recipe);
+      const branch = await apiClient.openConceptWorkspace(session.id, recipe, mode);
       setActiveSession({ ...session, branches: [...session.branches, branch] });
       setActiveBranchId(branch.id); setShowConceptPicker(false);
     } catch (err) { setError(String(err)); }
@@ -162,7 +164,7 @@ export function V2App() {
           <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); setShowConceptPicker(false); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
           <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
         </fieldset>
-        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison()}>Explore major vs minor</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('physical-resolution')}>Why does D resolve to G?</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('four-chord-progression')}>Explore I–V–vi–IV</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('caged-exploration')}>Connect CAGED shapes</button>
+        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2 focus-visible:outline-2 focus-visible:outline-[var(--accent-700)]" onClick={() => { setActiveSession(null); setShowConceptPicker(false); }}>Explore</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
@@ -207,8 +209,9 @@ export function V2App() {
   }
 
   return (
-    <main className="p-4 sm:p-6">
+    <main className="mx-auto max-w-7xl p-4 sm:p-6">
       <h1 className="text-2xl font-black">Guitar Tutor</h1>
+      <ExploreHome onStart={request => handleComparison(request.recipe, request.mode)} onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       {error && <p role="alert">{error}</p>}
       {sessions === null && <p role="status">Loading your work…</p>}
       {sessions !== null && sessions.length > 0 && (
@@ -234,7 +237,7 @@ export function V2App() {
           </div>
         </section>
       )}
-      <section className="my-5 space-y-2"><h2 className="text-lg font-bold">Explore</h2><p>What changes between major and minor?</p><button type="button" className="min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison()}>Explore major vs minor</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('physical-resolution')}>Why does D resolve to G?</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('four-chord-progression')}>Explore I–V–vi–IV</button><button disabled={draftPending} type="button" className="mb-3 ml-2 min-h-11 rounded-lg border px-3 py-2" onClick={() => handleComparison('caged-exploration')}>Connect CAGED shapes</button></section>
+
       <MyStuff onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
       <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>
