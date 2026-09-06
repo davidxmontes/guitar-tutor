@@ -69,8 +69,8 @@ def test_view_changes_keep_music_and_atomic_concurrent_saves(client):
     original = branch['working_draft']
     draft = deepcopy(original)
     draft['blocks'][0]['settings']['shared_only'] = True
-    draft['blocks'].pop()
-    draft['composition'].pop()
+    dropped = draft['blocks'].pop()['id']
+    draft['composition'] = [row for row in ({'items': [item for item in row['items'] if item['block_id'] != dropped]} for row in draft['composition']) if row['items']]
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: client.put(url, json={'expected_version': 1, 'workspace': draft}), range(2)))
     assert sorted(result.status_code for result in results) == [200, 409]

@@ -95,7 +95,7 @@ def test_alternatives_use_application_ids_and_preserve_existing_composition():
     assert result['status'] == 'applied'
     draft = result['branch']['working_draft']
     assert draft['entities'][:2] == original['entities']
-    assert draft['composition'][:2] == original['composition']
+    assert draft['composition'][:len(original['composition'])] == original['composition']
     assert not any(obj['id'].startswith('$') for obj in draft['entities'] + draft['relations'] + draft['blocks'])
     assert draft['relations'][-1]['entity_ids'] == [e['id'] for e in draft['entities'][-2:]]
     assert draft['blocks'][-1]['source_id'] == draft['relations'][-1]['id']

@@ -192,7 +192,7 @@ def scale_comparison() -> ConceptWorkspace:
         entities=[Scale(id=primary, root='G', mode='major'), Scale(id=comparison, root='G', mode='natural_minor')],
         relations=[Compare(id=relation, entity_ids=[primary, comparison])],
         blocks=[Block(id=fretboard, kind='fretboard', source_id=relation), Block(id=degrees, kind='degree_strip', source_id=relation)],
-        composition=[Row(items=[Placement(block_id=fretboard, priority='primary')]), Row(items=[Placement(block_id=degrees)])])
+        composition=[Row(items=[Placement(block_id=fretboard, priority='primary', span=8), Placement(block_id=degrees, span=4)])])
 
 
 NATURAL_PITCHES = dict(zip('CDEFGAB', [0, 2, 4, 5, 7, 9, 11]))

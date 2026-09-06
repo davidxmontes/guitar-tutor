@@ -31,13 +31,13 @@ export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, 
   const selected = (id: string, note: WorkspaceNote) => isInspected(id, [note], inspection, workspace);
   const inspect = (id: string, note: WorkspaceNote) => onInspect({ source_id: id, kind: 'pitch', key: note.pitch_class });
   const label = (id: string, note: WorkspaceNote) => `${musical(id).label}: ${note.note}, degree ${note.degree}${relation ? shared.includes(note.pitch_class) ? ', shared' : transition ? ids[0] === id ? ', removed' : ', added' : ', changed' : ''}`;
-  if (block.kind === 'degree_strip') return <div className="space-y-4">{ids.map(id => <div key={id}>
-    <h4 className="mb-2 font-semibold">{resolved.scales[id].label}</h4>
-    <div className="flex flex-wrap gap-2">{resolved.scales[id].notes.filter(note => !block.settings.shared_only || shared.includes(note.pitch_class)).map(note => <button
+  if (block.kind === 'degree_strip') return <div className="space-y-3">{ids.map(id => <div key={id}>
+    <h4 className="mb-1.5 text-sm font-semibold">{resolved.scales[id].label}</h4>
+    <div className="flex flex-wrap gap-1.5">{resolved.scales[id].notes.filter(note => !block.settings.shared_only || shared.includes(note.pitch_class)).map(note => <button
       key={note.degree} type="button" disabled={readOnly} aria-label={label(id, note)} aria-pressed={selected(id, note)} onClick={() => inspect(id, note)}
-      className="min-h-14 min-w-14 rounded-lg border px-3 py-2" style={noteStyle(shared.includes(note.pitch_class), selected(id, note))}>
-      <strong className="block">{block.settings.labels === 'notes' ? note.note : note.degree}</strong>
-      <small>{relation ? shared.includes(note.pitch_class) ? 'shared' : 'changed' : note.degree}</small>
+      className="flex min-h-11 min-w-11 flex-col items-center justify-center rounded-md border px-2 py-1 leading-tight" style={noteStyle(shared.includes(note.pitch_class), selected(id, note))}>
+      <strong className="block text-sm">{block.settings.labels === 'notes' ? note.note : note.degree}</strong>
+      <small className="text-[10px]">{relation ? shared.includes(note.pitch_class) ? 'shared' : 'changed' : note.degree}</small>
     </button>)}</div>
   </div>)}</div>;
 
