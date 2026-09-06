@@ -149,3 +149,37 @@ test('Failed autosave preserves editable music and retries without partial serve
   await expect(page.getByRole('alert')).toContainText('previous draft is unchanged');
   await expect(page.getByRole('heading', { name: 'Bb major vs Bb dorian' })).toBeVisible();
 });
+
+// T4 (BLK-05): the degree-comparison view is the same degree_strip block with two
+// sources; settings.comparison drives the diff marking.
+test('Degree strip stacks two scales per degree and settings.comparison drives the marking', async ({ page }) => {
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Explore major vs minor' }).click();
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  const sid = (await page.getByTestId('v2-active-session').innerText()).replace('Session ', '');
+  const bid = (await page.getByTestId('v2-active-branch').innerText()).replace('Branch ', '');
+  const strip = page.getByRole('region', { name: 'Degree strip', exact: true });
+
+  // highlight (default): the two scales stack per degree with differing pitch classes marked.
+  await expect(strip.getByRole('button', { name: /G major: B, degree 3, changed/ })).toBeVisible();
+  await expect(strip.getByRole('button', { name: /G minor: Bb, degree b3, changed/ })).toBeVisible();
+
+  // shared-only: only the degrees the two scales share.
+  await strip.getByLabel('Shared notes only').click();
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  await expect(strip.getByRole('button', { name: /degree (3|b3), changed/ })).toHaveCount(0);
+  await expect(strip.getByRole('button', { name: /G major: G, degree 1, shared/ })).toBeVisible();
+  await strip.getByLabel('Shared notes only').click();
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  await expect(strip.getByRole('button', { name: /G minor: Bb, degree b3, changed/ })).toBeVisible();
+
+  // plain (API-set): every degree shown, no diff marking.
+  const draft = await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid).working_draft);
+  draft.blocks.find((blk: {kind: string}) => blk.kind === 'degree_strip').settings.comparison = 'plain';
+  expect((await page.request.put(`/api/v2/sessions/${sid}/branches/${bid}/workspace`, { data: { expected_version: draft.version, workspace: draft } })).ok()).toBe(true);
+  await page.reload();
+  await page.locator(`[data-session-id="${sid}"]`).click();
+  await page.getByRole('tab', { name: /G major vs G minor/ }).click();
+  await expect(strip.getByRole('button', { name: 'G major: B, degree 3', exact: true })).toBeVisible();
+  await expect(strip.getByRole('button', { name: /, changed/ })).toHaveCount(0);
+});
