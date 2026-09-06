@@ -1,5 +1,5 @@
 from copy import deepcopy
-from tests.v2.test_concept_studies_router import client, store
+from tests.v2.workspace_fixtures import client, store
 
 
 def opened(client):

@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.v2.models import ProgressionChord, ProgressionPayload
-from app.v2.concepts import build_concept_study
+from app.v2.concepts import caged_regions
 from app.v2.tutor.contract import (
     ConceptSuggestion,
     FretPosition,
@@ -124,10 +124,10 @@ def test_tutor_can_offer_only_publicly_supported_chord_studies() -> None:
 
 def test_tutor_can_offer_caged_only_as_a_supported_physical_visualization() -> None:
     suggestion = ConceptSuggestion(concept_id="caged", root="C", label="C major CAGED")
-    visualization = build_concept_study(suggestion.root, suggestion.concept_id)
+    visualization = caged_regions(suggestion.root)
 
-    assert len(visualization.regions) == 5
-    assert all(region.positions for region in visualization.regions)
+    assert len(visualization) == 5
+    assert all(region.positions for region in visualization)
 
 
 def test_tutor_terminal_candidates_hold_symbolic_chords_only() -> None:

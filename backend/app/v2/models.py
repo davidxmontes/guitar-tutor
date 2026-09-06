@@ -237,155 +237,12 @@ class ConceptPosition(ConceptNote):
     fret: int = Field(ge=0, le=22)
 
 
-class ConceptRelationship(BaseModel):
-    id: str
-    label: str
-    explanation: str
-    notes: list[ConceptNote]
-    positions: list[ConceptPosition]
-
-
-class ConceptPayloadBase(BaseModel):
-    """Concrete persisted state for one theory workspace.
-
-    Facts and physical positions are resolved deterministically by V2. The
-    tutor can teach from them, but it does not own or mutate them.
-    """
-
-    root: str
-    display_name: str
-    explanation: str
-    created_from: Optional[dict[str, Any]] = None
-    tuning: list[str]
-    fret_start: int
-    fret_end: int
-    overlay: Literal["notes", "intervals"] = "notes"
-
-
-class ScaleStudyPayload(ConceptPayloadBase):
-    visualization: Literal["scale"] = "scale"
-    concept_id: ScaleConceptId
-    notes: list[ConceptNote]
-    positions: list[ConceptPosition]
-    relationships: list[ConceptRelationship]
-    comparison_id: Optional[ScaleConceptId] = None
-
-
-class StudyInterval(BaseModel):
-    note: str
-    label: str
-    name: str
-    semitones: int = Field(ge=0, le=11)
-
-
-class IntervalStudyPayload(ConceptPayloadBase):
-    visualization: Literal["interval"] = "interval"
-    concept_id: IntervalConceptId = "intervals"
-    selected_interval: int = Field(ge=0, le=11)
-    intervals: list[StudyInterval]
-    positions: list[ConceptPosition]
-
-
-class ChordStudyVoicing(BaseModel):
-    label: str
-    name: str
-    positions: list[ConceptPosition]
-
-
-class ChordStudyPayload(ConceptPayloadBase):
-    visualization: Literal["chord"] = "chord"
-    concept_id: ChordConceptId
-    quality: ChordQualityId
-    notes: list[ConceptNote]
-    positions: list[ConceptPosition]
-    voicings: list[ChordStudyVoicing]
-    selected_voicing: int = Field(ge=0)
-    relationships: list[ConceptRelationship]
-    comparison_quality: Optional[ChordQualityId] = None
-
-
 class CagedRegion(BaseModel):
     shape: CagedShapeId
     label: str
     fret_start: int = Field(ge=0, le=22)
     fret_end: int = Field(ge=0, le=22)
     positions: list[ConceptPosition]
-
-
-class CagedStudyPayload(ConceptPayloadBase):
-    visualization: Literal["caged"] = "caged"
-    concept_id: CagedConceptId = "caged"
-    quality: CagedQualityId
-    notes: list[ConceptNote]
-    positions: list[ConceptPosition]
-    regions: list[CagedRegion]
-    selected_region: CagedShapeId
-    comparison_region: Optional[CagedShapeId] = None
-    overlap_positions: list[ConceptPosition] = Field(default_factory=list)
-
-
-class CircleState(BaseModel):
-    root: str
-    selected_chord: int = Field(default=0, ge=0, le=6)
-    selected_sequence: Literal["primary", "pop", "turnaround"] = "primary"
-    overlay: Literal["notes", "intervals"] = "notes"
-
-
-class CircleChord(BaseModel):
-    numeral: str
-    chord: ProgressionChord
-    notes: list[ConceptNote]
-
-
-class CircleSequence(BaseModel):
-    id: str
-    label: str
-    degrees: list[int]
-
-
-class CircleKey(BaseModel):
-    root: str
-    relative_minor: str
-
-
-class CircleStudyPayload(ConceptPayloadBase):
-    visualization: Literal["circle"] = "circle"
-    concept_id: Literal["circle"] = "circle"
-    relative_minor: str
-    accidentals: list[str]
-    neighbors: list[str]
-    neighbor_keys: list[str]
-    keys: list[CircleKey]
-    chords: list[CircleChord]
-    sequences: list[CircleSequence]
-    selected_chord: int
-    selected_sequence: str
-    notes: list[ConceptNote]
-    positions: list[ConceptPosition]
-
-
-ConceptStudyPayload = Annotated[
-    ScaleStudyPayload | IntervalStudyPayload | ChordStudyPayload | CagedStudyPayload | CircleStudyPayload,
-    Field(discriminator="visualization"),
-]
-
-
-class StudyCatalogConcept(BaseModel):
-    id: ConceptId
-    display_name: str
-    description: str
-    visualization: Literal["scale", "interval", "chord", "caged", "circle"]
-
-
-class StudyCatalogGroup(BaseModel):
-    id: Literal["essentials", "explore_more", "systems"]
-    display_name: str
-    concepts: list[StudyCatalogConcept]
-
-
-class StudyCatalog(BaseModel):
-    roots: list[str]
-    groups: list[StudyCatalogGroup]
 
 
 class ArtifactRevision(BaseModel):
@@ -413,7 +270,7 @@ class Artifact(BaseModel):
 
 class ConceptStudyArtifact(Artifact):
     kind: Literal["concept_study"]
-    payload: ConceptStudyPayload | ConceptWorkspace
+    payload: ConceptWorkspace
 
 
 TutorMessageRole = Literal["user", "assistant", "tool"]
