@@ -3,7 +3,7 @@ import { WorkspaceProgressionBlock } from './WorkspaceProgressionBlock';
 import { PhysicalWorkspaceBlock } from './PhysicalWorkspaceBlocks';
 import { isInspected } from './workspaceInspection';
 import type { TutorFocus } from '../types/v2';
-import type { ConceptWorkspace, Inspection, ResolvedWorkspace, WorkspaceBlock, WorkspaceNote, ProgressionAction } from '../types/conceptWorkspace';
+import type { ConceptWorkspace, Inspection, ResolvedWorkspace, WorkspaceBlock, WorkspaceNote } from '../types/conceptWorkspace';
 
 const noteStyle = (shared: boolean, selected: boolean) => ({
   background: shared ? 'var(--accent-100)' : 'var(--card-bg)',
@@ -11,16 +11,14 @@ const noteStyle = (shared: boolean, selected: boolean) => ({
   outline: selected ? '3px solid var(--accent-700)' : undefined, outlineOffset: 2,
 });
 
-export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, tutorFocus, readOnly = false, disabled = false, onProgressionAction, onWorkspaceChange, onHear, onKeepRegion }: {
+export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, onInspect, tutorFocus, readOnly = false, disabled = false, onKeepRegion }: {
   block: WorkspaceBlock; workspace: ConceptWorkspace; resolved: ResolvedWorkspace;
   tutorFocus?: TutorFocus | null; readOnly?: boolean; disabled?: boolean;
-  onProgressionAction?: (action: ProgressionAction) => void; onWorkspaceChange?: (w: ConceptWorkspace) => void;
   onKeepRegion?: (shape: string) => void;
-  onHear?: (steps: ResolvedWorkspace['progressions'][string]['steps']) => void;
   inspection: Inspection | null; onInspect: (inspection: Inspection) => void;
 }) {
-  if (resolved.caged[block.source_id]) return <CagedWorkspaceBlock {...{block, workspace, resolved, inspection, onInspect, readOnly, disabled, onWorkspaceChange, onKeepRegion}} />;
-  if (block.kind === 'progression') return <WorkspaceProgressionBlock {...{ block, workspace, resolved, inspection, onInspect, readOnly, disabled }} onAction={onProgressionAction} onChange={onWorkspaceChange} onHear={onHear} />;
+  if (resolved.caged[block.source_id]) return <CagedWorkspaceBlock {...{block, workspace, resolved, inspection, onInspect, readOnly, disabled, onKeepRegion}} />;
+  if (block.kind === 'progression') return <WorkspaceProgressionBlock {...{ block, resolved, inspection, onInspect, readOnly, disabled }} />;
   const relation = workspace.relations.find(item => item.id === block.source_id);
   const ids = relation?.entity_ids ?? [block.source_id];
   if (block.kind === 'circle' || block.kind === 'chord_diagrams') return <PhysicalWorkspaceBlock {...{ block, workspace, resolved, inspection, onInspect, readOnly }} />;

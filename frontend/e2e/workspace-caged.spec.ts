@@ -29,7 +29,7 @@ test('CAGED regions coordinate views and become independent editable voicings on
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   const kept=await draft();
   expect(kept.entities.filter((e:{kind:string})=>e.kind==='voicing')).toHaveLength(1);
-  await caged.getByLabel('CAGED root',{exact:true}).selectOption('D');
+  await page.getByLabel('CAGED root',{exact:true}).selectOption('D');
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   expect((await draft()).entities.filter((e:{id:string})=>e.id!==before.entities[0].id)).toEqual(kept.entities.filter((e:{id:string})=>e.id!==before.entities[0].id));
   await page.getByText('Key, tuning and exact frets',{exact:true}).click();
@@ -53,7 +53,7 @@ test('CAGED regions coordinate views and become independent editable voicings on
   await page.screenshot({path:'/private/tmp/issue66-desktop.png',fullPage:true});
   await page.getByRole('button',{name:'My Stuff',exact:true}).click();
   await page.getByRole('button',{name:'Open Connected regions',exact:true}).click();
-  await expect(caged.getByLabel('CAGED root',{exact:true})).toHaveValue('D');
+  await expect(page.getByLabel('CAGED root',{exact:true})).toHaveValue('D');
   await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible();
   await page.setViewportSize({width:320,height:800});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

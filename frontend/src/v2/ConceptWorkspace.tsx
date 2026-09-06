@@ -5,7 +5,7 @@ import { TutorChat } from './TutorChat';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { TutorFocus, WorkspaceTurnResult, V2Branch } from '../types/v2';
-import type { ConceptWorkspace, Inspection, ResolvedWorkspace, ScaleMode, WorkspaceBlock, ProgressionAction } from '../types/conceptWorkspace';
+import type { ChordEntity, ConceptWorkspace, Inspection, ResolvedWorkspace, ScaleMode, WorkspaceBlock, ProgressionAction } from '../types/conceptWorkspace';
 import { playNoteSequence, playChordSequence } from '../utils/audio';
 import { ConceptWorkspaceBlock } from './ConceptWorkspaceBlocks';
 
@@ -36,6 +36,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const [sourceId, setSourceId] = useState(workspace.relations[0]?.id ?? workspace.entities[0].id);
   const [viewKind, setViewKind] = useState<WorkspaceBlock['kind']>('fretboard');
   const [playing, setPlaying] = useState(false);
+  const [transposeDistance, setTransposeDistance] = useState(2);
   const [tutorOpen, setTutorOpen] = useState(true);
   const tutorToggled = useRef(false);
   const closeTutor = useCallback(() => { tutorToggled.current = true; setTutorOpen(false); }, []);
@@ -174,8 +175,12 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const scales = workspace.entities.filter(e => e.kind === 'scale');
   const progressionBlock = workspace.blocks.find(b => b.kind === 'progression');
   const progression = resolved && progressionBlock ? resolved.progressions[progressionBlock.source_id] : null;
+  const progressionKey = progression && resolved ? resolved.keys[progression.key_id] : null;
+  const selectedStep = progression && inspection?.source_id === progressionBlock?.source_id && inspection?.kind === 'step' && typeof inspection?.key === 'number' ? inspection.key : 0;
+  const selectedChord = progression ? progression.steps[selectedStep] ?? progression.steps[0] : null;
   const cagedId = resolved && (inspection && resolved.caged[inspection.source_id] ? inspection.source_id : Object.keys(resolved.caged)[0]);
   const caged = resolved && cagedId ? cagedSelection(cagedId, resolved, inspection) : null;
+  const cagedChord = workspace.entities.find((e): e is ChordEntity => e.id === cagedId && e.kind === 'chord');
   const inspectedRegion = caged && inspection?.kind.startsWith('region') ? inspection.kind === 'region_note' ? `${caged.selected.positions.find(p => p.pitch_class === caged.pitch)?.note} in ${caged.selected.shape} shape` : inspection.kind === 'region_pair' ? `${caged.pair.key.replace(':', ' → ')} shapes` : `${caged.selected.shape} shape` : null;
   const physical = !progression && workspace.entities.some(e => e.kind === 'voicing');
   const transition = resolved && relation?.kind === 'transition' ? resolved.transitions[relation.id] : null;
@@ -240,9 +245,26 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     {error && <div role="alert" className="space-y-2"><p>{error}</p>{!resolved && !busy && <button className={control} onClick={() => window.location.reload()}>Reload workspace</button>}{workspace !== saved.current && <div className="flex flex-wrap gap-2"><button className={control} disabled={locked} onClick={() => persist(workspace)}>Retry autosave</button><button className={control} onClick={() => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'concept-workspace.json'; link.click(); URL.revokeObjectURL(url); onPendingChange(false);
     }}>Download draft</button></div>}</div>}
-    {(scales.length > 0 || physical) && <div className="z-20 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-2 text-sm sm:-mx-6 sm:px-6 lg:sticky lg:top-0">
+    {(scales.length > 0 || physical || (progression && progressionBlock) || cagedChord) && <div className="z-20 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-2 text-sm sm:-mx-6 sm:px-6 lg:sticky lg:top-0">
       <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Music</span>
       {physical && <PhysicalWorkspaceControls workspace={workspace} disabled={locked} onChange={change} />}
+      {progression && progressionBlock && progressionKey && <fieldset disabled={locked} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <label className="flex items-center gap-1.5">Key<select aria-label="Progression key" className={`${field} w-16`} value={progressionKey.root} onChange={e => change({ ...workspace, entities: workspace.entities.map(en => en.id === progression.key_id && en.kind === 'key' ? { ...en, root: e.target.value } : en) })}>{[...new Set([...roots, progressionKey.root])].map(r => <option key={r}>{r}</option>)}</select></label>
+        {progression.derived
+          ? <button type="button" className={controlSm} onClick={() => progressionAction(progressionBlock.id, { action: 'materialize' })}>Work with these chords</button>
+          : <><label className="flex items-center gap-1.5">Transpose<select aria-label="Transpose distance" className={`${field} w-32`} value={transposeDistance} onChange={e => setTransposeDistance(Number(e.target.value))}>{Array.from({ length: 25 }, (_, i) => i - 12).filter(n => n !== 0).map(n => <option key={n} value={n}>{n > 0 ? '+' : ''}{n} semitones</option>)}</select></label>
+            <button type="button" className={controlSm} onClick={() => progressionAction(progressionBlock.id, { action: 'transpose', semitones: transposeDistance })}>Transpose progression</button></>}
+        {selectedChord && <><span className="ml-1 border-l border-[var(--border-primary)] pl-3 font-semibold text-[var(--text-secondary)]">Chord {selectedStep + 1}</span>
+          <select aria-label="Selected chord root" className={`${field} w-16`} value={selectedChord.root} onChange={e => progressionAction(progressionBlock.id, { action: 'edit', step: selectedStep, root: e.target.value })}>{[...new Set([...roots, selectedChord.root])].map(r => <option key={r}>{r}</option>)}</select>
+          <select aria-label="Selected chord quality" className={`${field} w-24`} value={selectedChord.quality} onChange={e => progressionAction(progressionBlock.id, { action: 'edit', step: selectedStep, quality: e.target.value as 'major' | 'minor' })}><option value="major">Major</option><option value="minor">Minor</option>{!['major', 'minor'].includes(selectedChord.quality) && <option value={selectedChord.quality}>{selectedChord.quality}</option>}</select>
+          <details><summary className="cursor-pointer text-[var(--text-secondary)]">Edit this occurrence’s frets</summary><div className="mt-1 flex flex-wrap gap-2">{Array.from({ length: 6 }, (_, i) => i + 1).map(string => <label key={string} className="text-sm">String {string}<select aria-label={`Selected voicing string ${string}`} className={`${field} mt-0.5 block`} value={selectedChord.positions.find(p => p.string === string)?.fret ?? 'muted'} onChange={e => progressionAction(progressionBlock.id, { action: 'edit', step: selectedStep, positions: [...selectedChord.positions.filter(p => p.string !== string).map(p => ({ string: p.string, fret: p.fret })), ...(e.target.value === 'muted' ? [] : [{ string, fret: Number(e.target.value) }])].sort((a, b) => a.string - b.string) })}><option value="muted">Muted</option>{Array.from({ length: 25 }, (_, i) => <option key={i} value={i}>{i === 0 ? 'Open' : i}</option>)}</select></label>)}</div></details>
+          <button type="button" className={controlSm} disabled={selectedStep >= progression.steps.length - 1 || progression.steps.slice(selectedStep, selectedStep + 2).some(s => !s.positions.length)} onClick={() => hearProgression(progression.steps.slice(selectedStep, selectedStep + 2))}>Hear selected transition</button></>}
+      </fieldset>}
+      {cagedChord && <fieldset disabled={locked} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <label className="flex items-center gap-1.5">Root<select aria-label="CAGED root" className={`${field} w-16`} value={cagedChord.root} onChange={e => change({ ...workspace, entities: workspace.entities.map(it => it.id === cagedChord.id ? { ...cagedChord, root: e.target.value } : it) })}>{['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'].map(r => <option key={r}>{r}</option>)}</select></label>
+        <label className="flex items-center gap-1.5">Quality<select aria-label="CAGED quality" className={`${field} w-24`} value={cagedChord.quality} onChange={e => change({ ...workspace, entities: workspace.entities.map(it => it.id === cagedChord.id ? { ...cagedChord, quality: e.target.value } : it) })}><option value="major">Major</option><option value="minor">Minor</option></select></label>
+        <label className="flex items-center gap-1.5">Tuning<select aria-label="CAGED tuning" className={`${field} w-32`} value={JSON.stringify(workspace.tuning)} onChange={e => change({ ...workspace, tuning: JSON.parse(e.target.value) })}><option value="[64,59,55,50,45,40]">Standard</option><option value="[64,59,55,50,45,38]">Drop D</option>{!['[64,59,55,50,45,40]', '[64,59,55,50,45,38]'].includes(JSON.stringify(workspace.tuning)) && <option value={JSON.stringify(workspace.tuning)}>Custom</option>}</select></label>
+      </fieldset>}
       {scales.length > 0 && <fieldset disabled={locked} className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <label className="flex items-center gap-1.5">Both roots<select aria-label="Both roots" className={`${field} w-20`} value={scales.every(e => e.root === scales[0].root) ? scales[0].root : ''} onChange={e => editScale(null, { root: e.target.value })}><option value="" disabled>Mixed</option>{roots.map(root => <option key={root}>{root}</option>)}</select></label>
         {scales.map((entity, index) => <div key={entity.id} className="flex items-center gap-1.5">
@@ -270,7 +292,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
           </div>
           <button className={controlSm} disabled={locked} onClick={() => { change({ ...workspace, blocks: workspace.blocks.filter(item => item.id !== block.id), composition: workspace.composition.map(row => ({ items: row.items.filter(item => item.block_id !== block.id) })).filter(row => row.items.length) }); addButton.current?.focus(); }}>Remove View</button>
         </header>
-        {resolved && <ConceptWorkspaceBlock block={block} workspace={workspace} resolved={resolved} inspection={inspection} onInspect={setInspection} tutorFocus={tutorFocus} disabled={locked} onWorkspaceChange={change} onProgressionAction={action => progressionAction(block.id, action)} onHear={hearProgression} onKeepRegion={shape => keepCaged(block.source_id, shape)} />}
+        {resolved && <ConceptWorkspaceBlock block={block} workspace={workspace} resolved={resolved} inspection={inspection} onInspect={setInspection} tutorFocus={tutorFocus} disabled={locked} onKeepRegion={shape => keepCaged(block.source_id, shape)} />}
       </section>;
     })}</div>
     <button ref={addButton} className={controlSm} disabled={locked || workspace.blocks.length >= 12} aria-expanded={adding} onClick={() => setAdding(!adding)}>Add View</button>
