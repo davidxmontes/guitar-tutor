@@ -85,36 +85,6 @@ def test_tutor_turn_persists_the_user_and_assistant_messages() -> None:
     assert persisted[1].content["text"] == "An answer."
 
 
-def test_tutor_turn_persists_a_concept_suggestion_for_explicit_promotion() -> None:
-    store = InMemoryV2Store()
-    model = ScriptedTutorModel(
-        outcomes=[{
-            "message": "That phrase uses A minor pentatonic.",
-            "focus": None,
-            "concept_suggestion": {
-                "concept_id": "pentatonic_minor",
-                "root": "A",
-                "label": "A minor pentatonic",
-            },
-        }],
-        usage_metadatas=[None],
-    )
-    client = _app(store, _scripted_factory(model))
-    session_id, branch_id = _open_session_and_branch(client)
-    thread_id = store.get_session(session_id, "user_1").branches[0].tutor_thread_id
-
-    response = client.post(
-        "/api/v2/tutor/turns",
-        json={"session_id": session_id, "branch_id": branch_id, "message": "Is this A minor pentatonic?"},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["concept_suggestion"]["label"] == "A minor pentatonic"
-    persisted = store.list_tutor_messages(thread_id, "user_1")
-    assert persisted[-1].content["concept_suggestion"]["concept_id"] == "pentatonic_minor"
-    assert len(store.get_session(session_id, "user_1").branches) == 1
-
-
 def test_two_consecutive_turns_with_separately_constructed_agents_preserve_context() -> None:
     """Each HTTP call gets its own freshly-built ScriptedTutorModel (nothing
     shared but the store's persisted rows) — the second turn's model must
@@ -330,40 +300,3 @@ def test_capability_error_returns_422_and_persists_nothing() -> None:
 
     assert response.status_code == 422
     assert store.list_tutor_messages(thread_id, "user_1") == []
-
-
-def test_voicing_proposals_survive_history_reload_without_mutation():
-    chord = {"root": "D", "quality": "sparse", "voicing": [{"string": 6, "fret": 0}], "tuning": [64, 59, 55, 50, 45, 38]}
-    store = InMemoryV2Store()
-    model = ScriptedTutorModel(outcomes=[{"message": "Try this", "voicing_candidates": [{"label": "Sparse", "chord_index": 0, "chord": chord}]}], usage_metadatas=[None])
-    client = _app(store, _scripted_factory(model))
-    session_id, branch_id = _open_session_and_branch(client)
-    artifact = client.post("/api/v2/progressions", json={"title": "Idea", "chords": [chord]}).json()
-    branch = store.update_branch(session_id, branch_id, "user_1", current_artifact_id=artifact["id"], current_artifact_kind="progression")
-    response = client.post("/api/v2/tutor/turns", json={"session_id": session_id, "branch_id": branch_id, "message": "Give me a voicing"}).json()
-    history = client.get(f"/api/v2/tutor/threads/{branch.tutor_thread_id}/messages").json()
-    assert history[-1]["content"]["voicing_candidates"] == response["voicing_candidates"]
-    assert response["voicing_candidates"][0]["expected_updated_at"] == artifact["updated_at"]
-    assert client.get(f"/api/v2/progressions/{artifact['id']}").json() == artifact
-
-
-def test_exercise_proposal_survives_history_and_only_explicit_save_creates_artifact():
-    store = InMemoryV2Store()
-    draft = {'title': 'Even bass', 'intent': 'Play evenly', 'tempo': 80,
-             'steps': [{'label': 'D', 'beats': 1, 'positions': [{'string': 6, 'fret': 0}], 'tuning': [64,59,55,50,45,38]}]}
-    model = ScriptedTutorModel(outcomes=[{'message': 'Try this.', 'exercise_suggestion': draft}, {'message': 'Keep the bass even.'}], usage_metadatas=[None, None])
-    client = _app(store, _scripted_factory(model))
-    sid, bid = _open_session_and_branch(client)
-    source = store.create_artifact('user_1', 'progression', 'Source', {})
-    branch = store.update_branch(sid, bid, 'user_1', current_artifact_kind='progression', current_artifact_id=source.id)
-    response = client.post('/api/v2/tutor/turns', json={'session_id': sid, 'branch_id': bid, 'message': 'Make a drill'})
-    assert response.status_code == 200, response.text
-    proposal = response.json()['exercise_suggestion']
-    history = client.get(f'/api/v2/tutor/threads/{branch.tutor_thread_id}/messages').json()
-    assert history[-1]['content']['exercise_suggestion'] == proposal
-    assert client.get('/api/v2/exercises').json() == []
-    assert client.post('/api/v2/exercises', json=proposal).status_code == 201
-    assert len(client.get('/api/v2/exercises').json()) == 1
-    followup = client.post('/api/v2/tutor/turns', json={'session_id': sid, 'branch_id': bid, 'message': 'Explain that drill'})
-    assert followup.status_code == 200
-    assert any('Even bass' in str(message.content) for message in model.calls[1])

@@ -1,19 +1,16 @@
 """Stateless-per-run tutor execution (ticket #13).
 
 `run_tutor_turn` constructs a fresh chat model and a fresh `create_agent`
-graph on every call, runs it exactly once against an explicitly assembled
-message list (stable prefix + reconstructed persisted history + this turn's
-volatile context/message), and returns a `TutorResponse`. No LangGraph
-checkpointer, no provider thread, no in-memory agent object survives past
-this one call -- see prompt.py for message assembly and providers.py for
-per-provider model construction/caching.
+graph on every call, runs it once against an explicitly assembled message
+list (stable prefix + reconstructed persisted history + this turn's
+context/message), and returns a `TutorResponse`. No checkpointer, no
+provider thread, no agent object survives past this one call.
 
-Ticket #14 adds progression-candidate resolution: the model only ever
-proposes symbolic chords (`ProgressionChordIdea`); `_resolve_candidate`
-below is the deterministic backend step that looks up an exact voicing via
-`chord_service.get_chord` (standard tuning) for each chord, producing the
-resolved `ProgressionPayload` candidates on `TutorResponse`. A chord with no
-curated voicing simply keeps `voicing=None` -- expected, not an error.
+Ticket #101 hard cutover: the ConceptWorkspace patch path and the
+artifact-linked candidate/voicing/exercise resolution are gone. Symbolic
+progression `candidates` are still resolved to a deterministic voicing via
+`chord_service.get_chord` (standard tuning); a chord with no curated voicing
+keeps `voicing=None` — expected, not an error.
 """
 
 import time
@@ -28,37 +25,15 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
 from app.services.chord_service import get_chord
-from app.v2.workspace_changes import InspectionTarget
-from app.v2.models import Artifact, Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
-from app.v2.tutor.contract import ExerciseProposal, ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage, VoicingProposal
+from app.v2.models import Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
+from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 
 _VOICING_TUNING_ID = "standard"
 
 
-def _inspired_by(branch: Branch, artifact: Optional[Artifact]) -> Optional[dict[str, Any]]:
-    """Lightweight, no-live-dependency provenance (spec #10) -- a snapshot,
-    never a reference the source SongStudy could later invalidate."""
-
-    if artifact is None:
-        return None
-    info: dict[str, Any] = {
-        "artifact_id": artifact.id,
-        "artifact_kind": artifact.kind,
-        "artifact_title": artifact.title,
-    }
-    if branch.selection:
-        info["selection"] = branch.selection
-    return info
-
-
-def _resolve_candidate(
-    candidate: ProgressionCandidate,
-    *,
-    branch: Branch,
-    artifact: Optional[Artifact],
-) -> ProgressionPayload:
+def _resolve_candidate(candidate: ProgressionCandidate) -> ProgressionPayload:
     chords: list[ProgressionChord] = []
     for idea in candidate.chords:
         voicing: Optional[list[ProgressionVoicingPosition]] = None
@@ -66,26 +41,17 @@ def _resolve_candidate(
         try:
             resolved = get_chord(idea.root, idea.quality, tuning=_VOICING_TUNING_ID)
         except (LookupError, ValueError):
-            pass  # no curated voicing for this root/quality -- expected, not an error
+            pass  # no curated voicing for this root/quality — expected, not an error
         else:
-            # V1 includes octave overlays; a physical chord has one fret per string.
             positions = resolved.voicings[0].positions
             voicing = [ProgressionVoicingPosition(string=string, fret=min(p.fret for p in positions if p.string == string))
                        for string in sorted({p.string for p in positions})]
             tuning = _VOICING_TUNING_ID
         chords.append(ProgressionChord(root=idea.root, quality=idea.quality, voicing=voicing, tuning=tuning))
-    return ProgressionPayload(title=candidate.title, chords=chords, inspired_by=_inspired_by(branch, artifact))
+    return ProgressionPayload(title=candidate.title, chords=chords, inspired_by=None)
+
 
 def _is_forced_tool_choice_rejection(exc: Exception) -> bool:
-    """True when a provider rejected the request specifically because it
-    can't honor a forced/required `tool_choice` -- `create_agent`'s
-    structured-output `ToolStrategy` always sets one, but some
-    OpenRouter-routed models only support `tool_choice="auto"` and 400 on
-    anything else (reproduced live against `meta/muse-spark-1.3-contributor`).
-    Narrowed to this specific signal, rather than treating every 400 as a
-    capability failure, so an unrelated bad-request bug doesn't get
-    silently relabeled as "this model can't do tool calling"."""
-
     if not isinstance(exc, (openai.BadRequestError, anthropic.BadRequestError)):
         return False
     return "tool_choice" in str(exc).lower()
@@ -97,7 +63,6 @@ ModelFactory = Callable[..., BaseChatModel]
 def run_tutor_turn(
     *,
     branch: Branch,
-    artifact: Optional[Artifact],
     history: list[TutorMessage],
     user_message: str,
     provider: str,
@@ -108,10 +73,7 @@ def run_tutor_turn(
     model_factory: ModelFactory = build_tutor_model,
     lookup_tools: Optional[list[BaseTool]] = None,
     siblings: Optional[list[dict[str, Any]]] = None,
-    inspection: Optional[InspectionTarget] = None,
 ) -> TutorResponse:
-    # Cache-affinity key derived from application state (never itself
-    # conversation memory) -- see providers.py.
     cache_key = branch.tutor_thread_id
 
     chat_model = model_factory(
@@ -125,7 +87,7 @@ def run_tutor_turn(
 
     request_messages = [stable_system_message(provider)]
     request_messages.extend(reconstruct_history(history))
-    request_messages.append(volatile_turn_message(branch=branch, artifact=artifact, user_message=user_message, siblings=siblings, inspection=inspection))
+    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings))
 
     agent = create_agent(
         model=chat_model,
@@ -151,7 +113,7 @@ def run_tutor_turn(
 
     terminal: TutorTerminal = final_state["structured_response"]
 
-    new_messages = final_state["messages"][len(request_messages) :]
+    new_messages = final_state["messages"][len(request_messages):]
     ai_messages = [m for m in new_messages if isinstance(m, AIMessage)]
     reports = [usage_from_ai_message(message) for message in ai_messages if message.usage_metadata]
     usage = TutorUsage()
@@ -160,8 +122,6 @@ def run_tutor_turn(
         if values and all(value is not None for value in values):
             setattr(usage, field, sum(values))
 
-    # Every AIMessage.tool_calls entry that isn't the structured-response
-    # tool itself is a real domain tool call, including saved-work lookups.
     tool_call_count = sum(
         1
         for message in ai_messages
@@ -169,27 +129,11 @@ def run_tutor_turn(
         if call.get("name") != TutorTerminal.__name__
     )
 
-    resolved_candidates = (
-        [_resolve_candidate(c, branch=branch, artifact=artifact) for c in terminal.candidates]
-        if terminal.candidates and branch.working_draft is None
-        else None
-    )
-
     return TutorResponse(
         message=terminal.message,
-        workspace_patch=terminal.workspace_patch,
         focus=terminal.focus,
         comparison_groups=terminal.comparison_groups,
-        concept_suggestion=terminal.concept_suggestion if branch.working_draft is None else None,
-        exercise_suggestion=ExerciseProposal(**terminal.exercise_suggestion.model_dump(), source_artifact_id=artifact.id,
-            expected_updated_at=artifact.updated_at, source_selection=branch.selection)
-            if branch.working_draft is None and terminal.exercise_suggestion and artifact and artifact.kind in ("song_study", "progression", "concept_study") else None,
-        candidates=resolved_candidates,
-        voicing_candidates=[
-            VoicingProposal(**candidate.model_dump(), artifact_id=artifact.id, expected_updated_at=artifact.updated_at)
-            for candidate in (terminal.voicing_candidates or [])
-            if candidate.chord.voicing and candidate.chord_index < len(artifact.payload.get("chords", []))
-        ] if branch.working_draft is None and artifact and artifact.kind == "progression" else None,
+        candidates=[_resolve_candidate(c) for c in terminal.candidates] if terminal.candidates else None,
         provider=provider,
         model=model,
         latency_ms=latency_ms,

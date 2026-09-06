@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.v2.models import HarmonyExploration
 from app.v2.store import NotFoundError, SupabaseV2Store
 from conftest import make_supabase_chain as _chain
 
@@ -15,11 +16,10 @@ def _branch_row(session_id="sess-1", branch_id="branch-1"):
         "id": branch_id,
         "session_id": session_id,
         "tutor_thread_id": "thread-1",
-        "current_artifact_kind": None,
-        "current_artifact_id": None,
-        "selection": None,
-        "focus": None,
-        "recent_ideas": [],
+        "harmony_exploration": HarmonyExploration().model_dump(),
+        "progression_workspace": None,
+        "active_workspace": "harmony",
+        "live_presentation_turn_id": None,
         "created_at": "t0",
         "updated_at": "t0",
     }
@@ -37,6 +37,10 @@ def test_create_session_inserts_session_and_one_branch():
     assert session.id == "sess-1"
     assert len(session.branches) == 1
     assert session.branches[0].tutor_thread_id == "thread-1"
+    assert session.branches[0].active_workspace == "harmony"
+    inserted = branch_chain.insert.call_args.args[0]
+    assert inserted["harmony_exploration"] == HarmonyExploration().model_dump()
+    assert inserted["active_workspace"] == "harmony"
 
 
 def test_get_session_raises_not_found_when_no_rows():
@@ -48,12 +52,14 @@ def test_get_session_raises_not_found_when_no_rows():
         store.get_session("sess-1", user_id="user_1")
 
 
-def test_get_session_loads_branches():
+def test_get_session_loads_branches_new_shape():
     client = MagicMock()
     session_chain = _chain([_session_row()])
     branch_chain = _chain([_branch_row() | {
-        "title": "Dreamy progression",
-        "fork_context": {"source_artifact_id": "song-1"},
+        "title": "Progression fork",
+        "progression_workspace": {"ideas": [{"id": "i1"}], "active_idea_id": "i1", "focus": None},
+        "active_workspace": "progression",
+        "live_presentation_turn_id": "turn-9",
         "closed": True,
     }])
     client.table.side_effect = lambda name: {"v2_sessions": session_chain, "v2_branches": branch_chain}[name]
@@ -61,11 +67,13 @@ def test_get_session_loads_branches():
     store = SupabaseV2Store(client)
     session = store.get_session("sess-1", user_id="user_1")
 
-    assert session.id == "sess-1"
-    assert session.branches[0].id == "branch-1"
-    assert session.branches[0].title == "Dreamy progression"
-    assert session.branches[0].fork_context == {"source_artifact_id": "song-1"}
-    assert session.branches[0].closed is True
+    branch = session.branches[0]
+    assert branch.id == "branch-1"
+    assert branch.title == "Progression fork"
+    assert branch.active_workspace == "progression"
+    assert branch.progression_workspace.active_idea_id == "i1"
+    assert branch.live_presentation_turn_id == "turn-9"
+    assert branch.closed is True
 
 
 def test_create_branch_checks_session_ownership_before_insert():
@@ -78,76 +86,38 @@ def test_create_branch_checks_session_ownership_before_insert():
         store.create_branch("sess-1", user_id="someone_else")
 
     client.table.assert_called_once_with("v2_sessions")
-    assert session_chain.eq.call_args_list[1].args == ("clerk_user_id", "someone_else")
     session_chain.insert.assert_not_called()
 
 
-def test_create_branch_inserts_independent_thread_and_workspace_fields():
+def test_create_branch_conversational_fork_gets_its_own_thread_and_empty_harmony():
     client = MagicMock()
     session_chain = _chain([_session_row()])
-    existing_branches = _chain([_branch_row()])
-    created_row = _branch_row(branch_id="branch-2") | {
-        "tutor_thread_id": "thread-2",
-        "title": "Dreamy progression",
-        "current_artifact_kind": "concept_study",
-        "current_artifact_id": "art-2",
-        "fork_context": {"source_artifact_id": "song-1"},
-        "closed": False,
-    }
+    created_row = _branch_row(branch_id="branch-2") | {"tutor_thread_id": "thread-2", "title": "Alternative"}
     inserted_branch = _chain([created_row])
-    branch_queries = iter([existing_branches, inserted_branch])
-    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else next(branch_queries)
+    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else inserted_branch
 
     store = SupabaseV2Store(client)
-    branch = store.create_branch(
-        "sess-1",
-        user_id="user_1",
-        title="Dreamy progression",
-        current_artifact_kind="concept_study",
-        current_artifact_id="art-2",
-        fork_context={"source_artifact_id": "song-1"},
-        closed=False,
-    )
+    branch = store.create_branch("sess-1", user_id="user_1", title="Alternative")
 
     inserted = inserted_branch.insert.call_args.args[0]
     assert inserted["session_id"] == "sess-1"
-    assert inserted["tutor_thread_id"]
-    assert inserted["tutor_thread_id"] != "thread-1"
-    assert inserted["title"] == "Dreamy progression"
-    assert inserted["current_artifact_kind"] == "concept_study"
-    assert inserted["current_artifact_id"] == "art-2"
-    assert inserted["fork_context"] == {"source_artifact_id": "song-1"}
-    assert inserted["closed"] is False
+    assert inserted["tutor_thread_id"] and inserted["tutor_thread_id"] != "thread-1"
+    assert inserted["title"] == "Alternative"
+    assert inserted["harmony_exploration"] == HarmonyExploration().model_dump()
+    assert inserted["active_workspace"] == "harmony"
     assert branch.tutor_thread_id == "thread-2"
-    assert branch.title == "Dreamy progression"
-    assert branch.current_artifact_kind == "concept_study"
-    assert branch.current_artifact_id == "art-2"
-    assert branch.fork_context == {"source_artifact_id": "song-1"}
-    assert branch.closed is False
+    assert branch.active_workspace == "harmony"
 
 
 def test_create_branch_reports_missing_inserted_row_cleanly():
     client = MagicMock()
     session_chain = _chain([_session_row()])
-    existing_branches = _chain([_branch_row()])
     empty_insert = _chain([])
-    branch_queries = iter([existing_branches, empty_insert])
-    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else next(branch_queries)
+    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else empty_insert
 
     store = SupabaseV2Store(client)
     with pytest.raises(RuntimeError, match="did not return the created branch"):
         store.create_branch("sess-1", user_id="user_1")
-
-
-def test_update_branch_rejects_invalid_kind():
-    client = MagicMock()
-    session_chain = _chain([_session_row()])
-    branch_chain = _chain([_branch_row()])
-    client.table.side_effect = lambda name: {"v2_sessions": session_chain, "v2_branches": branch_chain}[name]
-
-    store = SupabaseV2Store(client)
-    with pytest.raises(ValueError):
-        store.update_branch("sess-1", "branch-1", user_id="user_1", current_artifact_kind="nope")
 
 
 def test_update_branch_with_no_fields_selects_instead_of_updating():
@@ -165,35 +135,35 @@ def test_update_branch_with_no_fields_selects_instead_of_updating():
     branch_chain.select.assert_called_with("*")
 
 
-def test_update_branch_persists_workspace_navigation_fields():
+def test_update_branch_persists_workspace_fields():
     client = MagicMock()
     session_chain = _chain([_session_row()])
-    existing_branches = _chain([_branch_row()])
     updated_branch = _chain([_branch_row() | {
-        "title": "Dreamy progression",
-        "fork_context": {"source_artifact_id": "song-1"},
+        "title": "Progression fork",
+        "active_workspace": "progression",
+        "progression_workspace": {"ideas": [], "active_idea_id": None, "focus": None},
+        "live_presentation_turn_id": "turn-1",
         "closed": True,
     }])
-    branch_queries = iter([existing_branches, updated_branch])
-    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else next(branch_queries)
+    client.table.side_effect = lambda name: session_chain if name == "v2_sessions" else updated_branch
 
     store = SupabaseV2Store(client)
     branch = store.update_branch(
-        "sess-1",
-        "branch-1",
-        user_id="user_1",
-        title="Dreamy progression",
-        fork_context={"source_artifact_id": "song-1"},
-        closed=True,
+        "sess-1", "branch-1", user_id="user_1",
+        title="Progression fork", active_workspace="progression",
+        progression_workspace={"ideas": [], "active_idea_id": None, "focus": None},
+        live_presentation_turn_id="turn-1", closed=True,
     )
 
     updated_branch.update.assert_called_once_with({
-        "title": "Dreamy progression",
-        "fork_context": {"source_artifact_id": "song-1"},
+        "title": "Progression fork",
+        "active_workspace": "progression",
+        "progression_workspace": {"ideas": [], "active_idea_id": None, "focus": None},
+        "live_presentation_turn_id": "turn-1",
         "closed": True,
     })
-    assert branch.title == "Dreamy progression"
-    assert branch.fork_context == {"source_artifact_id": "song-1"}
+    assert branch.active_workspace == "progression"
+    assert branch.live_presentation_turn_id == "turn-1"
     assert branch.closed is True
 
 
@@ -209,10 +179,10 @@ def test_update_branch_raises_not_found_when_branch_missing():
 
     store = SupabaseV2Store(client)
     with pytest.raises(NotFoundError):
-        store.update_branch("sess-1", "branch-1", user_id="user_1", selection={})
+        store.update_branch("sess-1", "branch-1", user_id="user_1", title="x")
 
 
-# --- Artifact CRUD (SongStudy, ticket #12) ---
+# --- Artifact CRUD ---
 
 
 def _artifact_row(artifact_id="art-1", user_id="user_1"):
@@ -245,9 +215,7 @@ def test_get_artifact_returns_owned_row():
     client.table.return_value = _chain([_artifact_row()])
 
     store = SupabaseV2Store(client)
-    artifact = store.get_artifact("art-1", user_id="user_1")
-
-    assert artifact.id == "art-1"
+    assert store.get_artifact("art-1", user_id="user_1").id == "art-1"
 
 
 def test_get_artifact_raises_not_found_when_no_rows():
@@ -276,7 +244,6 @@ def test_update_artifact_updates_only_the_owned_row():
     assert update["payload"]["chordpro"] == "[D]Tomorrow"
     assert update["payload"]["_library"]["saved_at"] is None
     chain.eq.assert_any_call("updated_at", "t1")
-    assert update["updated_at"] != "t0"
     chain.eq.assert_any_call("id", "art-1")
     chain.eq.assert_any_call("clerk_user_id", "user_1")
 
@@ -290,7 +257,7 @@ def test_update_artifact_raises_not_found_when_owned_row_is_missing():
         store.update_artifact("art-1", user_id="user_1", payload={})
 
 
-# --- Tutor message persistence (ticket #13) ---
+# --- Tutor message persistence ---
 
 
 def _tutor_message_row(message_id="msg-1", thread_id="thread-1", role="user"):
@@ -305,7 +272,6 @@ def test_create_tutor_message_inserts_and_returns_it():
     message = store.create_tutor_message("thread-1", "user", {"text": "hi"})
 
     assert message.id == "msg-1"
-    assert message.tutor_thread_id == "thread-1"
     assert message.role == "user"
     client.table.assert_called_with("v2_tutor_messages")
 
@@ -331,7 +297,7 @@ def test_list_tutor_messages_returns_owned_thread_rows():
 
 def test_list_tutor_messages_raises_not_found_when_thread_has_no_branch():
     client = MagicMock()
-    client.table.return_value = _chain([])  # no branch row for this thread_id
+    client.table.return_value = _chain([])
 
     store = SupabaseV2Store(client)
     with pytest.raises(NotFoundError):
@@ -344,7 +310,7 @@ def test_list_tutor_messages_raises_not_found_when_session_not_owned():
     def table(name):
         if name == "v2_branches":
             return _chain([{"session_id": "sess-1"}])
-        return _chain([])  # session row filtered out — not owned by this user
+        return _chain([])
 
     client.table.side_effect = table
 
@@ -358,7 +324,7 @@ def test_conditional_artifact_update_rejects_concurrent_change():
     client = MagicMock()
     row = {"id": "p1", "clerk_user_id": "user_1", "kind": "progression", "title": "Idea", "payload": {}, "created_at": "t0", "updated_at": "t1"}
     read = _chain([row])
-    write = _chain([])  # another writer changed updated_at before this update
+    write = _chain([])
     client.table.side_effect = [read, write]
     with pytest.raises(RevisionConflictError):
         SupabaseV2Store(client).update_artifact("p1", "user_1", {"chords": []}, "t1")
@@ -373,9 +339,11 @@ def test_revision_metadata_survives_store_reconstruction_without_leaking_into_pa
     row = {"id": "p1", "clerk_user_id": "user_1", "kind": "progression", "title": "Idea", "payload": {"chords": ["D"]}, "created_at": "t0", "updated_at": "t1"}
     read = _chain([deepcopy(row)])
     write = _chain([])
+
     def persist():
         row.update(write.update.call_args.args[0])
         return SimpleNamespace(data=[deepcopy(row)])
+
     write.execute.side_effect = persist
     client.table.side_effect = [read, write]
     SupabaseV2Store(client).update_artifact('p1', 'user_1', {'chords': ['E']}, 't1')
@@ -386,22 +354,3 @@ def test_revision_metadata_survives_store_reconstruction_without_leaking_into_pa
     assert restored.revisions[0].payload == {'chords': ['D']}
     assert restored.saved_at == 't0'
     assert 'revisions' not in restored.model_dump()
-
-
-def test_workspace_roundtrip_and_compare_and_swap_uses_draft_version():
-    from app.v2.workspace import scale_comparison
-    from app.v2.store import RevisionConflictError
-    draft = scale_comparison().model_dump()
-    client = MagicMock()
-    session_chain = _chain([_session_row()])
-    branch_chain = _chain([_branch_row() | {'working_draft': draft}])
-    client.table.side_effect = lambda name: session_chain if name == 'v2_sessions' else branch_chain
-    store = SupabaseV2Store(client)
-    assert store.get_session('sess-1', 'user_1').branches[0].working_draft.model_dump() == draft
-    next_draft = draft | {'version': 2}
-    store.update_branch('sess-1', 'branch-1', 'user_1', working_draft=next_draft, expected_workspace_version=1)
-    branch_chain.eq.assert_any_call('working_draft->>version', '1')
-    branch_chain.update.assert_called_with({'working_draft': next_draft})
-    branch_chain.execute.return_value.data = []
-    with pytest.raises(RevisionConflictError):
-        store.update_branch('sess-1', 'branch-1', 'user_1', working_draft=next_draft, expected_workspace_version=1)

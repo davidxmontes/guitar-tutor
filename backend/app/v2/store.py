@@ -14,10 +14,16 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from threading import RLock
 
-from app.v2.workspace import ConceptWorkspace
 from typing import Any, Optional, Protocol
 
-from app.v2.models import ARTIFACT_KINDS, ArtifactRevision, Artifact, Branch, Session, TutorMessage
+from app.v2.models import (
+    ArtifactRevision,
+    Artifact,
+    Branch,
+    HarmonyExploration,
+    Session,
+    TutorMessage,
+)
 
 
 class RevisionConflictError(Exception):
@@ -36,9 +42,19 @@ def _new_id() -> str:
     return uuid.uuid4().hex
 
 
-def _validate_artifact_kind(kind: Optional[str]) -> None:
-    if kind is not None and kind not in ARTIFACT_KINDS:
-        raise ValueError(f"Unknown artifact kind: {kind!r}. Supported: {ARTIFACT_KINDS}")
+def _dump_fields(fields: dict[str, Any]) -> dict[str, Any]:
+    from pydantic import BaseModel as _BM
+    return {k: (v.model_dump() if isinstance(v, _BM) else v) for k, v in fields.items()}
+
+
+def _branch_defaults(fields: dict[str, Any]) -> dict[str, Any]:
+    """A Branch needs at least one workspace (Spec §5.1). A conversational fork
+    with none specified opens an empty Harmony Exploration, matching "new session"."""
+    fields = dict(fields)
+    if fields.get("harmony_exploration") is None and fields.get("progression_workspace") is None:
+        fields["harmony_exploration"] = HarmonyExploration()
+        fields.setdefault("active_workspace", "harmony")
+    return fields
 
 
 def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifact:
@@ -51,7 +67,6 @@ def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifac
     # ponytail: snapshots share the artifact JSON row for atomic compare-and-swap.
     # Move history to a separate table if large songs or long histories make rows costly.
     return artifact.model_copy(update={"payload": deepcopy(payload), "updated_at": now,
-        "title": payload.get("display_name", payload.get("title", artifact.title)) if artifact.kind == "concept_study" else artifact.title,
         "saved_at": artifact.saved_at or (now if save else None), "revisions": revisions})
 
 
@@ -65,8 +80,6 @@ class V2Store(Protocol):
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact: ...
-    def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch: ...
-    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any], undo_message_id: Optional[str] = None, restore_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]: ...
     def create_tutor_message(self, tutor_thread_id: str, role: str, content: dict[str, Any]) -> TutorMessage: ...
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]: ...
 
@@ -85,6 +98,8 @@ class InMemoryV2Store:
             id=_new_id(),
             session_id=session_id,
             tutor_thread_id=_new_id(),
+            harmony_exploration=HarmonyExploration(),
+            active_workspace="harmony",
             created_at=now,
             updated_at=now,
         )
@@ -105,8 +120,8 @@ class InMemoryV2Store:
 
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
         session = self.get_session(session_id, user_id)
-        _validate_artifact_kind(fields.get("current_artifact_kind"))
         now = _now()
+        fields = _branch_defaults(fields)
         branch = Branch(
             id=_new_id(),
             session_id=session_id,
@@ -127,18 +142,11 @@ class InMemoryV2Store:
     def _update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         session = self.get_session(session_id, user_id)  # raises NotFoundError if not owned
 
-        if "current_artifact_kind" in fields:
-            _validate_artifact_kind(fields["current_artifact_kind"])
-
         for i, branch in enumerate(session.branches):
             if branch.id != branch_id:
                 continue
-            expected = fields.pop("expected_workspace_version", None)
-            if expected is not None and (branch.working_draft is None or branch.working_draft.version != expected):
-                raise RevisionConflictError("Draft changed elsewhere; your edits have not been applied")
-            if "working_draft" in fields:
-                fields["working_draft"] = ConceptWorkspace.model_validate(fields["working_draft"])
-            updated = branch.model_copy(update={**fields, "updated_at": _now()})
+            merged = {**branch.model_dump(), **_dump_fields(fields), "updated_at": _now()}
+            updated = Branch.model_validate(merged)  # keeps the workspace invariant
             session.branches[i] = updated
             return updated
 
@@ -181,78 +189,6 @@ class InMemoryV2Store:
             self._artifacts[artifact_id] = updated
             return updated
 
-    def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch:
-        with self._branch_lock:
-            session = self.get_session(session_id, user_id)
-            branch = next((b for b in session.branches if b.id == branch_id), None)
-            if branch is None or branch.working_draft is None:
-                raise NotFoundError('Workspace not found')
-            if branch.working_draft.version != expected_version:
-                raise RevisionConflictError('Draft changed elsewhere. Reload this branch before saving.')
-            draft = branch.working_draft.model_copy(update={'title': title,
-                'version': expected_version + (title != branch.working_draft.title)})
-            if branch.current_artifact_id and not as_new:
-                artifact = self.get_artifact(branch.current_artifact_id, user_id)
-                if artifact.kind != 'concept_study' or artifact.updated_at != branch.saved_artifact_revision:
-                    raise RevisionConflictError('This study has a newer saved version. Your draft is intact. Save as a new study, or open the latest study from My Stuff.')
-                artifact = _revised(artifact, draft.model_dump(), True)
-            else:
-                now = _now()
-                artifact = Artifact(id=_new_id(), user_id=user_id, kind='concept_study', title=title,
-                    payload=draft.model_dump(), saved_at=now, created_at=now, updated_at=now)
-            updated = branch.model_copy(update={'title': title, 'working_draft': draft, 'current_artifact_kind': 'concept_study',
-                'current_artifact_id': artifact.id, 'saved_artifact_revision': artifact.updated_at, 'updated_at': _now()})
-            self._artifacts[artifact.id] = artifact
-            session.branches[session.branches.index(branch)] = updated
-            return updated
-
-    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
-        workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
-        undo_message_id: Optional[str] = None, restore_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
-        with self._branch_lock:
-            session = self.get_session(session_id, user_id)
-            index = next((i for i, b in enumerate(session.branches) if b.id == branch_id), None)
-            if index is None or session.branches[index].working_draft is None:
-                raise NotFoundError('Workspace not found')
-            branch = session.branches[index]
-            before = branch.working_draft
-            history = self._tutor_messages.get(branch.tutor_thread_id, [])
-            content = deepcopy(assistant)
-            change = content.setdefault('workspace_change', {'status': 'unchanged', 'reason': None})
-            if restore_message_id:
-                target = next((m for m in history if m.id == restore_message_id and m.role == 'assistant' and m.content.get('workspace_after')), None)
-                if target is None:
-                    raise NotFoundError('Turn snapshot not found')
-                if before.version != expected_version:
-                    raise RevisionConflictError('The current draft changed. Return to current and reload before restoring.')
-                workspace = ConceptWorkspace.model_validate(target.content['workspace_after'])
-                content['focus'] = deepcopy(target.content.get('focus'))
-                change.update(status='restored', restore_of=restore_message_id)
-            elif undo_message_id:
-                latest = next((m for m in reversed(history) if m.content.get('workspace_change', {}).get('status') in ('applied', 'undone', 'restored')), None)
-                if before.version != expected_version or latest is None or latest.id != undo_message_id or latest.content['workspace_change']['status'] != 'applied' or not latest.content.get('workspace_before'):
-                    raise RevisionConflictError('Undo is no longer current. Reload the workspace before trying again.')
-                workspace = ConceptWorkspace.model_validate(latest.content['workspace_before'])
-                change.update(status='undone', undo_of=undo_message_id)
-            elif workspace is not None and before.version != expected_version:
-                workspace = None
-                change.update(status='rejected', reason='The draft changed while the Tutor was responding. No change was applied; ask again.')
-            updated = branch
-            if workspace is not None:
-                workspace = workspace.model_copy(update={'version': before.version + 1})
-                updated = branch.model_copy(update={'working_draft': workspace, 'updated_at': _now()})
-                content['workspace_before'] = before.model_dump()
-            else:
-                content['workspace_before'] = None
-            content['workspace_after'] = updated.working_draft.model_dump()
-            now = _now()
-            messages = [] if user_text is None else [TutorMessage(id=_new_id(), tutor_thread_id=branch.tutor_thread_id, role='user', content={'text': user_text}, created_at=now)]
-            message = TutorMessage(id=_new_id(), tutor_thread_id=branch.tutor_thread_id, role='assistant', content=content, created_at=_now())
-            # Build every value first; readers use the same lock as this two-value commit.
-            session.branches[index] = updated
-            self._tutor_messages[branch.tutor_thread_id] = [*history, *messages, message]
-            return updated, message
-
     def _assert_thread_owned(self, tutor_thread_id: str, user_id: str) -> None:
         for session in self._sessions.values():
             if session.user_id != user_id:
@@ -292,14 +228,10 @@ class SupabaseV2Store:
             session_id=row["session_id"],
             tutor_thread_id=row["tutor_thread_id"],
             title=row.get("title") or "New workspace",
-            current_artifact_kind=row.get("current_artifact_kind"),
-            current_artifact_id=row.get("current_artifact_id"),
-            working_draft=row.get("working_draft"),
-            saved_artifact_revision=row.get("saved_artifact_revision"),
-            selection=row.get("selection"),
-            focus=row.get("focus"),
-            recent_ideas=row.get("recent_ideas") or [],
-            fork_context=row.get("fork_context"),
+            harmony_exploration=row.get("harmony_exploration"),
+            progression_workspace=row.get("progression_workspace"),
+            active_workspace=row.get("active_workspace") or "harmony",
+            live_presentation_turn_id=row.get("live_presentation_turn_id"),
             closed=row.get("closed", False),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -332,7 +264,12 @@ class SupabaseV2Store:
         )
         branch_row = (
             self._client.table("v2_branches")
-            .insert({"session_id": session_row["id"], "tutor_thread_id": _new_id()})
+            .insert({
+                "session_id": session_row["id"],
+                "tutor_thread_id": _new_id(),
+                "harmony_exploration": HarmonyExploration().model_dump(),
+                "active_workspace": "harmony",
+            })
             .execute()
             .data[0]
         )
@@ -370,10 +307,9 @@ class SupabaseV2Store:
 
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
         self.get_session(session_id, user_id)
-        _validate_artifact_kind(fields.get("current_artifact_kind"))
         rows = (
             self._client.table("v2_branches")
-            .insert({"session_id": session_id, "tutor_thread_id": _new_id(), **fields})
+            .insert({"session_id": session_id, "tutor_thread_id": _new_id(), **_dump_fields(_branch_defaults(fields))})
             .execute()
             .data
         )
@@ -384,18 +320,11 @@ class SupabaseV2Store:
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         self.get_session(session_id, user_id)  # raises NotFoundError if not owned
 
-        if "current_artifact_kind" in fields:
-            _validate_artifact_kind(fields["current_artifact_kind"])
-
-        expected = fields.pop("expected_workspace_version", None)
+        fields = _dump_fields(fields)
         query = self._client.table("v2_branches")
         # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
         query = query.update(fields) if fields else query.select("*")
-        if expected is not None:
-            query = query.eq("working_draft->>version", str(expected))
         rows = query.eq("id", branch_id).eq("session_id", session_id).execute().data
-        if not rows and expected is not None:
-            raise RevisionConflictError("Draft changed elsewhere; your edits have not been applied")
         if not rows:
             raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
         return self._row_to_branch(rows[0])
@@ -460,30 +389,6 @@ class SupabaseV2Store:
         if not rows:
             raise RevisionConflictError("Artifact changed; reload before saving or restoring")
         return self._row_to_artifact(rows[0])
-
-    def save_workspace_study(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int, title: str, as_new: bool = False) -> Branch:
-        result = self._client.rpc('v2_save_workspace_study', {'p_session_id': session_id, 'p_branch_id': branch_id,
-            'p_user_id': user_id, 'p_expected_version': expected_version, 'p_title': title, 'p_as_new': as_new}).execute().data
-        if result.get('error') == 'not_found':
-            raise NotFoundError('Workspace or study not found')
-        if result.get('error') == 'conflict':
-            raise RevisionConflictError('The draft or saved study changed. Your draft is intact. Save as a new study, or open the latest study from My Stuff.')
-        return self._row_to_branch(result['branch'])
-
-    def commit_workspace_turn(self, session_id: str, branch_id: str, user_id: str, *, expected_version: int,
-        workspace: Optional[ConceptWorkspace], user_text: Optional[str], assistant: dict[str, Any],
-        undo_message_id: Optional[str] = None, restore_message_id: Optional[str] = None) -> tuple[Branch, TutorMessage]:
-        # Ownership, row lock, CAS, snapshots and both messages share one Postgres transaction.
-        result = self._client.rpc('v2_commit_workspace_turn', {
-            'p_session_id': session_id, 'p_branch_id': branch_id, 'p_user_id': user_id,
-            'p_expected_version': expected_version, 'p_workspace': workspace.model_dump() if workspace else None,
-            'p_user_text': user_text, 'p_assistant': assistant, 'p_undo_message_id': undo_message_id, 'p_restore_message_id': restore_message_id,
-        }).execute().data
-        if result.get('error') == 'not_found':
-            raise NotFoundError('Workspace not found')
-        if result.get('error') == 'conflict':
-            raise RevisionConflictError('The current draft changed. Return to current and reload before restoring or undoing.')
-        return self._row_to_branch(result['branch']), self._row_to_tutor_message(result['message'])
 
     def _row_to_tutor_message(self, row: dict[str, Any]) -> TutorMessage:
         return TutorMessage(
