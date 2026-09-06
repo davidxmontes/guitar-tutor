@@ -10,7 +10,7 @@ def test_progression_derives_then_materializes_and_transposes_without_losing_occ
     def facts(w):
         r = client.post('/api/v2/concept-workspaces/resolve', json=w)
         assert r.status_code == 200, r.text
-        return r.json()['progressions'][w['blocks'][0]['source_id']]
+        return r.json()['entities'][w['blocks'][0]['source_id']]
     def action(w, **fields):
         return client.post('/api/v2/concept-workspaces/progression', json={'workspace':w,'block_id':block['id'], **fields})
     assert [e['kind'] for e in draft['entities']] == ['key']

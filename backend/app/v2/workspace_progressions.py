@@ -27,14 +27,14 @@ def reference_voicing(chord: Chord, tuning: list[int]) -> Voicing:
     return Voicing(id=uuid4().hex, chord_id=chord.id, label=f'{chord.root} {chord.quality} voicing', tuning=tuning, positions=positions)
 
 
-def resolve_progressions(workspace: ConceptWorkspace, facts: dict) -> dict:
+def resolve_progressions(workspace: ConceptWorkspace, entities: dict) -> dict:
     progressions = {}
     for block in workspace.blocks:
         if block.kind != 'progression' or block.source_id in progressions:
             continue
         source = next(e for e in workspace.entities if e.id == block.source_id)
         key_id = source.id if isinstance(source, Key) else source.key_id
-        notes = facts['keys'][key_id]['notes']
+        notes = entities[key_id]['notes']
         steps = []
         if isinstance(source, Key):
             for degree, quality in [(0,'major'),(4,'major'),(5,'minor'),(3,'major')]:
@@ -44,13 +44,16 @@ def resolve_progressions(workspace: ConceptWorkspace, facts: dict) -> dict:
                     'positions':resolve_voicing(voicing, {chord.id: {'notes':spelled_notes(chord.root, CHORD_INTERVALS[quality]['intervals'], CHORD_INTERVALS[quality]['names'])}})['positions'], 'tuning':voicing.tuning})
         else:
             for step in source.steps:
-                chord = facts['chords'][step.chord_id]
-                voicing = facts['voicings'].get(step.voicing_id)
-                steps.append({'chord_id':step.chord_id, 'voicing_id':step.voicing_id, 'root':chord['root'], 'quality':chord['quality'],
+                chord = entities[step.chord_id]
+                voicing = entities.get(step.voicing_id)
+                steps.append({'chord_id':step.chord_id, 'voicing_id':step.voicing_id, 'root':chord['notes'][0]['note'], 'quality':chord['quality'],
                     'positions':voicing['positions'] if voicing else [], 'tuning':voicing['tuning'] if voicing else workspace.tuning})
         for step in steps:
             step['function'] = harmonic_function(step, notes)
-        progressions[source.id] = {'derived':isinstance(source, Key), 'key_id':key_id, 'label':'I–V–vi–IV' if isinstance(source, Key) else 'Your progression', 'steps':steps}
+        progressions[source.id] = {'id':source.id, 'kind':'progression',
+            'label':'I–V–vi–IV' if isinstance(source, Key) else 'Your progression',
+            'notes':[], 'positions':[], 'tuning':workspace.tuning,
+            'derived':isinstance(source, Key), 'key_id':key_id, 'steps':steps}
     return progressions
 
 
@@ -70,7 +73,7 @@ def edit_progression(request: ProgressionAction) -> ConceptWorkspace:
     block = next((b for b in draft.blocks if b.id == request.block_id and b.kind == 'progression'), None)
     if not block:
         raise ValueError('Select an existing progression view')
-    facts = resolve_workspace(draft)['progressions'][block.source_id]
+    facts = resolve_workspace(draft)['entities'][block.source_id]
     if facts['derived']:
         steps = []
         for step in facts['steps']:

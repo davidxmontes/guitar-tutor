@@ -13,15 +13,25 @@ def test_physical_resolution_derives_harmony_movement_and_actual_tuning():
     _, _, client, _, branch = physical()
     draft = branch['working_draft']
     facts = client.post('/api/v2/concept-workspaces/resolve', json=draft).json()
+    assert set(facts) == {'entities', 'relations'}
     relation = draft['relations'][0]
     d, g = relation['entity_ids']
-    transition = facts['transitions'][relation['id']]
+    key_id = draft['entities'][0]['id']
+    transition = facts['relations'][relation['id']]
     assert transition['functions'] == ['V', 'I']
     assert transition['shared'] == [2]
-    assert {n['note'] for n in facts['chords'][draft['entities'][1]['id']]['notes']} == {'D', 'F#', 'A'}
+    assert {n['note'] for n in facts['entities'][draft['entities'][1]['id']]['notes']} == {'D', 'F#', 'A'}
     assert transition['movement'][0]['semitones'] == 1  # high F# -> G
     assert transition['movement'][3]['kind'] == 'fixed'  # open D stays
-    assert facts['voicings'][d]['positions'][0]['midi'] == 66
+    assert facts['entities'][d]['kind'] == 'voicing' and facts['entities'][d]['positions'][0]['midi'] == 66
+    # Derived data on resolved entities: key carries diatonicChords + circle; a major chord carries cagedRegions.
+    key = facts['entities'][key_id]
+    assert [(c['numeral'], c['root'], c['quality']) for c in key['diatonicChords']] == [
+        ('I', 'G', 'major'), ('ii', 'A', 'minor'), ('iii', 'B', 'minor'), ('IV', 'C', 'major'),
+        ('V', 'D', 'major'), ('vi', 'E', 'minor'), ('vii°', 'F#', 'diminished')]
+    assert key['circle'][0] == 'C' and 'G' in key['circle']
+    assert {r['shape'] for r in facts['entities'][draft['entities'][1]['id']]['cagedRegions']} == set('CAGED')
+    assert max(p['fret'] for p in key['positions']) <= 19
     # Drop D: retain G by moving its sixth string from fret 3 to fret 5.
     alternate = deepcopy(draft)
     for entity in alternate['entities']:
@@ -32,14 +42,14 @@ def test_physical_resolution_derives_harmony_movement_and_actual_tuning():
                     position['fret'] = 5
     alt = client.post('/api/v2/concept-workspaces/resolve', json=alternate)
     assert alt.status_code == 200, alt.text
-    assert alt.json()['voicings'][g]['positions'][-1]['midi'] == 43
-    assert alt.json()['voicings'][g]['tuning'][-1] == 38
+    assert alt.json()['entities'][g]['positions'][-1]['midi'] == 43
+    assert alt.json()['entities'][g]['tuning'][-1] == 38
     recontext = deepcopy(draft)
     recontext['entities'][0]['root'] = 'F#'
     reanalyzed = client.post('/api/v2/concept-workspaces/resolve', json=recontext).json()
-    assert reanalyzed['transitions'][relation['id']]['functions'] == ['outside key', 'outside key']
-    assert 'F#' in reanalyzed['keys'][recontext['entities'][0]['id']]['circle']
-    assert reanalyzed['voicings'] == facts['voicings']
+    assert reanalyzed['relations'][relation['id']]['functions'] == ['outside key', 'outside key']
+    assert 'F#' in reanalyzed['entities'][recontext['entities'][0]['id']]['circle']
+    assert {i: reanalyzed['entities'][i] for i in (d, g)} == {i: facts['entities'][i] for i in (d, g)}
     for bad in [dict(string=1, fret=25), dict(string=1, fret=-1), dict(string=7, fret=1)]:
         invalid = deepcopy(draft)
         invalid['entities'][3]['positions'][0] = bad

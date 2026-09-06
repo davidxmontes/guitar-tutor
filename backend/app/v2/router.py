@@ -405,15 +405,26 @@ async def create_tutor_turn(
         raise HTTPException(422, 'This study is unsupported. Open a new exploration from Explore.')
 
     if data.inspection is not None:
-        facts = resolve_workspace(branch.working_draft) if branch.working_draft else {}
+        draft = branch.working_draft
+        facts = resolve_workspace(draft) if draft else {'entities': {}, 'relations': {}}
         inspection = data.inspection
-        source = next((facts.get(group, {}).get(inspection.source_id) for group in ('scales','chords','voicings','transitions') if inspection.source_id in facts.get(group, {})), None)
-        valid = source and (inspection.key in {note['pitch_class'] for note in source.get('notes', source.get('positions', []))} if inspection.kind == 'pitch' else inspection.key == inspection.source_id and inspection.source_id in facts.get(inspection.kind + 's', {}))
-        if inspection.kind == 'step':
-            progression = facts.get('progressions', {}).get(inspection.source_id)
-            valid = progression and isinstance(inspection.key, int) and inspection.key < len(progression['steps'])
-        if inspection.kind.startswith('region'):
-            valid = valid_caged_inspection(facts.get('caged', {}).get(inspection.source_id), inspection.kind, inspection.key)
+        entity = facts['entities'].get(inspection.source_id)
+        relation = facts['relations'].get(inspection.source_id)
+        relation_kinds = {r.id: r.kind for r in draft.relations} if draft else {}
+        if inspection.kind == 'pitch':
+            pool = entity or relation or {}
+            pitches = {note['pitch_class'] for note in pool.get('notes', [])} | {p['pitch_class'] for p in pool.get('positions', [])}
+            valid = bool(pool) and inspection.key in pitches
+        elif inspection.kind in ('chord', 'voicing'):
+            valid = entity is not None and entity['kind'] == inspection.kind and inspection.key == inspection.source_id
+        elif inspection.kind == 'transition':
+            valid = relation_kinds.get(inspection.source_id) == 'transition' and inspection.key == inspection.source_id
+        elif inspection.kind == 'step':
+            valid = entity is not None and entity['kind'] == 'progression' and isinstance(inspection.key, int) and inspection.key < len(entity['steps'])
+        elif inspection.kind.startswith('region'):
+            valid = valid_caged_inspection((entity or {}).get('cagedRegions'), inspection.kind, inspection.key)
+        else:
+            valid = False
         if not valid:
             raise HTTPException(status_code=422, detail="That inspection is no longer in the current draft. Select again.")
 
