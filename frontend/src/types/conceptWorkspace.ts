@@ -13,7 +13,7 @@ export interface CompareRelation { id: string; kind: 'compare'; entity_ids: stri
 export type ComparisonMode = 'highlight' | 'plain' | 'shared-only';
 export interface BlockSettings { pattern?: 'I-V-vi-IV' | null; labels: 'notes' | 'intervals'; mode?: 'notes' | 'caged' | null; comparison?: ComparisonMode; shared_only?: boolean; fret_start: number | null; fret_end: number | null }
 export type SourceRole = 'primary' | 'context' | 'highlight';
-export interface WorkspaceBlock { id: string; kind: 'fretboard' | 'degree_strip' | 'chord_diagrams' | 'circle' | 'progression' | 'caged'; source_id: string; sources: string[]; source_roles?: Record<string, SourceRole> | null; settings: BlockSettings }
+export interface WorkspaceBlock { id: string; kind: 'fretboard' | 'degree_strip' | 'chord_diagrams' | 'circle' | 'progression'; source_id: string; sources: string[]; source_roles?: Record<string, SourceRole> | null; settings: BlockSettings }
 export interface ConceptWorkspace {
   schema_version: 2; version: number; title: string; provenance: 'scale-comparison' | 'physical-resolution' | 'four-chord-progression' | 'caged-exploration'; tuning: number[];
   entities: WorkspaceEntity[]; relations: (CompareRelation | TransitionRelation)[]; blocks: WorkspaceBlock[];

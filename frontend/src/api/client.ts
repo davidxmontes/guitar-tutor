@@ -1,4 +1,4 @@
-import type { ConceptWorkspace, ResolvedWorkspace } from '../types/conceptWorkspace';
+import type { ConceptWorkspace, Resolved } from '../types/conceptWorkspace';
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
 import type { WorkspaceTurnResult, Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse } from '../types/v2';
@@ -97,7 +97,7 @@ class ApiClient {
     return this.fetch('/v2/concept-workspaces/caged/materialize', { method: 'POST', body: JSON.stringify({workspace, chord_id: chordId, region}) });
   }
 
-  resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<ResolvedWorkspace> {
+  resolveConceptWorkspace(workspace: ConceptWorkspace): Promise<Resolved> {
     return this.fetch('/v2/concept-workspaces/resolve', { method: 'POST', body: JSON.stringify(workspace) });
   }
 

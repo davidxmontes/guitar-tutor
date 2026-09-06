@@ -1,4 +1,4 @@
-import type { ConceptWorkspace, Inspection } from '../types/conceptWorkspace';
+import type { ConceptWorkspace, TypedInspection } from '../types/conceptWorkspace';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { ExerciseComposer } from './ExerciseComposer';
 import { useEffect, useState } from 'react';
@@ -69,7 +69,7 @@ export function TutorChat({
   beforeSend?: () => Promise<void>;
   historyVersion?: number;
   onPreview?: (messageId: string, snapshot: ConceptWorkspace, focus: TutorFocus | null) => Promise<void>;
-  inspection?: Inspection | null;
+  inspection?: TypedInspection | null;
   workspaceVersion?: number;
   onWorkspaceResult?: (result: WorkspaceTurnResult) => Promise<void>;
   onSendingChange?: (sending: boolean) => void;
