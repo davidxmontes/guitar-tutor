@@ -11,9 +11,7 @@ Identifier = Annotated[str, Field(min_length=1, max_length=80)]
 Midi = Annotated[int, Field(strict=True, ge=0, le=127)]
 Mode = Literal['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues']
 # Per-block-kind compatible source kinds (spec #88 §5). Internal block kinds stay
-# snake_case; the spec prose's `degree-strip` etc. name the same kinds. `key_family`
-# is a T5 block kind -- its accepts entry lives here now, but the kind itself is not
-# yet in Block.kind (T5 adds it).
+# snake_case; the spec prose's `degree-strip` etc. name the same kinds.
 BLOCK_ACCEPTS = {
     'fretboard': ('scale', 'chord', 'voicing', 'key', 'noteGroup', 'compare', 'transition'),
     'degree_strip': ('scale', 'chord', 'compare'),
@@ -146,7 +144,7 @@ class ViewSettings(StrictModel):
 
 class Block(StrictModel):
     id: Identifier
-    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression']
+    kind: Literal['fretboard', 'degree_strip', 'chord_diagrams', 'circle', 'progression', 'key_family']
     source_id: Identifier | None = None
     sources: list[Identifier] | None = Field(default=None, min_length=1, max_length=8)
     source_roles: dict[str, Literal['primary', 'context', 'highlight']] | None = None

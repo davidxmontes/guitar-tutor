@@ -15,7 +15,7 @@ const controlSm = 'ct-field ct-btn';
 const primary = 'ct-field ct-btn ct-btn-primary';
 const roots = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const modes: ScaleMode[] = ['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues'];
-const names: Record<WorkspaceBlock['kind'], string> = { fretboard: 'Fretboard', degree_strip: 'Degree strip', chord_diagrams: 'Chord diagrams', circle: 'Circle', progression: 'Progression' };
+const names: Record<WorkspaceBlock['kind'], string> = { fretboard: 'Fretboard', degree_strip: 'Degree strip', chord_diagrams: 'Chord diagrams', circle: 'Circle', progression: 'Progression', key_family: 'Key family' };
 
 // A one-octave ascending run, reconstructed from the resolved core (T1 dropped `playback`).
 function scaleRun(entity: ResolvedEntity | undefined, tuning: number[]): WorkspacePosition[] {
