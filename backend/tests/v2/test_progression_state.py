@@ -42,3 +42,16 @@ def test_focus_reconciliation_and_strict_state():
     invalid = a.model_dump(); invalid['chords'][0]['tuning'] = a.tuning
     with pytest.raises(ValueError):
         ProgressionIdeaDraft.model_validate(invalid)
+
+
+def test_progression_editor_operations():
+    from app.v2.progression_actions import ProgressionEdit, edit_progression
+    a, b = idea(), idea()
+    workspace = ProgressionWorkspaceState(ideas=[a,b], active_idea_id=a.id, focus={'kind': 'step', 'step_id': 'a'})
+    workspace = edit_progression(workspace, ProgressionEdit(step_id='a', chord={'root': 'D', 'quality': 'minor'}, duration_beats=3))
+    assert workspace.ideas[0].chords[0].root == 'D' and workspace.ideas[0].chords[0].duration_beats == 3
+    workspace = edit_progression(workspace, ProgressionEdit(order=['b','a']))
+    assert workspace.focus.step_id == 'a'
+    workspace = edit_progression(workspace, ProgressionEdit(active_idea_id=b.id))
+    assert workspace.focus is None
+    with pytest.raises(ValueError): edit_progression(workspace, ProgressionEdit(order=[]))
