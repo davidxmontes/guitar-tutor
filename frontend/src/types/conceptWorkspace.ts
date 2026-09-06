@@ -11,7 +11,7 @@ export type WorkspaceEntity = ScaleEntity | KeyEntity | ChordEntity | VoicingEnt
 export interface TransitionRelation { id: string; kind: 'transition'; entity_ids: string[]; key_id: string }
 export interface CompareRelation { id: string; kind: 'compare'; entity_ids: string[] }
 export type ComparisonMode = 'highlight' | 'plain' | 'shared-only';
-export interface BlockSettings { pattern?: 'I-V-vi-IV' | null; labels: 'notes' | 'intervals'; mode?: 'notes' | 'caged' | null; comparison?: ComparisonMode; shared_only?: boolean; fret_start: number | null; fret_end: number | null }
+export interface BlockSettings { pattern?: 'I-V-vi-IV' | null; labels: 'notes' | 'intervals'; mode?: 'notes' | 'caged' | null; comparison?: ComparisonMode; fret_start: number | null; fret_end: number | null }
 export type SourceRole = 'primary' | 'context' | 'highlight';
 export interface WorkspaceBlock { id: string; kind: 'fretboard' | 'degree_strip' | 'chord_diagrams' | 'circle' | 'progression'; source_id: string; sources: string[]; source_roles?: Record<string, SourceRole> | null; settings: BlockSettings }
 export interface ConceptWorkspace {
@@ -21,25 +21,11 @@ export interface ConceptWorkspace {
 }
 export interface WorkspaceNote { note: string; degree: string; pitch_class: number; offset: number }
 export interface WorkspacePosition extends WorkspaceNote { string: number; fret: number; midi: number }
-export interface ResolvedWorkspace {
-  caged: Record<string, { label: string; regions: (ResolvedWorkspace['voicings'][string] & { shape: string; fret_start: number; fret_end: number })[]; pairs: { key: string; shared: WorkspacePosition[]; movement: ResolvedWorkspace['transitions'][string]['movement'] }[] }>;
-  scales: Record<string, { label: string; notes: WorkspaceNote[]; positions: WorkspacePosition[]; playback: WorkspacePosition[] }>;
-  comparisons: Record<string, { shared: number[]; added: WorkspaceNote[]; removed: WorkspaceNote[] }>;
-  progressions: Record<string, { label: string; derived: boolean; key_id: string; steps: { chord_id: string | null; voicing_id: string | null; root: string; quality: string; function: string; positions: WorkspacePosition[]; tuning: number[] }[] }>;
-  keys: Record<string, { label: string; root: string; notes: WorkspaceNote[]; circle: string[] }>;
-  chords: Record<string, { label: string; root: string; quality: string; notes: WorkspaceNote[] }>;
-  voicings: Record<string, { label: string; chord_id: string | null; tuning: number[]; positions: WorkspacePosition[] }>;
-  transitions: Record<string, { label: string; functions: string[]; shared: number[]; added: number[]; removed: number[]; explanation: string; movement: { string: number; before: WorkspacePosition | null; after: WorkspacePosition | null; kind: 'fixed' | 'moving' | 'added' | 'removed'; semitones: number | null }[] }>;
-  block_sources: Record<WorkspaceBlock['kind'], (WorkspaceEntity['kind'] | 'compare' | 'transition')[]>;
-}
-export interface Inspection { source_id: string; kind: 'pitch' | 'chord' | 'voicing' | 'transition' | 'step' | 'region' | 'region_note' | 'region_pair'; key: number | string }
 
 export interface ExploreRecipe { id: string; title: string; question: string; description: string; search: string; starter: boolean; request: {recipe: ConceptWorkspace['provenance']; mode?: ScaleMode} }
 
 
 // --- Uniform resolved model (spec #88 §5) --------------------------------------
-// The adapter and the T3-T5 block rebuilds consume this; the legacy
-// `ResolvedWorkspace` above stays until those rebuilds land.
 
 export interface ResolvedEntityCore { id: string; label: string; notes: WorkspaceNote[]; positions: WorkspacePosition[]; tuning: number[] }
 export interface ResolvedCagedRegion { shape: string; label: string; fret_start: number; fret_end: number; positions: WorkspacePosition[] }
