@@ -187,4 +187,13 @@ test('Degree strip stacks two scales per degree and settings.comparison drives t
   await page.getByRole('tab', { name: /G major vs G minor/ }).click();
   await expect(strip.getByRole('button', { name: 'G major: B, degree 3', exact: true })).toBeVisible();
   await expect(strip.getByRole('button', { name: /, changed/ })).toHaveCount(0);
+
+  await page.getByLabel('Scale 2 root').selectOption('D');
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  await page.getByLabel('Scale 2 mode').selectOption('major');
+  await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  await strip.getByLabel('Shared notes only').click();
+  await expect(strip.getByRole('button', { name: 'G major: D, degree 5, shared', exact: true })).toBeVisible();
+  await expect(strip.getByRole('button', { name: 'D major: D, degree 1, shared', exact: true })).toBeVisible();
+  await expect(strip.getByRole('button', { name: /G major: C,/ })).toHaveCount(0);
 });

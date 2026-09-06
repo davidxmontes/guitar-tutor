@@ -31,8 +31,8 @@ export function DegreeStripBlock({ block, resolved, inspection, onInspect, readO
   const rows = Array.from({ length: Math.max(a.notes.length, b.notes.length) }, (_, i) => [a.notes[i], b.notes[i]] as const);
   return <div className="space-y-1">
     <p className="text-sm font-semibold">{a.label} vs {b.label}</p>
-    <div className="flex flex-wrap gap-1.5">{rows.filter(([x, y]) => !sharedOnly || (x && y && x.pitch_class === y.pitch_class)).map(([x, y], i) => <div key={i} className="flex flex-col gap-1">
-      {([[x, a.label], [y, b.label]] as const).map(([n, label], side) => n
+    <div className="flex flex-wrap gap-1.5">{rows.filter(pair => !sharedOnly || pair.some(n => n && shared.has(n.pitch_class))).map(([x, y], i) => <div key={i} className="flex flex-col gap-1">
+      {([[x, a.label], [y, b.label]] as const).map(([n, label], side) => n && (!sharedOnly || shared.has(n.pitch_class))
         ? <button key={side} type="button" disabled={readOnly}
             aria-label={`${label}: ${n.note}, degree ${n.degree}${mark(n) ? `, ${mark(n)}` : ''}`}
             aria-pressed={pressed(n)} onClick={() => inspect(n)} className={cell}
