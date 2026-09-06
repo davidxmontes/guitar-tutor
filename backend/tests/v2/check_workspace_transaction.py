@@ -70,6 +70,36 @@ def check():
             for kind in ('song_study', 'progression', 'exercise'):
                 sql(f"INSERT INTO v2_artifacts(clerk_user_id,kind,title,payload) VALUES ('owner','{kind}','x','{{}}'::jsonb);")
 
+            sql((repo / 'docs/agents/v2-workspace-turns.sql').read_text())
+            surface = {'pattern': 'explanation-led', 'focal': 'explanation', 'slots': {
+                'explanation': [{'kind': 'explanation'}], 'illustration': [{'kind': 'fretboard'}]}}
+            before = row
+            music = {'harmony_exploration': harmony, 'progression_workspace': progression, 'active_workspace': 'harmony'}
+            content = {'text': 'Answer', 'presentation': surface, 'attention': {'role': 'active'}}
+            def commit(expected, value=content):
+                return f"SELECT v2_workspace_turn('{bid}', 'owner', '{expected}', 'commit', {literal(music)}, 'Question', {literal(value)});"
+            committed = json.loads(sql(commit(before['updated_at'])))
+            turn = committed['live_presentation_turn_id']
+            messages = json.loads(sql("SELECT jsonb_agg(to_jsonb(m) ORDER BY created_at) FROM v2_tutor_messages m;"))
+            assert len(messages) == 2 and messages[1]['content']['presentation'] == surface
+            assert 'attention' not in messages[1]['content']
+            assert messages[1]['content']['musical_snapshot']['active_workspace'] == 'progression'
+            sql(commit(before['updated_at']), success=False)
+            # Fail the second insert after the branch update and user insert.
+            sql("CREATE FUNCTION reject_assistant() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.role='assistant' THEN RAISE EXCEPTION 'forced failure'; END IF; RETURN NEW; END $$;")
+            sql("CREATE TRIGGER reject_assistant BEFORE INSERT ON v2_tutor_messages FOR EACH ROW EXECUTE FUNCTION reject_assistant();")
+            sql(commit(committed['updated_at']), success=False)
+            assert sql('SELECT count(*) FROM v2_tutor_messages;') == '2'
+            assert json.loads(sql(f"SELECT to_jsonb(b) FROM v2_branches b WHERE id='{bid}';")) == committed
+            sql('DROP TRIGGER reject_assistant ON v2_tutor_messages;')
+            undone = json.loads(sql(f"SELECT v2_workspace_turn('{bid}', 'owner', '{committed['updated_at']}', 'undo', p_turn_id => '{turn}');"))
+            assert undone['active_workspace'] == 'progression'
+            assert undone['harmony_exploration'] == harmony and undone['progression_workspace'] == progression
+            restored = json.loads(sql(f"SELECT v2_workspace_turn('{bid}', 'owner', '{undone['updated_at']}', 'restore', p_turn_id => '{turn}');"))
+            assert restored['live_presentation_turn_id'] == turn
+            assert restored['harmony_exploration'] == undone['harmony_exploration']
+            sql(f"SELECT v2_workspace_turn('{bid}', 'other', '{restored['updated_at']}', 'restore', p_turn_id => '{turn}');", success=False)
+            print('Turn RPC: atomic snapshot/music/Composition/messages, forced rollback, stale rejection, Undo, Restore, ownership passed.')
             print('PostgreSQL Branch DDL: new-shape round-trip, active-workspace switch, live-turn pointer, '
                   'workspace invariant, and artifact-kind CHECK passed.')
         finally:

@@ -42,6 +42,7 @@ from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_tools
 from app.v2.tutor.branch_comparison import branch_tools
+from app.v2.tutor.workspace_tools import workspace_tools
 
 router = APIRouter()
 
@@ -342,7 +343,7 @@ async def create_tutor_turn(
             run_tutor_turn,
             branch=branch,
             history=history,
-            lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id),
+            lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id) + workspace_tools(branch),
             siblings=[{"id": b.id, "title": b.title, "active_workspace": b.active_workspace}
                       for b in session.branches if not b.closed and b.id != branch.id],
             user_message=data.message,
@@ -366,15 +367,41 @@ async def create_tutor_turn(
         response.comparison_groups = [group.model_copy(update={"branch_title": open_titles[group.branch_id]})
                                       for group in response.comparison_groups if group.branch_id in open_titles]
 
-    content: dict[str, Any] = {
-        "text": response.message,
-        "focus": response.focus.model_dump() if response.focus else None,
-        "comparison_groups": [group.model_dump() for group in response.comparison_groups],
-        "candidates": [c.model_dump() for c in response.candidates] if response.candidates else None,
+    content = {
+        'text': response.message,
+        'comparison_groups': [group.model_dump() for group in response.comparison_groups],
+        'candidates': response.candidates.model_dump() if response.candidates else None,
+        'presentation': response.presentation.model_dump(),
     }
-    store.create_tutor_message(branch.tutor_thread_id, "user", {"text": data.message})
-    store.create_tutor_message(branch.tutor_thread_id, "assistant", content)
+    try:
+        updated = store.commit_workspace_turn(branch, user_id, response.musical_state, data.message, content)
+    except RevisionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    response.branch = updated.model_dump()
     return response
+
+
+class TurnRestoreRequest(BaseModel):
+    session_id: str
+    branch_id: str
+    turn_id: str
+    undo: bool = False
+
+
+@router.post('/tutor/restore')
+async def restore_tutor_turn(data: TurnRestoreRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    from app.v2.turns import live_composition
+    try:
+        session = store.get_session(data.session_id, user_id)
+        branch = next((b for b in session.branches if b.id == data.branch_id), None)
+        if branch is None:
+            raise NotFoundError('Branch not found')
+        updated = store.restore_workspace_turn(branch, user_id, data.turn_id, undo=data.undo)
+        return {'branch': updated, 'presentation': live_composition(updated, store.list_tutor_messages(updated.tutor_thread_id, user_id))}
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/tutor/threads/{tutor_thread_id}/messages", response_model=list[TutorMessage])

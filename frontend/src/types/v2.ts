@@ -1,3 +1,4 @@
+import type { Composition } from '../v2/Composition';
 import type { TabData } from './song';
 
 export type ArtifactKind = 'song_study' | 'progression' | 'exercise';
@@ -161,7 +162,7 @@ export interface BranchFocusGroup {
   tuning: number[];
 }
 
-export interface TutorFocus {
+export interface TutorAttention {
   role: string;
   notes: TutorFretPosition[];
   label?: string | null;
@@ -211,9 +212,14 @@ export interface VoicingProposal {
 
 export interface TutorResponse {
   message: string;
-  focus: TutorFocus | null;
+  focus: Record<string, unknown> | null;
+  attention: TutorAttention | null;
+  mutation: { kind: 'noop' } | null;
+  presentation: Composition | null;
+  presentation_applied: boolean;
+  branch: V2Branch | null;
   comparison_groups?: BranchFocusGroup[];
-  candidates: ProgressionPayload[] | null;
+  candidates: { candidate_kind: 'voicing' | 'progression-idea' | 'chord-replacement'; candidates: Record<string, unknown>[] } | null;
   provider: string;
   model: string;
   latency_ms: number;
@@ -236,9 +242,9 @@ export interface TutorMessage {
   role: TutorMessageRole;
   content: {
     text?: string;
-    focus?: TutorFocus | null;
     comparison_groups?: BranchFocusGroup[];
-    candidates?: ProgressionPayload[] | null;
+    candidates?: TutorResponse['candidates'];
+    presentation?: Composition;
     [key: string]: unknown;
   };
   created_at: string;

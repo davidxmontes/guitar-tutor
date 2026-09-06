@@ -6,11 +6,6 @@ list (stable prefix + reconstructed persisted history + this turn's
 context/message), and returns a `TutorResponse`. No checkpointer, no
 provider thread, no agent object survives past this one call.
 
-Ticket #101 hard cutover: the ConceptWorkspace patch path and the
-artifact-linked candidate/voicing/exercise resolution are gone. Symbolic
-progression `candidates` are still resolved to a deterministic voicing via
-`chord_service.get_chord` (standard tuning); a chord with no curated voicing
-keeps `voicing=None` — expected, not an error.
 """
 
 import time
@@ -21,34 +16,53 @@ import anthropic
 import openai
 from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool
 
-from app.services.chord_service import get_chord
-from app.v2.models import Branch, ProgressionChord, ProgressionPayload, ProgressionVoicingPosition, TutorMessage
-from app.v2.tutor.contract import ProgressionCandidate, TutorResponse, TutorTerminal, TutorUsage
+from app.v2.models import Branch, TutorMessage
+from app.v2.tutor.contract import TutorResponse, TutorTerminal, TutorUsage
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
+from app.v2.turns import live_composition, musical_snapshot
+from app.v2.presentation import validate_composition
+from pydantic import ValidationError, TypeAdapter
+from app.v2.harmony_state import HarmonyFocus
 
-_VOICING_TUNING_ID = "standard"
+
+def apply_mutation(branch: Branch, mutation) -> Branch:
+    """Static dispatch seam. Concrete musical operations arrive in H3/P3."""
+    if mutation is not None and mutation.kind != 'noop':
+        raise ValueError('Unsupported Tutor mutation')
+    return branch.model_copy(deep=True)
 
 
-def _resolve_candidate(candidate: ProgressionCandidate) -> ProgressionPayload:
-    chords: list[ProgressionChord] = []
-    for idea in candidate.chords:
-        voicing: Optional[list[ProgressionVoicingPosition]] = None
-        tuning: Optional[str] = None
-        try:
-            resolved = get_chord(idea.root, idea.quality, tuning=_VOICING_TUNING_ID)
-        except (LookupError, ValueError):
-            pass  # no curated voicing for this root/quality — expected, not an error
+def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
+    updated = apply_mutation(branch, terminal.mutation)
+    # Candidate kinds/effects are added in H2b/P3. The shell is non-mutating.
+    if terminal.candidates:
+        allowed = ('voicing',) if updated.active_workspace == 'harmony' else ('progression-idea', 'chord-replacement')
+        if terminal.candidates.candidate_kind not in allowed:
+            raise ValueError('Candidates outside active workspace')
+    if terminal.focus is not None:
+        focus = terminal.focus.model_dump() if hasattr(terminal.focus, 'model_dump') else terminal.focus
+        if updated.active_workspace == 'harmony':
+            data = updated.harmony_exploration.model_dump() | {'focus': TypeAdapter(HarmonyFocus).validate_python(focus)}
+            updated.harmony_exploration = type(updated.harmony_exploration).model_validate(data)
         else:
-            positions = resolved.voicings[0].positions
-            voicing = [ProgressionVoicingPosition(string=string, fret=min(p.fret for p in positions if p.string == string))
-                       for string in sorted({p.string for p in positions})]
-            tuning = _VOICING_TUNING_ID
-        chords.append(ProgressionChord(root=idea.root, quality=idea.quality, voicing=voicing, tuning=tuning))
-    return ProgressionPayload(title=candidate.title, chords=chords, inspired_by=None)
+            if not isinstance(focus, dict) or focus.get('kind') not in ('step', 'transition'):
+                raise ValueError('Invalid Progression Focus')
+            keys = {'kind', 'step_id'} if focus['kind'] == 'step' else {'kind', 'from_step_id', 'to_step_id'}
+            if set(focus) != keys:
+                raise ValueError('Invalid Progression Focus fields')
+            workspace = updated.progression_workspace
+            idea = next((idea for idea in workspace.ideas if idea['id'] == workspace.active_idea_id), {})
+            ids = [step['id'] for step in idea.get('chords', [])]
+            if any(focus[key] not in ids for key in keys - {'kind'}):
+                raise ValueError('Focus step not found')
+            if focus['kind'] == 'transition' and ids.index(focus['to_step_id']) != ids.index(focus['from_step_id']) + 1:
+                raise ValueError('Focus is not an adjacent transition')
+            workspace.focus = focus
+    return updated
 
 
 def _is_forced_tool_choice_rejection(exc: Exception) -> bool:
@@ -98,6 +112,34 @@ def run_tutor_turn(
     started = time.monotonic()
     try:
         final_state: dict[str, Any] = agent.invoke({"messages": request_messages}, config={"recursion_limit": 16})
+        terminal: TutorTerminal = final_state['structured_response']
+        for attempt in range(2):
+            try:
+                updated = resolve_turn_music(branch, terminal)
+                break
+            except (ValueError, ValidationError):
+                if attempt:
+                    raise TutorCapabilityError('Tutor musical change is invalid')
+                final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content='The musical result is invalid. Return one corrected result without derived positions in mutations.')]}, config={'recursion_limit': 16})
+                terminal = final_state['structured_response']
+        presentation = live_composition(branch, history)
+        presentation_applied = False
+        if terminal.presentation is not None:
+            try:
+                presentation = validate_composition(updated.active_workspace, terminal.presentation)
+                presentation_applied = True
+            except ValidationError:
+                # Retry only presentation: retain the already validated music,
+                # candidates and message, regardless of what the retry changes.
+                try:
+                    retry = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content='The presentation is invalid. Return a corrected presentation within the workspace capabilities; retain the musical result.')]}, config={'recursion_limit': 16})
+                    final_state = retry
+                    presentation = validate_composition(updated.active_workspace, retry['structured_response'].presentation or {})
+                    presentation_applied = True
+                except Exception:
+                    # Presentation is best effort after music has validated.
+                    # Even a provider failure on this retry preserves that work.
+                    pass
     except NotImplementedError as exc:
         raise TutorCapabilityError(
             f"{provider}/{model} cannot satisfy required tutor capabilities (tool calling): {exc}"
@@ -111,7 +153,6 @@ def run_tutor_turn(
         ) from exc
     latency_ms = int((time.monotonic() - started) * 1000)
 
-    terminal: TutorTerminal = final_state["structured_response"]
 
     new_messages = final_state["messages"][len(request_messages):]
     ai_messages = [m for m in new_messages if isinstance(m, AIMessage)]
@@ -133,7 +174,12 @@ def run_tutor_turn(
         message=terminal.message,
         focus=terminal.focus,
         comparison_groups=terminal.comparison_groups,
-        candidates=[_resolve_candidate(c) for c in terminal.candidates] if terminal.candidates else None,
+        mutation=terminal.mutation,
+        candidates=terminal.candidates,
+        attention=terminal.attention,
+        presentation=presentation,
+        presentation_applied=presentation_applied,
+        musical_state=musical_snapshot(updated),
         provider=provider,
         model=model,
         latency_ms=latency_ms,

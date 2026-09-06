@@ -28,7 +28,12 @@ def test_saved_lookup_runs_on_demand_and_cannot_mutate_library(provider):
     assert 'Dreamy dusk' in str([m.content for m in model.calls[1]])
     assert 'voicing' in str([m.content for m in model.calls[2]])
     assert store.get_artifact(saved.id, 'user_1') == saved
-    assert store.get_session(sid, 'user_1').model_dump() == before
+    after = store.get_session(sid, 'user_1').model_dump()
+    # A Tutor turn now advances presentation metadata, never the read music.
+    assert after['branches'][0]['live_presentation_turn_id']
+    for key in ('updated_at', 'live_presentation_turn_id'):
+        after['branches'][0][key] = before['branches'][0][key]
+    assert after == before
 
 
 def test_unrelated_creative_prompt_does_not_query_or_inject_saved_library():
