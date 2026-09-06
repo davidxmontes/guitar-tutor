@@ -32,10 +32,9 @@ def starter_composition(branch: Branch) -> Composition:
 
 
 def live_composition(branch: Branch, history: list[TutorMessage]) -> Composition:
-    turns = [message for message in history if message.role == 'assistant' and message.content.get('presentation')]
+    turns = [message for message in history if message.role == 'assistant' and message.content.get('presentation')
+             and message.content.get('musical_snapshot', {}).get('active_workspace', branch.active_workspace) == branch.active_workspace]
     selected = next((message for message in turns if message.id == branch.live_presentation_turn_id), None)
-    if selected is None and turns:
-        selected = turns[-1]
     if selected:
         return validate_composition(branch.active_workspace, selected.content['presentation'])
     return starter_composition(branch)

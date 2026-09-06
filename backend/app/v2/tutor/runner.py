@@ -74,13 +74,9 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
             if set(focus) != keys:
                 raise ValueError('Invalid Progression Focus fields')
             workspace = updated.progression_workspace
-            idea = next((idea for idea in workspace.ideas if idea['id'] == workspace.active_idea_id), {})
-            ids = [step['id'] for step in idea.get('chords', [])]
-            if any(focus[key] not in ids for key in keys - {'kind'}):
-                raise ValueError('Focus step not found')
-            if focus['kind'] == 'transition' and ids.index(focus['to_step_id']) != ids.index(focus['from_step_id']) + 1:
-                raise ValueError('Focus is not an adjacent transition')
-            workspace.focus = focus
+            from app.v2.progression_state import ProgressionWorkspaceState
+            updated.progression_workspace = ProgressionWorkspaceState.model_validate(workspace.model_dump() | {'focus': focus})
+
     return updated
 
 

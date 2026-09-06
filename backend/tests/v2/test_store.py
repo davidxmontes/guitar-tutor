@@ -60,7 +60,7 @@ def test_new_branch_round_trips_the_new_shape_through_the_store(store):
 
     reloaded = store.get_session(session.id, user_id="user_1").branches[0]
     assert reloaded == updated
-    assert reloaded.progression_workspace.ideas == [{"id": "i1", "label": "Idea"}]
+    assert reloaded.progression_workspace.ideas[0].label == "Idea"
 
 
 def test_update_branch_rejects_making_active_workspace_absent(store):

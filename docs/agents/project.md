@@ -201,3 +201,11 @@ T3 ships the no-op mutation dispatch seam and a deterministic shell surface;
 H3/P3 add concrete musical operations, and H2a/P2a replace shell starters.
 The removed legacy progression-candidate tests are replaced by the new Turn
 contract and transactional flow tests; candidate payload effects land in H2b/P3.
+
+## Progression idea Save (#104)
+
+Load `v2-progression-saves.sql` after the schema on the wiped store. Its
+service-role-only RPC atomically saves the active idea and artifact revision,
+checking both Branch and artifact timestamps. The disposable PostgreSQL check
+verifies rollback after the artifact write, ownership and stale rejection.
+Progression reopen creates a fresh draft and clears the live surface pointer.

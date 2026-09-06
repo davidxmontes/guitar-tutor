@@ -66,7 +66,7 @@ def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifac
         revisions.append(ArtifactRevision(revision=artifact.updated_at, payload=deepcopy(artifact.payload)))
     # ponytail: snapshots share the artifact JSON row for atomic compare-and-swap.
     # Move history to a separate table if large songs or long histories make rows costly.
-    return artifact.model_copy(update={"payload": deepcopy(payload), "updated_at": now,
+    return artifact.model_copy(update={"payload": deepcopy(payload), "title": payload.get("title", artifact.title), "updated_at": now,
         "saved_at": artifact.saved_at or (now if save else None), "revisions": revisions})
 
 
@@ -78,6 +78,7 @@ class V2Store(Protocol):
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
     def commit_workspace_turn(self, branch: Branch, user_id: str, music: dict, question: str, content: dict) -> Branch: ...
     def restore_workspace_turn(self, branch: Branch, user_id: str, turn_id: str, *, undo: bool = False) -> Branch: ...
+    def save_progression_idea(self, branch: Branch, user_id: str) -> tuple[Branch, Artifact]: ...
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact: ...
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact: ...
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]: ...
@@ -195,6 +196,34 @@ class InMemoryV2Store:
                 raise NotFoundError('Turn not found')
             fields = turn.content['musical_snapshot'] if undo else {'live_presentation_turn_id': turn_id}
             return deepcopy(self._update_branch(branch.session_id, branch.id, user_id, **fields))
+
+    def save_progression_idea(self, branch: Branch, user_id: str) -> tuple[Branch, Artifact]:
+        from app.v2.progression_state import artifact_payload, ProgressionWorkspaceState
+        with self._branch_lock:
+            current = next((b for b in self.get_session(branch.session_id, user_id).branches if b.id == branch.id), None)
+            if current is None:
+                raise NotFoundError('Branch not found')
+            if current.updated_at != branch.updated_at:
+                raise RevisionConflictError('Workspace changed')
+            workspace = current.progression_workspace
+            idea = next((idea for idea in workspace.ideas if idea.id == workspace.active_idea_id), None) if workspace else None
+            if idea is None:
+                raise ValueError('Choose an idea to save')
+            payload = artifact_payload(idea).model_dump()
+            # ponytail: memory saves snapshot the artifact map for rollback; journal only
+            # the affected row if this development backend grows a large library.
+            prior_artifacts, prior_session = deepcopy(self._artifacts), deepcopy(self._sessions[branch.session_id])
+            try:
+                artifact = self.update_artifact(idea.artifact_id, user_id, payload, idea.base_revision_id, save=True) if idea.artifact_id else self.create_artifact(user_id, 'progression', idea.label, payload)
+                data = workspace.model_dump()
+                for item in data['ideas']:
+                    if item['id'] == idea.id:
+                        item.update(artifact_id=artifact.id, base_revision_id=artifact.updated_at, dirty=False)
+                updated = self._update_branch(branch.session_id, branch.id, user_id, progression_workspace=ProgressionWorkspaceState.model_validate(data))
+                return deepcopy(updated), deepcopy(artifact)
+            except Exception:
+                self._artifacts, self._sessions[branch.session_id] = prior_artifacts, prior_session
+                raise
 
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact:
         now = _now()
@@ -411,6 +440,25 @@ class SupabaseV2Store:
                 raise NotFoundError('Workspace or turn not found') from exc
             raise
         return self._row_to_branch(row)
+
+    def save_progression_idea(self, branch: Branch, user_id: str) -> tuple[Branch, Artifact]:
+        from postgrest.exceptions import APIError
+        from app.v2.progression_state import artifact_payload
+        workspace = branch.progression_workspace
+        idea = next((idea for idea in workspace.ideas if idea.id == workspace.active_idea_id), None) if workspace else None
+        if idea is None:
+            raise ValueError('Choose an idea to save')
+        try:
+            result = self._client.rpc('v2_save_progression_idea', {'p_branch_id': branch.id,
+                'p_user_id': user_id, 'p_expected_updated_at': branch.updated_at,
+                'p_payload': artifact_payload(idea).model_dump()}).execute().data
+        except APIError as exc:
+            if exc.code == '40001':
+                raise RevisionConflictError('Workspace or artifact changed') from exc
+            if exc.code == 'P0002':
+                raise NotFoundError('Workspace or artifact not found') from exc
+            raise
+        return self._row_to_branch(result['branch']), self._row_to_artifact(result['artifact'])
 
     def create_artifact(self, user_id: str, kind: str, title: str, payload: dict[str, Any], saved: bool = True) -> Artifact:
         row = (

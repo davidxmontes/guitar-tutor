@@ -99,6 +99,28 @@ def check():
             assert restored['live_presentation_turn_id'] == turn
             assert restored['harmony_exploration'] == undone['harmony_exploration']
             sql(f"SELECT v2_workspace_turn('{bid}', 'other', '{restored['updated_at']}', 'restore', p_turn_id => '{turn}');", success=False)
+            sql((repo / 'docs/agents/v2-progression-saves.sql').read_text())
+            payload = {'title': 'Idea', 'tonal_center': None, 'tuning': [64,59,55,50,45,40], 'chords': [], 'provenance': None}
+            draft = {'id': 'idea', 'label': 'Idea', 'chords': [], 'dirty': True}
+            working = {'ideas': [draft], 'active_idea_id': 'idea', 'focus': None}
+            sql(f"UPDATE v2_branches SET progression_workspace={literal(working)} WHERE id='{bid}';")
+            stamp = sql(f"SELECT updated_at FROM v2_branches WHERE id='{bid}';")
+            def save(expected, value=payload, owner='owner'):
+                return f"SELECT v2_save_progression_idea('{bid}','{owner}','{expected}',{literal(value)});"
+            saved = json.loads(sql(save(stamp)))
+            aid = saved['artifact']['id']
+            assert saved['branch']['progression_workspace']['ideas'][0]['artifact_id'] == aid
+            assert saved['branch']['progression_workspace']['ideas'][0]['dirty'] is False
+            sql(save(stamp), success=False)
+            sql(save(saved['branch']['updated_at'], owner='other'), success=False)
+            revised = json.loads(sql(save(saved['branch']['updated_at'], payload | {'title': 'Revised'})))
+            assert len(revised['artifact']['payload']['_library']['revisions']) == 1
+            sql("CREATE FUNCTION reject_save() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced save failure'; END $$;")
+            sql("CREATE TRIGGER reject_save BEFORE UPDATE ON v2_branches FOR EACH ROW EXECUTE FUNCTION reject_save();")
+            sql(save(revised['branch']['updated_at'], payload | {'title': 'Rollback'}), success=False)
+            assert json.loads(sql(f"SELECT to_jsonb(a) FROM v2_artifacts a WHERE id='{aid}';")) == revised['artifact']
+            sql('DROP TRIGGER reject_save ON v2_branches;')
+            print('Progression Save RPC: atomic idea/artifact/revision, forced rollback, stale rejection and ownership passed.')
             print('Turn RPC: atomic snapshot/music/Composition/messages, forced rollback, stale rejection, Undo, Restore, ownership passed.')
             print('PostgreSQL Branch DDL: new-shape round-trip, active-workspace switch, live-turn pointer, '
                   'workspace invariant, and artifact-kind CHECK passed.')

@@ -20,13 +20,11 @@ from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.services import songsterr
 from app.v2.models import (
-    ApplyVoicingRequest,
     Artifact,
     Branch,
     ExerciseDraft,
     ExercisePayload,
     ExerciseArtifact,
-    ProgressionPayload,
     Session,
     SongStudyPayload,
     SongSavedRange,
@@ -419,17 +417,6 @@ async def list_tutor_thread_messages(
 # --- Progression artifacts ------------------------------------------------
 
 
-@router.post("/progressions", response_model=Artifact, status_code=status.HTTP_201_CREATED)
-async def create_progression(
-    data: ProgressionPayload,
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    """Persist a progression as a durable artifact. Ticket P1 rebuilds the
-    per-idea Save/revision lifecycle (DATA-02)."""
-    return store.create_artifact(user_id=user_id, kind="progression", title=data.title, payload=data.model_dump())
-
-
 @router.get("/progressions/{artifact_id}", response_model=Artifact)
 async def get_progression(
     artifact_id: str,
@@ -443,30 +430,6 @@ async def get_progression(
     if artifact.kind != "progression":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a Progression artifact")
     return artifact
-
-
-@router.patch("/progressions/{artifact_id}/voicing", response_model=Artifact)
-async def apply_progression_voicing(
-    artifact_id: str,
-    data: ApplyVoicingRequest,
-    user_id: str = Depends(get_current_user),
-    store: V2Store = Depends(get_v2_store),
-):
-    try:
-        artifact = store.get_artifact(artifact_id, user_id)
-        if artifact.kind != "progression":
-            raise NotFoundError("Not a Progression artifact")
-        if data.expected_updated_at != artifact.updated_at:
-            raise RevisionConflictError("Progression changed; request fresh voicings before applying")
-        chords = list(artifact.payload["chords"])
-        if data.chord_index >= len(chords):
-            raise HTTPException(status_code=422, detail="Chord slot no longer exists")
-        chords[data.chord_index] = data.chord.model_dump()
-        return store.update_artifact(artifact_id, user_id, {**artifact.payload, "chords": chords}, data.expected_updated_at)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 # --- Exercise artifacts --------------------------------------------------
@@ -583,10 +546,10 @@ async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_
 @router.post("/library/{artifact_id}/open", response_model=Session, status_code=201)
 async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     _saved_artifact(store, artifact_id, user_id)
-    # Ticket #101: opening a saved artifact yields a fresh Session with a main
-    # Harmony Branch (UX-05: opening does not fork). P1 rebuilds reopen-to-
-    # fresh-Progression-idea (DATA-03).
+    artifact = store.get_artifact(artifact_id, user_id)
     session = store.create_session(user_id)
+    if artifact.kind == 'progression':
+        reopen_progression(store, session.branches[0], artifact, user_id)
     return store.get_session(session.id, user_id)
 
 
@@ -702,3 +665,46 @@ async def explore_subject(session_id: str, branch_id: str, data: ExploreRequest,
 async def develop_scratch(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     owned_branch(store, session_id, branch_id, user_id)
     return {'available': False, 'message': 'Develop is not yet available. Your scratch sequence is unchanged.'}
+
+
+# --- Progression idea Save / reopen ---
+from app.v2.progression_state import ProgressionArtifactPayload, ProgressionIdeaDraft, ProgressionWorkspaceState
+
+
+def reopen_progression(store, branch, artifact, user_id):
+    payload = ProgressionArtifactPayload.model_validate(artifact.payload)
+    idea = ProgressionIdeaDraft(label=payload.title, **payload.model_dump(exclude={'title'}),
+        artifact_id=artifact.id, base_revision_id=artifact.updated_at, dirty=False)
+    workspace = branch.progression_workspace or ProgressionWorkspaceState()
+    updated = ProgressionWorkspaceState(ideas=[*workspace.ideas, idea], active_idea_id=idea.id)
+    return store.update_branch(branch.session_id, branch.id, user_id, progression_workspace=updated,
+                               active_workspace='progression', live_presentation_turn_id=None)
+
+
+class SaveIdeaRequest(StrictModel):
+    expected_updated_at: str
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/progression/save')
+async def save_progression_idea(session_id: str, branch_id: str, data: SaveIdeaRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    branch = owned_branch(store, session_id, branch_id, user_id)
+    try:
+        if branch.updated_at != data.expected_updated_at:
+            raise RevisionConflictError('Workspace changed')
+        updated, artifact = store.save_progression_idea(branch, user_id)
+        return {'branch': updated, 'artifact': artifact}
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/progression/open/{artifact_id}')
+async def open_progression_idea(session_id: str, branch_id: str, artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    branch = owned_branch(store, session_id, branch_id, user_id)
+    artifact = _saved_artifact(store, artifact_id, user_id)
+    if artifact.kind != 'progression':
+        raise HTTPException(422, 'Choose a progression artifact')
+    return reopen_progression(store, branch, artifact, user_id)

@@ -110,5 +110,5 @@ def test_progression_sibling_read_is_on_demand_and_detached():
     value = read.invoke({'idea_id': 'idea'})
     assert value['chords'][0]['root'] == 'D'
     value['chords'][0]['root'] = 'E'
-    assert branch.progression_workspace.ideas[0]['chords'][0]['root'] == 'D'
+    assert branch.progression_workspace.ideas[0].chords[0].root == 'D'
     assert 'error' in read.invoke({'idea_id': 'foreign'})
