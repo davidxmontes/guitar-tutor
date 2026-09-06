@@ -38,9 +38,7 @@ class TutorAttention(BaseModel):
     label: Optional[str] = None
 
 
-class TutorMutation(StrictModel):
-    """No-op dispatch seam; H3/P3 add the concrete discriminated variants."""
-    kind: Literal['noop'] = 'noop'
+from app.v2.harmony_actions import HarmonyMutation as TutorMutation
 
 
 class CandidateSet(StrictModel):

@@ -4,8 +4,9 @@ import { physicalVoicing } from './harmony';
 import type { ChordRef, HarmonyResolved } from './harmony';
 import type { ComparePeer } from './compare';
 
-export function ChordInspector({ chord, data, hasKey }: { chord: ChordRef; data: HarmonyResolved; hasKey: boolean }) {
+export function ChordInspector({ chord, data, hasKey, onExplore }: { onExplore?: () => void; chord: ChordRef; data: HarmonyResolved; hasKey: boolean }) {
   return <section aria-label="Chord inspector"><h3>{chord.root} {chord.quality}</h3>
+    {onExplore && <button className="music-button" onClick={onExplore}>Explore →</button>}
     <p>Chord tones: {data.chord_notes.map(note => note.note).join(' · ')}</p>
     <p>Construction: {data.chord_notes.map(note => note.degree).join(' · ')}</p>
     {hasKey && <p>Function in key: {data.function ?? 'Non-diatonic chord'}</p>}

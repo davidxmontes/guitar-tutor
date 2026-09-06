@@ -13,6 +13,13 @@ class WorkspaceModel(ScriptedTutorModel):
                 {'id': 'v1', 'label': 'C major option', 'chord': {'root': 'C', 'quality': 'major'}, 'voicing': {'positions': [{'string': p['string'], 'fret': p['fret']} for p in chord_voicings(ChordRef(root='C', quality='major'), [64, 59, 55, 50, 45, 40])[0]['positions']], 'tuning': [64, 59, 55, 50, 45, 40]}}]},
                 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
                     'hero': [{'kind': 'candidate-set'}], 'support': [{'kind': 'chord-inspector'}]}}}]
+        question = str(messages[-1].content)
+        if 'Show scratch' in question:
+            self.outcomes = [{'message': 'Arrange your scratch chords.', 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {'hero': [{'kind': 'scratch-sequence'}], 'support': [{'kind': 'chord-inspector'}]}}}]
+        elif 'Change the key to E minor' in question:
+            self.outcomes = [{'message': 'Changed to E minor.', 'mutation': {'kind': 'set_tonal_center', 'tonal_center': {'root': 'E', 'scale': 'natural_minor'}}}]
+        elif 'Make it Dorian' in question:
+            self.outcomes = [{'message': 'Changed to Dorian.', 'mutation': {'kind': 'set_scale', 'scale': 'dorian'}}]
         return super()._generate(messages, **kwargs)
 
 
