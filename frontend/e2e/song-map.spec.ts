@@ -44,7 +44,9 @@ test('learning map keeps raw measures, related phrases, saved ranges and exercis
   await page.getByTestId('song-study-remove-enrichment').click()
   await expect(page.getByTestId('song-map-derived')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Saved range: Repeat to practice · M5–6' })).toBeVisible()
+  const selectedExercise = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().includes('/branches/') && r.request().postDataJSON()?.selection?.startMeasureIndex === 2)
   await page.getByRole('button', { name: 'Exercise: Shift drill · M3–4' }).click()
+  await selectedExercise
   const updated = await page.request.get(`/api/v2/sessions/${session.id}`).then(r => r.json())
   expect(updated.branches[0].selection).toEqual({ type: 'range', startMeasureIndex: 2, endMeasureIndex: 3 })
   await page.reload()

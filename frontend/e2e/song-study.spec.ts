@@ -153,7 +153,9 @@ test('search a song, load the whole track, select a beat, and sync the fretboard
   // select a contiguous range — also represented in Branch state.
   const overviewMeasures = page.getByTestId('song-study-overview-measure')
   await overviewMeasures.nth(2).click()
+  const rangeSaved = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().includes('/branches/') && r.request().postDataJSON()?.selection?.type === 'range')
   await overviewMeasures.nth(0).click({ modifiers: ['Shift'] })
+  await rangeSaved
 
   const branchAfterRange = await page.request
     .get(`/api/v2/sessions/${sessionId}`)

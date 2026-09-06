@@ -208,23 +208,9 @@ ScaleConceptId = Literal[
     "pentatonic_minor",
     "blues",
 ]
-IntervalConceptId = Literal["intervals"]
-CagedConceptId = Literal["caged"]
 CagedQualityId = Literal["major", "minor"]
 CagedShapeId = Literal["C", "A", "G", "E", "D"]
-ChordQualityId = Literal[
-    "major", "minor", "diminished", "augmented", "dominant7", "major7",
-    "minor7", "dim7", "m7b5", "sus2", "sus4", "add9", "madd9",
-    "7sus4", "6", "m6", "9", "m9", "maj9",
-]
-ChordConceptId = Literal[
-    "chord_major", "chord_minor", "chord_diminished", "chord_augmented",
-    "chord_dominant7", "chord_major7", "chord_minor7", "chord_dim7",
-    "chord_m7b5", "chord_sus2", "chord_sus4", "chord_add9",
-    "chord_madd9", "chord_7sus4", "chord_6", "chord_m6", "chord_9",
-    "chord_m9", "chord_maj9",
-]
-ConceptId = ScaleConceptId | IntervalConceptId | CagedConceptId | ChordConceptId | Literal["circle"]
+ConceptId = ScaleConceptId | Literal["caged", "circle", "chord_major", "chord_minor"]
 
 
 class ConceptNote(BaseModel):

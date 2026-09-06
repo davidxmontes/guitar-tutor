@@ -2,14 +2,12 @@ import { ExploreHome } from './ExploreHome';
 import type { ScaleMode } from '../types/conceptWorkspace';
 import { ConceptWorkspacePanel } from './ConceptWorkspace';
 import { MyStuff } from './MyStuff';
-import { circleContext } from './circleState';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
 import { useCallback, useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
 import { SongStudyPanel } from './SongStudy';
-import { ConceptStudyPanel, ConceptStudyPicker } from './ConceptStudy';
 import { ProgressionWorkspace } from './ProgressionWorkspace';
 import { BranchNavigation } from './BranchNavigation';
 import type { ConceptSuggestion, ProgressionPayload, V2Branch, V2Session } from '../types/v2';
@@ -20,7 +18,6 @@ export function V2App() {
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [draftPending, setDraftPending] = useState(false);
-  const [showConceptPicker, setShowConceptPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,12 +29,11 @@ export function V2App() {
     apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err)));
   }, [isSignedIn, getToken]);
 
-  const handleStart = async (startConcept = false) => {
+  const handleStart = async () => {
     try {
       const session = await apiClient.createV2Session();
       setActiveSession(session);
       setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
-      setShowConceptPicker(startConcept);
       setSessions((prev) => [session, ...(prev ?? [])]);
     } catch (err) {
       setError(String(err));
@@ -49,7 +45,7 @@ export function V2App() {
       const session = activeSession ?? await apiClient.createV2Session();
       const branch = await apiClient.openConceptWorkspace(session.id, recipe, mode);
       setActiveSession({ ...session, branches: [...session.branches, branch] });
-      setActiveBranchId(branch.id); setShowConceptPicker(false);
+      setActiveBranchId(branch.id);
     } catch (err) { setError(String(err)); }
   };
 
@@ -59,7 +55,6 @@ export function V2App() {
       setActiveSession(session);
       const resumed = session.branches.find((branch) => !branch.closed);
       setActiveBranchId(resumed?.id ?? null);
-      setShowConceptPicker(Boolean(resumed && circleContext(resumed)));
     } catch (err) {
       setError(String(err));
     }
@@ -88,20 +83,14 @@ export function V2App() {
       };
     });
     setActiveBranchId(opened.branch.id);
-    setShowConceptPicker(false);
+
   };
 
   const handleWorkOnConcept = async (suggestion: ConceptSuggestion) => {
     if (!activeSession || !activeBranchId) return;
     try {
-      const opened = await apiClient.createConceptStudy({
-        session_id: activeSession.id,
-        branch_id: activeBranchId,
-        root: suggestion.root,
-        concept_id: suggestion.concept_id,
-        promotion: 'work_on_this',
-      });
-      handleBranchOpened(opened);
+      const branch = await apiClient.openConceptSuggestion(activeSession.id, suggestion);
+      handleBranchOpened({branch});
     } catch (err) {
       setError(String(err));
     }
@@ -115,8 +104,6 @@ export function V2App() {
 
   const handleSelectBranch = (branchId: string) => {
     setActiveBranchId(branchId);
-    const selected = activeSession?.branches.find(b => b.id === branchId);
-    setShowConceptPicker(Boolean(selected && circleContext(selected)));
   };
 
   const handleCloseBranch = async (branchId: string) => {
@@ -127,7 +114,7 @@ export function V2App() {
       if (activeBranchId === branchId) {
         setActiveBranchId(activeSession.branches.find((branch) => branch.id !== branchId && !branch.closed)?.id ?? null);
       }
-      setShowConceptPicker(false);
+
     } catch (err) {
       setError(String(err));
     }
@@ -161,10 +148,9 @@ export function V2App() {
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
         <fieldset disabled={draftPending} className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h1 className="text-2xl font-black">Guitar Tutor</h1>
-          <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); setShowConceptPicker(false); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
-          <button type="button" onClick={() => setShowConceptPicker(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}>Study a concept</button>
+          <button type="button" className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold" onClick={() => { setActiveSession(null); apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err))); }}>My Stuff</button>
         </fieldset>
-        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2 focus-visible:outline-2 focus-visible:outline-[var(--accent-700)]" onClick={() => { setActiveSession(null); setShowConceptPicker(false); }}>Explore</button>
+        <button disabled={draftPending} type="button" className="mb-3 min-h-11 rounded-lg border px-3 py-2 focus-visible:outline-2 focus-visible:outline-[var(--accent-700)]" onClick={() => { setActiveSession(null); }}>Explore</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
@@ -181,22 +167,12 @@ export function V2App() {
             role="tabpanel"
             aria-labelledby={`workspace-tab-${branch.id}`}
           >
-            {showConceptPicker ? (
-              <ConceptStudyPicker key={branch.id}
-                sessionId={activeSession.id}
-                branch={branch}
-                onOpened={handleBranchOpened}
-                onCancel={async () => {
-                  try { handleBranchChange(await apiClient.updateV2Branch(activeSession.id, branch.id, { recent_ideas: branch.recent_ideas.filter(idea => idea.type !== 'circle_study') })); setShowConceptPicker(false); } catch (err) { setError(String(err)); }
-                }}
-                onWorkOnConcept={handleWorkOnConcept}
-              />
-            ) : branch.working_draft ? (
+            {branch.working_draft ? (
               <ConceptWorkspacePanel onPendingChange={setDraftPending} key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
             ) : branch.current_artifact_kind === 'exercise' ? (
               <ExerciseWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} />
             ) : branch.current_artifact_kind === 'concept_study' ? (
-              <ConceptStudyPanel onOpened={handleBranchOpened} key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} onWorkOnConcept={handleWorkOnConcept} />
+              <section className="space-y-3" role="alert"><h2 className="text-xl font-bold">This older study is unsupported</h2><p>Start a new exploration to work with editable music. Your saved work has not been changed.</p><button className="min-h-11 rounded-lg border px-3 py-2" onClick={() => setActiveSession(null)}>Open Explore</button></section>
             ) : branch.current_artifact_kind === 'progression' ? (
               <ProgressionWorkspace key={branch.id} sessionId={activeSession.id} branch={branch} onBranchChange={handleBranchChange} />
             ) : (
@@ -240,12 +216,10 @@ export function V2App() {
 
       <MyStuff onOpen={session => { setActiveSession(session); setActiveBranchId(session.branches[0].id); setSessions(prev => [session, ...(prev ?? [])]); }} />
       <div className="flex gap-3 flex-wrap">
-      <button type="button" data-testid="v2-start-session" onClick={() => handleStart(false)}>
+      <button type="button" data-testid="v2-start-session" onClick={handleStart}>
         Start something new
       </button>
-      <button type="button" data-testid="v2-start-concept" onClick={() => handleStart(true)}>
-        Study a concept
-      </button>
+
       </div>
     </main>
   );

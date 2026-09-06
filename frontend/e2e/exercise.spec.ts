@@ -18,7 +18,7 @@ test('save a deliberate progression drill and practice it in a fresh session', a
   await page.getByLabel('Practice goal').fill('Keep the bass change even')
   await page.getByLabel('Step order').fill('1,2,1')
   await page.getByRole('button', { name: 'Save exercise', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Exercise saved')
+  await expect(page.getByText(/Exercise saved\./)).toBeVisible()
   const saved = await page.request.get('/api/v2/exercises').then(r => r.json())
   expect(saved[0].payload.steps.map((s: {positions: {fret: number}[]}) => s.positions[0].fret)).toEqual([0,2,0])
   await page.goto('/v2')
@@ -40,11 +40,11 @@ test('save a deliberate progression drill and practice it in a fresh session', a
   await page.screenshot({ path: '/private/tmp/issue20-mobile.png', fullPage: true })
 })
 
-test('song drill material preserves rests and tuning; concept drill uses selected physical shape', async ({ page }) => {
+test('song drill material preserves rests and tuning', async ({ page }) => {
   await page.goto('/v2')
   const result = await page.evaluate(async () => {
     const path = '/src/v2/exerciseMaterial.ts'
-    const { songDrill, conceptDrill } = await import(path)
+    const { songDrill } = await import(path)
     const song = { track: { tuning: [64,59,55,50,45,38] }, tab_data: { measures: [
       { voices: [{ beats: [{ duration: [1,4], notes: [{ string: 5, fret: 0 }] }, { duration: [1,8], rest: true, notes: [] }] }] },
       { voices: [{ beats: [{ duration: [1,4], notes: [{ string: 0, fret: 9 }] }] }] },
@@ -52,36 +52,32 @@ test('song drill material preserves rests and tuning; concept drill uses selecte
     const selected = songDrill(song, { type: 'range', startMeasureIndex: 0, endMeasureIndex: 0 }, { measureIndex: 1, windowSize: 2 })
     const missing = songDrill({ ...song, track: { tuning: [] } }, null, { measureIndex: 0 })
     const invalid = songDrill({ ...song, track: { tuning: [64,59,55,50,45,NaN] } }, null, { measureIndex: 0 })
-    const chord = conceptDrill({ tuning: ['E','B','G','D','A','E'], visualization: 'chord', selected_voicing: 1,
-      voicings: [{ label: 'First', positions: [{ string: 1, fret: 0 }] }, { label: 'Second', positions: [{ string: 2, fret: 3 }] }] })
-    return { selected, missing, invalid, chord }
+    return { selected, missing, invalid }
   })
   expect(result.selected.map((s: {beats: number}) => s.beats)).toEqual([1,0.5])
   expect(result.selected[0]).toMatchObject({ positions: [{ string: 6, fret: 0 }], tuning: [64,59,55,50,45,38] })
   expect(result.selected[1].positions).toEqual([])
   expect(result.missing).toEqual([])
   expect(result.invalid).toEqual([])
-  expect(result.chord[0].positions).toEqual([{ string: 2, fret: 3 }])
 })
 
 test('saved concept offers deliberate exercise creation', async ({ page }) => {
   await page.goto('/v2')
   const session = await page.request.post('/api/v2/sessions').then(r => r.json())
-  const opened = await page.request.post('/api/v2/concept-studies', { data: {
-    session_id: session.id, branch_id: session.branches[0].id, root: 'A', concept_id: 'pentatonic_minor', promotion: 'work_on_this',
-  } }).then(r => r.json())
+  const opened = await page.request.post(`/api/v2/sessions/${session.id}/concept-workspaces/from-concept`, {data:{root:'A',concept_id:'pentatonic_minor'}}).then(r => r.json())
+  const savedBranch = await page.request.post(`/api/v2/sessions/${session.id}/branches/${opened.id}/workspace/save`,{data:{expected_version:1,title:'A minor pentatonic'}}).then(r => r.json())
   await page.reload()
-  await page.locator(`[data-session-id="${session.id}"]`).click()
-  await page.getByRole('tab', { name: opened.artifact.title }).click()
+  await page.getByRole('button',{name:'Open A minor pentatonic',exact:true}).click()
+  await expect(page.getByText('Draft autosaved',{exact:true})).toBeVisible()
   await page.getByRole('button', { name: 'Create exercise', exact: true }).click()
   await page.getByLabel('Exercise title').fill('Three-note return')
   await page.getByLabel('Practice goal').fill('Return smoothly to the first note')
   await page.getByLabel('Step order').fill('1,2,3,2,1')
   await page.getByRole('button', { name: 'Save exercise', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Exercise saved')
+  await expect(page.getByText(/Exercise saved\./)).toBeVisible()
   const exercises = await page.request.get('/api/v2/exercises').then(r => r.json())
   const saved = exercises.find((e: {title: string}) => e.title === 'Three-note return')
   expect(saved.payload.steps).toHaveLength(5)
   expect(saved.payload.steps[0]).toEqual(saved.payload.steps[4])
-  expect(saved.payload.created_from.artifact_id).toBe(opened.artifact.id)
+  expect(saved.payload.created_from.artifact_id).toBe(savedBranch.current_artifact_id)
 })

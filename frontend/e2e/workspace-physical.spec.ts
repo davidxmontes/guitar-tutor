@@ -23,11 +23,13 @@ test('D to G coordinates physical views, Hear, direct Tutor reshaping and Undo',
   await page.getByRole('button', { name: 'Stop playback' }).click();
   expect(turns).toBe(0);
   await page.screenshot({ path:'/private/tmp/issue64-desktop.png', fullPage:true });
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Give me a smoother way to move from D to G');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText('Tutor change applied', { exact:true })).toBeVisible();
   await expect(diagrams.getByRole('button', { name:'Inspect G over D · compact', exact:true })).toBeVisible();
   await expect(diagrams.getByRole('img', { name:/G over D · compact.*String 3 fret 4/ })).toBeVisible();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Try an invalid voicing');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText(/No change was applied:/)).toBeVisible();
@@ -44,6 +46,7 @@ test('D to G coordinates physical views, Hear, direct Tutor reshaping and Undo',
   await page.locator(`[data-session-id="${sid}"]`).click();
   await page.getByLabel('Current workspace', { exact:true }).selectOption(bid);
   await expect(diagrams.getByRole('button', { name:'Inspect G open', exact:true })).toBeVisible();
+  await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByRole('button', { name:'Preview turn workspace', exact:true }).first().click();
   await expect(page.getByRole('region', { name:'Turn snapshot preview' }).getByRole('img', { name:/G over D · compact/ })).toBeVisible();
   await page.getByRole('button', { name:'Return to current', exact:true }).click();

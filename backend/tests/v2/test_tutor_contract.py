@@ -112,12 +112,12 @@ def test_tutor_cannot_offer_an_unsupported_concept_visualization() -> None:
 
 def test_tutor_can_offer_only_publicly_supported_chord_studies() -> None:
     suggestion = ConceptSuggestion(
-        concept_id="chord_m9",
+        concept_id="chord_minor",
         root="C",
-        label="C minor 9",
+        label="C minor",
     )
 
-    assert suggestion.concept_id == "chord_m9"
+    assert suggestion.concept_id == "chord_minor"
     with pytest.raises(ValidationError):
         ConceptSuggestion(concept_id="chord_power", root="C", label="C power chord")
 

@@ -1,7 +1,7 @@
 import type { ConceptWorkspace, ResolvedWorkspace } from '../types/conceptWorkspace';
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { WorkspaceTurnResult, Artifact, ArtifactRevision, LibraryItem, CircleState, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ConceptStudyArtifact, ConceptStudyPayload, CreateConceptStudyRequest, OpenConceptStudyResponse, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse, StudyCatalog, StudyVisualizationRequest } from '../types/v2';
+import type { WorkspaceTurnResult, Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, UpdateBranchRequest, VoicingProposal, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionPayload, ProgressionArtifact, OpenProgressionResponse } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -371,10 +371,6 @@ class ApiClient {
     return this.fetch(`/v2/library/${id}/save`, { method: 'POST', body: JSON.stringify({ expected_updated_at: expected }) });
   }
 
-  async saveConceptSelection(id: string, payload: ConceptStudyPayload, expected: string): Promise<ConceptStudyArtifact> {
-    return this.fetch(`/v2/concept-studies/${id}`, { method: 'PATCH', body: JSON.stringify({ payload, expected_updated_at: expected }) });
-  }
-
   async createSongStudy(data: CreateSongStudyRequest): Promise<SongStudyArtifact> {
     return this.fetch<SongStudyArtifact>('/v2/song-studies', {
       method: 'POST',
@@ -386,52 +382,8 @@ class ApiClient {
     return this.fetch<SongStudyArtifact>(`/v2/song-studies/${artifactId}`);
   }
 
-  // --- V2: ConceptStudy artifact ---
-
-  async getStudyCatalog(): Promise<StudyCatalog> {
-    return this.fetch<StudyCatalog>('/v2/study/catalog');
-  }
-
-  async getStudyVisualization(data: StudyVisualizationRequest): Promise<ConceptStudyPayload> {
-    const params = new URLSearchParams({ root: data.root, overlay: data.overlay ?? 'notes' });
-    if (data.comparison_id) params.set('comparison_id', data.comparison_id);
-    if (data.selected_interval !== undefined) params.set('selected_interval', String(data.selected_interval));
-    if (data.selected_voicing !== undefined) params.set('selected_voicing', String(data.selected_voicing));
-    if (data.comparison_quality) params.set('comparison_quality', data.comparison_quality);
-    if (data.caged_quality) params.set('caged_quality', data.caged_quality);
-    if (data.selected_region) params.set('selected_region', data.selected_region);
-    if (data.comparison_region) params.set('comparison_region', data.comparison_region);
-    if (data.selected_chord !== undefined) params.set('selected_chord', String(data.selected_chord));
-    if (data.selected_sequence) params.set('selected_sequence', data.selected_sequence);
-    return this.fetch<ConceptStudyPayload>(`/v2/study/visualizations/${data.concept_id}?${params}`);
-  }
-
-  async exploreCircle(session_id: string, branch_id: string, state: CircleState): Promise<OpenProgressionResponse> {
-    return this.fetch('/v2/study/circle/explore', { method: 'POST', body: JSON.stringify({ session_id, branch_id, ...state }) });
-  }
-
-  async createConceptStudy(data: CreateConceptStudyRequest): Promise<OpenConceptStudyResponse> {
-    return this.fetch<OpenConceptStudyResponse>('/v2/concept-studies', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async getConceptStudy(artifactId: string): Promise<ConceptStudyArtifact> {
-    const artifact = await this.fetch<ConceptStudyArtifact>(`/v2/concept-studies/${artifactId}`);
-    if ('schema_version' in artifact.payload) throw new Error('Open this study from My Stuff to resume its workspace.');
-    return artifact;
-  }
-
-  async listConceptStudies(): Promise<Artifact[]> {
-    return this.fetch<Artifact[]>('/v2/concept-studies');
-  }
-
-  async workOnSavedConcept(artifactId: string, sessionId: string, branchId: string): Promise<OpenConceptStudyResponse> {
-    return this.fetch<OpenConceptStudyResponse>(`/v2/concept-studies/${artifactId}/work-on-this`, {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, branch_id: branchId }),
-    });
+  openConceptSuggestion(sessionId: string, suggestion: import('../types/v2').ConceptSuggestion): Promise<V2Branch> {
+    return this.fetch(`/v2/sessions/${sessionId}/concept-workspaces/from-concept`, {method:'POST',body:JSON.stringify({concept_id:suggestion.concept_id,root:suggestion.root})});
   }
 
   async saveSongRanges(artifactId: string, revision: string, ranges: import('../types/v2').SongSavedRange[]): Promise<SongStudyArtifact> {

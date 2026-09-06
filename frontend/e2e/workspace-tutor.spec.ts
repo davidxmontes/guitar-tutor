@@ -9,6 +9,7 @@ test('Tutor applies directly, reloads history, and undoes an exact workspace sna
   const branch = () => page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid));
   const original = (await branch()).working_draft;
   await page.getByRole('region', { name: 'Degree strip' }).getByRole('button', { name: 'G major: B, degree 3, changed' }).click();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Change the first scale to G Dorian');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText('Tutor change applied', { exact: true })).toBeVisible();
@@ -17,11 +18,13 @@ test('Tutor applies directly, reloads history, and undoes an exact workspace sna
   await page.reload();
   await page.locator(`[data-session-id="${sid}"]`).click();
   await page.getByRole('tab', { name: /G major vs G minor/ }).click();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Undo Tutor change' })).toBeVisible();
   await page.getByRole('button', { name: 'Undo Tutor change' }).click();
   await expect(page.getByRole('heading', { name: 'G major vs G minor' })).toBeVisible();
   const restored = (await branch()).working_draft;
   expect(restored).toEqual({ ...original, version: 3 });
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByTestId('tutor-chat-message-assistant').first()).toContainText('now G Dorian');
   await expect(page.getByText('Tutor change undone', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo Tutor change' })).toHaveCount(0);
@@ -37,6 +40,7 @@ test('Invalid and stale Tutor changes preserve conversation and the current draf
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Explore major vs minor' }).click();
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Try an invalid change');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByTestId('tutor-chat-message-assistant')).toContainText('explanation remains visible');
@@ -45,6 +49,7 @@ test('Invalid and stale Tutor changes preserve conversation and the current draf
   const sid = (await page.getByTestId('v2-active-session').innerText()).replace('Session ', '');
   const bid = (await page.getByTestId('v2-active-branch').innerText()).replace('Branch ', '');
   const branch = await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json()).then(s => s.branches.find((b: {id: string}) => b.id === bid));
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Make a slow change');
   const sent = page.waitForRequest('**/api/v2/tutor/turns');
   await page.getByTestId('tutor-chat-send').click();
@@ -62,6 +67,7 @@ test('Tutor alternatives are normal scales with editable music and removable dep
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Explore major vs minor' }).click();
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Show two alternatives');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText('Tutor change applied', { exact: true })).toBeVisible();
@@ -82,6 +88,7 @@ test('A failed post-turn view request preserves the authoritative saved draft an
   await page.getByRole('button', { name: 'Explore major vs minor' }).click();
   await expect(page.getByText('Draft autosaved', { exact: true })).toBeVisible();
   await page.route('**/api/v2/concept-workspaces/resolve', route => route.abort());
+  if (!(await page.getByRole('dialog', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByTestId('tutor-chat-input').fill('Change the first scale to G Dorian');
   await page.getByTestId('tutor-chat-send').click();
   await expect(page.getByText('Tutor change applied', { exact: true })).toBeVisible();

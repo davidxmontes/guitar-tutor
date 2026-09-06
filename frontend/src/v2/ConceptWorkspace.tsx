@@ -1,3 +1,4 @@
+import { ExerciseComposer } from './ExerciseComposer';
 import { workspaceLabel, cagedSelection } from './workspaceInspection';
 import { PhysicalWorkspaceControls } from './PhysicalWorkspaceControls';
 import { TutorChat } from './TutorChat';
@@ -8,7 +9,7 @@ import type { ConceptWorkspace, Inspection, ResolvedWorkspace, ScaleMode, Worksp
 import { playNoteSequence, playChordSequence } from '../utils/audio';
 import { ConceptWorkspaceBlock } from './ConceptWorkspaceBlocks';
 
-const control = 'min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] px-3 py-2 disabled:opacity-50';
+const control = 'min-h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--card-bg)] px-3 py-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-700)]';
 const roots = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const modes: ScaleMode[] = ['major', 'natural_minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonic_minor', 'melodic_minor', 'pentatonic_major', 'pentatonic_minor', 'blues'];
 const names = { fretboard: 'Fretboard', degree_strip: 'Degree strip', chord_diagrams: 'Chord diagrams', circle: 'Circle', progression: 'Progression', caged: 'CAGED' };
@@ -36,6 +37,8 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopAudio = useRef<(() => void) | null>(null);
   const playbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tutorPanel = useRef<HTMLDialogElement>(null);
+  const tutorButton = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
@@ -93,7 +96,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     } catch (error) { setError(`${String(error)}. Your draft is unchanged. Choose another edit or transpose distance.`); setStatus('Change not applied'); setBusy(false); onPendingChange(false); }
   };
   const hearProgression = (steps: {positions: {string: number; fret: number}[]; tuning: number[]}[]) => {
-    stop();
+    stop(); setError(null);
     try { stopAudio.current = playChordSequence(steps); setPlaying(true); playbackTimer.current = setTimeout(() => { setPlaying(false); stopAudio.current = null; }, steps.length * 1200 + 200); }
     catch { setError('Audio could not start. Your draft is unchanged.'); }
   };
@@ -121,7 +124,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     finally { setBusy(false); onPendingChange(false); }
   };
   const previewTurn = async (messageId: string, snapshot: ConceptWorkspace, focus: TutorFocus | null) => {
-    stop(); setBusy(true); onPendingChange(true); setError(null);
+    tutorPanel.current?.close(); stop(); setBusy(true); onPendingChange(true); setError(null);
     try { const facts = await apiClient.resolveConceptWorkspace(snapshot); setPreviewError(null); setPreview({ messageId, snapshot, facts, focus }); }
     catch { setError('Could not preview that turn. Your current draft is unchanged. Try Preview again.'); }
     finally { setBusy(false); onPendingChange(false); }
@@ -188,6 +191,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       {summary && <p>{summary.shared.length} notes stay the same. {summary.removed.length > 0 && `Only in the first scale: ${summary.removed.map(n => n.note).join(', ')}. `}{summary.added.length > 0 && `Only in the second: ${summary.added.map(n => n.note).join(', ')}. `}{summary.removed.length === 0 && summary.added.length === 0 && 'These scales use the same pitches. '} Hear both scales, then select a changed note to find it on the guitar.</p>}
       <div className="flex flex-wrap items-center gap-3"><button type="button" className={control} disabled={!resolved || locked || Boolean(progression?.steps.some(s => !s.positions.length))} onClick={() => {
         if (playing) { stop(); return; }
+        setError(null);
         try {
           if (caged) { hearProgression(caged.regions); return; }
           if (progression) { hearProgression(progression.steps); return; }
@@ -201,7 +205,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
           stopAudio.current = playNoteSequence(notes, workspace.tuning); setPlaying(true);
           playbackTimer.current = setTimeout(() => { setPlaying(false); stopAudio.current = null; }, notes.length * 300 + 400);
         } catch { setError('Audio could not start. Try Hear again. Your draft is unchanged.'); }
-      }}>{playing ? 'Stop playback' : caged ? 'Hear adjacent regions' : progression ? 'Hear progression' : physical ? 'Hear D to G' : 'Hear comparison'}</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
+      }}>{playing ? 'Stop playback' : caged ? 'Hear adjacent regions' : progression ? 'Hear progression' : physical ? 'Hear D to G' : 'Hear comparison'}</button><button ref={tutorButton} aria-haspopup="dialog" className={control} onClick={() => tutorPanel.current?.show()}>Open Tutor</button><p role="status" className="text-sm text-[var(--text-secondary)]">{status}</p></div>
     </header>
     <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void saveStudy(); }}>
       <label className="min-w-0">Study name<input required maxLength={120} value={studyName} disabled={locked}
@@ -211,7 +215,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       {saveMessage && <p role="status">{saveMessage}</p>}
     </form>
     {saveError && <p role="alert">{saveError}</p>}
-    {error && <div role="alert" className="space-y-2"><p>{error}</p>{workspace !== saved.current && <div className="flex flex-wrap gap-2"><button className={control} disabled={locked} onClick={() => persist(workspace)}>Retry autosave</button><button className={control} onClick={() => {
+    {error && <div role="alert" className="space-y-2"><p>{error}</p>{!resolved && !busy && <button className={control} onClick={() => window.location.reload()}>Reload workspace</button>}{workspace !== saved.current && <div className="flex flex-wrap gap-2"><button className={control} disabled={locked} onClick={() => persist(workspace)}>Retry autosave</button><button className={control} onClick={() => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'concept-workspace.json'; link.click(); URL.revokeObjectURL(url); onPendingChange(false);
     }}>Download draft</button></div>}</div>}
     {physical && <PhysicalWorkspaceControls workspace={workspace} disabled={locked} onChange={change} />}
@@ -239,12 +243,14 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
       <label>View type<select className={`${control} block`} value={allowedViews.includes(viewKind) ? viewKind : allowedViews[0] ?? ''} onChange={e => setViewKind(e.target.value as WorkspaceBlock['kind'])}>{allowedViews.map(kind => <option key={kind} value={kind}>{names[kind]}</option>)}</select></label>
       <button disabled={!allowedViews.length} className={control} onClick={() => { const id = crypto.randomUUID(); change({ ...workspace, blocks: [...workspace.blocks, { id, kind: allowedViews.includes(viewKind) ? viewKind : allowedViews[0], source_id: sourceId, settings: { pattern: (allowedViews.includes(viewKind) ? viewKind : allowedViews[0]) === 'progression' && source?.kind === 'key' ? 'I-V-vi-IV' : null, labels: 'notes', shared_only: false, fret_start: 0, fret_end: 5 } }], composition: [...workspace.composition, { items: [{ block_id: id, span: 12, priority: 'supporting' }] }] }); setAdding(false); addButton.current?.focus(); }}>Add selected view</button>
     </fieldset>}
-    <details open className="min-w-0 space-y-3"><summary className="min-h-11 cursor-pointer py-3 font-bold">Tutor</summary>
+    {resolved && branch.current_artifact_id && branch.saved_artifact_revision && <fieldset disabled={locked || workspace !== saved.current}><ExerciseComposer key={`${workspace.version}:${inspection?.source_id ?? ''}`} sourceId={branch.current_artifact_id} revision={branch.saved_artifact_revision} selection={{workspace_version:workspace.version}} steps={Object.values(resolved.scales).flatMap(scale => scale.playback.map(p => ({label:`${p.note} · ${p.degree}`,beats:1,positions:[p],tuning:workspace.tuning}))).concat((caged?.regions ?? progression?.steps ?? Object.values(resolved.voicings)).map((v,i) => ({label:'label' in v ? v.label : `Chord ${i+1}`,beats:4,positions:v.positions,tuning:v.tuning})))} /></fieldset>}
+    <dialog ref={tutorPanel} aria-label="Tutor" onClose={() => tutorButton.current?.focus()} onKeyDown={event => {if(event.key === 'Escape') {event.preventDefault(); tutorPanel.current?.close();}}} className="fixed inset-auto right-3 bottom-3 z-50 m-0 max-h-[85dvh] w-[calc(100%_-_1.5rem)] max-w-lg overflow-y-auto rounded-xl border border-[var(--border-primary)] bg-[var(--card-bg)] p-4 text-[var(--text-primary)] shadow-lg">
+      <header className="mb-3 flex items-center justify-between gap-3"><h2 className="font-bold">Tutor</h2><button className={control} onClick={() => tutorPanel.current?.close()}>Close Tutor</button></header>
       <TutorChat wide historyVersion={historyVersion} sessionId={sessionId} branchId={branch.id} tutorThreadId={branch.tutor_thread_id}
         onFocusChange={setTutorFocus} onPreview={previewTurn} inspection={inspection} workspaceVersion={workspace.version}
         disabled={busy || workspace !== saved.current} onWorkspaceResult={receiveTutorResult}
         onSendingChange={sending => { setTutorBusy(sending); onPendingChange(sending); }}
         emptyMessage="Ask about this music or request a change." />
-    </details>
+    </dialog>
   </div></>;
 }
