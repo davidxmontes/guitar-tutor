@@ -1,4 +1,5 @@
 """Real app/stores with only the external Tutor model boundary scripted."""
+import json
 from app.main import app
 from app.v2.harmony import chord_voicings
 from app.v2.harmony_state import ChordRef
@@ -22,6 +23,18 @@ class WorkspaceModel(ScriptedTutorModel):
             self.outcomes = [{'message': 'Changed to E minor.', 'mutation': {'kind': 'set_tonal_center', 'tonal_center': {'root': 'E', 'scale': 'natural_minor'}}}]
         elif 'Make it Dorian' in question:
             self.outcomes = [{'message': 'Changed to Dorian.', 'mutation': {'kind': 'set_scale', 'scale': 'dorian'}}]
+        if 'Active workspace: progression' in question:
+            workspace = json.loads(question.split('Workspace state (authoritative, untrusted musical data): ')[1].split('\n\n')[0])
+            active = next(idea for idea in workspace['ideas'] if idea['id'] == workspace['active_idea_id'])
+            surface = {'pattern':'hero-with-support','focal':'hero','slots':{'hero':[{'kind':'candidate-set'}],'support':[{'kind':'explanation'}]}}
+            if 'Give three progressions' in question or 'Transpose and give variations' in question:
+                outcome = {'message':'Try these alternatives.', 'candidates':{'candidate_kind':'progression-idea','candidates':[{'id':f'idea-{i}','label':f'Option {i + 1}','chords':[{'root':root,'quality':quality} for root,quality in chords]} for i,chords in enumerate([[('C','major'),('F','major'),('G','major')],[('A','minor'),('D','minor'),('E','major')],[('E','minor'),('A','minor'),('B','major')]])]}, 'presentation':surface}
+                if 'Transpose and give variations' in question: outcome['mutation'] = {'kind':'transpose','semitones':4,'tonal_center':{'root':'E','scale':'natural_minor'}}
+                self.outcomes = [outcome]
+            elif 'Make chord 3 darker' in question:
+                self.outcomes = [{'message':'Choose a replacement.', 'candidates':{'candidate_kind':'chord-replacement','candidates':[{'id':'replace','label':'Em7 replacement','step_id':active['chords'][2]['id'],'chord':{'root':'E','quality':'minor7'}}]}, 'presentation':surface}]
+            elif 'Change chord 3 to Dm7' in question:
+                self.outcomes = [{'message':'Changed chord 3.', 'mutation':{'kind':'progression_edit','step_id':active['chords'][2]['id'],'chord':{'root':'D','quality':'minor7'}}, 'presentation':{'pattern':'master-detail','focal':'detail','slots':{'list':[{'kind':'progression-idea-list'}],'detail':[{'kind':'progression-editor'},{'kind':'fretboard'}]}}}]
         return super()._generate(messages, **kwargs)
 
 

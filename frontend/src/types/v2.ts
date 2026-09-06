@@ -186,7 +186,7 @@ export interface TutorResponse {
   message: string;
   focus: Record<string, unknown> | null;
   attention: TutorAttention | null;
-  mutation: ({ kind: 'noop' | 'set_tonal_center' | 'set_scale' | 'set_tuning' | 'scratch_add' | 'scratch_remove' | 'scratch_reorder' | 'add_kept_note_group' } & Record<string, unknown>) | null;
+  mutation: ({ kind: 'noop' | 'set_tonal_center' | 'set_scale' | 'set_tuning' | 'scratch_add' | 'scratch_remove' | 'scratch_reorder' | 'add_kept_note_group' | 'progression_add' | 'progression_remove' | 'progression_reorder' | 'progression_edit' | 'set_duration' | 'assign_step_voicing' | 'transpose' } & Record<string, unknown>) | null;
   presentation: Composition | null;
   presentation_applied: boolean;
   branch: V2Branch | null;

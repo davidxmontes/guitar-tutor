@@ -38,7 +38,7 @@ class TutorAttention(BaseModel):
     label: Optional[str] = None
 
 
-from app.v2.harmony_actions import HarmonyMutation as TutorMutation
+from app.v2.progression_tutor import TutorMutation
 
 
 class CandidateSet(StrictModel):

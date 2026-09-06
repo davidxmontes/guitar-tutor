@@ -65,7 +65,7 @@ def test_scripted_mutation_turn_and_explore_api():
     assert explored['branch']['harmony_exploration']['focus']['kind'] == 'chord'
     confirm = client.post(url + '/explore', json={'subject': {'root': 'D', 'scale': 'dorian'}}).json()
     assert confirm['requires_confirmation']
-    assert client.post(url + '/develop').json()['available'] is False
+    assert client.post(url + '/develop').status_code == 422
     invalid = ScriptedTutorModel(outcomes=[{'message': 'bad', 'mutation': {'kind': 'set_scale', 'scale': 'dorian', 'voicing': {'positions': [{'string': 1, 'fret': 2}]}}}] * 3)
     client = _app(store, _scripted_factory(invalid))
     before = store.get_session(session.id, 'user_1').branches[0]

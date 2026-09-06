@@ -34,9 +34,17 @@ def apply_mutation(branch: Branch, mutation) -> Branch:
     from app.v2.harmony_actions import mutate_harmony
     updated = branch.model_copy(deep=True)
     if mutation is not None and mutation.kind != 'noop':
-        if updated.active_workspace != 'harmony' or updated.harmony_exploration is None:
-            raise ValueError('Harmony mutation requires the active Harmony Workspace')
-        updated.harmony_exploration = mutate_harmony(updated.harmony_exploration, mutation)
+        if updated.active_workspace == 'progression':
+            from app.v2.progression_tutor import mutate_progression
+            updated.progression_workspace = mutate_progression(updated.progression_workspace, mutation)
+        elif mutation.kind == 'transpose':
+            from app.v2.harmony import transpose, change_subject
+            updated.harmony_exploration = transpose(updated.harmony_exploration, mutation.semitones)
+            if mutation.tonal_center: updated.harmony_exploration = change_subject(updated.harmony_exploration, mutation.tonal_center)
+        elif mutation.kind in ('set_tonal_center', 'set_scale', 'set_tuning', 'scratch_add', 'scratch_remove', 'scratch_reorder', 'add_kept_note_group'):
+            updated.harmony_exploration = mutate_harmony(updated.harmony_exploration, mutation)
+        else:
+            raise ValueError('Mutation outside Harmony capabilities')
     return updated
 
 
@@ -47,6 +55,9 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
         allowed = ('voicing',) if updated.active_workspace == 'harmony' else ('progression-idea', 'chord-replacement')
         if terminal.candidates.candidate_kind not in allowed:
             raise ValueError('Candidates outside active workspace')
+        if terminal.candidates.candidate_kind != 'voicing':
+            from app.v2.progression_tutor import resolve_candidates
+            resolve_candidates(updated, terminal.candidates)
         if terminal.candidates.candidate_kind == 'voicing':
             resolved = []
             for candidate in terminal.candidates.candidates:

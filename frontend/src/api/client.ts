@@ -310,7 +310,7 @@ class ApiClient {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/explore`, { method: 'POST', body: JSON.stringify({ subject, confirmed }) });
   }
 
-  async developScratch(session: string, branch: string): Promise<{ available: boolean; message: string }> {
+  async developScratch(session: string, branch: string): Promise<{ available: boolean; message: string; branch: V2Branch }> {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/develop`, { method: 'POST' });
   }
 
@@ -324,6 +324,10 @@ class ApiClient {
 
   async editProgression(session: string, branch: string, edit: Record<string, unknown>): Promise<import('../v2/progression').ProgressionSurface> {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/progression`, { method: 'PATCH', body: JSON.stringify(edit) });
+  }
+
+  async keepCandidate(branch: V2Branch, turnId: string, candidateId: string, develop = false): Promise<V2Branch> {
+    return this.fetch(`/v2/sessions/${branch.session_id}/branches/${branch.id}/candidates/keep`, { method: 'POST', body: JSON.stringify({ turn_id: turnId, candidate_id: candidateId, develop }) });
   }
 
   async composeIdeaExercise(branch: V2Branch, data: { title: string; intent: string; tempo: number; order: string[] }): Promise<ExerciseArtifact> {

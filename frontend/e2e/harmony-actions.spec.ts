@@ -32,8 +32,9 @@ test('Explore confirms key changes; scratch edits and Tutor mutations work', asy
   await scratch.getByRole('button', { name: 'Loop scratch' }).click();
   await scratch.getByRole('button', { name: 'Stop scratch' }).click();
   await scratch.getByRole('button', { name: 'Develop →', exact: true }).click();
-  await expect(page.getByText('Develop is not yet available. Your scratch sequence is unchanged.')).toBeVisible();
-  await expect(scratch.getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByTestId('progression-workspace')).toBeVisible();
+  await page.getByRole('navigation', { name: 'Workspaces' }).getByRole('button', { name: 'Harmony', exact: true }).click();
+  await expect(page.getByTestId('scratch-count')).toHaveText('2 scratch chords');
   await ask('Change the key to E minor');
   await expect(page.getByLabel('Root', { exact: true })).toHaveValue('E');
   await ask('Make it Dorian');

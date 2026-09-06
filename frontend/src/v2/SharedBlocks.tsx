@@ -15,17 +15,19 @@ export function NoteGroupOverlay({ group, children }: { group: NoteLayer; childr
   return <div aria-label={`Highlight: ${group.label}`}>{children(group)}</div>;
 }
 
-export function CandidateSet({ candidates, onPlay, onKeep, onDevelop, onDismiss }: {
-  candidates: { id: string; label: string }[];
+export function CandidateSet({ candidates, onPlay, onKeep, onDevelop, onDismiss, disabled = false }: {
+  disabled?: boolean;
+  candidates: { id: string; label: string; description?: string }[];
   onPlay: (id: string) => void; onKeep: (id: string) => void;
   onDevelop?: (id: string) => void; onDismiss: (id: string) => void;
 }) {
   return <section aria-label="Candidates">
+    {!candidates.length && <p>No current candidates.</p>}
     {candidates.map(candidate => <div key={candidate.id} role="group" aria-label={`Candidate: ${candidate.label}`}>
-      <h3>{candidate.label}</h3>
+      <h3>{candidate.label}</h3>{candidate.description && <p>{candidate.description}</p>}
       <div className="music-controls">
         {([['Play', onPlay], ['Keep', onKeep], ['Develop', onDevelop], ['Dismiss', onDismiss]] as const).map(([label, handler]) =>
-          handler && <button key={label} type="button" className="music-button" onClick={() => handler(candidate.id)}>{label}</button>)}
+          handler && <button disabled={disabled} key={label} type="button" className="music-button" onClick={() => handler(candidate.id)}>{label}</button>)}
       </div>
     </div>)}
   </section>;

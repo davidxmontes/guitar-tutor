@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { V2Branch } from '../types/v2';
+import type { V2Branch, ExerciseStep } from '../types/v2';
 import { CompositionView } from './Composition';
 import { Fretboard } from './Fretboard';
 import type { ResolvedNote } from './Fretboard';
-import { ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
+import { playTimedChords } from '../utils/audio';
+import { CandidateSet, ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
 import { ExerciseComposer } from './ExerciseComposer';
 import { ChordInspector } from './ChordFocus';
 import { HarmonicFunction, VoiceLeading } from './ProgressionAnalysis';
@@ -20,6 +21,15 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const compare = useCompare();
+  const [candidates, setCandidates] = useState<{ kind: string; turnId: string; values: { id: string; label: string; preview: ExerciseStep[] }[] } | null>(null);
+  const stopPreview = useRef<(() => void) | null>(null);
+  useEffect(() => () => { stopPreview.current?.(); }, []);
+  async function keep(id: string, develop = false) {
+    if (!candidates || busy) return;
+    setBusy(true); setError('');
+    try { const result = await apiClient.keepCandidate(branch, candidates.turnId, id, develop); onChange(result); setSurface(await apiClient.getProgressionSurface(branch.session_id, branch.id)); if (develop) setCandidates(null); }
+    catch (err) { setError(String(err)); } finally { setBusy(false); }
+  }
   useEffect(() => {
     let cancelled = false;
     apiClient.getProgressionSurface(branch.session_id, branch.id).then(value => { if (!cancelled) setSurface(value); }).catch(err => { if (!cancelled) setError(String(err)); });
@@ -39,7 +49,7 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
   async function ask() {
     if (!question.trim()) return;
     setBusy(true); setError('');
-    try { const result = await apiClient.sendTutorTurn({ session_id: branch.session_id, branch_id: branch.id, message: question }); setAnswer(result.message); setQuestion(''); const next = await apiClient.getProgressionSurface(branch.session_id, branch.id); setSurface(next); onChange(next.branch); }
+    try { const result = await apiClient.sendTutorTurn({ session_id: branch.session_id, branch_id: branch.id, message: question }); setCandidates(result.candidates && result.branch?.live_presentation_turn_id ? { kind: result.candidates.candidate_kind, turnId: result.branch.live_presentation_turn_id, values: result.candidates.candidates as { id: string; label: string; preview: ExerciseStep[] }[] } : null); setAnswer(result.message); setQuestion(''); const next = await apiClient.getProgressionSurface(branch.session_id, branch.id); setSurface(next); onChange(next.branch); }
     catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
   if (!surface) return <p role="status">{error || 'Loading Progression…'}</p>;
@@ -57,6 +67,10 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
     {error && <p role="alert">{error}</p>}<p role="status">{compare.error}</p>
     {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <><h3>{peer.label}</h3><p>{String(peer.sequence ?? '')}</p><Fretboard context="progression" layers={[{ id: peer.id, label: peer.label, positions: peer.positions as ResolvedNote[], focal: true }]} config={config} onNudge={nudge} onSelect={() => {}} /></>} /> : <CompositionView composition={surface.composition} liveTurnId={`${branch.id}:${surface.branch.live_presentation_turn_id ?? 'starter'}`} renderBlock={(block, _path, nudge) => {
       if (block.kind === 'progression-idea-list') return <section aria-label="Progression ideas"><h3>Ideas</h3>{workspace.ideas.map(value => <div key={value.id} className="music-controls"><button className="music-button" disabled={busy} aria-pressed={value.id === workspace.active_idea_id} onClick={() => void edit({ active_idea_id: value.id })}>{value.label}</button><button className="music-button" onClick={() => compare.toggle({ kind: 'progression-idea', id: value.id, label: value.label, sequence: value.chords.map(step => `${step.root} ${step.quality} (${step.duration_beats} beats)`).join(' → '), positions: surface.resolved[value.id].steps.flatMap(step => step.positions) })}>Compare {value.label}</button></div>)}</section>;
+      if (block.kind === 'candidate-set') return <CandidateSet disabled={busy} candidates={candidates?.values.map(value => ({ ...value, description: value.preview.map(step => step.label).join(' → ') })) ?? []}
+        onPlay={id => { const value = candidates?.values.find(value => value.id === id); if (value) { stopPreview.current?.(); stopPreview.current = playTimedChords(value.preview, 100); } }}
+        onKeep={id => void keep(id)} onDevelop={candidates?.kind === 'progression-idea' ? id => void keep(id, true) : undefined}
+        onDismiss={id => setCandidates(value => value && ({ ...value, values: value.values.filter(candidate => candidate.id !== id) }))} />;
       if (block.kind === 'harmonic-function' && data) return <HarmonicFunction data={data} />;
       if (block.kind === 'voice-leading' && data) return <VoiceLeading data={data} between={block.config?.between} onFocus={(from_step_id, to_step_id) => { if (!busy) void edit({ focus: { kind: 'transition', from_step_id, to_step_id } }); }} />;
       if (block.kind === 'chord-inspector' && step && idea) return <><ChordInspector context="progression" chord={step} notes={step.notes} functionLabel={step.function} hasKey={!!idea.tonal_center} onReplace={() => setReplacing(true)} onExplore={() => { apiClient.exploreSubject(branch.session_id, branch.id, { root: step.root, quality: step.quality }).then(result => onChange(result.branch)).catch(err => setError(String(err))); }} />{replacing && <div className="music-controls"><label>Replacement root <select value={step.root} onChange={event => void edit({ step_id: step.id, chord: { root: event.target.value, quality: step.quality } })}>{surface.catalog.roots.map(root => <option key={root}>{root}</option>)}</select></label><label>Replacement quality <select value={step.quality} onChange={event => void edit({ step_id: step.id, chord: { root: step.root, quality: event.target.value } })}>{surface.catalog.qualities.map(quality => <option key={quality}>{quality}</option>)}</select></label><button className="music-button" onClick={() => setReplacing(false)}>Done replacing</button></div>}</>;

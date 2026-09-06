@@ -663,8 +663,17 @@ async def explore_subject(session_id: str, branch_id: str, data: ExploreRequest,
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/develop')
 async def develop_scratch(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    owned_branch(store, session_id, branch_id, user_id)
-    return {'available': False, 'message': 'Develop is not yet available. Your scratch sequence is unchanged.'}
+    from app.v2.progression_tutor import develop_harmony
+    current = owned_branch(store, session_id, branch_id, user_id)
+    try:
+        developed = develop_harmony(current)
+        updated = store.update_branch(session_id, branch_id, user_id, expected_updated_at=current.updated_at,
+            progression_workspace=developed.progression_workspace, active_workspace='progression', live_presentation_turn_id=None)
+        return {'available': True, 'branch': updated, 'message': 'Scratch developed into a new idea.'}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 # --- Progression idea Save / reopen ---
@@ -775,3 +784,29 @@ async def compose_idea_exercise(session_id: str, branch_id: str, data: IdeaExerc
         return store.create_artifact(user_id, 'exercise', data.title, payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+class KeepCandidateRequest(StrictModel):
+    turn_id: str
+    candidate_id: str
+    develop: bool = False
+
+
+@router.post('/sessions/{session_id}/branches/{branch_id}/candidates/keep')
+async def keep_progression_candidate(session_id: str, branch_id: str, data: KeepCandidateRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    from app.v2.progression_tutor import keep_candidate
+    branch = owned_branch(store, session_id, branch_id, user_id)
+    turn = next((turn for turn in store.list_tutor_messages(branch.tutor_thread_id, user_id) if turn.id == data.turn_id and turn.role == 'assistant'), None)
+    candidate_set = turn.content.get('candidates') if turn else None
+    candidate = next((value for value in candidate_set['candidates'] if value['id'] == data.candidate_id), None) if candidate_set else None
+    if candidate is None: raise HTTPException(404, 'Candidate not found')
+    if data.develop and candidate_set['candidate_kind'] != 'progression-idea': raise HTTPException(422, 'Only an idea can be developed')
+    try:
+        updated = keep_candidate(branch, candidate_set['candidate_kind'], candidate)
+        fields = {'progression_workspace': updated.progression_workspace, 'active_workspace': 'progression'}
+        if data.develop: fields['live_presentation_turn_id'] = None
+        return store.update_branch(session_id, branch_id, user_id, expected_updated_at=branch.updated_at, **fields)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
