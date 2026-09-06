@@ -333,7 +333,8 @@ def resolve_workspace(workspace: ConceptWorkspace) -> dict:
             first, second = [entities[id]['notes'] for id in relation.entity_ids]
             first_pitches = {note['pitch_class'] for note in first}
             second_pitches = {note['pitch_class'] for note in second}
-            relations[relation.id] = {'shared': [note['pitch_class'] for note in first if note['pitch_class'] in second_pitches],
+            relations[relation.id] = {'kind': 'compare', 'entity_ids': list(relation.entity_ids),
+                'shared': [note['pitch_class'] for note in first if note['pitch_class'] in second_pitches],
                 'removed': [note for note in first if note['pitch_class'] not in second_pitches],
                 'added': [note for note in second if note['pitch_class'] not in first_pitches]}
         else:
@@ -351,7 +352,8 @@ def resolve_transition(relation: 'Transition', entities: dict, by_id: dict) -> d
         chord = entities.get(v['chord_id'])
         functions.append(harmonic_function({'root': chord['notes'][0]['note'], 'quality': chord['quality']}, key_notes) if chord else 'unnamed')
     home_key = functions == ['V', 'I'] and by_id[relation.key_id].root == 'G'
-    return {'label': f"{first['label']} → {second['label']}", 'functions': functions,
+    return {'kind': 'transition', 'entity_ids': list(relation.entity_ids), 'key_id': relation.key_id,
+        'label': f"{first['label']} → {second['label']}", 'functions': functions,
         'shared': sorted(a & b), 'removed': sorted(a - b), 'added': sorted(b - a),
         'movement': physical_movement(first, second),
         'explanation': 'D builds expectation; G feels like home in G major. Hear the two shapes, then inspect what stays or moves.'
