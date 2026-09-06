@@ -29,6 +29,16 @@ const CHORD_INTERVALS: Record<string, number[]> = {
 export const chordPitchClasses = (root: number, quality: string): number[] =>
   (CHORD_INTERVALS[quality] ?? CHORD_INTERVALS.major).map((interval) => (root + interval) % 12);
 
+// Note name ('A', 'F#', 'Bb', ...) -> pitch class 0-11. The circle-of-fifths spans
+// carry names, not pitch classes, so a derived-chord inspection needs this to find
+// its root on the wheel.
+const LETTER_PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+export const pitchClassOf = (note: string): number => {
+  const base = LETTER_PC[note[0]?.toUpperCase()] ?? 0;
+  const shift = [...note.slice(1)].reduce((sum, ch) => sum + (ch === '#' ? 1 : ch === 'b' ? -1 : 0), 0);
+  return (base + shift + 12) % 12;
+};
+
 const sameTuning = (a: number[], b: number[]): boolean =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 

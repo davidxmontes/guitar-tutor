@@ -1,4 +1,4 @@
-import { adaptBlock } from './workspaceAdapter';
+import { adaptBlock, pitchClassOf } from './workspaceAdapter';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import type {
   ConceptWorkspace, Resolved, ResolvedChord, ResolvedVoicing, TransitionRelation,
@@ -71,6 +71,12 @@ export function CircleBlock({ block, workspace, resolved, inspection, onInspect,
   const key = resolved.entities[block.sources[0]];
   if (key?.kind !== 'key') return null;
   const home = key.notes[0].note;
+  // Pull-based: a derived {root, quality} inspection that is one of this key's own
+  // diatonic chords lights its root on the wheel (spec #88 §6, INSP-01). key-family
+  // pushes nothing — the circle finds the chord itself.
+  const derivedRootPc = inspection?.kind === 'chord' && 'root' in inspection
+    && key.diatonicChords.some((dc, i) => key.notes[i].pitch_class === inspection.root && dc.quality === inspection.quality)
+    ? inspection.root : null;
   const transitions = workspace.relations.filter((r): r is TransitionRelation => r.kind === 'transition' && r.key_id === block.sources[0]);
   const chords = [...new Map(transitions.flatMap(rel => {
     const resolvedRel = resolved.relations[rel.id];
@@ -84,11 +90,17 @@ export function CircleBlock({ block, workspace, resolved, inspection, onInspect,
   })).entries()].map(([id, value]) => ({ id, ...value }));
   const pressed = (id: string, chord: ResolvedChord) =>
     (inspection?.kind === 'chord' && 'entity_id' in inspection && inspection.entity_id === id)
+    || (inspection?.kind === 'chord' && 'root' in inspection && chord.notes[0].pitch_class === inspection.root && chord.quality === inspection.quality)
     || (inspection?.kind === 'pitch' && chord.notes.some(n => n.pitch_class === inspection.pitch_class));
   return <div className="space-y-3">
     <div className="relative mx-auto aspect-square w-full max-w-80" aria-label="Circle of Fifths">
       <div aria-hidden="true" className="absolute inset-[12%] rounded-full border-2 border-[var(--border-primary)]" />
-      {key.circle.map((root, i) => <span key={root} className="absolute flex min-h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-[var(--card-bg)] text-sm" style={{ left: `${50 + 42 * Math.sin(i * Math.PI / 6)}%`, top: `${50 - 42 * Math.cos(i * Math.PI / 6)}%`, fontWeight: root === home ? 800 : 400 }}>{root}</span>)}
+      {key.circle.map((root, i) => {
+        const lit = derivedRootPc !== null && pitchClassOf(root) === derivedRootPc;
+        return <span key={root} aria-label={`Circle position ${root}`} aria-pressed={lit}
+          className="absolute flex min-h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-[var(--card-bg)] text-sm"
+          style={{ left: `${50 + 42 * Math.sin(i * Math.PI / 6)}%`, top: `${50 - 42 * Math.cos(i * Math.PI / 6)}%`, fontWeight: root === home ? 800 : 400, outline: lit ? '2px solid var(--accent-700)' : undefined }}>{root}</span>;
+      })}
       <strong className="absolute inset-[30%] flex items-center justify-center text-center">{key.label}<br />Home</strong>
     </div>
     {chords.length > 0 && <div className="flex flex-wrap gap-2">{chords.map(({ id, chord, fn }) => <button key={id} disabled={readOnly} className={button}
