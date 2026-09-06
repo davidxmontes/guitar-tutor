@@ -7,13 +7,13 @@ test('comparison shapes retain source tuning and stay in their own conversation'
   const open = async (title: string, tuning: number[]) => page.request.post('/api/v2/progressions/explore', { data: { session_id: session.id, branch_id: base.id, progression: { title, chords: [{ root: 'D', quality: 'color', voicing: [{ string: 6, fret: 0 }], tuning }] } } }).then(r => r.json())
   const source = await open('Drop D source', [64,59,55,50,45,38])
   const current = await open('Standard idea', [64,59,55,50,45,40])
-  const focus = { role: 'comparison', notes: [], groups: [
+  const comparison_groups = [
     { branch_id: source.branch.id, branch_title: 'Drop D source', label: 'Low D', notes: [{ string: 6, fret: 0 }], tuning: [64,59,55,50,45,38] },
     { branch_id: current.branch.id, branch_title: 'Standard idea', label: 'Low E', notes: [{ string: 6, fret: 0 }], tuning: [64,59,55,50,45,40] },
-  ] }
+  ]
   let answered = false
-  await page.route('**/api/v2/tutor/turns', async route => { answered = true; await route.fulfill({ json: { message: 'These open bass notes differ by a whole step.', focus, candidates: null } }) })
-  await page.route(`**/api/v2/tutor/threads/${current.branch.tutor_thread_id}/messages`, route => route.fulfill({ json: answered ? [{ id: 'comparison-answer', role: 'assistant', content: { text: 'These open bass notes differ by a whole step.', focus }, created_at: '2026-09-05' }] : [] }))
+  await page.route('**/api/v2/tutor/turns', async route => { answered = true; await route.fulfill({ json: { message: 'These open bass notes differ by a whole step.', comparison_groups, candidates: null } }) })
+  await page.route(`**/api/v2/tutor/threads/${current.branch.tutor_thread_id}/messages`, route => route.fulfill({ json: answered ? [{ id: 'comparison-answer', role: 'assistant', content: { text: 'These open bass notes differ by a whole step.', comparison_groups }, created_at: '2026-09-05' }] : [] }))
   await page.reload()
   await page.locator(`[data-session-id="${session.id}"]`).click()
   await page.getByRole('tab', { name: 'Standard idea', exact: true }).click()

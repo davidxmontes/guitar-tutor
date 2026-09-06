@@ -12,10 +12,10 @@ def test_comparison_reads_only_referenced_branch_and_preserves_both_workspaces()
     store.create_tutor_message(source.tutor_thread_id, 'user', {'text': 'Private source conversation'})
     model = ScriptedTutorModel(outcomes=[
         {'tool_calls': [{'name': 'read_branch', 'args': {'branch_id': source.id}, 'id': 'read-source'}]},
-        {'message': 'The song uses a low D, while this shape adds a higher F.', 'focus': {'role': 'comparison', 'groups': [
+        {'message': 'The song uses a low D, while this shape adds a higher F.', 'comparison_groups': [
             {'branch_id': source.id, 'label': 'Song bass', 'notes': [{'string': 6, 'fret': 0}], 'tuning': [64,59,55,50,45,38]},
             {'branch_id': current.id, 'label': 'Current shape', 'notes': [{'string': 1, 'fret': 1}], 'tuning': [64,59,55,50,45,40]},
-        ]}},
+        ]},
     ])
     before = store.get_session(session.id, 'user_1').model_dump()
     client = _app(store, _scripted_factory(model))
@@ -27,10 +27,10 @@ def test_comparison_reads_only_referenced_branch_and_preserves_both_workspaces()
     after_read = str([m.content for m in model.calls[1]])
     assert 'raw-10' in after_read and 'raw-0' not in after_read
     assert 'Private source conversation' not in after_read
-    assert response.json()['focus']['groups'][0]['tuning'][-1] == 38
+    assert response.json()['comparison_groups'][0]['tuning'][-1] == 38
     assert store.get_session(session.id, 'user_1').model_dump() == before
     assert len(store.list_tutor_messages(source.tutor_thread_id, 'user_1')) == 1
-    assert store.list_tutor_messages(current.tutor_thread_id, 'user_1')[-1].content['focus']['groups']
+    assert store.list_tutor_messages(current.tutor_thread_id, 'user_1')[-1].content['comparison_groups']
     next_model = ScriptedTutorModel(outcomes=[{'message': 'Continue your song passage.'}])
     next_client = _app(store, _scripted_factory(next_model))
     assert next_client.post('/api/v2/tutor/turns', json={'session_id': session.id, 'branch_id': source.id, 'message': 'Continue here'}).status_code == 200
@@ -57,10 +57,10 @@ def test_comparison_groups_are_scoped_and_source_titles_are_application_owned():
     current = session.branches[0]
     foreign = store.create_session('other').branches[0]
     groups = [{'branch_id': branch.id, 'branch_title': 'Forged title', 'label': 'Shape', 'notes': [{'string': 1, 'fret': 0}], 'tuning': [64,59,55,50,45,40]} for branch in (current, foreign)]
-    model = ScriptedTutorModel(outcomes=[{'message': 'Compare these.', 'focus': {'role': 'comparison', 'groups': groups}}])
+    model = ScriptedTutorModel(outcomes=[{'message': 'Compare these.', 'comparison_groups': groups}])
     client = _app(store, _scripted_factory(model))
     response = client.post('/api/v2/tutor/turns', json={'session_id': session.id, 'branch_id': current.id, 'message': 'Compare'})
     assert response.status_code == 200
-    returned = response.json()['focus']['groups']
+    returned = response.json()['comparison_groups']
     assert len(returned) == 1
     assert returned[0]['branch_title'] == current.title

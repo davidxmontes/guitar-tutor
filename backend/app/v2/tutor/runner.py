@@ -179,6 +179,7 @@ def run_tutor_turn(
         message=terminal.message,
         workspace_patch=terminal.workspace_patch,
         focus=terminal.focus,
+        comparison_groups=terminal.comparison_groups,
         concept_suggestion=terminal.concept_suggestion if branch.working_draft is None else None,
         exercise_suggestion=ExerciseProposal(**terminal.exercise_suggestion.model_dump(), source_artifact_id=artifact.id,
             expected_updated_at=artifact.updated_at, source_selection=branch.selection)

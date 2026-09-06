@@ -26,8 +26,7 @@ test('Preview replays focus, Return preserves the present, Restore appends histo
   await page.getByRole('button', { name: 'Preview turn workspace', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Turn snapshot preview' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'G dorian vs G minor' })).toBeFocused();
-  await expect(page.getByRole('region', { name: 'Turn snapshot preview' }).getByText('Tutor focus: G target', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Turn snapshot preview' }).locator('[data-tutor-focus=true]').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Turn snapshot preview' }).locator('circle[stroke="#d97706"]').first()).toBeVisible();
   await expect(page.getByLabel('Both roots', { exact: true })).not.toBeVisible();
   expect((await branch()).working_draft).toEqual(current);
   await page.screenshot({ path: '/private/tmp/issue63-desktop.png', fullPage: true });
@@ -37,10 +36,12 @@ test('Preview replays focus, Return preserves the present, Restore appends histo
   await page.getByRole('button', { name: 'Return to current', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'D dorian vs D minor' })).toBeFocused();
   expect((await branch()).working_draft).toEqual(current);
+  if (!(await page.getByRole('complementary', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByTestId('tutor-chat-input')).toHaveValue('My unsent question');
   if (!(await page.getByRole('complementary', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await page.getByRole('button', { name: 'Preview turn workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Restore this state', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Turn snapshot preview' })).toHaveCount(0);
   if (!(await page.getByRole('complementary', {name:'Tutor',exact:true}).isVisible())) await page.getByRole('button', {name:'Open Tutor',exact:true}).click();
   await expect(page.getByText('Earlier state restored', { exact: true })).toBeVisible();
   await expect(page.getByTestId('tutor-chat-input')).toHaveValue('My unsent question');

@@ -137,7 +137,7 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
             if operation.sources is not None:
                 block['sources'] = [resolve(source_id) for source_id in operation.sources]
             if operation.source_roles is not None:
-                block['source_roles'] = operation.source_roles
+                block['source_roles'] = {resolve(id): role for id, role in operation.source_roles.items()}
         else:
             if isinstance(operation, EntityWrite):
                 collection, obj = 'entities', operation.entity.model_dump()
@@ -155,6 +155,8 @@ def apply_workspace_patch(workspace: ConceptWorkspace, raw: dict, user_message: 
             else:
                 collection, obj = 'blocks', operation.block.model_dump()
                 obj['sources'] = [resolve(source_id) for source_id in obj['sources']]
+                if obj.get('source_roles'):
+                    obj['source_roles'] = {resolve(id): role for id, role in obj['source_roles'].items()}
             if operation.op.startswith('add_'):
                 handle = obj['id']
                 if not handle.startswith('$') or handle in handles:

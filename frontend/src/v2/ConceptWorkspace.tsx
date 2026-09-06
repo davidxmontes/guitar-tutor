@@ -358,9 +358,8 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     </fieldset>}
     {resolved && branch.current_artifact_id && branch.saved_artifact_revision && <fieldset disabled={locked || workspace !== saved.current}><ExerciseComposer key={`${workspace.version}:${inspection?.kind ?? ''}`} sourceId={branch.current_artifact_id} revision={branch.saved_artifact_revision} selection={{workspace_version:workspace.version}} steps={exerciseSteps} /></fieldset>}
    </div>
-   {tutorOpen && <>
-    <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={closeTutor} />
-    <aside aria-label="Tutor"
+    {tutorOpen && <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={closeTutor} />}
+    <aside aria-label="Tutor" style={tutorOpen ? undefined : { display: 'none' }}
       onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeTutor(); } }}
       className="fixed inset-x-2 bottom-2 z-40 flex max-h-[82dvh] flex-col rounded-xl bg-[var(--card-bg)] p-2 shadow-lg lg:sticky lg:inset-x-auto lg:bottom-auto lg:top-16 lg:z-auto lg:h-[calc(100dvh-5rem)] lg:w-[320px] lg:shrink-0 lg:self-start lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
       <div className="mb-1 flex items-center justify-between gap-3 px-1 lg:mb-2 lg:px-0">
@@ -373,7 +372,6 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
         onSendingChange={sending => { setTutorBusy(sending); onPendingChange(sending); }}
         emptyMessage="Ask about this music or request a change." />
     </aside>
-   </>}
    </div>
   </div></>;
 }

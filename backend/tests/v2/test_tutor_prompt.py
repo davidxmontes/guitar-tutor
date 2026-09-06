@@ -156,3 +156,14 @@ def test_reconstruct_history_assistant_message_with_no_candidates_is_unchanged()
     reconstructed = reconstruct_history(messages)
 
     assert reconstructed[0].content == "Just an answer."
+
+
+def test_workspace_prompt_describes_composition_policy_and_current_ops():
+    text = str(stable_system_message('openai').content)
+    for rule in ('Re-bind an existing Block', 'Preserve untouched Blocks', 'one anchor view',
+                 'Never duplicate', 'Prefer inspect or highlight', 'materially changes subject'):
+        assert rule in text
+    for field in ('sources', 'source_roles', 'noteGroup', 'materialize', 'update_view'):
+        assert field in text
+    assert 'one-turn attention' in text
+    assert 'focus.groups' not in text
