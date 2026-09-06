@@ -5,7 +5,7 @@ import { TutorChat } from './TutorChat';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { TutorFocus, WorkspaceTurnResult, V2Branch, ExerciseStep } from '../types/v2';
-import type { ChordEntity, ConceptWorkspace, Resolved, ResolvedEntity, ScaleMode, TypedInspection, WorkspaceBlock, ProgressionAction, WorkspacePosition } from '../types/conceptWorkspace';
+import type { ChordEntity, ConceptWorkspace, KeyEntity, Resolved, ResolvedEntity, ScaleMode, TypedInspection, WorkspaceBlock, ProgressionAction, WorkspacePosition } from '../types/conceptWorkspace';
 import { playNoteSequence, playChordSequence } from '../utils/audio';
 import { ConceptWorkspaceBlock } from './ConceptWorkspaceBlocks';
 
@@ -189,9 +189,12 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
   const progressionBlock = workspace.blocks.find(b => b.kind === 'progression') ?? null;
   const progression = progressionBlock && resolved && resolved.entities[progressionBlock.sources[0]]?.kind === 'progression'
     ? resolved.entities[progressionBlock.sources[0]] as Extract<ResolvedEntity, { kind: 'progression' }> : null;
-  // A derived progression shares the key's id (backend), so entities[key_id] is the
-  // progression itself; either way its notes[0] is the tonic. T4 rebuilds this block.
-  const progressionKey = progression && resolved ? resolved.entities[progression.key_id] ?? null : null;
+  // The resolved progression carries `key_id`; a derived pattern reuses the key's own
+  // id, so `resolved.entities[key_id]` is the progression dict. Read the key's root
+  // from the `key` entity in the draft instead.
+  const progressionKeyRoot = progression
+    ? (workspace.entities.find((e): e is KeyEntity => e.kind === 'key' && e.id === progression.key_id)?.root ?? null)
+    : null;
   const selectedStep = progression && inspection?.kind === 'step' && inspection.block_id === progressionBlock?.id ? inspection.index : 0;
   const selectedChord = progression ? progression.steps[selectedStep] ?? progression.steps[0] : null;
   const cagedBlock = workspace.blocks.find(b => b.settings.mode === 'caged') ?? null;
@@ -296,8 +299,8 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
     {(scales.length > 0 || physical || (progression && progressionBlock) || cagedChord) && <div className="z-20 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-2 text-sm sm:-mx-6 sm:px-6 lg:sticky lg:top-0">
       <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Music</span>
       {physical && <PhysicalWorkspaceControls workspace={workspace} disabled={locked} onChange={change} />}
-      {progression && progressionBlock && progressionKey && <fieldset disabled={locked} className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <label className="flex items-center gap-1.5">Key<select aria-label="Progression key" className={`${field} w-16`} value={progressionKey.notes[0].note} onChange={e => change({ ...workspace, entities: workspace.entities.map(en => en.id === progression.key_id && en.kind === 'key' ? { ...en, root: e.target.value } : en) })}>{[...new Set([...roots, progressionKey.notes[0].note])].map(r => <option key={r}>{r}</option>)}</select></label>
+      {progression && progressionBlock && progressionKeyRoot && <fieldset disabled={locked} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <label className="flex items-center gap-1.5">Key<select aria-label="Progression key" className={`${field} w-16`} value={progressionKeyRoot} onChange={e => change({ ...workspace, entities: workspace.entities.map(en => en.id === progression.key_id && en.kind === 'key' ? { ...en, root: e.target.value } : en) })}>{[...new Set([...roots, progressionKeyRoot])].map(r => <option key={r}>{r}</option>)}</select></label>
         {progression.derived
           ? <button type="button" className={controlSm} onClick={() => progressionAction(progressionBlock.id, { action: 'materialize' })}>Work with these chords</button>
           : <><label className="flex items-center gap-1.5">Transpose<select aria-label="Transpose distance" className={`${field} w-32`} value={transposeDistance} onChange={e => setTransposeDistance(Number(e.target.value))}>{Array.from({ length: 25 }, (_, i) => i - 12).filter(n => n !== 0).map(n => <option key={n} value={n}>{n > 0 ? '+' : ''}{n} semitones</option>)}</select></label>
@@ -336,7 +339,7 @@ export function ConceptWorkspacePanel({ sessionId, branch, onBranchChange, onPen
             <h3 className="font-bold">{names[block.kind]}</h3>
             <fieldset disabled={locked} className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-1.5">Labels<select className={`${field} w-24`} value={block.settings.labels} onChange={e => updateSettings(block, { labels: e.target.value as 'notes' | 'intervals' })}><option value="notes">Notes</option><option value="intervals">Intervals</option></select></label>
               {block.kind === 'fretboard' && block.settings.mode !== 'caged' && <label className="flex items-center gap-1.5">Frets<select className={`${field} w-20`} value={rangeValue} onChange={e => { if (e.target.value === 'auto') { updateSettings(block, { fret_start: null, fret_end: null }); return; } const [fret_start, fret_end] = e.target.value.split('-').map(Number); updateSettings(block, { fret_start, fret_end }); }}>{[...new Set([rangeValue, 'auto', '0-5', '3-8', '5-10', '7-12', '0-19'])].map(range => <option key={range}>{range}</option>)}</select></label>}
-              {workspace.relations.some(r => r.id === block.sources[0]) && <label className="flex items-center gap-1.5"><input type="checkbox" checked={block.settings.comparison === 'shared-only'} onChange={e => updateSettings(block, { comparison: e.target.checked ? 'shared-only' : 'highlight' })} />Shared notes only</label>}
+              {(workspace.relations.some(r => r.id === block.sources[0]) || (block.sources.length === 2 && new Set(block.sources.map(id => resolved?.entities[id]?.kind)).size === 1)) && <label className="flex items-center gap-1.5"><input type="checkbox" checked={block.settings.comparison === 'shared-only'} onChange={e => updateSettings(block, { comparison: e.target.checked ? 'shared-only' : 'highlight' })} />Shared notes only</label>}
             </fieldset>
           </div>
           <button className={controlSm} disabled={locked} onClick={() => { change({ ...workspace, blocks: workspace.blocks.filter(item => item.id !== block.id), composition: workspace.composition.map(row => ({ items: row.items.filter(item => item.block_id !== block.id) })).filter(row => row.items.length) }); addButton.current?.focus(); }}>Remove View</button>

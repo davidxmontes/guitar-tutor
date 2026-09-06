@@ -14,7 +14,7 @@ const OVERVIEW = { start: 0, end: 12 }; // ponytail: fixed tiled-overview window
 const MIN_WINDOW = 4; // ponytail: 5-fret minimum fit window (end - start)
 
 type Layer = {
-  id: string; label: string; sourceRole: SourceRole; shape?: string;
+  id: string; label: string; sourceRole: SourceRole; shape?: string; chordId?: string | null;
   positions: WorkspacePosition[]; tuning: number[]; bounded: boolean;
 };
 
@@ -38,8 +38,10 @@ function autoRange(layers: Layer[], settings: WorkspaceBlock['settings']): { sta
 function lit(layer: Layer, inspection: TypedInspection | null): (p: WorkspacePosition) => boolean {
   if (!inspection) return () => false;
   if (inspection.kind === 'pitch') return (p) => p.pitch_class === inspection.pitch_class;
-  if (inspection.kind === 'voicing' || ('entity_id' in inspection && inspection.kind === 'chord'))
-    return () => layer.id === (inspection as { entity_id: string }).entity_id;
+  if (inspection.kind === 'voicing' || ('entity_id' in inspection && inspection.kind === 'chord')) {
+    const { entity_id } = inspection as { entity_id: string };
+    return () => layer.id === entity_id || layer.chordId === entity_id;
+  }
   if (inspection.kind === 'chord') {
     const wanted = new Set(layer.positions.filter((p) => p.pitch_class === inspection.root).map((p) => p.pitch_class));
     return (p) => wanted.has(p.pitch_class);
@@ -73,6 +75,7 @@ export function Fretboard({ block, resolved, inspection, onInspect, tutorFocus, 
     ? regions.map((region) => ({ id: `${primaryChord!.id}:${region.shape}`, label: `${region.shape} shape`, sourceRole: 'primary', shape: region.shape, positions: region.positions, tuning: primaryChord!.tuning, bounded: true }))
     : adapted.sources.filter((entity) => !mismatch.has(entity.id)).map((entity) => ({
         id: entity.id, label: entity.label, sourceRole: adapted.sourceRoles[entity.id] ?? 'context',
+        chordId: entity.kind === 'voicing' ? entity.chord_id : null,
         positions: entity.positions, tuning: entity.tuning,
         bounded: entity.kind === 'voicing' || (entity.kind === 'noteGroup' && isBoundedGroup(entity.positions)),
       }));
@@ -84,7 +87,7 @@ export function Fretboard({ block, resolved, inspection, onInspect, tutorFocus, 
   const tuning = layers[0]?.tuning ?? resolved.entities[block.sources[0]]?.tuning ?? [64, 59, 55, 50, 45, 40];
   const width = 44 + frets.length * FW;
   const height = 24 + 6 * SH;
-  const sharedOnly = block.settings.comparison === 'shared-only' || block.settings.shared_only === true;
+  const sharedOnly = block.settings.comparison === 'shared-only';
   const shared = new Set(adapted.comparison?.shared ?? []);
   const multi = layers.length > 1;
   const useNotes = multi || block.settings.labels !== 'intervals';
