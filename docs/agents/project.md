@@ -20,21 +20,30 @@ cd frontend && npm install
 cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
-## Known gate gaps (verified 2026-09-05)
+## Known gate gaps (verified 2026-09-06)
 
-These are pre-existing, not introduced by any agent session — logged here per
-the workflow doc instead of a ledger issue (none is kept, see posture below).
-Fix opportunistically or as their own ticket; don't let them block unrelated
-PRs, but don't let new PRs add to them either.
+Verified against a clean archive of `main-v2` at `c2492c7` with the installed
+lockfile dependencies. These existing failures remain outside #94; no passing
+test may regress.
 
-- `npm run lint` (frontend): 16 errors / 4 warnings at `e760ce4` (verified from a clean archive with the same lockfile), concentrated in
-  `src/stores/useAppStore.ts` (`no-explicit-any` x2) and
-  `src/components/TabViewer/TabViewer.tsx` (`react-hooks/set-state-in-effect`
-  x2, `preserve-manual-memoization`, plus an `exhaustive-deps` warning).
-- `python -m pytest -q` (backend): 1 failure —
-  `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`
-  references `chords_router.get_voicing_positions`, which no longer exists on
-  the router (stale after a rename). 28 other tests pass.
+- `npm run lint`: 16 errors / 4 warnings on both baseline and integration.
+  Existing Classic components and `src/stores/useAppStore.ts` own these;
+  the changed V2 files introduce no new lint diagnostics.
+- `python -m pytest -q`: the same single failure on both branches,
+  `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`.
+  It patches the removed `chords_router.get_voicing_positions` symbol.
+  Baseline: 248 passed; integration: 265 passed. All V2 backend tests pass.
+- `npm run test:e2e`: integration 38 passed / 4 failed; every rebuilt-Block
+  test passes. The four existing scripted Tutor/history failures are owned
+  by T7: `workspace-history`'s Preview/Return/Restore test, and
+  `workspace-tutor`'s direct apply/undo, alternatives, and failed post-turn
+  view-request tests. The clean baseline run also had a transient
+  `default-entry` failure; its isolated retry passed (1/1).
+
+#94 verification logs are captured alongside the integration PR: full backend,
+frontend lint, production build (including `VITE_AUTH_DEV_BYPASS=true`), adapter
+unit tests, full browser suite, and the clean-baseline comparisons. The bypass
+build emits only the existing large-chunk advisory.
 
 ## Local dev
 
