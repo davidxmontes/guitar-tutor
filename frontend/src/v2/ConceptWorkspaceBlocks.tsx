@@ -39,7 +39,10 @@ export function ConceptWorkspaceBlock({ block, workspace, resolved, inspection, 
     </button>)}</div>
   </div>)}</div>;
 
-  const frets = Array.from({ length: block.settings.fret_end - block.settings.fret_start + 1 }, (_, index) => index + block.settings.fret_start);
+  // TODO(T3): the fretboard rebuild owns nullable/auto fret ranges; this legacy path just needs a window.
+  const fretStart = block.settings.fret_start ?? 0;
+  const fretEnd = block.settings.fret_end ?? 12;
+  const frets = Array.from({ length: fretEnd - fretStart + 1 }, (_, index) => index + fretStart);
   return <div className="overflow-x-auto rounded-lg border border-[var(--border-primary)] p-2" tabIndex={0} aria-label="Scrollable guitar fretboard">
     {tutorFocus?.label && <p className="mb-2 text-sm">Tutor focus: {tutorFocus.label}</p>}
     <div style={{ minWidth: 48 * (frets.length + 1) }}>
