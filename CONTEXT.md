@@ -10,11 +10,15 @@ A durable learning thread containing one or more Branches.
 _Avoid_: Project, chat
 
 **Branch**:
-An independent working path inside a Session, with its own current work and Tutor conversation.
+A conversational direction inside a Session — one shared Tutor conversation and the set of Workspaces explored within it.
 _Avoid_: Tab, fork
 
+**Workspace**:
+A focused editing surface for one kind of musical work within a Branch. Its kinds are Harmony and Progression. It is navigation and view state, not a saved record.
+_Avoid_: Dashboard, canvas, page
+
 **Artifact**:
-A named piece of intentionally saved musical work: SongStudy, Progression, ConceptStudy, or Exercise.
+A named piece of intentionally saved musical work: SongStudy, Progression, or Exercise.
 _Avoid_: File, document
 
 **Artifact Revision**:
@@ -22,7 +26,7 @@ A prior intentionally saved version of an Artifact.
 _Avoid_: Draft, turn snapshot
 
 **Working Draft**:
-The autosaved, branch-local state currently being explored before or after an intentional Artifact save.
+The autosaved, branch-local editable state that a save promotes into an Artifact. A Progression Workspace holds one Working Draft per idea.
 _Avoid_: Artifact revision
 
 **Tutor Turn**:
@@ -30,7 +34,7 @@ One learner request and the Tutor response produced from the current Branch stat
 _Avoid_: Agent run, chat message
 
 **Turn Snapshot**:
-An immutable semantic workspace state associated with a Tutor Turn for preview, undo, or restore.
+An immutable record tied to a Tutor Turn — the musical state before the turn, for undo, and the teaching surface it produced, for preview and restore.
 _Avoid_: Artifact revision
 
 ## Study language
@@ -40,50 +44,65 @@ An Artifact centered on learning an external song or track.
 _Avoid_: Song mode
 
 **Progression**:
-An Artifact or local musical object containing ordered chord occurrences and their chosen voicings.
+An Artifact or a working idea containing ordered chord events, each with a duration and an optional chosen voicing.
 _Avoid_: Chord list, sequence
 
-**ConceptStudy**:
-An Artifact centered on understanding or exploring a musical idea.
-_Avoid_: Theory page, study mode
-
 **Exercise**:
-An Artifact containing a deliberate practice drill or generated musical practice material.
+An Artifact containing a deliberate practice drill or generated practice material.
 _Avoid_: Lesson
 
-**ConceptWorkspace**:
-The composable musical workspace contained by a ConceptStudy and edited through its Branch Working Draft.
-_Avoid_: Dashboard, canvas
+**Harmony Exploration**:
+The branch-local autosaved state of a Harmony Workspace — an optional tonal centre, a Scratch Sequence, and retained voicings and note groups. It has no save, no Artifact, and no revisions.
+_Avoid_: Harmony study, harmony artifact
 
-## ConceptWorkspace language
+## Workspace content language
 
-**Entity**:
-A local musical object with independent identity inside one ConceptWorkspace, such as a Key, Scale, Chord, Voicing, NoteGroup, or Progression.
-_Avoid_: Node, record
+**Focus**:
+The learner's current working target inside a Workspace, typed to that Workspace's kind. It drives contextual controls and answers what "this" means to the Tutor. It resets only when its referent is structurally gone or the subject changes.
+_Avoid_: Inspection, selection history, Tutor Attention
 
-**Relation**:
-Typed musical meaning between Entities, initially Compare or Transition.
-_Avoid_: Edge, link
+**Tutor Attention**:
+Temporary emphasis the Tutor directs for a single turn, never persisted.
+_Avoid_: Focus, inspection
+
+**Scratch Sequence**:
+A Harmony Workspace's lightweight ordered list of chords, used only to audition how harmonic options sound together. It carries no timing and no assigned voicings.
+_Avoid_: Progression, mini-progression
 
 **Block**:
-A trusted visual representation bound to one or more Entities or Relations.
+A trusted visual placed by the Tutor into a Workspace's Composition. What a Block can do is fixed by the Workspace kind; how it is arranged and configured is the Tutor's choice.
 _Avoid_: Widget, plugin
 
-**Inspection**:
-The learner's temporary typed pointer to one musical object or derived detail across compatible Blocks. A chord is identified by Entity id or root and quality.
-_Avoid_: Navigation, selection history
+**Composition**:
+The arrangement of Blocks the Tutor produces for one Tutor Turn — a layout Pattern, the Blocks in its slots, and which element is focal. It belongs to the turn, not to saved music.
+_Avoid_: Dashboard, layout file
 
-**Tutor Focus**:
-Temporary attention directed by the Tutor for one turn only, without changing the saved ConceptStudy.
-_Avoid_: Inspection, persisted selection
+**Pattern**:
+One of a small closed set of layout shapes a Composition may use, such as hero-with-support, comparison, master-detail, or explanation-led. Each has exactly one focal element per level.
+_Avoid_: Template, grid
 
-**Tutor Change**:
-One coherent, atomic workspace change applied by the Tutor and reversible to the exact pre-turn state.
-_Avoid_: Candidate, proposal
+**Candidate**:
+An ephemeral, auditionable alternative the Tutor offers — a voicing, a progression idea, or a chord replacement. It becomes working state only when the learner Keeps or Develops it.
+_Avoid_: Proposal, draft, Tutor Mutation
 
-**Restore**:
-Making a historical Turn Snapshot the new current Working Draft while preserving later conversation.
-_Avoid_: Rewind, truncate
+**Tutor Mutation**:
+One coherent, atomic musical change the Tutor applies directly to the current Harmony Exploration or active Progression idea, reversible to the exact pre-turn state.
+_Avoid_: Candidate, proposal, patch
 
 **NoteGroup**:
-A labelled set of pitch-class or physical note references, persisted in the Working Draft and used as a Block layer for highlights.
+A labelled set of pitch-class or physical note references shown as a highlight layer. A turn-scoped NoteGroup lives with one teaching surface; a kept NoteGroup is retained in the Workspace's working state.
+_Avoid_: Selection, annotation
+
+## Navigation language
+
+**Explore**:
+The gesture that opens a related musical object as its own Workspace focus — lateral movement into something the learner wants to work on more deeply. It reopens the existing Workspace rather than creating a duplicate.
+_Avoid_: Develop, branch, navigate
+
+**Develop**:
+The gesture that promotes a Harmony Scratch Sequence into a new Progression idea, recording where it came from. Distinct from Explore.
+_Avoid_: Explore, save, branch
+
+**Restore**:
+Making a historical Turn Snapshot's teaching surface the live one again, against the current working state, while preserving later conversation.
+_Avoid_: Rewind, truncate

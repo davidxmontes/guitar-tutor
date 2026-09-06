@@ -1,5 +1,13 @@
 # ConceptWorkspace uses a uniform resolved model and multi-source Blocks
 
+**Superseded by [ADR-0005](0005-two-focused-workspace-kinds.md) and
+[ADR-0006](0006-tutor-composed-presentation.md).** `block.sources[]`, the
+frontend adapter, `BLOCK_ACCEPTS` as the model, and the free `composition`
+grid are removed; presentation becomes Tutor-composed from a per-Workspace-kind
+Block vocabulary and a closed set of layout Patterns. The backend musical
+derivation, `NoteGroup`, `materialize`, and the two-tier compatibility instinct
+survive into the new model. Kept below as design history.
+
 `resolve_workspace` returns one uniform model — `{ entities, relations }` where
 every Entity resolves to a shared core (`notes`, `positions`, `tuning`) plus
 typed per-kind extras — rather than eight per-kind records with divergent
