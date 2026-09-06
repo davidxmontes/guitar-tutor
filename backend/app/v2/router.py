@@ -708,3 +708,45 @@ async def open_progression_idea(session_id: str, branch_id: str, artifact_id: st
     if artifact.kind != 'progression':
         raise HTTPException(422, 'Choose a progression artifact')
     return reopen_progression(store, branch, artifact, user_id)
+
+
+from app.v2.progression_actions import ProgressionEdit, edit_progression
+from app.v2.progression import resolve_progression
+from app.music.chords import CHORD_INTERVALS
+
+
+def progression_response(branch, store, user_id):
+    workspace = branch.progression_workspace
+    if workspace is None:
+        raise HTTPException(422, 'No Progression Workspace')
+    return {'branch': branch, 'resolved': {idea.id: resolve_progression(idea) for idea in workspace.ideas},
+            'composition': live_composition(branch, store.list_tutor_messages(branch.tutor_thread_id, user_id)),
+            'catalog': {'roots': VALID_ROOTS, 'qualities': list(CHORD_INTERVALS), 'scales': SCALE_NAMES}}
+
+
+@router.post('/progression/open', response_model=Session)
+async def open_progression_recipe(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    session = store.create_session(user_id)
+    idea = ProgressionIdeaDraft(label='Four-chord progression', tonal_center={'root': 'C', 'scale': 'major'},
+        chords=[{'root': root, 'quality': quality} for root, quality in [('C','major'),('G','major'),('A','minor'),('F','major')]])
+    store.update_branch(session.id, session.branches[0].id, user_id, title=idea.label, harmony_exploration=None,
+        progression_workspace=ProgressionWorkspaceState(ideas=[idea], active_idea_id=idea.id), active_workspace='progression')
+    return store.get_session(session.id, user_id)
+
+
+@router.get('/sessions/{session_id}/branches/{branch_id}/progression')
+async def read_progression_surface(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    return progression_response(owned_branch(store, session_id, branch_id, user_id), store, user_id)
+
+
+@router.patch('/sessions/{session_id}/branches/{branch_id}/progression')
+async def edit_progression_surface(session_id: str, branch_id: str, edit: ProgressionEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    branch = owned_branch(store, session_id, branch_id, user_id)
+    if branch.progression_workspace is None:
+        raise HTTPException(422, 'No Progression Workspace')
+    try:
+        workspace = edit_progression(branch.progression_workspace, edit)
+        updated = store.update_branch(session_id, branch_id, user_id, progression_workspace=workspace)
+        return progression_response(updated, store, user_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc

@@ -1,0 +1,51 @@
+import { expect, test } from '@playwright/test';
+
+test('Progression recipe and master-detail editor follow active ideas without a model', async ({ page }) => {
+  let turns = 0;
+  page.on('request', request => { if (request.url().endsWith('/tutor/turns')) turns++; });
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
+  await expect(page.getByTestId('progression-workspace')).toBeVisible();
+  const sid = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '');
+  const bid = (await page.getByTestId('v2-active-branch').textContent())!.replace('Branch ', '');
+  const session = await page.request.get(`/api/v2/sessions/${sid}`).then(r => r.json());
+  const branch = session.branches[0];
+  expect(branch.harmony_exploration).toBeNull(); expect(turns).toBe(0);
+  const original = branch.progression_workspace.ideas[0];
+  const base = `/api/v2/sessions/${sid}/branches/${bid}/progression`;
+  const saved = await page.request.post(base + '/save', { data: { expected_updated_at: branch.updated_at } }).then(r => r.json());
+  const ids: string[] = [];
+  for (const label of ['Second idea', 'Third idea']) {
+    const opened = await page.request.post(base + `/open/${saved.artifact.id}`).then(r => r.json());
+    ids.push(opened.progression_workspace.active_idea_id);
+    await page.request.patch(base, { data: { label } });
+  }
+  await page.request.patch(base, { data: { active_idea_id: original.id } });
+  await page.reload();
+  await page.locator(`[data-session-id="${sid}"]`).click();
+  await expect(page.getByLabel('Progression ideas').getByRole('button', { name: /^Compare / })).toHaveCount(3);
+  const first = page.getByLabel('Progression editor').getByRole('listitem').first();
+  await first.getByLabel('Beats', { exact: true }).fill('3');
+  await expect(first.getByLabel('Beats', { exact: true })).toHaveValue('3');
+  await first.getByLabel('Chord root').selectOption('D');
+  await first.getByRole('combobox', { name: 'Quality', exact: true }).selectOption('minor');
+  await first.getByLabel('Assigned voicing').selectOption({ index: 1 });
+  await first.getByRole('button', { name: 'Focus step 1' }).click();
+  await first.getByRole('button', { name: 'Move down' }).click();
+  await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('step 2');
+  await page.getByLabel('Active idea').selectOption(ids[0]);
+  await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('Whole idea');
+  await expect(page.getByLabel('Progression editor').getByRole('heading')).toHaveText('Second idea');
+  await page.getByRole('combobox', { name: 'Tuning', exact: true }).selectOption('drop-d');
+  await page.getByRole('button', { name: 'Save idea', exact: true }).click();
+  await expect(page.getByText('Idea saved.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Compare Second idea', exact: true }).click();
+  await page.getByRole('button', { name: 'Compare Third idea', exact: true }).click();
+  await expect(page.getByTestId('comparison-peer')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Clear comparison' }).click();
+  expect(turns).toBe(0);
+  await page.screenshot({ path: 'test-results/progression-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.screenshot({ path: 'test-results/progression-mobile.png', fullPage: true });
+});

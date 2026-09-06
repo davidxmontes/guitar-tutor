@@ -19,9 +19,9 @@ export interface HarmonyExploration {
 }
 
 export interface ProgressionWorkspaceState {
-  ideas: Record<string, unknown>[];
+  ideas: import('../v2/progression').ProgressionIdea[];
   active_idea_id: string | null;
-  focus: Record<string, unknown> | null;
+  focus: import('../v2/progression').ProgressionFocus | null;
 }
 
 export interface V2Branch {
@@ -212,7 +212,7 @@ export interface VoicingProposal {
 
 export interface TutorResponse {
   message: string;
-  focus: Record<string, unknown> | null;
+  focus: import('../v2/progression').ProgressionFocus | null;
   attention: TutorAttention | null;
   mutation: ({ kind: 'noop' | 'set_tonal_center' | 'set_scale' | 'set_tuning' | 'scratch_add' | 'scratch_remove' | 'scratch_reorder' | 'add_kept_note_group' } & Record<string, unknown>) | null;
   presentation: Composition | null;

@@ -4,7 +4,7 @@ import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
 import { BranchNavigation } from './BranchNavigation';
 import { HarmonyWorkspace } from './HarmonyWorkspace';
-import { WorkspacePlaceholder } from './WorkspacePlaceholder';
+import { ProgressionWorkspace } from './ProgressionWorkspace';
 import type { V2Branch, V2Session } from '../types/v2';
 
 // Ticket #101 shell: Session → Branch → Workspace. Routes on
@@ -144,7 +144,7 @@ export function V2App() {
         />
         {branch && (
           <section id={`workspace-panel-${branch.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${branch.id}`}>
-            {branch.active_workspace === 'harmony' ? <HarmonyWorkspace key={branch.id} branch={branch} onChange={patchBranch} /> : <WorkspacePlaceholder branch={branch} />}
+            {branch.active_workspace === 'harmony' ? <HarmonyWorkspace key={branch.id} branch={branch} onChange={patchBranch} /> : <ProgressionWorkspace key={branch.id} branch={branch} onChange={patchBranch} />}
           </section>
         )}
       </main>
@@ -186,6 +186,7 @@ export function V2App() {
           <button className="music-button" type="submit">Explore music</button></div>
       </form>
       <button type="button" className="music-button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
+      <button type="button" className="music-button" onClick={() => { apiClient.openProgression().then(session => { openSession(session); setSessions(previous => [session, ...(previous ?? [])]); }).catch(err => setError(String(err))); }}>Build a four-chord progression</button>
       <button type="button" data-testid="v2-start-session" onClick={handleStart}>
         Start something new
       </button>

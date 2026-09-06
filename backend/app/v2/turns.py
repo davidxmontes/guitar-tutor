@@ -23,11 +23,10 @@ def starter_composition(branch: Branch) -> Composition:
                 'support': [{'kind': 'chord-palette'}, {'kind': 'explanation', 'subject': 'scale',
                             'config': {'text': 'Explore the scale notes and their diatonic chords.'}}],
             }})
-    # P2a supplies the Progression starter when its editor lands.
     return validate_composition('progression', {
-        'pattern': 'explanation-led', 'focal': 'explanation', 'slots': {
-            'explanation': [{'kind': 'explanation', 'config': {'text': 'Develop an idea with your Tutor.'}}],
-            'illustration': [{'kind': 'fretboard'}],
+        'pattern': 'master-detail', 'focal': 'detail', 'slots': {
+            'list': [{'kind': 'progression-idea-list'}],
+            'detail': [{'kind': 'progression-editor', 'config': {'beats_per_bar': 4}}, {'kind': 'fretboard'}],
         }})
 
 

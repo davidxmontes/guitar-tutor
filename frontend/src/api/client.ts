@@ -314,6 +314,22 @@ class ApiClient {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/develop`, { method: 'POST' });
   }
 
+  async openProgression(): Promise<V2Session> {
+    return this.fetch('/v2/progression/open', { method: 'POST' });
+  }
+
+  async getProgressionSurface(session: string, branch: string): Promise<import('../v2/progression').ProgressionSurface> {
+    return this.fetch(`/v2/sessions/${session}/branches/${branch}/progression`);
+  }
+
+  async editProgression(session: string, branch: string, edit: Record<string, unknown>): Promise<import('../v2/progression').ProgressionSurface> {
+    return this.fetch(`/v2/sessions/${session}/branches/${branch}/progression`, { method: 'PATCH', body: JSON.stringify(edit) });
+  }
+
+  async saveProgressionIdea(branch: V2Branch): Promise<{ branch: V2Branch; artifact: Artifact }> {
+    return this.fetch(`/v2/sessions/${branch.session_id}/branches/${branch.id}/progression/save`, { method: 'POST', body: JSON.stringify({ expected_updated_at: branch.updated_at }) });
+  }
+
   async getHarmony(session: string, branch: string): Promise<import('../v2/harmony').HarmonySurface> {
     return this.fetch(`/v2/sessions/${session}/branches/${branch}/harmony`);
   }
