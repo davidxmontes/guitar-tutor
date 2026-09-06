@@ -57,7 +57,7 @@ def test_get_session_loads_branches_new_shape():
     session_chain = _chain([_session_row()])
     branch_chain = _chain([_branch_row() | {
         "title": "Progression fork",
-        "progression_workspace": {"ideas": [{"id": "i1"}], "active_idea_id": "i1", "focus": None},
+        "progression_workspace": {"ideas": [{"id": "i1", "label": "Idea"}], "active_idea_id": "i1", "focus": None},
         "active_workspace": "progression",
         "live_presentation_turn_id": "turn-9",
         "closed": True,
@@ -354,3 +354,24 @@ def test_revision_metadata_survives_store_reconstruction_without_leaking_into_pa
     assert restored.revisions[0].payload == {'chords': ['D']}
     assert restored.saved_at == 't0'
     assert 'revisions' not in restored.model_dump()
+
+
+def test_progression_save_rpc_round_trip_and_conflict():
+    from app.v2.models import Branch
+    from app.v2.progression_state import ProgressionIdeaDraft, ProgressionWorkspaceState
+    from postgrest.exceptions import APIError
+    from app.v2.store import RevisionConflictError
+    client = MagicMock()
+    idea = ProgressionIdeaDraft(id='idea', label='Draft')
+    row = _branch_row() | {'progression_workspace': ProgressionWorkspaceState(ideas=[idea], active_idea_id=idea.id).model_dump()}
+    store = SupabaseV2Store(client)
+    branch = store._row_to_branch(row)
+    artifact = {'id': 'a', 'clerk_user_id': 'user_1', 'kind': 'progression', 'title': 'Draft', 'payload': {'title': 'Draft'}, 'created_at': 't0', 'updated_at': 't1'}
+    client.rpc.return_value.execute.return_value.data = {'branch': row, 'artifact': artifact}
+    updated, saved = store.save_progression_idea(branch, 'user_1')
+    assert isinstance(updated, Branch) and saved.title == 'Draft'
+    name, args = client.rpc.call_args.args
+    assert name == 'v2_save_progression_idea' and args['p_expected_updated_at'] == branch.updated_at
+    assert args['p_payload']['title'] == 'Draft'
+    client.rpc.return_value.execute.side_effect = APIError({'message': 'stale', 'code': '40001', 'details': '', 'hint': ''})
+    with pytest.raises(RevisionConflictError): store.save_progression_idea(branch, 'user_1')

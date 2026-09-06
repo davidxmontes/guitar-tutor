@@ -22,13 +22,7 @@ WorkspaceKind = Literal["harmony", "progression"]
 _STANDARD_TUNING: list[int] = [64, 59, 55, 50, 45, 40]
 
 
-class ProgressionWorkspaceState(BaseModel):
-    """Branch-local Progression Workspace state (Spec §5.3). #101 only needs a
-    constructible shape; ticket P1 fleshes out the idea drafts and focus."""
-
-    ideas: list[dict[str, Any]] = Field(default_factory=list)
-    active_idea_id: Optional[str] = None
-    focus: Optional[dict[str, Any]] = None  # ProgressionFocus; P1 tightens this
+from app.v2.progression_state import ProgressionWorkspaceState
 
 
 class Branch(BaseModel):
@@ -163,49 +157,6 @@ class SongStudyPayload(BaseModel):
 class ProgressionVoicingPosition(BaseModel):
     string: int = Field(ge=1, le=6, strict=True)
     fret: int = Field(ge=0, le=36, strict=True)
-
-
-class ProgressionChord(BaseModel):
-    """Exact physical positions and high-to-low MIDI tuning; symbolic names
-    may be uncertain. Legacy curated chords retain the standard tuning id."""
-
-    root: str
-    quality: str
-    voicing: Optional[list[ProgressionVoicingPosition]] = None
-    tuning: Optional[Literal["standard"] | Annotated[list[Annotated[int, Field(ge=0, le=127, strict=True)]], Field(min_length=6, max_length=6)]] = None
-
-    @model_validator(mode="after")
-    def validate_physical_shape(self):
-        if self.voicing is not None:
-            if not self.voicing or self.tuning is None:
-                raise ValueError("A voicing needs sounding strings and an explicit tuning")
-            if len({p.string for p in self.voicing}) != len(self.voicing):
-                raise ValueError("A voicing must have only one fret per string")
-        return self
-
-
-class ApplyVoicingRequest(BaseModel):
-    expected_updated_at: str
-    chord_index: int = Field(ge=0, strict=True)
-    chord: ProgressionChord
-
-    @model_validator(mode="after")
-    def require_voicing(self):
-        if not self.chord.voicing:
-            raise ValueError("Choose a physical voicing to apply")
-        return self
-
-
-class ProgressionPayload(BaseModel):
-    """Progression artifact payload (ticket #14): an ordered chord sequence
-    plus lightweight historical provenance. `inspired_by` never creates a
-    live dependency on the source SongStudy (spec #10: "no live dependency
-    propagation") — it's a snapshot dict good enough to show where the idea
-    came from."""
-
-    title: str
-    chords: list[ProgressionChord]
-    inspired_by: Optional[dict[str, Any]] = None
 
 
 ScaleConceptId = Literal[

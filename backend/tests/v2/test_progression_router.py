@@ -1,116 +1,58 @@
-"""HTTP-level tests for the Progression save endpoint (ticket #14):
-POST /api/v2/progressions persists a candidate as a durable Progression
-artifact via the existing generic store.create_artifact, without touching
-any Branch's current_artifact_kind/current_artifact_id -- the SongStudy
-branch the user saved from must stay current/active.
-"""
-
+"""Per-idea save/revision and fresh reopen through owned HTTP routes."""
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-import pytest
-
 from app.dependencies.auth import get_current_user
 from app.v2.router import router
-from app.v2.store import InMemoryV2Store, NotFoundError, V2Store, get_v2_store
+from app.v2.store import InMemoryV2Store, get_v2_store, RevisionConflictError
+from app.v2.progression_state import ProgressionIdeaDraft, ProgressionWorkspaceState
+from app.v2.turns import live_composition
 
 
-def _app(store: V2Store) -> TestClient:
-    app = FastAPI()
-    app.include_router(router, prefix="/api/v2")
-    app.dependency_overrides[get_current_user] = lambda: "user_1"
+def test_save_one_idea_revisions_reopen_and_rollback(monkeypatch):
+    store = InMemoryV2Store()
+    app = FastAPI(); app.include_router(router, prefix='/api/v2')
+    app.dependency_overrides[get_current_user] = lambda: 'owner'
     app.dependency_overrides[get_v2_store] = lambda: store
-    return TestClient(app)
-
-
-CANDIDATE = {
-    "title": "Wistful I-vi-IV-V",
-    "chords": [
-        {"root": "C", "quality": "major", "voicing": [{"string": 1, "fret": 0}], "tuning": "standard"},
-        {"root": "A", "quality": "minor", "voicing": None, "tuning": None},
-    ],
-    "inspired_by": {"artifact_id": "a1", "artifact_kind": "song_study", "artifact_title": "Artist - Title"},
-}
-
-
-def test_create_progression_persists_a_progression_artifact() -> None:
-    store = InMemoryV2Store()
-    client = _app(store)
-
-    response = client.post("/api/v2/progressions", json=CANDIDATE)
-
-    assert response.status_code == 201
-    body = response.json()
-    assert body["kind"] == "progression"
-    assert body["title"] == "Wistful I-vi-IV-V"
-    assert body["payload"]["chords"][0]["voicing"] == [{"string": 1, "fret": 0}]
-    assert body["payload"]["chords"][1]["voicing"] is None
-    assert body["payload"]["inspired_by"]["artifact_id"] == "a1"
-
-    saved = store.get_artifact(body["id"], "user_1")
-    assert saved.kind == "progression"
-
-
-def test_create_progression_is_scoped_to_the_authenticated_user() -> None:
-    store = InMemoryV2Store()
-    client = _app(store)
-    created = client.post("/api/v2/progressions", json=CANDIDATE).json()
-
-    assert created["user_id"] == "user_1"
-    with pytest.raises(NotFoundError):
-        store.get_artifact(created["id"], "someone_else")
-
-
-def test_apply_exact_voicing_is_owned_revision_safe_and_reopens():
-    store = InMemoryV2Store()
-    client = _app(store)
-    original = client.post("/api/v2/progressions", json=CANDIDATE).json()
-    proposal = {
-        "expected_updated_at": original["updated_at"], "chord_index": 0,
-        "chord": {"root": "C", "quality": "unclassified", "voicing": [
-            {"string": 6, "fret": 0}, {"string": 3, "fret": 9}, {"string": 1, "fret": 11}
-        ], "tuning": [64, 59, 55, 50, 45, 38]},
-    }
-    url = f"/api/v2/progressions/{original['id']}/voicing"
-    applied = client.patch(url, json=proposal)
-    assert applied.status_code == 200
-    saved = applied.json()
-    assert saved["payload"]["chords"][0] == proposal["chord"]
-    assert saved["payload"]["chords"][1] == CANDIDATE["chords"][1]
-    assert client.get(f"/api/v2/progressions/{original['id']}").json() == saved
-    assert client.patch(url, json=proposal).status_code == 409
-    proposal["expected_updated_at"] = saved["updated_at"]
-    proposal["chord_index"] = 99
-    assert client.patch(url, json=proposal).status_code == 422
-    assert client.get(f"/api/v2/progressions/{original['id']}").json() == saved
-    client.app.dependency_overrides[get_current_user] = lambda: "other"
-    assert client.patch(url, json=proposal).status_code == 404
-
-
-@pytest.mark.parametrize("voicing,tuning", [
-    ([{"string": 7, "fret": 2}], "standard"),
-    ([{"string": 1, "fret": -1}], "standard"),
-    ([{"string": 1, "fret": 2}, {"string": 1, "fret": 4}], "standard"),
-    ([{"string": 1, "fret": 2}], "unknown"),
-    ([{"string": 1, "fret": 2}], [64, 59]),
-    ([], "standard"),
-])
-def test_invalid_physical_progressions_are_rejected_on_create_and_apply(voicing, tuning):
-    client = _app(InMemoryV2Store())
-    original = client.post("/api/v2/progressions", json=CANDIDATE).json()
-    chord = {"root": "C", "quality": "anything", "voicing": voicing, "tuning": tuning}
-    assert client.post("/api/v2/progressions", json={"title": "invalid", "chords": [chord]}).status_code == 422
-    assert client.patch(f"/api/v2/progressions/{original['id']}/voicing", json={
-        "expected_updated_at": original["updated_at"], "chord_index": 0, "chord": chord,
-    }).status_code == 422
-    assert client.get(f"/api/v2/progressions/{original['id']}").json() == original
-
-
-def test_apply_preserves_untouched_legacy_chords():
-    store = InMemoryV2Store()
-    client = _app(store)
-    legacy = {"root": "C", "quality": "major", "tuning": "standard", "voicing": [{"string": 1, "fret": 0}, {"string": 1, "fret": 12}]}
-    artifact = store.create_artifact("user_1", "progression", "Old idea", {"title": "Old idea", "chords": [legacy, legacy]})
-    response = client.patch(f"/api/v2/progressions/{artifact.id}/voicing", json={"expected_updated_at": artifact.updated_at, "chord_index": 0, "chord": CANDIDATE["chords"][0]})
-    assert response.status_code == 200
-    assert response.json()["payload"]["chords"] == [CANDIDATE["chords"][0], legacy]
+    client = TestClient(app)
+    session = store.create_session('owner'); branch = session.branches[0]
+    a, b = [ProgressionIdeaDraft(label=label, chords=[{'root': 'C', 'quality': 'major'}]) for label in ['A', 'B']]
+    branch = store.update_branch(session.id, branch.id, 'owner', progression_workspace=ProgressionWorkspaceState(ideas=[a,b], active_idea_id=a.id), active_workspace='progression')
+    url = f'/api/v2/sessions/{session.id}/branches/{branch.id}/progression'
+    result = client.post(url+'/save', json={'expected_updated_at': branch.updated_at})
+    assert result.status_code == 200, result.text
+    artifact = result.json()['artifact']
+    branch = store.get_session(session.id, 'owner').branches[0]
+    assert branch.progression_workspace.ideas[0].artifact_id == artifact['id']
+    assert branch.progression_workspace.ideas[1].artifact_id is None
+    assert branch.progression_workspace.ideas[1].dirty
+    stale = branch.model_copy(deep=True)
+    data = branch.progression_workspace.model_dump(); data['ideas'][0]['label'] = 'A revised'; data['ideas'][0]['dirty'] = True
+    branch = store.update_branch(session.id, branch.id, 'owner', progression_workspace=ProgressionWorkspaceState.model_validate(data))
+    with pytest.raises(RevisionConflictError): store.save_progression_idea(stale, 'owner')
+    branch, revised = store.save_progression_idea(branch, 'owner')
+    assert len(revised.revisions) == 1 and revised.revisions[0].payload['title'] == 'A'
+    assert revised.title == 'A revised'
+    data = branch.progression_workspace.model_dump(); data['active_idea_id'] = b.id
+    branch = store.update_branch(session.id, branch.id, 'owner', progression_workspace=ProgressionWorkspaceState.model_validate(data))
+    branch, second = store.save_progression_idea(branch, 'owner')
+    assert second.id != revised.id and len(store.list_artifacts('owner')) == 2
+    reopened = client.post(f"/api/v2/library/{revised.id}/open").json()['branches'][0]
+    idea = reopened['progression_workspace']['ideas'][0]
+    assert idea['id'] != a.id and idea['artifact_id'] == revised.id and not idea['dirty']
+    assert reopened['live_presentation_turn_id'] is None
+    into = client.post(url+f'/open/{revised.id}').json()
+    assert len(into['progression_workspace']['ideas']) == 3
+    current = store.get_session(session.id, 'owner').branches[0]
+    assert live_composition(current, []).slots
+    before = current.model_copy(deep=True)
+    data = current.progression_workspace.model_dump(); data['ideas'][-1]['label'] = 'Fail'
+    current = store.update_branch(session.id, branch.id, 'owner', progression_workspace=ProgressionWorkspaceState.model_validate(data))
+    original = store._update_branch
+    monkeypatch.setattr(store, '_update_branch', lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError('injected')))
+    with pytest.raises(RuntimeError): store.save_progression_idea(current, 'owner')
+    assert store.get_artifact(revised.id, 'owner').payload['title'] == 'A revised'
+    monkeypatch.setattr(store, '_update_branch', original)
+    assert client.post(url+'/save', json={'expected_updated_at': before.updated_at}).status_code == 409
+    app.dependency_overrides[get_current_user] = lambda: 'other'
+    assert client.post(url+'/save', json={'expected_updated_at': current.updated_at}).status_code == 404

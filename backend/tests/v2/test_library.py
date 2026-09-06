@@ -3,10 +3,10 @@ from tests.v2.workspace_fixtures import client, store, session_and_branch
 
 def test_library_revisions_restore_and_fresh_conversation(client, store):
     source = store.create_session('user_1')
-    artifact = client.post('/api/v2/progressions', json={'title': 'Dreamy', 'chords': [{'root': 'D', 'quality': 'major', 'voicing': [{'string': 1, 'fret': 10}], 'tuning': 'standard'}], 'inspired_by': {'title': 'Little Wing'}}).json()
+    artifact = store.create_artifact('user_1', 'progression', 'Dreamy', {'title': 'Dreamy', 'chords': [{'id': 'd', 'root': 'D', 'quality': 'major', 'duration_beats': 4}]}).model_dump()
     store.create_tutor_message(source.branches[0].tutor_thread_id, 'user', {'text': 'old conversation'})
     assert [a['id'] for a in client.get('/api/v2/library').json()] == [artifact['id']]
-    changed = client.patch(f"/api/v2/progressions/{artifact['id']}/voicing", json={'expected_updated_at': artifact['updated_at'], 'chord_index': 0, 'chord': {'root': 'D', 'quality': 'major', 'voicing': [{'string': 1, 'fret': 14}], 'tuning': 'standard'}}).json()
+    changed = store.update_artifact(artifact['id'], 'user_1', {**artifact['payload'], 'title': 'Revised'}, artifact['updated_at'], save=True).model_dump()
     revisions = client.get(f"/api/v2/library/{artifact['id']}/revisions").json()
     assert len(revisions) == 2
     assert 'payload' not in revisions[0]
@@ -15,12 +15,11 @@ def test_library_revisions_restore_and_fresh_conversation(client, store):
     assert restored.json()['payload'] == artifact['payload']
     assert len(client.get(f"/api/v2/library/{artifact['id']}/revisions").json()) == 3
     assert client.post(f"/api/v2/library/{artifact['id']}/restore", json={'revision': artifact['updated_at'], 'expected_updated_at': changed['updated_at']}).status_code == 409
-    # Ticket #101: opening a saved artifact yields a fresh Session + main Harmony
-    # Branch (UX-05: opening never forks). Reopen-to-fresh-idea-draft is ticket P1.
+    # Reopen gets a fresh Progression idea and conversation.
     opened = client.post(f"/api/v2/library/{artifact['id']}/open").json()
     assert opened['id'] != source.id
     branch = opened['branches'][0]
-    assert branch['active_workspace'] == 'harmony'
+    assert branch['active_workspace'] == 'progression'
     assert branch['tutor_thread_id'] != source.branches[0].tutor_thread_id
     assert client.get(f"/api/v2/tutor/threads/{branch['tutor_thread_id']}/messages").json() == []
     foreign = store.create_artifact('other', 'progression', 'Private', artifact['payload'])
@@ -50,7 +49,7 @@ def test_library_all_kinds_and_history_are_owner_scoped(client, store):
         artifact = store.create_artifact('user_1', kind, kind, payload)
         response = client.post(f'/api/v2/library/{artifact.id}/open')
         assert response.status_code == 201
-        assert response.json()['branches'][0]['active_workspace'] == 'harmony'
+        assert response.json()['branches'][0]['active_workspace'] == ('progression' if kind == 'progression' else 'harmony')
     listed = client.get('/api/v2/library').json()
     assert {a['kind'] for a in listed} == set(payloads)
     assert all('payload' not in a and 'revisions' not in a for a in listed)

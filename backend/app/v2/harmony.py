@@ -21,6 +21,16 @@ def chord_notes(chord: ChordRef) -> list[dict]:
     return spelled_notes(chord.root, formula['intervals'], formula['names'])
 
 
+def function_in_key(chord: ChordRef, center: TonalCenter | None) -> str | None:
+    if center is None:
+        return None
+    scale_pitches = {(pitch_class(center.root) + offset) % 12 for offset in SCALE_INTERVALS[center.scale]}
+    if all(note['pitch_class'] in scale_pitches for note in chord_notes(chord)):
+        return next((item['numeral'] for item in get_diatonic_chords(index_to_note(pitch_class(center.root)), center.scale)
+                     if pitch_class(item['root']) == pitch_class(chord.root)), None)
+    return None
+
+
 def chord_voicings(chord: ChordRef, tuning: list[int]) -> list[dict]:
     # Use the existing deterministic catalog path; filter physically invalid
     # results rather than claiming a standard-tuning shape works in any tuning.
@@ -77,7 +87,7 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
     for item in exploration.scratch:
         voicings = chord_voicings(item, exploration.tuning)
         scratch.append({**item.model_dump(), 'voicing': voicings[0] if voicings else None})
-    function = next((item['numeral'] for item in palette if chord and pitch_class(item['root']) == pitch_class(chord.root) and all(note['pitch_class'] in {degree['pitch_class'] for degree in degrees} for note in notes)), None) if center else None
+    function = function_in_key(chord, center) if chord else None
     return {'function': function, 'degrees': degrees, 'palette': palette, 'circle': circle,
             'scale_positions': note_positions(degrees, exploration.tuning),
             'chord_positions': note_positions(notes, exploration.tuning), 'chord_notes': notes,
