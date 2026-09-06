@@ -1,6 +1,6 @@
 # Spec draft — Re-standardize the ConceptWorkspace render model
 
-**Status:** Draft for publishing as a GitHub `Spec:` issue + 7 sub-issues.
+**Status:** Published — spec #79, tickets T1–T7 = #80–#86 (`blocked_by` ordered).
 **Grounded against:** `feature/workspace-ux-cleanup` @ `9481536` (2026-09-05), plus
 `main-v2` @ `a4cf503`.
 **Design reference:** `concept-inventory.md` (this directory) — keep it linked from the
