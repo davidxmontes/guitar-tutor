@@ -203,7 +203,6 @@ def _get_quality_suffix(quality: str) -> str:
         "minor": "m",
         "diminished": "°",
         "augmented": "+",
-        "augmented": "+",
         "dominant7": "7",
         "major7": "maj7",
         "minor7": "m7",
