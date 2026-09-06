@@ -11,6 +11,7 @@ plus a JSON payload, strictly typed per concrete artifact route.
 from typing import Annotated, Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field, model_validator
+from app.v2.harmony_state import HarmonyExploration
 
 ArtifactKind = Literal["song_study", "progression", "exercise"]
 
@@ -19,22 +20,6 @@ ARTIFACT_KINDS: tuple[str, ...] = get_args(ArtifactKind)
 WorkspaceKind = Literal["harmony", "progression"]
 
 _STANDARD_TUNING: list[int] = [64, 59, 55, 50, 45, 40]
-
-
-class HarmonyExploration(BaseModel):
-    """Branch-local Harmony Workspace state (Spec §5.2). #101 only needs an
-    empty, constructible shape for "new session"; ticket H1 fleshes out the
-    internals (Scratch chords, pinned voicings, kept NoteGroups, focus kinds).
-    ponytail: fields are permissive dicts until H1 tightens them.
-    """
-
-    tonal_center: Optional[dict[str, Any]] = None
-    tuning: list[int] = Field(default_factory=lambda: list(_STANDARD_TUNING), min_length=6, max_length=6)
-    scratch: list[dict[str, Any]] = Field(default_factory=list)
-    focus: dict[str, Any] = Field(default_factory=lambda: {"kind": "scale"})
-    pinned_voicings: list[dict[str, Any]] = Field(default_factory=list)
-    kept_note_groups: list[dict[str, Any]] = Field(default_factory=list)
-    provenance: Optional[dict[str, Any]] = None
 
 
 class ProgressionWorkspaceState(BaseModel):
