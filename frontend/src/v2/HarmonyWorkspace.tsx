@@ -46,6 +46,10 @@ export function HarmonyWorkspace({ branch, onChange }: { branch: V2Branch; onCha
   const focusLabel = focus.kind === 'degree' ? `degree ${focus.degree}` : chord ? `${chord.root} ${chord.quality}` : state.tonal_center ? `${root} ${scale.replaceAll('_', ' ')}` : 'Choose a tonal centre';
   const data = surface.resolved;
   const notes = focus.kind === 'voicing' ? data.voicing_positions : focus.kind === 'chord' ? data.chord_positions : data.scale_positions;
+  const focusedDegree = focus.kind === 'degree' ? data.degrees[Number(focus.degree) - 1] : null;
+  const layers = focusedDegree
+    ? [{ id: 'scale', label: `${root} ${scale}`, positions: notes }, { id: 'degree', label: focusLabel, focal: true, positions: notes.filter(note => note.pitch_class === focusedDegree.pitch_class) }]
+    : [{ id: 'music', label: focusLabel, focal: true, positions: notes }];
   return <section data-testid="harmony-workspace" aria-busy={busy}>
     <WorkspaceHeader title="Harmony" focus={focusLabel} onBack={focus.kind === 'scale' ? undefined : () => void edit({ focus: { kind: 'scale' } })}>
       <label>Root <select aria-label="Root" value={state.tonal_center ? root : ''} disabled={busy} onChange={e => void edit({ tonal_center: { root: e.target.value, scale } })}><option value="" disabled>Choose root</option>{surface.catalog.roots.map(value => <option key={value}>{value}</option>)}</select></label>
@@ -60,7 +64,7 @@ export function HarmonyWorkspace({ branch, onChange }: { branch: V2Branch; onCha
       <h3>{peer.label}</h3><Fretboard context="harmony" layers={[{ id: peer.id, label: peer.label, focal: true, positions: peer.positions as ResolvedNote[] }]} config={config} onNudge={nudge} onSelect={() => {}} />
     </>} /> : <CompositionView composition={surface.composition} liveTurnId={`${branch.id}:${surface.branch.live_presentation_turn_id ?? 'starter'}`}
       renderBlock={(block, _path, nudge) => {
-        if (block.kind === 'fretboard') return <Fretboard context="harmony" layers={[{ id: 'music', label: focusLabel, focal: true, positions: notes }, ...data.note_groups]} config={block.config} onNudge={nudge}
+        if (block.kind === 'fretboard') return <Fretboard context="harmony" layers={[...layers, ...data.note_groups]} config={block.config} onNudge={nudge}
           onSelect={note => { if (busy) return; const index = data.degrees.findIndex(degree => degree.pitch_class === note.pitch_class); if (index >= 0) void edit({ focus: { kind: 'degree', degree: index + 1 } }); }} />;
         if (block.kind === 'chord-palette') return <section aria-label="Chord palette"><h3>Chords in this scale</h3><div className="music-controls">{data.palette.map(item => <div key={item.numeral}>
           <button disabled={busy} className="music-button" aria-label={`Focus ${item.display}`} onClick={() => void edit({ focus: { kind: 'chord', chord: { root: item.root, quality: item.quality } } })}>{block.config?.labels === 'numerals' ? item.numeral : item.display}</button>
