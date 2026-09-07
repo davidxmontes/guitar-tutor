@@ -55,3 +55,11 @@ def test_library_all_kinds_and_history_are_owner_scoped(client, store):
     assert all('payload' not in a and 'revisions' not in a for a in listed)
     foreign = store.create_artifact('other', 'progression', 'Private', {})
     assert client.post(f'/api/v2/library/{foreign.id}/restore', json={'revision': 'old', 'expected_updated_at': foreign.updated_at}).status_code == 404
+
+
+def test_song_library_title_keeps_artist_when_saving_and_editing(client, store):
+    song = store.create_artifact('user_1', 'song_study', 'Artist - Song', {'artist': 'Artist', 'title': 'Song'}, saved=False)
+    saved = client.post(f'/api/v2/library/{song.id}/save', json={'expected_updated_at': song.updated_at}).json()
+    assert saved['title'] == 'Artist - Song'
+    changed = store.update_artifact(song.id, 'user_1', {**song.payload, 'saved_ranges': []}, saved['updated_at'])
+    assert changed.title == 'Artist - Song'

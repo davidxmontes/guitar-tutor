@@ -48,3 +48,11 @@ def scripted_factory(*args, **kwargs):
 
 
 app.dependency_overrides[get_tutor_model_factory] = lambda: scripted_factory
+
+# Only the external providers are replaced for SongStudy browser acceptance.
+from app.services import songsterr
+from app.v2.router import get_enrichment_model_factory
+from tests.v2 import song_browser_provider
+for name in ('search_songs', 'get_song_revision', 'get_tab_data', 'get_chordpro'):
+    setattr(songsterr, name, getattr(song_browser_provider, name))
+app.dependency_overrides[get_enrichment_model_factory] = lambda: song_browser_provider.enrichment_factory

@@ -66,7 +66,7 @@ def _revised(artifact: Artifact, payload: dict[str, Any], save: bool) -> Artifac
         revisions.append(ArtifactRevision(revision=artifact.updated_at, payload=deepcopy(artifact.payload)))
     # ponytail: snapshots share the artifact JSON row for atomic compare-and-swap.
     # Move history to a separate table if large songs or long histories make rows costly.
-    return artifact.model_copy(update={"payload": deepcopy(payload), "title": payload.get("title", artifact.title), "updated_at": now,
+    return artifact.model_copy(update={"payload": deepcopy(payload), "title": artifact.title if artifact.kind == "song_study" else payload.get("title", artifact.title), "updated_at": now,
         "saved_at": artifact.saved_at or (now if save else None), "revisions": revisions})
 
 

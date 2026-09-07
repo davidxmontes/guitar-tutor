@@ -224,7 +224,27 @@ Run all three SQL documents on the hard-cutover store: `v2-schema.sql`,
 check exercises the turn and save transactions. Production reset/SQL installation
 is a separate deployment operation.
 
-Frontend restoration planning remains tracked in #113: SongStudy/library and
-saved Exercise practice surfaces were deleted in #101. The ready tickets restore
-Harmony/Progression entry, shared blocks and idea-based Exercise composition;
-#113 is not a completed implementation ticket.
+## SongStudy and saved-practice restoration (#113)
+
+SongStudy opens from Explore or My Stuff as an independent artifact viewer.
+Its current measure/beat selection is local view state; saved ranges remain
+artifact data. Returning to the workspace preserves its Harmony/Progression
+music. No removed Branch fields, new Workspace kind or schema migration is
+introduced. The restored tab overview/full-tab, shape strip, enrichment,
+learning map and practice transport reuse the pre-cutover implementation.
+The existing Exercise composer accepts song passages as well as Progression
+ideas; saved exercises reopen in a shared practice player.
+
+The old SongStudy/Exercise Tutor rail is not restored: it depended on deleted
+Branch artifact/selection fields and the old Tutor contract. A song-aware
+Tutor needs an explicit artifact-context contract before being connected to
+these independent viewers. Workspace Tutor remains available on return, and
+SongStudy's existing enrichment provider remains connected. This is a known
+remaining gap, not a claim of restored conversational song tutoring.
+
+Verification: browser journeys cover workspace return without music changes,
+search failure/recovery, tab views, enrichment, saved ranges, library reopen,
+exercise copying with rests and alternate tuning, practice playback and
+320px overflow. Providers are scripted only at the external Songsterr/model
+boundary; routes, ownership and persistence are real. Artist names remain in
+SongStudy library titles when saving or editing.

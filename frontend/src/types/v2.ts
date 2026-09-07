@@ -57,7 +57,7 @@ export interface UpdateBranchRequest {
   closed?: boolean;
 }
 
-// --- SongStudy artifact (backend kind retained; frontend surface is rebuilt later) ---
+// --- SongStudy artifact ---
 
 export interface SongStudyTrack {
   index: number;
@@ -241,5 +241,12 @@ export interface ExerciseProposal extends ExerciseDraft {
 }
 export type ExerciseArtifact = Omit<Artifact, 'kind' | 'payload'> & {
   kind: 'exercise';
-  payload: ExerciseDraft & { created_from: { artifact_id: string; title: string; kind: ArtifactKind; selection: Record<string, unknown> | null } };
+  payload: ExerciseDraft & { created_from: { artifact_id: string; title: string; kind: ArtifactKind; selection: Record<string, unknown> | null } | { kind: 'progression'; idea: import('../v2/progression').ProgressionIdea } };
 };
+
+// Song view navigation is local to the artifact viewer, never Branch focus.
+export type SongSelection = { [key: string]: unknown } & (
+  | { type: 'beat'; measureIndex: number; beatIndex: number }
+  | { type: 'range'; startMeasureIndex: number; endMeasureIndex: number }
+);
+export interface SongFocus { measureIndex: number; windowSize: number }

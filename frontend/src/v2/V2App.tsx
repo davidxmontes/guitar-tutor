@@ -5,17 +5,17 @@ import { useAppAuth } from '../lib/authBypass';
 import { BranchNavigation } from './BranchNavigation';
 import { HarmonyWorkspace } from './HarmonyWorkspace';
 import { ProgressionWorkspace } from './ProgressionWorkspace';
-import type { V2Branch, V2Session } from '../types/v2';
+import { SongStudySearch, SongStudyWorkspace } from './SongStudy';
+import { MyStuff } from './MyStuff';
+import { ExerciseWorkspace } from './ExerciseWorkspace';
+import type { ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
 
-// Ticket #101 shell: Session → Branch → Workspace. Routes on
-// `branch.active_workspace` to a thin placeholder; BranchNavigation is kept
-// as secondary navigation for rare conversational forks (UX-05). A new
-// session opens a Branch with an empty Harmony Exploration.
 export function V2App() {
   const { getToken, isSignedIn, isLoaded } = useAppAuth();
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [artifactView, setArtifactView] = useState<SongStudyArtifact | ExerciseArtifact | 'search' | null>(null);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -29,9 +29,31 @@ export function V2App() {
   }, [isSignedIn, getToken]);
 
   const openSession = useCallback((session: V2Session) => {
+    setArtifactView(null);
     setActiveSession(session);
     setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
   }, []);
+
+  const studySong = async () => {
+    try {
+      if (!activeSession || !activeBranchId) {
+        const session = await apiClient.createV2Session();
+        openSession(session);
+        setSessions(previous => [session, ...(previous ?? [])]);
+      }
+      setArtifactView('search');
+    } catch (err) { setError(String(err)); }
+  };
+
+  const openSaved = async (item: LibraryItem) => {
+    if (item.kind === 'song_study') setArtifactView(await apiClient.getSongStudy(item.id));
+    else if (item.kind === 'exercise') setArtifactView(await apiClient.getExercise(item.id));
+    else {
+      const session = await apiClient.openLibraryArtifact(item.id);
+      openSession(session);
+      setSessions(previous => [session, ...(previous ?? [])]);
+    }
+  };
 
   const handleConcept = async (value: string) => {
     const match = /^([A-G](?:#|b)?)\s*(.*)$/i.exec(value.trim());
@@ -107,6 +129,16 @@ export function V2App() {
     );
   }
 
+  if (artifactView) return <main className="mx-auto max-w-7xl p-4 sm:p-6">
+    <div className="music-controls mb-4"><h1 className="text-2xl font-black">Guitar Tutor</h1>
+      <button className="music-button" onClick={() => setArtifactView(null)}>{activeSession ? 'Back to workspace' : 'Explore'}</button>
+    </div>
+    {error && <p role="alert">{error}</p>}
+    {artifactView === 'search' ? activeSession && activeBranchId && <SongStudySearch sessionId={activeSession.id} branchId={activeBranchId} onCreated={setArtifactView} />
+      : artifactView.kind === 'song_study' ? <SongStudyWorkspace key={artifactView.id} songStudy={artifactView} onSongStudyChange={setArtifactView} onSearchAgain={studySong} />
+      : <ExerciseWorkspace key={artifactView.id} artifact={artifactView} />}
+  </main>;
+
   if (activeSession) {
     const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
     return (
@@ -121,6 +153,7 @@ export function V2App() {
             Explore
           </button>
         </div>
+        <button className="music-button" onClick={studySong}>Study a song</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
@@ -181,6 +214,8 @@ export function V2App() {
           </div>
         </section>
       )}
+      <button className="music-button" onClick={studySong}>Study a song</button>
+      <MyStuff onOpen={openSaved} />
       <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="my-4">
         <label htmlFor="explore-scale">Explore a scale, key or chord</label>
         <div className="music-controls"><input id="explore-scale" placeholder="A Dorian" value={search} onChange={event => setSearch(event.target.value)} style={{ width: 'min(100%, 24rem)' }} />
