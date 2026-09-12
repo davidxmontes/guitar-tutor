@@ -130,3 +130,19 @@ lint retains the same 16 errors / 4 warnings. Live requests were returning HTTP2
 from the provider, but the old job handler discarded the exception details, so
 this is a reproduced failure path rather than proof of every reported failure.
 The exact live failure has not yet been reproduced with its original model output.
+
+## Explicit session entry (2026-09-12)
+
+Every main destination now offers a compact New session chooser with Harmony
+(scales, chords, voicings) and Chord progression (arranging and practice).
+The active workspace heading names the type instead of saying Workspace;
+starting a blank session and starting a branch explicitly say Harmony.
+Creation reuses the existing APIs and preserves the previous session.
+The native popover supports Escape and outside-click dismissal; its two choices
+remain labeled rather than relying on unfamiliar icons.
+
+Browser checks cover desktop/mobile session creation, visible type headings,
+returning to the previous session, no horizontal overflow, and keyboard dismissal.
+The four existing navigation/foundation/branch journeys and both new session-entry
+journeys pass. Desktop and mobile chooser screenshots were inspected. Frontend
+build and changed-file lint pass; backend behavior is unchanged.

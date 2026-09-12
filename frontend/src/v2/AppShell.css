@@ -79,3 +79,17 @@
  .sign-in-action { padding:28px; gap:16px; }
 }
 @media (prefers-reduced-motion:reduce) { .app-shell *,.sign-in-page * { transition:none; scroll-behavior:auto; } }
+
+.session-heading { display:grid; gap:4px; }
+.session-start-options { position:fixed; inset:80px 24px auto auto; margin:0; width:min(310px, calc(100vw - 32px)); padding:8px; border:1px solid var(--border-primary); border-radius:12px; background:var(--card-bg); color:var(--text-primary); box-shadow:0 12px 36px #0002; }
+.session-start-options::backdrop { background:transparent; }
+.session-start-options > button { display:grid; gap:5px; width:100%; text-align:left; padding:14px; border-radius:8px; cursor:pointer; }
+.session-start-options > button:hover,.session-start-options > button:focus-visible { background:var(--learning-wash); }
+.session-start-options strong { font-size:15px; font-weight:650; }
+.session-start-options span,.session-start-options small { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.session-start-options small { display:block; padding:12px 14px 6px; border-top:1px solid var(--border-primary); margin-top:4px; }
+@media(max-width:700px) { .session-start-options { inset:116px 16px auto auto; } .session-heading .learning-eyebrow { font-size:9px; } }
+@supports (top: anchor(bottom)) {
+  [popovertarget='new-session-options'] { anchor-name: --session-start; }
+  .session-start-options { position-anchor: --session-start; top:calc(anchor(bottom) + 8px); }
+}
