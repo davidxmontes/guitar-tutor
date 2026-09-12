@@ -156,10 +156,17 @@ def run_tutor_turn(
             try:
                 updated = resolve_turn_music(branch, terminal)
                 break
-            except (ValueError, ValidationError):
+            except (ValueError, ValidationError) as exc:
                 if attempt:
-                    raise TutorCapabilityError('Tutor musical change is invalid')
-                final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content='The musical result is invalid. Return one corrected result without derived positions in mutations.')]}, config={'recursion_limit': 16})
+                    raise TutorCapabilityError('Tutor musical change is invalid') from exc
+                details = str(exc) if not isinstance(exc, ValidationError) else str(exc.errors(include_input=False, include_url=False))
+                feedback = (
+                    f'The musical result is invalid in {branch.active_workspace}: {details}. '
+                    'Correct the specific validation error. Keep the answer useful even if no musical edit is possible: '
+                    'use mutation=null, candidates=null and focus=null, and explain the suggestion in message. '
+                    'Do not claim unapplied changes. Never include derived positions in mutations.'
+                )
+                final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content=feedback)]}, config={'recursion_limit': 16})
                 terminal = final_state['structured_response']
         presentation = live_composition(branch, history)
         presentation_applied = False

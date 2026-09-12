@@ -11,6 +11,7 @@ Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev user)
 """
 
 import asyncio
+import logging
 from time import monotonic
 from uuid import uuid4
 from typing import Any, Optional, Literal
@@ -449,9 +450,18 @@ async def start_tutor_job(
             job.result = await create_tutor_turn(data, user_id, store, settings, model_factory)
             job.status = "completed"
         except Exception as exc:
-            job.error = ("The music changed while the Tutor was working. Please ask again."
-                         if isinstance(exc, HTTPException) and exc.status_code == 409
-                         else "The Tutor could not finish this turn. Please try again.")
+            cause = exc
+            while cause.__cause__ is not None:
+                cause = cause.__cause__
+            logging.getLogger(__name__).warning("Tutor job %r failed: %s: %.2000s", job.id, type(cause).__name__, cause)
+            if isinstance(exc, HTTPException) and exc.status_code == 409:
+                job.error = "The music changed while the Tutor was working. Please ask again."
+            elif isinstance(exc, HTTPException) and exc.status_code == 422:
+                job.error = "The Tutor returned a suggestion this view could not apply. Your question is kept; please try again."
+            elif getattr(cause, 'status_code', None) == 429:
+                job.error = "The Tutor provider is busy. Your question is kept; please try again shortly."
+            else:
+                job.error = "The Tutor could not finish this turn. Please try again."
             job.status = "failed"
 
     task = asyncio.create_task(finish())

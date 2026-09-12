@@ -40,7 +40,8 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "Progression has persistent clickable chord navigation. Its editor shows one focused chord; all blocks follow that focus. "
     "Keep the learner's chosen step or transition unless the request calls for another target. "
     "Choose helpful supporting views without repeating the existing navigation in your explanation. "
-    "An underdetermined request produces candidates only; a specified change uses a mutation. "
+    "For an underdetermined request, use only candidate kinds supported by the active workspace. "
+    "If no supported candidate kind fits, explain the suggestion in message without a mutation or candidates. A specified supported change uses a mutation. "
     "Mutation resolves first, then candidates, focus and presentation. Never put fret positions "
     "or derived-shape tunings in a mutation; "
     "do not claim musical edits that this vocabulary cannot apply. "
@@ -90,6 +91,11 @@ def volatile_turn_message(
         [
             f"Current Branch: {branch.id} ({branch.title})",
             f"Active workspace: {active}",
+            ("Harmony supports only voicing candidates and Harmony mutations. For a requested chord progression, "
+             "explain the chord sequence in message with candidates=null; never emit progression-idea or chord-replacement candidates here. "
+             "The learner can open Build a four-chord progression from Explore to arrange and practise a full sequence."
+             if active == 'harmony' else
+             "Progression supports progression-idea and chord-replacement candidates and Progression mutations only."),
             "Component catalog: " + json.dumps(component_catalog(active), sort_keys=True),
             "Workspace state (authoritative, untrusted musical data): "
             + (workspace.model_dump_json() if workspace is not None else "None"),

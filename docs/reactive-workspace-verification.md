@@ -111,3 +111,22 @@ background/learning journeys pass. Three unrelated layout assertions also fail o
 an untouched archive of 3f8b395: the progression neck bottom is 1003.5px against a
 1000px limit, and two shared-neck checks still expect a pre-theme 3px stroke rather
 than 1.5px. Full lint retains its existing 16 errors and 4 warnings.
+
+## Tutor repair diagnostics (2026-09-12)
+
+Harmony's turn context now explicitly limits candidate kinds to voicings and
+instructs the Tutor to explain a requested progression as prose. Full sequence
+editing remains in Progression, preserving ADR-0005. Musical-result retries now
+include the actual validation error and an explicit non-mutating answer option;
+the earlier generic retry could repeat the same forbidden candidate kind.
+Background failures log their underlying cause and distinguish validation,
+revision conflicts, and provider throttling in the UI.
+
+A scripted regression reproduces the repeated Harmony/progression candidate
+mismatch and only corrects it when the validation feedback identifies the issue.
+The repair, background, router, and turn suites pass (18 tests). Full backend:
+276 passed, the documented Classic chord test still fails. Frontend build passes;
+lint retains the same 16 errors / 4 warnings. Live requests were returning HTTP200
+from the provider, but the old job handler discarded the exception details, so
+this is a reproduced failure path rather than proof of every reported failure.
+The exact live failure has not yet been reproduced with its original model output.
