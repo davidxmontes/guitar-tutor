@@ -1,0 +1,113 @@
+.v2-app {
+  --learning-accent: #9e4528;
+  --learning-green: #264d3e;
+  --learning-ink: #315946;
+  --learning-wash: #edf4ef;
+  --control-divider: #eff3f1;
+  --control-border: #bdcbc4;
+  --surface-shadow: 0 3px 16px rgb(24 48 36 / 4%), 0 1px 2px rgb(24 48 36 / 3%);
+  --control-shadow: 0 1px 2px rgb(24 48 36 / 7%), inset 0 1px 0 rgb(255 255 255 / 65%);
+  color: var(--text-primary);
+}
+
+.dark .v2-app {
+  --learning-accent: #e4a082;
+  --learning-ink: #b3d8c4;
+  --learning-wash: #20382d;
+  --control-divider: #25342c;
+  --control-border: #53685b;
+  --control-shadow: 0 1px 2px rgb(0 0 0 / 20%), inset 0 1px 0 rgb(255 255 255 / 5%);
+  color-scheme: dark;
+}
+
+.v2-app :is(select, textarea, input:where(:not([type='checkbox']):not([type='radio']))) {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+  box-shadow: var(--control-shadow);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+
+.v2-app select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5' stroke='%23667d70' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"), linear-gradient(to left, var(--control-divider) 34px, transparent 34px);
+  background-position: right 9px center, center;
+  background-repeat: no-repeat;
+  font-weight: 550;
+  cursor: pointer;
+}
+.v2-app option { background: var(--card-bg); color: var(--text-primary); font-weight: 400; }
+.v2-app :is(input, textarea)::placeholder { color: var(--text-tertiary); opacity: 1; }
+.v2-app :is(select, input, textarea):hover:not(:disabled) { border-color: var(--learning-ink); }
+.v2-app .music-controls input[type='number'] { width: 76px; }
+.v2-app input:is([type='checkbox'], [type='radio']) { width: 18px; height: 18px; min-height: 18px; padding: 0; flex-shrink: 0; accent-color: var(--learning-green); cursor: pointer; }
+.v2-app label:has(> input:is([type='checkbox'], [type='radio'])) { min-height: 44px; cursor: pointer; }
+.v2-app .music-controls { align-items: end; gap: 12px; }
+.v2-app .music-controls label:has(> select, > input:not([type='checkbox']):not([type='radio'])) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  max-width: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.v2-app .music-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background: linear-gradient(var(--card-bg), var(--bg-secondary));
+  color: var(--text-primary);
+  box-shadow: var(--control-shadow);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
+}
+.v2-app .music-button:hover:not(:disabled, [aria-pressed='true']) { border-color: var(--learning-ink); background: var(--learning-wash); color: var(--learning-ink); }
+.v2-app .music-button:active:not(:disabled) { box-shadow: inset 0 1px 3px rgb(24 48 36 / 12%); }
+.v2-app .music-button[aria-pressed='true'] { border-color: var(--learning-ink); background: var(--learning-wash); color: var(--learning-ink); box-shadow: inset 0 0 0 1px var(--learning-ink); }
+.v2-app .music-button.learning-primary { color: white; border-color: var(--learning-green); background: var(--learning-green); box-shadow: 0 2px 4px rgb(24 48 36 / 15%), inset 0 1px 0 rgb(255 255 255 / 12%); }
+.v2-app .music-button.learning-primary:hover:not(:disabled) { color: white; background: #193b2e; border-color: #193b2e; }
+.v2-app :is(button, select, input, textarea):disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.v2-app :is(button, select, input, textarea, summary, a):focus-visible { outline: 2px solid var(--learning-ink); outline-offset: 3px; }
+.v2-app :is(select, input, textarea):focus-visible { border-color: var(--learning-ink); box-shadow: 0 0 0 4px var(--learning-wash); }
+.v2-app .learning-text-button { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 4px; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; color: var(--text-secondary); cursor: pointer; }
+.v2-app .learning-text-button:hover { color: var(--learning-ink); }
+
+.practice-controls { padding: 16px; border: 1px solid var(--control-border); border-radius: 14px; background: var(--card-bg); box-shadow: var(--surface-shadow); font-size: 13px; }
+.practice-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; }
+.practice-heading > span:last-child { flex-basis: 100%; font-size: 12px; color: var(--text-secondary); }
+.practice-status { padding: 4px 9px; border: 1px solid var(--control-border); border-radius: 20px; background: var(--learning-wash); color: var(--learning-ink); font-size: 11px; font-weight: 650; }
+.practice-transport { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.practice-field { display: flex; flex-direction: column; align-items: start; gap: 6px; max-width: 100%; font-size: 12px; font-weight: 550; color: var(--text-secondary); }
+.practice-field > span { display: flex; align-items: center; gap: 7px; }
+.practice-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid var(--control-border); border-radius: 10px; font-weight: 550; }
+.practice-toggle:has(input:checked) { background: var(--learning-wash); color: var(--learning-ink); }
+.practice-play-icon { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0; }
+
+@media (max-width: 600px) {
+  .v2-app :is(input, textarea, select) { font-size: 16px; }
+  .v2-app .music-button { padding-inline: 12px; }
+  .practice-controls { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .v2-app *, .v2-app *::before, .v2-app *::after { scroll-behavior: auto; transition: none; } }
+@media (forced-colors: active) { .v2-app select { appearance: auto; background-image: none; padding-right: 12px; } }

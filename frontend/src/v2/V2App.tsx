@@ -11,6 +11,7 @@ import { SongStudySearch, SongStudyWorkspace } from './SongStudy';
 import { MyStuff } from './MyStuff';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
 import type { ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
+import './Controls.css';
 
 export function V2App() {
   const { getToken, isSignedIn, isLoaded } = useAppAuth();
@@ -138,7 +139,7 @@ export function V2App() {
   if (!isLoaded) return null;
   if (!isSignedIn) {
     return (
-      <div className="p-4 sm:p-6">
+      <div className="v2-app p-4 sm:p-6">
         <h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
         <p>Sign in to start or resume a session.</p>
         <SignInButton mode="modal" />
@@ -146,7 +147,7 @@ export function V2App() {
     );
   }
 
-  if (artifactView) return <main className="mx-auto max-w-7xl p-4 sm:p-6">
+  if (artifactView) return <main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
     <div className="music-controls mb-4"><h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
       <button className="music-button" onClick={() => setArtifactView(null)}>{activeSession ? 'Back to workspace' : 'Explore'}</button>
     </div>
@@ -159,13 +160,13 @@ export function V2App() {
   if (activeSession) {
     const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
     return (
-      <main className="learning-app">
+      <main className="v2-app learning-app">
         <div className="learning-app-header">
           <h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
           <div className="music-controls">
           <button
             type="button"
-            className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold"
+            className="music-button"
             onClick={() => { setActiveSession(null); apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err))); }}
           >
             Explore
@@ -195,7 +196,7 @@ export function V2App() {
   }
 
   return (
-    <main className="learning-app learning-home">
+    <main className="v2-app learning-app learning-home">
       <header className="learning-app-header"><h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1><button className="music-button" onClick={studySong}>Study a song</button></header>
       {error && <p className="learning-error" role="alert">{error}</p>}
       <section className="learning-intro" aria-labelledby="learning-start"><span className="learning-eyebrow">A little curiosity. A little practice.</span><h2 id="learning-start">What would you like<br />to play today?</h2><p>Find a sound, understand how it works, and take it under your fingers.<br />Start anywhere. Your Tutor will help you take the next step.</p></section>

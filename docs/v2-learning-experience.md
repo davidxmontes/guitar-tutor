@@ -88,3 +88,19 @@ assessment of model quality. Acoustic output has not been graded.
 
 The local preview uses the normal configured Tutor provider and temporary
 in-memory sessions; restarting that preview clears its session data.
+
+## Control styling refinement
+
+V2 now shares one control stylesheet across the learning workspaces, library,
+song viewer and exercises. Native selects retain their keyboard and phone
+pickers, with inset chevrons, clearer labels, hover feedback and visible focus
+rings. Buttons distinguish primary actions and selected views; checkboxes keep
+their normal proportions inside a generous clickable label. No dependencies
+or custom dropdown interaction code were added.
+
+The same forest green and soft sage surfaces carry through the home cards,
+workspace navigation, chord shapes, circle, progression editor and Tutor rail.
+Practice controls group transport, timing and audio settings, with compact
+phone spacing. Song Study's behavior is unchanged. The production build,
+changed-file lint and all 34 browser journeys pass; desktop and 320px screens,
+expanded Tutor preferences and the active practice panel were visually checked.

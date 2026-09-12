@@ -26,7 +26,7 @@ export function VoicingExplorer({ chord, data, tuning, initialView, busy, edit, 
   const options = view === 'caged' ? data.caged_regions.map(region => ({ ...region, tuning })) : data.voicings;
   return <section aria-label="Voicing explorer"><h3>{view === 'caged' ? 'One chord, five connected shapes' : 'Find a shape you can play'}</h3>
     <p className="learning-hint">{view === 'caged' ? 'CAGED connects movable C, A, G, E and D shapes. The shape name changes; the chord stays the same. Try two neighbouring shapes and listen for the same chord tones.' : 'A voicing is a way to arrange the notes of a chord. Hear a shape, select it to see its notes, or pin it for later.'}</p>
-    <label>Voicing view <select value={view} onChange={event => setView(event.target.value)}><option value="list">Chord shapes</option><option value="caged">CAGED</option></select></label>
+    <div className="music-controls"><label>Voicing view <select value={view} onChange={event => setView(event.target.value)}><option value="list">Chord shapes</option><option value="caged">CAGED</option></select></label></div>
     {!options.length && <p>No {view === 'caged' ? 'CAGED shapes' : 'voicings'} available for this chord and tuning.</p>}
     <div className="learning-shapes">{options.map((option, index) => {
       const voicing = physicalVoicing(option);
