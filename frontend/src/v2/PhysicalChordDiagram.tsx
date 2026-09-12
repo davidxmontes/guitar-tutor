@@ -27,7 +27,7 @@ function tuningLabel(tuning: PhysicalChordDiagramProps['tuning']): string {
 export function PhysicalChordDiagram({ positions, tuning, label }: PhysicalChordDiagramProps) {
   const fretted = positions.filter(({ fret }) => fret > 0).map(({ fret }) => fret);
   const hasOpenStrings = positions.some(({ fret }) => fret === 0);
-  const startFret = hasOpenStrings || fretted.length === 0 ? 0 : Math.min(...fretted);
+  const startFret = hasOpenStrings || fretted.length === 0 ? 1 : Math.min(...fretted);
   const endFret = fretted.length === 0 ? startFret : Math.max(...fretted);
   const visibleFrets = Math.max(MIN_VISIBLE_FRETS, endFret - startFret + 1);
   const diagramHeight = FRET_SPACING * visibleFrets + 2;
@@ -62,7 +62,7 @@ export function PhysicalChordDiagram({ positions, tuning, label }: PhysicalChord
         {startFret}
       </text>
       <rect x="0" y="12" width={DIAGRAM_WIDTH} height={diagramHeight} fill="var(--bg-tertiary)" stroke="var(--border-secondary)" />
-      {startFret === 0 && <rect x="0" y="12" width={DIAGRAM_WIDTH} height="3" fill="var(--text-primary)" />}
+      {startFret === 1 && <rect x="0" y="12" width={DIAGRAM_WIDTH} height="3" fill="var(--text-primary)" />}
       {Array.from({ length: visibleFrets - 1 }, (_, index) => (
         <line key={`fret-${index}`} x1="0" x2={DIAGRAM_WIDTH} y1={(index + 1) * FRET_SPACING + 13} y2={(index + 1) * FRET_SPACING + 13} stroke="var(--border-secondary)" />
       ))}

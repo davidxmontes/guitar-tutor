@@ -204,7 +204,10 @@ export interface TutorTurnRequest {
   session_id: string;
   branch_id: string;
   message: string;
+  learning_preferences?: LearningPreferences;
 }
+
+export type LearningPreferences = { level: 'beginner' | 'intermediate'; style: 'balanced' | 'explain' | 'practice'; minutes: 5 | 10 | 20 };
 
 export type TutorMessageRole = 'user' | 'assistant' | 'tool';
 

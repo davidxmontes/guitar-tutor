@@ -23,6 +23,7 @@ CAPABILITIES = {
         'scratch-sequence': ('ordered chords; add/remove/reorder; play/loop; Develop', ()),
         'circle-of-fifths': ('keys; home and neighbours; key selection → tonal centre', ()),
         'degree-map': ('scale degrees; click → degree Focus', ('labels',)),
+        'triad-explorer': ('three-note shapes; adjacent string sets; bass and inversions; hear, focus and pin', ('string_set', 'inversion', 'max_shapes')),
     },
     'progression': {
         'fretboard': ('focused step chord and next on transition; select note', ('labels', 'fret_window', 'overlay')),
@@ -111,6 +112,12 @@ def validate_block(workspace: str, block: BlockSpec, config: dict):
         raise ValueError('Invalid label mode')
     if 'view' in config and config['view'] not in ('list', 'caged'):
         raise ValueError('Invalid voicing view')
+    if 'string_set' in config and (type(config['string_set']) is not int or config['string_set'] not in (1, 2, 3, 4)):
+        raise ValueError('string_set starts at string 1–4')
+    if 'max_shapes' in config and (type(config['max_shapes']) is not int or not 1 <= config['max_shapes'] <= 12):
+        raise ValueError('Invalid triad shape count')
+    if 'inversion' in config and (type(config['inversion']) is not int or config['inversion'] not in (0, 1, 2)):
+        raise ValueError('inversion must be 0, 1 or 2')
     if 'fret_window' in config:
         window = config['fret_window']
         if not (isinstance(window, list) and len(window) == 2

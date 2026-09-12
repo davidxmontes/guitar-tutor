@@ -20,7 +20,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool
 
 from app.v2.models import Branch, TutorMessage
-from app.v2.tutor.contract import TutorResponse, TutorTerminal, TutorUsage
+from app.v2.tutor.contract import LearningPreferences, TutorResponse, TutorTerminal, TutorUsage
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 from app.v2.turns import live_composition, musical_snapshot
@@ -113,6 +113,7 @@ def run_tutor_turn(
     model_factory: ModelFactory = build_tutor_model,
     lookup_tools: Optional[list[BaseTool]] = None,
     siblings: Optional[list[dict[str, Any]]] = None,
+    learning_preferences: LearningPreferences | None = None,
 ) -> TutorResponse:
     cache_key = branch.tutor_thread_id
 
@@ -127,7 +128,7 @@ def run_tutor_turn(
 
     request_messages = [stable_system_message(provider)]
     request_messages.extend(reconstruct_history(history))
-    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings))
+    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings, learning_preferences=learning_preferences))
 
     agent = create_agent(
         model=chat_model,

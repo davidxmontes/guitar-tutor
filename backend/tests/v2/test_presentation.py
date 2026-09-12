@@ -70,7 +70,7 @@ def test_override_config_cannot_bypass_validation():
 # Independent spec transcription: catches missing cells and widened config keys.
 @pytest.mark.parametrize('workspace, expected', [
     ('harmony', {'fretboard': 'labels fret_window overlay', 'chord-inspector': 'subject',
-     'voicing-explorer': 'subject view', 'chord-palette': 'labels', 'scratch-sequence': '',
+     'voicing-explorer': 'subject view', 'triad-explorer': 'string_set inversion max_shapes', 'chord-palette': 'labels', 'scratch-sequence': '',
      'circle-of-fifths': '', 'degree-map': 'labels', 'explanation': 'text subject',
      'comparison': 'peers context', 'note-group-overlay': 'note_group_id', 'candidate-set': 'candidate_kind candidates'}),
     ('progression', {'fretboard': 'labels fret_window overlay', 'chord-inspector': 'subject',

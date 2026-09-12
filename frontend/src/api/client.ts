@@ -427,6 +427,10 @@ class ApiClient {
     });
   }
 
+  async restoreTutorTurn(branch: V2Branch, turnId: string, undo = false): Promise<{ branch: V2Branch }> {
+    return this.fetch('/v2/tutor/restore', { method: 'POST', body: JSON.stringify({ session_id: branch.session_id, branch_id: branch.id, turn_id: turnId, undo, expected_updated_at: branch.updated_at }) });
+  }
+
   async saveExercise(data: ExerciseProposal): Promise<ExerciseArtifact> {
     return this.fetch('/v2/exercises', { method: 'POST', body: JSON.stringify(data) });
   }

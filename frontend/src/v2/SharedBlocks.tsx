@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ViewConfig } from './Composition';
 import { CompositionView } from './Composition';
 import { comparisonComposition } from './compare';
@@ -7,7 +9,7 @@ import type { NoteLayer } from './Fretboard';
 
 export function Explanation({ text, subject }: { text: string; subject?: string }) {
   return <section aria-label={subject ? `Explanation: ${subject}` : 'Explanation'}>
-    {subject && <h3>{subject}</h3>}<p style={{ whiteSpace: 'pre-wrap' }}>{text}</p>
+    {subject && <h3>{subject}</h3>}<div className="chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
   </section>;
 }
 
@@ -34,8 +36,8 @@ export function CandidateSet({ candidates, onPlay, onKeep, onDevelop, onDismiss,
 }
 
 export function WorkspaceHeader({ title, focus, onBack, children }: { title: string; focus: string; onBack?: () => void; children: ReactNode }) {
-  return <header><h2>{title}</h2><div className="music-controls">{children}</div>
-    <nav aria-label="Focus breadcrumb">{onBack && <button type="button" className="music-button" onClick={onBack}>Back</button>} {focus}</nav>
+  return <header className="learning-workspace-header"><div><p className="learning-eyebrow">{title === 'Harmony' ? 'Explore the fretboard' : 'Put the chords together'}</p><h2>{title}</h2></div><div className="music-controls">{children}</div>
+    <nav aria-label="Focus breadcrumb"><span>Looking at</span> {focus} {onBack && <button type="button" className="music-button" onClick={onBack}>Back</button>}</nav>
   </header>;
 }
 

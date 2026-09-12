@@ -11,8 +11,9 @@ export function ProgressionEditor({ idea, data, catalog, focus, busy, edit, beat
     [order[index], order[index + offset]] = [order[index + offset], order[index]];
     void edit({ order });
   }
-  return <section aria-label="Progression editor"><h3>{idea.label}</h3><p>{beatsPerBar} beats per bar</p>
-    <ol>{data.steps.map((step, index) => <li key={step.id} className="my-3" aria-label={`Step ${index + 1}`}>
+  return <section className="learning-progression-editor" aria-label="Progression editor"><h3>{idea.label}</h3><p className="learning-hint">{beatsPerBar} beats per bar · choose chords and how long each one lasts. Focus a step to discuss it with your Tutor.</p>
+    <ol>{data.steps.map((step, index) => <li key={step.id} className="learning-step" aria-label={`Step ${index + 1}`}>
+      <div className="learning-step-heading"><span>{index + 1}</span><strong>{step.root} {step.quality}</strong><small>{step.function ?? 'No function label'}</small></div>
       <div className="music-controls">
         <button className="music-button" disabled={busy} aria-pressed={focus?.kind === 'step' && focus.step_id === step.id} onClick={() => void edit({ focus: { kind: 'step', step_id: step.id } })}>Focus step {index + 1}</button>
         <label>Chord root <select disabled={busy} value={step.root} onChange={event => void edit({ step_id: step.id, chord: { root: event.target.value, quality: step.quality } })}>{catalog.roots.map(root => <option key={root}>{root}</option>)}</select></label>

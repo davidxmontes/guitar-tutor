@@ -35,7 +35,7 @@ from app.v2.models import (
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
-from app.v2.tutor.contract import TutorResponse
+from app.v2.tutor.contract import LearningPreferences, TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_tools
@@ -313,6 +313,7 @@ class TutorTurnRequest(BaseModel):
     session_id: str
     branch_id: str
     message: str = Field(min_length=1, max_length=12000)
+    learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
 
 
 @router.post("/tutor/turns", response_model=TutorResponse)
@@ -345,6 +346,7 @@ async def create_tutor_turn(
             siblings=[{"id": b.id, "title": b.title, "active_workspace": b.active_workspace}
                       for b in session.branches if not b.closed and b.id != branch.id],
             user_message=data.message,
+            learning_preferences=data.learning_preferences,
             provider=settings.v2_tutor_provider,
             model=settings.v2_tutor_model_name,
             openai_api_key=settings.openai_api_key,
@@ -384,6 +386,7 @@ class TurnRestoreRequest(BaseModel):
     branch_id: str
     turn_id: str
     undo: bool = False
+    expected_updated_at: str | None = None
 
 
 @router.post('/tutor/restore')
@@ -394,6 +397,8 @@ async def restore_tutor_turn(data: TurnRestoreRequest, user_id: str = Depends(ge
         branch = next((b for b in session.branches if b.id == data.branch_id), None)
         if branch is None:
             raise NotFoundError('Branch not found')
+        if data.expected_updated_at and branch.updated_at != data.expected_updated_at:
+            raise RevisionConflictError('The music has changed. Refresh before restoring a turn.')
         updated = store.restore_workspace_turn(branch, user_id, data.turn_id, undo=data.undo)
         return {'branch': updated, 'presentation': live_composition(updated, store.list_tutor_messages(updated.tutor_thread_id, user_id))}
     except NotFoundError as exc:
@@ -590,7 +595,7 @@ def harmony_response(branch, store, user_id):
         raise HTTPException(status_code=422, detail='No Harmony Exploration')
     return {'branch': branch, 'resolved': resolve_harmony(branch.harmony_exploration),
             'composition': live_composition(branch, store.list_tutor_messages(branch.tutor_thread_id, user_id)),
-            'catalog': {'roots': VALID_ROOTS, 'scales': SCALE_NAMES, 'circle_keys': CIRCLE_KEYS}}
+            'catalog': {'roots': VALID_ROOTS, 'scales': SCALE_NAMES, 'circle_keys': CIRCLE_KEYS, 'qualities': list(CHORD_INTERVALS)}}
 
 
 @router.post('/harmony/open', response_model=Session)

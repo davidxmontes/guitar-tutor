@@ -1,3 +1,5 @@
+import './Learning.css';
+import type { HarmonyView } from './harmony';
 import { useCallback, useEffect, useState } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
@@ -17,6 +19,8 @@ export function V2App() {
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [artifactView, setArtifactView] = useState<SongStudyArtifact | ExerciseArtifact | 'search' | null>(null);
   const [search, setSearch] = useState('');
+  const [entryView, setEntryView] = useState<HarmonyView>('tutor');
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,7 +32,8 @@ export function V2App() {
     apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err)));
   }, [isSignedIn, getToken]);
 
-  const openSession = useCallback((session: V2Session) => {
+  const openSession = useCallback((session: V2Session, view: HarmonyView = 'tutor') => {
+    setEntryView(view);
     setArtifactView(null);
     setActiveSession(session);
     setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
@@ -59,13 +64,24 @@ export function V2App() {
     const match = /^([A-G](?:#|b)?)\s*(.*)$/i.exec(value.trim());
     if (!match) { setError('Enter a root and scale, such as A Dorian.'); return; }
     const root = match[1][0].toUpperCase() + match[1].slice(1);
-    const mode = (match[2] || 'major').toLowerCase().replaceAll(' ', '_');
+    const typed = (match[2] || 'major').toLowerCase().replaceAll(' ', '_');
+    const mode = ({ minor_pentatonic: 'pentatonic_minor', major_pentatonic: 'pentatonic_major', blues: 'blues', minor_scale: 'natural_minor', major_scale: 'major' } as Record<string, string>)[typed] ?? typed;
     try {
       const qualities: Record<string, string> = { maj7: 'major7', m7: 'minor7', '7': 'dominant7', m: 'minor', maj: 'major', dim: 'diminished', aug: 'augmented' };
       const chord = qualities[mode];
       const session = await apiClient.openHarmony(root, chord ?? (mode === 'minor' ? 'natural_minor' : mode), !!chord);
       openSession(session); setSessions(previous => [session, ...(previous ?? [])]); setError(null);
     } catch (err) { setError(String(err)); }
+  };
+
+  const startActivity = async (view: HarmonyView) => {
+    if (opening) return;
+    setOpening(true); setError(null);
+    try {
+      const chord = ['triads', 'shapes', 'caged'].includes(view);
+      const session = await apiClient.openHarmony('C', 'major', chord);
+      openSession(session, view); setSessions(previous => [session, ...(previous ?? [])]);
+    } catch (err) { setError(String(err)); } finally { setOpening(false); }
   };
 
   const handleStart = async () => {
@@ -97,6 +113,7 @@ export function V2App() {
     if (!activeSession) return;
     try {
       const branch = await apiClient.createV2Branch(activeSession.id, {});
+      setEntryView('tutor');
       setActiveSession((prev) => prev && { ...prev, branches: [...prev.branches, branch] });
       setActiveBranchId(branch.id);
     } catch (err) {
@@ -122,7 +139,7 @@ export function V2App() {
   if (!isSignedIn) {
     return (
       <div className="p-4 sm:p-6">
-        <h1 className="text-2xl font-black">Guitar Tutor</h1>
+        <h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
         <p>Sign in to start or resume a session.</p>
         <SignInButton mode="modal" />
       </div>
@@ -130,7 +147,7 @@ export function V2App() {
   }
 
   if (artifactView) return <main className="mx-auto max-w-7xl p-4 sm:p-6">
-    <div className="music-controls mb-4"><h1 className="text-2xl font-black">Guitar Tutor</h1>
+    <div className="music-controls mb-4"><h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
       <button className="music-button" onClick={() => setArtifactView(null)}>{activeSession ? 'Back to workspace' : 'Explore'}</button>
     </div>
     {error && <p role="alert">{error}</p>}
@@ -142,9 +159,10 @@ export function V2App() {
   if (activeSession) {
     const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
     return (
-      <main className="mx-auto max-w-7xl p-4 sm:p-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-black">Guitar Tutor</h1>
+      <main className="learning-app">
+        <div className="learning-app-header">
+          <h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
+          <div className="music-controls">
           <button
             type="button"
             className="min-h-11 rounded-lg border border-[var(--border-primary)] px-3 py-2 text-sm font-semibold"
@@ -152,22 +170,13 @@ export function V2App() {
           >
             Explore
           </button>
+          <button className="music-button" onClick={studySong}>Study a song</button>
+          <button className="music-button" data-testid="v2-new-branch" onClick={handleNewBranch}>New branch</button>
+          </div>
         </div>
-        <button className="music-button" onClick={studySong}>Study a song</button>
         <p hidden data-testid="v2-active-session">Session {activeSession.id}</p>
         <p hidden data-testid="v2-active-branch">Branch {branch?.id}</p>
         {error && <p role="alert">{error}</p>}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            data-testid="v2-new-branch"
-            onClick={handleNewBranch}
-            className="min-h-10 rounded-lg border px-3 py-2 text-sm font-semibold"
-            style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}
-          >
-            New branch
-          </button>
-        </div>
         <BranchNavigation
           branches={activeSession.branches}
           activeBranchId={branch?.id ?? null}
@@ -178,7 +187,7 @@ export function V2App() {
         {branch?.harmony_exploration && branch.progression_workspace && <nav aria-label="Workspaces" className="music-controls">{(['harmony', 'progression'] as const).map(kind => <button key={kind} className="music-button" aria-pressed={branch.active_workspace === kind} onClick={() => { apiClient.updateV2Branch(branch.session_id, branch.id, { active_workspace: kind }).then(patchBranch).catch(err => setError(String(err))); }}>{kind === 'harmony' ? 'Harmony' : 'Progression'}</button>)}</nav>}
         {branch && (
           <section id={`workspace-panel-${branch.id}`} role="tabpanel" aria-labelledby={`workspace-tab-${branch.id}`}>
-            {branch.active_workspace === 'harmony' ? <HarmonyWorkspace key={branch.id} branch={branch} onChange={patchBranch} /> : <ProgressionWorkspace key={branch.id} branch={branch} onChange={patchBranch} />}
+            {branch.active_workspace === 'harmony' ? <HarmonyWorkspace key={branch.id} initialView={entryView} branch={branch} onChange={patchBranch} /> : <ProgressionWorkspace key={branch.id} branch={branch} onChange={patchBranch} />}
           </section>
         )}
       </main>
@@ -186,46 +195,26 @@ export function V2App() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-4 sm:p-6">
-      <h1 className="text-2xl font-black">Guitar Tutor</h1>
-      {error && <p role="alert">{error}</p>}
-      {sessions === null && <p role="status">Loading your work…</p>}
-      {sessions !== null && sessions.length > 0 && (
-        <section className="my-5" aria-labelledby="continue-heading">
-          <h2 id="continue-heading" className="text-lg font-bold">Continue where you left off</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {sessions.map((session) => {
-              const open = session.branches.find((b) => !b.closed);
-              return (
-                <button
-                  key={session.id}
-                  type="button"
-                  data-testid="v2-continue-session"
-                  data-session-id={session.id}
-                  onClick={() => handleContinue(session.id)}
-                  className="min-h-20 rounded-xl border p-4 text-left"
-                  style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}
-                >
-                  <strong className="block">{open?.title ?? 'Saved work'}</strong>
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Continue workspace</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-      <button className="music-button" onClick={studySong}>Study a song</button>
-      <MyStuff onOpen={openSaved} />
-      <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="my-4">
-        <label htmlFor="explore-scale">Explore a scale, key or chord</label>
-        <div className="music-controls"><input id="explore-scale" placeholder="A Dorian" value={search} onChange={event => setSearch(event.target.value)} style={{ width: 'min(100%, 24rem)' }} />
-          <button className="music-button" type="submit">Explore music</button></div>
+    <main className="learning-app learning-home">
+      <header className="learning-app-header"><h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1><button className="music-button" onClick={studySong}>Study a song</button></header>
+      {error && <p className="learning-error" role="alert">{error}</p>}
+      <section className="learning-intro" aria-labelledby="learning-start"><span className="learning-eyebrow">A little curiosity. A little practice.</span><h2 id="learning-start">What would you like<br />to play today?</h2><p>Find a sound, understand how it works, and take it under your fingers.<br />Start anywhere. Your Tutor will help you take the next step.</p></section>
+      <section aria-label="Choose a learning activity" className="learning-activities">
+        <button aria-label="Learn the fretboard" disabled={opening} onClick={() => void startActivity('fretboard')}><span className="learning-activity-number">01 / SCALES</span><strong>Learn the fretboard</strong><p>Find the roots. Hear a scale. Make a phrase from a few notes.</p><span className="learning-activity-action">Explore scales →</span></button>
+        <button disabled={opening} onClick={() => void startActivity('triads')}><span className="learning-activity-number">02 / TRIADS</span><strong>Three notes. More of the neck.</strong><p>Follow a chord through inversions, one string set at a time.</p><span className="learning-activity-action">Explore triads →</span></button>
+        <button disabled={opening} onClick={() => void startActivity('shapes')}><span className="learning-activity-number">03 / CHORD SHAPES</span><strong>Find your next shape</strong><p>See playable voicings, compare their sound, and connect CAGED shapes.</p><span className="learning-activity-action">Explore shapes →</span></button>
+        <button disabled={opening} aria-label="Build a four-chord progression" onClick={async () => { setOpening(true); try { const session = await apiClient.openProgression(); openSession(session); setSessions(previous => [session, ...(previous ?? [])]); } catch (err) { setError(String(err)); } finally { setOpening(false); } }}><span className="learning-activity-number">04 / PROGRESSIONS</span><strong>Make the chords connect</strong><p>Hear an idea, change a chord, and practise the transitions.</p><span className="learning-activity-action">Build a progression →</span></button>
+      </section>
+      <div className="learning-home-tools"><button className="music-button" disabled={opening} onClick={() => void startActivity('circle')}>Explore the circle of fifths</button><button className="music-button" disabled={opening} onClick={() => void startActivity('caged')}>Connect the CAGED shapes</button><button className="learning-text-button" type="button" data-testid="v2-start-session" onClick={handleStart}>Start something new</button></div>
+      {opening && <p role="status">Opening your music…</p>}
+      <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="learning-search">
+        <div><label htmlFor="explore-scale">Explore a scale, key or chord</label><p>Have something in mind? Try C major, A minor pentatonic, or Dm7.</p></div>
+        <div className="music-controls"><input id="explore-scale" placeholder="A Dorian" value={search} onChange={event => setSearch(event.target.value)} /><button className="music-button learning-primary" type="submit">Explore music</button></div>
+        <button className="learning-text-button" type="button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
       </form>
-      <button type="button" className="music-button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
-      <button type="button" className="music-button" onClick={() => { apiClient.openProgression().then(session => { openSession(session); setSessions(previous => [session, ...(previous ?? [])]); }).catch(err => setError(String(err))); }}>Build a four-chord progression</button>
-      <button type="button" data-testid="v2-start-session" onClick={handleStart}>
-        Start something new
-      </button>
+      {sessions === null && <p role="status">Loading your work…</p>}
+      {sessions !== null && sessions.length > 0 && <section className="learning-recent" aria-labelledby="continue-heading"><h2 id="continue-heading">Continue where you left off</h2><div className="learning-recent-list">{sessions.map(session => { const open = session.branches.find(branch => !branch.closed); return <button key={session.id} type="button" data-testid="v2-continue-session" data-session-id={session.id} onClick={() => handleContinue(session.id)}><span className="learning-eyebrow">{open?.active_workspace ?? 'Session'}</span><strong>{open?.title ?? 'Saved work'}</strong><span>Continue →</span></button>; })}</div></section>}
+      <MyStuff onOpen={openSaved} />
     </main>
   );
 }

@@ -1,35 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { TutorPanel } from './TutorPanel';
+import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { V2Branch, ExerciseStep } from '../types/v2';
+import type { V2Branch } from '../types/v2';
 import { CompositionView } from './Composition';
 import { Fretboard } from './Fretboard';
 import type { ResolvedNote } from './Fretboard';
-import { playTimedChords } from '../utils/audio';
-import { CandidateSet, ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
+import { ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
 import { ExerciseComposer } from './ExerciseComposer';
 import { ChordInspector } from './ChordFocus';
 import { HarmonicFunction, VoiceLeading } from './ProgressionAnalysis';
 import { ProgressionEditor } from './ProgressionEditor';
 import { useCompare } from './compare';
 import type { ProgressionSurface } from './progression';
+import type { Composition } from './Composition';
+import { ProgressionPractice } from './ProgressionPractice';
 
 export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; onChange: (branch: V2Branch) => void }) {
   const [surface, setSurface] = useState<ProgressionSurface | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [replacing, setReplacing] = useState(false);
-  const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [view, setView] = useState('tutor');
   const compare = useCompare();
-  const [candidates, setCandidates] = useState<{ kind: string; turnId: string; values: { id: string; label: string; preview: ExerciseStep[] }[] } | null>(null);
-  const stopPreview = useRef<(() => void) | null>(null);
-  useEffect(() => () => { stopPreview.current?.(); }, []);
-  async function keep(id: string, develop = false) {
-    if (!candidates || busy) return;
-    setBusy(true); setError('');
-    try { const result = await apiClient.keepCandidate(branch, candidates.turnId, id, develop); onChange(result); setSurface(await apiClient.getProgressionSurface(branch.session_id, branch.id)); if (develop) setCandidates(null); }
-    catch (err) { setError(String(err)); } finally { setBusy(false); }
-  }
   useEffect(() => {
     let cancelled = false;
     apiClient.getProgressionSurface(branch.session_id, branch.id).then(value => { if (!cancelled) setSurface(value); }).catch(err => { if (!cancelled) setError(String(err)); });
@@ -46,11 +39,9 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
     try { const result = await apiClient.saveProgressionIdea(surface.branch); onChange(result.branch); setSurface(await apiClient.getProgressionSurface(branch.session_id, branch.id)); setAnswer('Idea saved.'); }
     catch (err) { setError(String(err)); } finally { setBusy(false); }
   }
-  async function ask() {
-    if (!question.trim()) return;
-    setBusy(true); setError('');
-    try { const result = await apiClient.sendTutorTurn({ session_id: branch.session_id, branch_id: branch.id, message: question }); setCandidates(result.candidates && result.branch?.live_presentation_turn_id ? { kind: result.candidates.candidate_kind, turnId: result.branch.live_presentation_turn_id, values: result.candidates.candidates as { id: string; label: string; preview: ExerciseStep[] }[] } : null); setAnswer(result.message); setQuestion(''); const next = await apiClient.getProgressionSurface(branch.session_id, branch.id); setSurface(next); onChange(next.branch); }
-    catch (err) { setError(String(err)); } finally { setBusy(false); }
+  async function refresh(updated: V2Branch) {
+    onChange(updated); compare.clear(); setView('tutor');
+    setSurface(await apiClient.getProgressionSurface(branch.session_id, branch.id));
   }
   if (!surface) return <p role="status">{error || 'Loading Progression…'}</p>;
   const workspace = surface.branch.progression_workspace!;
@@ -59,18 +50,19 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
   const focus = workspace.focus;
   const step = data?.steps.find(value => value.id === (focus?.kind === 'step' ? focus.step_id : focus?.from_step_id)) ?? data?.steps[0];
   const next = focus?.kind === 'transition' ? data?.steps.find(value => value.id === focus.to_step_id) : null;
-  return <section data-testid="progression-workspace" aria-busy={busy}>
+  const composition: Composition = view === 'tutor' ? surface.composition : { pattern: 'hero-with-support', focal: 'hero', slots: { hero: [{ kind: view }], support: [{ kind: view === 'progression-editor' ? 'harmonic-function' : 'chord-inspector' }] } };
+  return <section className="learning-workspace" data-testid="progression-workspace" aria-busy={busy}>
     <WorkspaceHeader title="Progression" focus={focus ? `${focus.kind} ${(data?.steps.findIndex(value => value.id === (focus.kind === 'step' ? focus.step_id : focus.from_step_id)) ?? -1) + 1}` : 'Whole idea'} onBack={focus ? () => void edit({ focus: null }) : undefined}>
       <label>Active idea <select value={workspace.active_idea_id ?? ''} disabled={busy} onChange={event => void edit({ active_idea_id: event.target.value })}>{workspace.ideas.map(value => <option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
       {idea && <><label>Key root <select aria-label="Key root" disabled={busy} value={idea.tonal_center?.root ?? ''} onChange={event => void edit({ tonal_center: event.target.value ? { root: event.target.value, scale: idea.tonal_center?.scale ?? 'major' } : null })}><option value="">No key</option>{surface.catalog.roots.map(root => <option key={root}>{root}</option>)}</select></label><label>Key scale <select aria-label="Key scale" disabled={busy || !idea.tonal_center} value={idea.tonal_center?.scale ?? 'major'} onChange={event => void edit({ tonal_center: { root: idea.tonal_center!.root, scale: event.target.value } })}>{Object.entries(surface.catalog.scales).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Tuning <select disabled={busy} value={idea.tuning[5] === 38 ? 'drop-d' : 'standard'} onChange={event => void edit({ tuning: [64,59,55,50,45,event.target.value === 'drop-d' ? 38 : 40] })}><option value="standard">Standard</option><option value="drop-d">Drop D</option></select></label><button className="music-button" disabled={busy} onClick={() => void save()}>Save idea</button><span>{idea.dirty ? 'Unsaved changes' : 'Saved'}</span></>}
     </WorkspaceHeader>
+    <nav className="learning-view-nav" aria-label="Progression views">{[['tutor', "Tutor’s view"], ['progression-editor', 'Edit chords'], ['harmonic-function', 'Harmonic function'], ['voice-leading', 'Voice leading']].map(([value, label]) => <button key={value} className="music-button" disabled={busy} aria-pressed={view === value} onClick={() => { setView(value); compare.clear(); }}>{label}</button>)}<a href="#workspace-tutor">Ask your Tutor ↗</a></nav>
+    <div className="learning-workspace-layout"><div className="learning-workspace-main" id="workspace-music" tabIndex={-1}>
     {error && <p role="alert">{error}</p>}<p role="status">{compare.error}</p>
-    {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <><h3>{peer.label}</h3><p>{String(peer.sequence ?? '')}</p><Fretboard context="progression" layers={[{ id: peer.id, label: peer.label, positions: peer.positions as ResolvedNote[], focal: true }]} config={config} onNudge={nudge} onSelect={() => {}} /></>} /> : <CompositionView composition={surface.composition} liveTurnId={`${branch.id}:${surface.branch.live_presentation_turn_id ?? 'starter'}`} renderBlock={(block, _path, nudge) => {
+    {idea && data && <ProgressionPractice key={JSON.stringify([idea.id, idea.tuning, idea.chords])} idea={idea} data={data} />}
+    {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <><h3>{peer.label}</h3><p>{String(peer.sequence ?? '')}</p><Fretboard context="progression" layers={[{ id: peer.id, label: peer.label, positions: peer.positions as ResolvedNote[], focal: true }]} config={config} onNudge={nudge} onSelect={() => {}} /></>} /> : <CompositionView composition={composition} liveTurnId={`${branch.id}:${view}:${surface.branch.live_presentation_turn_id ?? 'starter'}`} renderBlock={(block, _path, nudge) => {
       if (block.kind === 'progression-idea-list') return <section aria-label="Progression ideas"><h3>Ideas</h3>{workspace.ideas.map(value => <div key={value.id} className="music-controls"><button className="music-button" disabled={busy} aria-pressed={value.id === workspace.active_idea_id} onClick={() => void edit({ active_idea_id: value.id })}>{value.label}</button><button className="music-button" onClick={() => compare.toggle({ kind: 'progression-idea', id: value.id, label: value.label, sequence: value.chords.map(step => `${step.root} ${step.quality} (${step.duration_beats} beats)`).join(' → '), positions: surface.resolved[value.id].steps.flatMap(step => step.positions) })}>Compare {value.label}</button></div>)}</section>;
-      if (block.kind === 'candidate-set') return <CandidateSet disabled={busy} candidates={candidates?.values.map(value => ({ ...value, description: value.preview.map(step => step.label).join(' → ') })) ?? []}
-        onPlay={id => { const value = candidates?.values.find(value => value.id === id); if (value) { stopPreview.current?.(); stopPreview.current = playTimedChords(value.preview, 100); } }}
-        onKeep={id => void keep(id)} onDevelop={candidates?.kind === 'progression-idea' ? id => void keep(id, true) : undefined}
-        onDismiss={id => setCandidates(value => value && ({ ...value, values: value.values.filter(candidate => candidate.id !== id) }))} />;
+      if (block.kind === 'candidate-set') return <p>Audition and keep alternatives in <a href="#workspace-tutor">Your Tutor →</a></p>;
       if (block.kind === 'harmonic-function' && data) return <HarmonicFunction data={data} />;
       if (block.kind === 'voice-leading' && data) return <VoiceLeading data={data} between={block.config?.between} onFocus={(from_step_id, to_step_id) => { if (!busy) void edit({ focus: { kind: 'transition', from_step_id, to_step_id } }); }} />;
       if (block.kind === 'chord-inspector' && step && idea) return <><ChordInspector context="progression" chord={step} notes={step.notes} functionLabel={step.function} hasKey={!!idea.tonal_center} onReplace={() => setReplacing(true)} onExplore={() => { apiClient.exploreSubject(branch.session_id, branch.id, { root: step.root, quality: step.quality }).then(result => onChange(result.branch)).catch(err => setError(String(err))); }} />{replacing && <div className="music-controls"><label>Replacement root <select value={step.root} onChange={event => void edit({ step_id: step.id, chord: { root: event.target.value, quality: step.quality } })}>{surface.catalog.roots.map(root => <option key={root}>{root}</option>)}</select></label><label>Replacement quality <select value={step.quality} onChange={event => void edit({ step_id: step.id, chord: { root: step.root, quality: event.target.value } })}>{surface.catalog.qualities.map(quality => <option key={quality}>{quality}</option>)}</select></label><button className="music-button" onClick={() => setReplacing(false)}>Done replacing</button></div>}</>;
@@ -80,7 +72,8 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
       return <p>{idea ? block.kind.replaceAll('-', ' ') : 'Choose an idea'}</p>;
     }} />}
     {idea && <ExerciseComposer key={idea.id} branch={surface.branch} idea={idea} />}
-    <form className="mt-4" onSubmit={event => { event.preventDefault(); void ask(); }}><label htmlFor={`progression-tutor-${branch.id}`}>Ask the Tutor</label><div className="music-controls"><input id={`progression-tutor-${branch.id}`} value={question} onChange={event => setQuestion(event.target.value)} style={{ minWidth: 0, width: 'min(100%,32rem)' }} /><button className="music-button" disabled={busy || !question.trim()}>Ask</button></div></form>
-    {answer && <Explanation text={answer} />}
+    {answer && <p className="learning-notice" role="status">{answer}</p>}
+    </div><TutorPanel branch={surface.branch} context={idea ? `${idea.label}${step ? ` · ${step.root} ${step.quality}` : ''}` : 'Progression'} busy={busy} onBusy={setBusy} onRefresh={refresh} />
+    </div>
   </section>;
 }
