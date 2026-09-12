@@ -1,6 +1,6 @@
 import './Learning.css';
 import type { HarmonyView } from './harmony';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
@@ -12,9 +12,11 @@ import { MyStuff } from './MyStuff';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
 import type { ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
 import './Controls.css';
+import { AppShell } from './AppShell';
 
 export function V2App() {
   const { getToken, isSignedIn, isLoaded } = useAppAuth();
+  const [page, setPage] = useState<'explore' | 'sessions' | 'library' | 'workspace'>('explore');
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export function V2App() {
   }, [isSignedIn, getToken]);
 
   const openSession = useCallback((session: V2Session, view: HarmonyView = 'tutor') => {
+    setPage('workspace');
     setEntryView(view);
     setArtifactView(null);
     setActiveSession(session);
@@ -110,6 +113,7 @@ export function V2App() {
     try {
       await apiClient.deleteV2Session(session.id);
       setSessions(previous => previous?.filter(value => value.id !== session.id) ?? []);
+      if (activeSession?.id === session.id) { setActiveSession(null); setActiveBranchId(null); }
     } catch (err) { setError(String(err)); } finally { setDeleting(null); }
   };
 
@@ -146,42 +150,40 @@ export function V2App() {
     }
   };
 
-  if (!isLoaded) return null;
-  if (!isSignedIn) {
-    return (
-      <div className="v2-app p-4 sm:p-6">
-        <h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
-        <p>Sign in to start or resume a session.</p>
-        <SignInButton mode="modal" />
-      </div>
-    );
-  }
+  const shell = (content: ReactNode) => <AppShell active={artifactView ? 'song' : page} hasWorkspace={Boolean(activeSession)} onNavigate={destination => {
+    if (destination === 'song') { void studySong(); return; }
+    setArtifactView(null); setPage(destination); setError(null);
+    if (destination === 'explore' || destination === 'sessions') apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err)));
+  }}>{content}</AppShell>;
 
-  if (artifactView) return <main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
-    <div className="music-controls mb-4"><h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
-      <button className="music-button" onClick={() => setArtifactView(null)}>{activeSession ? 'Back to workspace' : 'Explore'}</button>
+  if (!isLoaded) return <main className="v2-app sign-in-page"><p role="status">Opening Guitar Tutor…</p></main>;
+  if (!isSignedIn) return <main className="v2-app sign-in-page">
+    <div className="sign-in-card">
+      <div className="sign-in-story"><span className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></span>
+        <div><span className="learning-eyebrow">A little curiosity. A little practice.</span><h1>Make the neck<br />feel like home.</h1><p>Explore a sound. Find its shape.<br />Make it part of your playing.</p></div>
+        <div className="sign-in-notes" aria-label="C major triad: C, E, G"><span>C<small>Root</small></span><i aria-hidden="true" /><span>E<small>Third</small></span><i aria-hidden="true" /><span>G<small>Fifth</small></span></div>
+      </div>
+      <section className="sign-in-action"><span className="learning-eyebrow">Your practice space</span><h2>Welcome back.</h2><p>Sign in to explore the fretboard, work on a song, or pick up where you left off.</p><SignInButton mode="modal"><button className="music-button learning-primary">Sign in to Guitar Tutor <span aria-hidden="true">→</span></button></SignInButton><span className="sign-in-caption">New here? You can create an account when you sign in.</span></section>
+    </div>
+  </main>;
+
+  if (artifactView) return shell(<main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
+    <div className="music-controls mb-4"><h1 className="learning-brand">Workspace</h1>
+      <button className="music-button" onClick={() => { setArtifactView(null); setPage(activeSession ? 'workspace' : 'explore'); }}>{activeSession ? 'Back to workspace' : 'Explore'}</button>
     </div>
     {error && <p role="alert">{error}</p>}
     {artifactView === 'search' ? activeSession && activeBranchId && <SongStudySearch sessionId={activeSession.id} branchId={activeBranchId} onCreated={setArtifactView} />
       : artifactView.kind === 'song_study' ? <SongStudyWorkspace key={artifactView.id} songStudy={artifactView} onSongStudyChange={setArtifactView} onSearchAgain={studySong} />
       : <ExerciseWorkspace key={artifactView.id} artifact={artifactView} />}
-  </main>;
+  </main>);
 
-  if (activeSession) {
+  if (activeSession && page === 'workspace') {
     const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
-    return (
+    return shell(
       <main className="v2-app learning-app">
         <div className="learning-app-header">
-          <h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1>
+          <h1 className="learning-brand">Workspace</h1>
           <div className="music-controls">
-          <button
-            type="button"
-            className="music-button"
-            onClick={() => { setActiveSession(null); apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err))); }}
-          >
-            Explore
-          </button>
-          <button className="music-button" onClick={studySong}>Study a song</button>
           <button className="music-button" data-testid="v2-new-branch" onClick={handleNewBranch}>New branch</button>
           </div>
         </div>
@@ -205,11 +207,12 @@ export function V2App() {
     );
   }
 
-  return (
+  return shell(
     <main className="v2-app learning-app learning-home">
-      <header className="learning-app-header"><h1 className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></h1><button className="music-button" onClick={studySong}>Study a song</button></header>
+      <header className="learning-app-header"><h1 className="learning-brand">{page === 'sessions' ? 'Sessions' : page === 'library' ? 'My Stuff' : 'Explore'}</h1><span className="learning-eyebrow">Your practice space</span></header>
       {error && <p className="learning-error" role="alert">{error}</p>}
-      <section className="learning-intro" aria-labelledby="learning-start"><span className="learning-eyebrow">A little curiosity. A little practice.</span><h2 id="learning-start">What would you like<br />to play today?</h2><p>Find a sound, understand how it works, and take it under your fingers.<br />Start anywhere. Your Tutor will help you take the next step.</p></section>
+      {page === 'explore' && <>
+      <section className="learning-intro" aria-labelledby="learning-start"><span className="learning-eyebrow">A little curiosity. A little practice.</span><h2 id="learning-start">What would you like<br /> to play today?</h2><p>Find a sound, understand how it works, and take it under your fingers.<br /> Start anywhere. Your Tutor will help you take the next step.</p></section>
       <section aria-label="Choose a learning activity" className="learning-activities">
         <button aria-label="Learn the fretboard" disabled={opening} onClick={() => void startActivity('fretboard')}><span className="learning-activity-number">01 / SCALES</span><strong>Learn the fretboard</strong><p>Find the roots. Hear a scale. Make a phrase from a few notes.</p><span className="learning-activity-action">Explore scales →</span></button>
         <button disabled={opening} onClick={() => void startActivity('triads')}><span className="learning-activity-number">02 / TRIADS</span><strong>Three notes. More of the neck.</strong><p>Follow a chord through inversions, one string set at a time.</p><span className="learning-activity-action">Explore triads →</span></button>
@@ -223,9 +226,13 @@ export function V2App() {
         <div className="music-controls"><input id="explore-scale" placeholder="A Dorian" value={search} onChange={event => setSearch(event.target.value)} /><button className="music-button learning-primary" type="submit">Explore music</button></div>
         <button className="learning-text-button" type="button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
       </form>
+      </>}
+      {page !== 'library' && <>
       {sessions === null && <p role="status">Loading your work…</p>}
       {sessions !== null && sessions.length > 0 && <section className="learning-recent" aria-labelledby="continue-heading"><h2 id="continue-heading">Continue where you left off</h2><div className="learning-recent-list">{sessions.map(session => { const open = session.branches.find(branch => !branch.closed); return <div className="learning-session-row" key={session.id}><button type="button" data-testid="v2-continue-session" data-session-id={session.id} onClick={() => handleContinue(session.id)}><span className="learning-eyebrow">{open?.active_workspace ?? 'Session'}</span><strong>{open?.title ?? 'Saved work'}</strong><span>Continue →</span></button><button className="session-delete" aria-label={`Delete session: ${open?.title ?? 'Saved work'}`} title="Delete session" disabled={deleting !== null} onClick={() => void deleteSession(session)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v8m4-8v8" /></svg></button></div>; })}</div></section>}
-      <MyStuff onOpen={openSaved} />
+      {page === 'sessions' && sessions?.length === 0 && <div className="shell-empty"><h2>A fresh start.</h2><p>Your sessions will appear here once you explore some music.</p><button className="music-button" onClick={() => setPage('explore')}>Explore music</button></div>}
+      </>}
+      {page !== 'sessions' && <MyStuff onOpen={openSaved} />}
     </main>
   );
 }

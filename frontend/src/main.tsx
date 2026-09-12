@@ -20,14 +20,14 @@ createRoot(document.getElementById('root')!).render(
     {AUTH_DEV_BYPASS ? (
       <RootApp />
     ) : (
-      <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
+      <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/" appearance={{ variables: { colorPrimary: '#2c5141', borderRadius: '0.625rem' } }}>
         <RootApp />
       </ClerkProvider>
     )}
-    <footer className="px-4 py-4 text-sm text-[var(--text-secondary)] sm:px-6">
+    {isClassic && <footer className="px-4 py-4 text-sm text-[var(--text-secondary)] sm:px-6">
       <a className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-600)]" href={isClassic ? '/' : '/classic'}>
         {isClassic ? 'Return to Guitar Tutor' : 'Classic fallback'}
       </a>
-    </footer>
+    </footer>}
   </StrictMode>,
 )

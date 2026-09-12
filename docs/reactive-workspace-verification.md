@@ -60,3 +60,15 @@ External model behavior was tested through scripted provider-boundary models,
 not a live-provider pedagogical evaluation. Older generic comparison/overlay
 blocks keep their existing limitations; learner Compare, bound chord diagrams,
 and retained fretboard note-group layers remain available.
+
+## Navigation and visual polish (September 12)
+
+Added a collapsible shared sidebar with Explore, Sessions, My Stuff, song study,
+and a return to the current workspace. Mobile navigation starts collapsed.
+Styled signed-out entry and Clerk controls; simplified shared card surfaces and
+spacing. Existing session and artifact actions are reused.
+
+Verification: production build, changed-file lint, and all 42 browser journeys
+passed. Inspected signed-out entry, Explore, and Harmony in the browser, including
+mobile sign-in and collapsed navigation at 390px. Navigation acceptance coverage
+checks that the active session survives switching sections.
