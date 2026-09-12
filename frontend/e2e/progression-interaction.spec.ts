@@ -1,0 +1,33 @@
+import { expect, test } from '@playwright/test';
+
+test('the chord sequence connects the fretboard, editor and Tutor without scrolling through forms', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
+  const sequence = page.getByRole('navigation', { name: 'Chords in this progression' });
+  const editor = page.getByLabel('Progression editor', { exact: true });
+  await sequence.getByRole('button', { name: 'Chord 3: A minor', exact: true }).click();
+  await expect(editor.getByLabel('Chord root')).toHaveValue('A');
+  await expect(editor.getByLabel('Step 3', { exact: true })).toBeVisible();
+  await expect(editor.getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByLabel('Fretboard layers')).toContainText('A minor');
+  await expect(page.getByLabel('Your Tutor')).toContainText('Four-chord progression · A minor');
+  const fretboardTop = await page.getByLabel('progression fretboard', { exact: true }).evaluate(el => el.getBoundingClientRect().top);
+  expect(fretboardTop).toBeLessThan(1000);
+  await sequence.getByRole('button', { name: 'Chord 3: A minor', exact: true }).press('ArrowRight');
+  await expect(editor.getByLabel('Chord root')).toHaveValue('F');
+  await expect(page.getByLabel('Fretboard layers')).toContainText('F major');
+  await editor.getByLabel('Chord root').selectOption('D');
+  await expect(sequence.getByRole('button', { name: 'Chord 4: D major', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await editor.getByText('Reorder or remove this chord', { exact: true }).click();
+  await editor.getByRole('button', { name: 'Move earlier', exact: true }).click();
+  await expect(editor.getByLabel('Step 3', { exact: true })).toBeVisible();
+  await expect(sequence.getByRole('button', { name: 'Chord 3: D major', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await editor.getByRole('button', { name: 'Remove chord', exact: true }).click();
+  await expect(sequence.getByRole('button', { name: /^Chord / })).toHaveCount(3);
+  await expect(editor.getByLabel('Chord root')).toHaveValue('C');
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.screenshot({ path: 'test-results/progression-connected-mobile.png', fullPage: true });
+  const overflowing = await page.evaluate(() => [...document.querySelectorAll('main *')].filter(el => el.getBoundingClientRect().right > innerWidth).map(el => ({ tag: el.tagName, class: el.className, right: el.getBoundingClientRect().right })).slice(0, 12));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth), JSON.stringify(overflowing)).toBeLessThanOrEqual(320);
+});

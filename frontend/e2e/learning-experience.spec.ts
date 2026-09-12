@@ -102,7 +102,7 @@ test('a progression can be practised immediately and the selected chord remains 
   await expect(page.getByTestId('playing-chord')).toContainText('C');
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
-  await page.getByRole('button', { name: 'Focus step 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Chord 2: G major', exact: true }).click();
   await expect(page.getByLabel('Progression editor').getByLabel('Step 2', { exact: true }).getByLabel('Chord root')).toBeVisible();
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });

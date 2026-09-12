@@ -24,9 +24,9 @@ def starter_composition(branch: Branch) -> Composition:
                             'config': {'text': 'Explore the scale notes and their diatonic chords.'}}],
             }})
     return validate_composition('progression', {
-        'pattern': 'master-detail', 'focal': 'detail', 'slots': {
-            'list': [{'kind': 'progression-idea-list'}],
-            'detail': [{'kind': 'progression-editor', 'config': {'beats_per_bar': 4}}, {'kind': 'fretboard'}],
+        'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
+            'hero': [{'kind': 'fretboard'}],
+            'support': [{'kind': 'progression-editor', 'config': {'beats_per_bar': 4}}, {'kind': 'progression-idea-list'}],
         }})
 
 

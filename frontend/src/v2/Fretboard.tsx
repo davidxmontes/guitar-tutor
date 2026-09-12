@@ -22,7 +22,7 @@ export function Hear({ voicing, label = 'Hear' }: { voicing: VoicingValue; label
 }
 
 /** One resolved-data fretboard for both workspace capability contexts. */
-export function Fretboard({ context, layers, config = {}, onNudge, onSelect, preview, tuning }: {
+export function Fretboard({ context, layers, config = {}, onNudge, onSelect, preview, tuning, compactControls = false }: {
   context: 'harmony' | 'progression';
   layers: NoteLayer[];
   config?: ViewConfig;
@@ -30,6 +30,7 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
   onSelect: (note: ResolvedNote, layer: NoteLayer) => void;
   preview?: VoicingValue;
   tuning?: number[];
+  compactControls?: boolean;
 }) {
   const [rootsOnly, setRootsOnly] = useState(false);
   const [direction, setDirection] = useState('ascending');
@@ -58,8 +59,7 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
     if (tuning) { try { stop.current?.(); stop.current = playChord([note], 0, .7, tuning); } catch { setAudioError(true); } }
     onSelect(note, layer);
   };
-  return <div className="music-fretboard" data-context={context}>
-    <div className="music-controls">
+  const rangeControls = <>
       <label>Neck region <select aria-label="Neck region" value={`${first}-${last}`} onChange={event => { const [start, end] = event.target.value.split('-').map(Number); adjust({ fret_window: [start, end] }); }}>
         {!['0-5', '5-9', '9-13', '0-12', '0-19'].includes(`${first}-${last}`) && <option value={`${first}-${last}`}>Custom range</option>}
         <option value="0-5">Open position · 0–5</option><option value="5-9">Middle neck · 5–9</option><option value="9-13">Upper neck · 9–13</option><option value="0-12">One octave · 0–12</option><option value="0-19">Whole neck · 0–19</option>
@@ -68,12 +68,17 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
         onChange={e => adjust({ fret_window: [Number(e.target.value), last] })} /></label>
       <label>Last fret <input aria-label="Last fret" type="number" min={first} max="24" value={last}
         onChange={e => adjust({ fret_window: [first, Number(e.target.value)] })} /></label>
+  </>;
+  return <div className="music-fretboard" data-context={context}>
+    <div className="music-controls">
+      {!compactControls && rangeControls}
       <label>Note labels <select value={labels} onChange={e => onNudge({ labels: e.target.value as 'notes' | 'degrees' })}>
         <option value="notes">Notes</option><option value="degrees">Degrees</option>
       </select></label>
       <button type="button" className="music-button" aria-pressed={rootsOnly} onClick={() => { practice.reset(); setRootsOnly(!rootsOnly); }}>{rootsOnly ? 'Show all notes' : 'Find the roots'}</button>
       {preview && <Hear voicing={preview} label="Hear voicing" />}
     </div>
+    {compactControls && <details className="fretboard-range"><summary>Neck range · frets {first}–{last}</summary><div className="music-controls">{rangeControls}</div></details>}
     <ul aria-label="Fretboard layers" className="music-layer-legend">
       {layers.map(layer => <li key={layer.id}>{layer.label}{layer.focal ? ' — main focus' : ' — context'}</li>)}
     </ul>
