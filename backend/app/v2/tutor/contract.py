@@ -8,6 +8,12 @@ from app.v2.harmony_state import HarmonyFocus
 from app.v2.presentation import Composition
 
 
+class LearningPreferences(StrictModel):
+    level: Literal['beginner', 'intermediate'] = 'beginner'
+    style: Literal['balanced', 'explain', 'practice'] = 'balanced'
+    minutes: Literal[5, 10, 20] = 5
+
+
 class FretPosition(BaseModel):
     """One arbitrary string/fret pair — not validated against a tuning here."""
 

@@ -45,15 +45,14 @@ export function BranchNavigation({
   };
 
   return (
-    <div className="my-4 space-y-3">
+    <div className="learning-branches my-4 space-y-3">
       {openBranches.length > 0 ? (
         <>
           <div
             data-testid="v2-desktop-tabs"
             aria-label="Open workspaces"
             role="tablist"
-            className="hidden items-end gap-1 overflow-x-auto border-b sm:flex"
-            style={{ borderColor: 'var(--border-primary)' }}
+            className="learning-branch-tabs hidden sm:flex"
           >
             {openBranches.map((branch, index) => (
               <button
@@ -67,13 +66,7 @@ export function BranchNavigation({
                 tabIndex={branch.id === activeBranch?.id ? 0 : -1}
                 onClick={() => onSelect(branch.id)}
                 onKeyDown={(event) => moveTabFocus(event, index)}
-                className="-mb-px max-w-64 truncate whitespace-nowrap rounded-t-lg border px-4 py-2.5 text-sm font-semibold"
-                style={{
-                  borderColor: 'var(--border-primary)',
-                  borderBottomColor: branch.id === activeBranch?.id ? 'var(--card-bg)' : 'var(--border-primary)',
-                  background: branch.id === activeBranch?.id ? 'var(--card-bg)' : 'var(--bg-tertiary)',
-                  color: branch.id === activeBranch?.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                }}
+                className="learning-branch-tab max-w-64 truncate whitespace-nowrap"
               >
                 {branch.title}
               </button>
@@ -88,8 +81,7 @@ export function BranchNavigation({
               aria-label="Current workspace"
               value={activeBranch?.id ?? ''}
               onChange={(event) => onSelect(event.target.value)}
-              className="min-h-11 w-full rounded-lg border px-3 py-2 text-base font-semibold"
-              style={{ borderColor: 'var(--border-primary)', background: 'var(--card-bg)' }}
+              className="w-full"
             >
               {openBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.title}</option>)}
             </select>
@@ -103,8 +95,7 @@ export function BranchNavigation({
                 aria-label={`Close ${activeBranch.title}`}
                 disabled={busyBranchId !== null}
                 onClick={() => runBranchAction(activeBranch.id, onClose)}
-                className="min-h-10 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-60"
-                style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)', background: 'var(--card-bg)' }}
+                className="music-button"
               >
                 {busyBranchId === activeBranch.id ? 'Closing…' : 'Close this workspace'}
               </button>
@@ -133,8 +124,7 @@ export function BranchNavigation({
                 aria-label={`Reopen ${branch.title}`}
                 disabled={busyBranchId !== null}
                 onClick={() => runBranchAction(branch.id, onReopen)}
-                className="min-h-10 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-60"
-                style={{ borderColor: 'var(--border-secondary)', background: 'var(--card-bg)' }}
+                className="music-button"
               >
                 {busyBranchId === branch.id ? 'Reopening…' : `Reopen ${branch.title}`}
               </button>

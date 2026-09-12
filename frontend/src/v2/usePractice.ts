@@ -42,7 +42,11 @@ export function usePractice(durations: readonly number[], initialTempo = 80, gui
     const tick = () => {
       const beats = clock.current.beats + (performance.now() - clock.current.at) * tempo / 60000;
       const current = practicePosition(durations, beats, countIn, loop);
-      setElapsed(beats);
+      // Render only when the visible chord/count changes; the audio clock still ticks at 25ms.
+      setElapsed(previous => {
+        const before = practicePosition(durations, previous, countIn, loop);
+        return before.index === current.index && before.count === current.count && before.finished === current.finished ? previous : beats;
+      });
       if (current.finished) { stopGuide?.(); clock.current.beats = beats; setRunning(false); return; }
       if (guideEnabled && current.index >= 0 && guide[current.index]) {
         const total = durations.reduce((sum, duration) => sum + duration, 0);

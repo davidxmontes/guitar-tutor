@@ -8,7 +8,7 @@ test('SongStudy opens independently of Harmony and returns to the same workspace
   await page.getByRole('button', { name: 'Study a song', exact: true }).click()
   await expect(page.getByTestId('song-study-search')).toBeVisible()
   await page.getByRole('button', { name: 'Back to workspace', exact: true }).click()
-  await expect(page.getByLabel('Scale')).toHaveValue('dorian')
+  await expect(page.getByLabel('Scale', { exact: true })).toHaveValue('dorian')
   await expect(page.getByTestId('v2-active-branch')).toHaveText(before!)
 })
 

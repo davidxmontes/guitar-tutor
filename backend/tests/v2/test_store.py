@@ -169,3 +169,17 @@ def test_branch_gesture_compare_and_swap_rejects_stale_state(store):
     with pytest.raises(RevisionConflictError):
         store.update_branch(session.id, branch.id, 'owner', title='Stale', expected_updated_at=branch.updated_at)
     assert store.get_session(session.id, 'owner').branches[0] == updated
+
+
+def test_delete_session_checks_owner_and_removes_conversations(store):
+    session = store.create_session('owner')
+    thread = session.branches[0].tutor_thread_id
+    store.create_tutor_message(thread, 'user', {'text': 'hello'})
+    with pytest.raises(NotFoundError):
+        store.delete_session(session.id, 'someone-else')
+    assert len(store.list_tutor_messages(thread, 'owner')) == 1
+    store.delete_session(session.id, 'owner')
+    assert store.list_sessions('owner') == []
+    assert thread not in store._tutor_messages
+    with pytest.raises(NotFoundError):
+        store.get_session(session.id, 'owner')

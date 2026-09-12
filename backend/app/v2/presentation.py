@@ -10,7 +10,7 @@ from pydantic import Field, ValidationInfo, model_validator
 from app.v2.workspace import StrictModel
 
 WorkspaceKind = Literal['harmony', 'progression']
-Pattern = Literal['hero-with-support', 'comparison', 'master-detail', 'explanation-led']
+Pattern = Literal['hero-with-support', 'comparison', 'master-detail', 'explanation-led', 'stack', 'split', 'grid']
 
 # Each cell contains the fixed capabilities and allowed config keys, verbatim
 # in meaning from §5.5. Missing cells are forbidden, not empty implementations.
@@ -22,15 +22,19 @@ CAPABILITIES = {
         'chord-palette': ('diatonic chords; click → chord Focus or add-to-scratch', ('labels',)),
         'scratch-sequence': ('ordered chords; add/remove/reorder; play/loop; Develop', ()),
         'circle-of-fifths': ('keys; home and neighbours; key selection → tonal centre', ()),
+        'scale-staff': ('compact spelled notes and degrees; select degree across representations', ('labels',)),
+        'chord-diagram': ('selected physical voicing; hear, select, pin and compare', ('subject',)),
         'degree-map': ('scale degrees; click → degree Focus', ('labels',)),
+        'triad-explorer': ('three-note shapes; adjacent string sets; bass and inversions; hear, focus and pin', ('string_set', 'inversion', 'max_shapes')),
     },
     'progression': {
         'fretboard': ('focused step chord and next on transition; select note', ('labels', 'fret_window', 'overlay')),
         'chord-inspector': ('chord tones; function label; replace', ('subject',)),
+        'chord-diagram': ('selected or adjacent step physical diagram; select step and hear', ('subject',)),
         'progression-idea-list': ('kept ideas; click → active idea', ()),
-        'progression-editor': ('edit chord/quality/duration; reorder; assign voicing; click → step Focus', ('beats_per_bar',)),
-        'voice-leading': ('adjacent shared/moving voices; assigned real motion or realization-independent', ('between',)),
-        'harmonic-function': ('numerals and T/S/D with tonal centre; otherwise set a key', ()),
+        'progression-editor': ('one focused chord: edit quality/duration, reorder, assign and hear voicing; persistent chord navigation selects the step', ('beats_per_bar',)),
+        'voice-leading': ('adjacent shared/moving voices; select transition → Focus and both chords on fretboard; assigned real motion or realization-independent', ('between',)),
+        'harmonic-function': ('numerals and T/S/D with tonal centre; select chord → step Focus and fretboard; otherwise set a key', ()),
     },
 }
 for workspace, candidate_kinds in [('harmony', 'voicing'), ('progression', 'progression-idea/chord-replacement')]:
@@ -54,30 +58,43 @@ class BlockSpec(StrictModel):
     subject: Any = None
     config: dict[str, Any] = Field(default_factory=dict)
     emphasis: Literal['normal', 'muted'] = 'normal'
+    size: Literal['small', 'medium', 'large', 'fill'] = 'medium'
 
 
 class Composition(StrictModel):
     pattern: Pattern
+    size: Literal['small', 'medium', 'large', 'fill'] = 'fill'
     slots: dict[str, list['BlockSpec | Composition']]
     focal: str
     per_block_config: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     @model_validator(mode='after')
     def validate_surface(self, info: ValidationInfo):
-        focal, slots = PATTERNS[self.pattern]
-        if self.focal != focal or self.slots.keys() - slots.keys():
-            raise ValueError('Composition must name exactly its pattern focal and legal slots')
-        for slot, (minimum, maximum) in slots.items():
-            if not minimum <= len(self.slots.get(slot, [])) <= maximum:
-                raise ValueError(f'{slot} requires {minimum}–{maximum} elements')
-        for elements in self.slots.values():
-            for element in elements:
-                if isinstance(element, Composition):
-                    if element.pattern != 'comparison' or any(
+        if self.pattern in ('stack', 'split', 'grid'):
+            if self.focal != 'items' or set(self.slots) != {'items'}:
+                raise ValueError('Layout containers require focal items and one items slot')
+            minimum, maximum = (2, 3) if self.pattern == 'split' else (1, 8)
+            if not minimum <= len(self.slots['items']) <= maximum:
+                raise ValueError(f'{self.pattern} requires {minimum}–{maximum} children')
+        else:
+            focal, slots = PATTERNS[self.pattern]
+            if self.focal != focal or self.slots.keys() - slots.keys():
+                raise ValueError('Composition must name exactly its pattern focal and legal slots')
+            for slot, (minimum, maximum) in slots.items():
+                if not minimum <= len(self.slots.get(slot, [])) <= maximum:
+                    raise ValueError(f'{slot} requires {minimum}–{maximum} elements')
+            for elements in self.slots.values():
+                for element in elements:
+                    if isinstance(element, Composition) and (element.pattern != 'comparison' or any(
                         isinstance(child, Composition)
                         for children in element.slots.values() for child in children
-                    ):
-                        raise ValueError('Only one nested comparison level is allowed')
+                    )):
+                        raise ValueError('Legacy patterns allow only one nested comparison level')
+        def depth(node):
+            return 1 + max((depth(child) for children in node.slots.values()
+                            for child in children if isinstance(child, Composition)), default=0)
+        if depth(self) > 4 or len(list(self.blocks())) > 8:
+            raise ValueError('Layouts allow at most four container levels and eight components')
         workspace = (info.context or {}).get('workspace_kind')
         if workspace is not None:
             if workspace not in CAPABILITIES:
@@ -105,12 +122,27 @@ def validate_block(workspace: str, block: BlockSpec, config: dict):
     cell = CAPABILITIES[workspace].get(block.kind)
     if cell is None or config.keys() - set(cell[1]):
         raise ValueError(f'{block.kind}: unsupported block or configuration for {workspace}')
-    labels = {'fretboard': ('notes', 'degrees'), 'degree-map': ('degrees', 'notes'),
+    if block.kind == 'chord-diagram':
+        subject = config.get('subject', block.subject)
+        valid = subject is None or (isinstance(subject, str) and subject in (
+            ('focus',) if workspace == 'harmony' else ('focus', 'previous', 'next')))
+        if isinstance(subject, dict):
+            key = 'voicing_label' if workspace == 'harmony' else 'step_id'
+            valid = set(subject) == {key} and isinstance(subject[key], str) and bool(subject[key])
+        if not valid:
+            raise ValueError('Chord diagram subject must reference a trusted voicing or step')
+    labels = {'fretboard': ('notes', 'degrees'), 'degree-map': ('degrees', 'notes'), 'scale-staff': ('degrees', 'notes'),
               'chord-palette': ('symbols', 'numerals')}
     if 'labels' in config and config['labels'] not in labels[block.kind]:
         raise ValueError('Invalid label mode')
     if 'view' in config and config['view'] not in ('list', 'caged'):
         raise ValueError('Invalid voicing view')
+    if 'string_set' in config and (type(config['string_set']) is not int or config['string_set'] not in (1, 2, 3, 4)):
+        raise ValueError('string_set starts at string 1–4')
+    if 'max_shapes' in config and (type(config['max_shapes']) is not int or not 1 <= config['max_shapes'] <= 12):
+        raise ValueError('Invalid triad shape count')
+    if 'inversion' in config and (type(config['inversion']) is not int or config['inversion'] not in (0, 1, 2)):
+        raise ValueError('inversion must be 0, 1 or 2')
     if 'fret_window' in config:
         window = config['fret_window']
         if not (isinstance(window, list) and len(window) == 2

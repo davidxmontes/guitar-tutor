@@ -13,6 +13,8 @@ const frontendPort = Number(process.env.PLAYWRIGHT_FRONTEND_PORT ?? 5173)
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
+  // All journeys share one in-memory store and dev user.
+  workers: 1,
   retries: 0,
   use: {
     baseURL: `http://localhost:${frontendPort}`,

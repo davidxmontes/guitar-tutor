@@ -1,0 +1,96 @@
+/* Neutral surfaces, with green reserved for musical focus and primary actions. */
+:root[data-app='v2'] {
+  color-scheme: light;
+  --bg-primary: #fafbf9;
+  --bg-secondary: #f2f5f1;
+  --bg-tertiary: #eaf0e9;
+  --bg-hover: #e6eee6;
+  --bg-input: #ffffff;
+  --card-bg: #ffffff;
+  --text-primary: #22352c;
+  --text-secondary: #617368;
+  --text-tertiary: #6e7e74;
+  --text-muted: #6e7e74;
+  --border-primary: #dce4dc;
+  --border-secondary: #c6d2c8;
+  --accent-100: #e0ede4;
+  --accent-500: #4b8b68;
+  --accent-600: #347553;
+  --accent-700: #27644e;
+  --accent-900: #183c2c;
+  --note-fill: #e4eee8;
+  --note-stroke: #9cb5a5;
+  --note-text: #234839;
+  --root-fill: #27644e;
+  --root-text: #ffffff;
+  --neck-bg: #f6f8f4;
+  --neck-line: #a6b4a9;
+  --wheel-major: #dce9df;
+  --wheel-minor: #e2e8eb;
+  --wheel-diminished: #ece8dc;
+}
+:root[data-app='v2'].dark {
+  color-scheme: dark;
+  --bg-primary: #141c18;
+  --bg-secondary: #111814;
+  --bg-tertiary: #243029;
+  --bg-hover: #2b3930;
+  --bg-input: #202c25;
+  --card-bg: #1b2420;
+  --text-primary: #e5ece7;
+  --text-secondary: #a9b9b0;
+  --text-tertiary: #96a99d;
+  --text-muted: #96a99d;
+  --border-primary: #303e34;
+  --border-secondary: #475a4c;
+  --accent-100: #283f31;
+  --accent-500: #82ba9d;
+  --accent-600: #8ac7a3;
+  --accent-700: #98c9aa;
+  --accent-900: #c6e6d1;
+  --note-fill: #263c33;
+  --note-stroke: #507060;
+  --note-text: #d3e8da;
+  --root-fill: #82ba9d;
+  --root-text: #10211b;
+  --neck-bg: #151e19;
+  --neck-line: #52685a;
+  --wheel-major: #30483a;
+  --wheel-minor: #2e3e46;
+  --wheel-diminished: #443f30;
+  --scrollbar-thumb: #475a4c;
+  --scrollbar-thumb-hover: #657d6b;
+}
+:root[data-app='v2'] .v2-app {
+  --learning-accent: var(--accent-700);
+  --learning-ink: var(--accent-700);
+  --learning-wash: var(--bg-tertiary);
+  --control-border: var(--border-secondary);
+  --control-divider: var(--bg-secondary);
+  --surface-shadow: none;
+  --control-shadow: none;
+}
+:root[data-app='v2'].dark .v2-app { --learning-green: #315d46; }
+.v2-app .music-neck-scroll { background: var(--neck-bg); border: 1px solid var(--border-primary); border-radius: 10px; padding: 8px 0; color: var(--neck-line); }
+.v2-app .music-neck-scroll svg > g > text { fill: var(--text-secondary); font-size: 11px; }
+.v2-app .music-note circle { fill: var(--card-bg); stroke: var(--note-stroke); }
+.v2-app .music-note--focal circle { fill: var(--note-fill); stroke: var(--note-stroke); }
+.v2-app .music-note text { fill: var(--note-text); font-weight: 600; }
+.v2-app .music-note--root circle { fill: var(--root-fill); stroke: var(--root-fill); stroke-width: 2px; }
+.v2-app .music-note--root text { fill: var(--root-text); font-weight: 700; }
+.v2-app .music-note:hover circle { stroke: var(--learning-ink); stroke-width: 3px; }
+.v2-app .music-note:focus-visible circle, .v2-app .music-note--playing circle { stroke: var(--text-primary); stroke-width: 4px; }
+.v2-app .learning-root-key::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--root-fill); margin-right: 5px; }
+.v2-app .music-button { box-shadow: none; }
+.v2-app .tutor-heading { background: var(--card-bg); color: var(--text-primary); border-bottom: 1px solid var(--border-primary); }
+.v2-app .tutor-heading p { color: var(--text-secondary); }
+.v2-app .tutor-mark { color: var(--learning-ink); background: var(--learning-wash); border-color: var(--border-primary); }
+.v2-app .learning-shape { background: var(--card-bg); }
+.v2-app .learning-shape[data-selected='true'] { background: var(--learning-wash); }
+.theme-toggle { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px; border-radius: 8px; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
+.theme-toggle svg { flex-shrink: 0; }
+.theme-toggle:hover { background: var(--bg-tertiary); color: var(--learning-ink); }
+.sign-in-theme { position: absolute; right: 24px; top: 16px; }
+.sign-in-page { position: relative; padding-top: 76px; }
+.dark .sign-in-story { background: #203e2e; }
+@media (max-width: 700px) { .sidebar-bottom { flex-wrap: wrap; } }
