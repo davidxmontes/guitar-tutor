@@ -11,23 +11,25 @@ def musical_snapshot(branch: Branch) -> dict:
 
 def starter_composition(branch: Branch) -> Composition:
     if branch.active_workspace == 'harmony':
-        if branch.harmony_exploration and branch.harmony_exploration.focus.kind in ('chord', 'voicing'):
-            return validate_composition('harmony', {
-                'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
-                    'hero': [{'kind': 'voicing-explorer', 'subject': 'focus', 'config': {'view': 'list'}}],
-                    'support': [{'kind': 'chord-inspector', 'subject': 'focus'}, {'kind': 'fretboard', 'subject': 'focus'}],
-                }})
-        return validate_composition('harmony', {
-            'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
-                'hero': [{'kind': 'fretboard', 'subject': 'scale', 'config': {'labels': 'degrees'}}],
-                'support': [{'kind': 'chord-palette'}, {'kind': 'explanation', 'subject': 'scale',
-                            'config': {'text': 'Explore the scale notes and their diatonic chords.'}}],
-            }})
-    return validate_composition('progression', {
-        'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
-            'hero': [{'kind': 'fretboard'}],
-            'support': [{'kind': 'progression-editor', 'config': {'beats_per_bar': 4}}, {'kind': 'progression-idea-list'}],
-        }})
+        chord = branch.harmony_exploration and branch.harmony_exploration.focus.kind in ('chord', 'voicing')
+        if not chord:
+            items = [{'pattern': 'split', 'focal': 'items', 'slots': {'items': [
+                {'kind': 'circle-of-fifths', 'size': 'small'},
+                {'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'kind': 'scale-staff'}, {'kind': 'chord-palette'}, {'kind': 'fretboard'},
+                ]}},
+            ]}}]
+        else:
+            items = [{'kind': 'voicing-explorer'},
+                     {'pattern': 'split', 'focal': 'items', 'slots': {'items': [
+                         {'kind': 'chord-inspector', 'size': 'small'}, {'kind': 'fretboard'},
+                     ]}}]
+    else:
+        items = [{'pattern': 'split', 'focal': 'items', 'slots': {'items': [
+            {'kind': 'progression-editor', 'size': 'small'}, {'kind': 'fretboard', 'size': 'fill'},
+        ]}}]
+    return validate_composition(branch.active_workspace, {
+        'pattern': 'stack', 'focal': 'items', 'slots': {'items': items}})
 
 
 def live_composition(branch: Branch, history: list[TutorMessage]) -> Composition:

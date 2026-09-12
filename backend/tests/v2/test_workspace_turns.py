@@ -112,3 +112,30 @@ def test_progression_sibling_read_is_on_demand_and_detached():
     value['chords'][0]['root'] = 'E'
     assert branch.progression_workspace.ideas[0].chords[0].root == 'D'
     assert 'error' in read.invoke({'idea_id': 'foreign'})
+
+
+def test_tutor_discovers_skill_before_returning_a_free_layout():
+    from tests.v2.test_tutor_router import _app, _scripted_factory
+    from tests.v2.tutor_fakes import ScriptedTutorModel
+    store = InMemoryV2Store()
+    session = store.create_session('user_1')
+    branch = session.branches[0]
+    model = ScriptedTutorModel(outcomes=[
+        {'tool_calls': [{'name': 'read_component_skill', 'args': {'id': 'circle-of-fifths'}, 'id': 'skill1', 'type': 'tool_call'}]},
+        {'message': 'Explore nearby roots.', 'presentation': {'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+            {'kind': 'circle-of-fifths'}, {'kind': 'fretboard'}]}}},
+    ])
+    result = _app(store, _scripted_factory(model)).post('/api/v2/tutor/turns', json={'session_id': session.id, 'branch_id': branch.id, 'message': 'Explore'})
+    assert result.status_code == 200, result.text
+    assert result.json()['presentation_applied']
+    assert result.json()['tool_call_count'] == 1
+    assert 'outer ring preserves the current scale' in str(model.calls[1])
+
+
+def test_tutor_cannot_invent_a_physical_focus():
+    from app.v2.tutor.runner import resolve_turn_music
+    from app.v2.tutor.contract import TutorTerminal
+    branch = InMemoryV2Store().create_session('owner').branches[0]
+    with pytest.raises(ValueError, match='deterministic shape'):
+        resolve_turn_music(branch, TutorTerminal(message='bad', focus={'kind': 'voicing', 'chord': {'root': 'C', 'quality': 'major'},
+            'voicing': {'positions': [{'string': 1, 'fret': 1}], 'tuning': [64,59,55,50,45,40]}}))

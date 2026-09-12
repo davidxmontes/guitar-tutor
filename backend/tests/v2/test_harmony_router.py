@@ -1,3 +1,4 @@
+from app.v2.presentation import validate_composition
 from tests.v2.test_tutor_router import _app
 from app.v2.store import InMemoryV2Store
 
@@ -13,8 +14,8 @@ def test_concept_entry_and_edits_never_call_model_and_hold_surface():
     branch = session['branches'][0]
     url = f"/api/v2/sessions/{session['id']}/branches/{branch['id']}/harmony"
     surface = client.get(url).json()
-    assert surface['composition']['pattern'] == 'hero-with-support'
-    assert surface['composition']['slots']['hero'][0]['kind'] == 'fretboard'
+    assert surface['composition']['pattern'] == 'stack'
+    assert 'fretboard' in [block.kind for _, block in validate_composition('harmony', surface['composition']).blocks()]
     assert surface['resolved']['palette'][3]['root'] == 'D'
     updated = client.patch(url, json={'tonal_center': {'root': 'G', 'scale': 'major'}}).json()
     assert updated['composition'] == surface['composition']
@@ -33,7 +34,7 @@ def test_chord_entry_focus_seam_and_pin_are_by_value():
     url = f"/api/v2/sessions/{session['id']}/branches/{branch['id']}/harmony"
     surface = client.get(url).json()
     assert surface['branch']['harmony_exploration']['tonal_center'] is None
-    assert surface['composition']['slots']['hero'][0]['kind'] == 'voicing-explorer'
+    assert 'voicing-explorer' in [block.kind for _, block in validate_composition('harmony', surface['composition']).blocks()]
     assert surface['resolved']['function'] is None
     surface = client.patch(url, json={'focus': {'kind': 'chord', 'chord': {'root': 'C', 'quality': 'major'}}}).json()
     assert len(surface['resolved']['caged_regions']) == 5
@@ -48,7 +49,7 @@ def test_chord_entry_focus_seam_and_pin_are_by_value():
     unpinned = client.patch(url, json={'unpin': pin}).json()
     assert unpinned['branch']['harmony_exploration']['pinned_voicings'] == []
     scale = client.patch(url, json={'tonal_center': {'root': 'C', 'scale': 'major'}}).json()
-    assert scale['composition']['slots']['hero'][0]['kind'] == 'fretboard'
+    assert 'fretboard' in [block.kind for _, block in validate_composition('harmony', scale['composition']).blocks()]
     seventh = client.patch(url, json={'focus': {'kind': 'chord', 'chord': {'root': 'C', 'quality': 'major7'}}}).json()
     assert seventh['resolved']['function'] == 'I'
 

@@ -25,6 +25,7 @@ from app.v2.tutor.prompt import reconstruct_history, stable_system_message, vola
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 from app.v2.turns import live_composition, musical_snapshot
 from app.v2.presentation import validate_composition
+from app.v2.component_skills import component_skill_tools
 from pydantic import ValidationError, TypeAdapter
 from app.v2.harmony_state import HarmonyFocus, ChordRef, VoicingValue
 from app.v2.harmony import chord_voicings
@@ -76,7 +77,18 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
     if terminal.focus is not None:
         focus = terminal.focus.model_dump() if hasattr(terminal.focus, 'model_dump') else terminal.focus
         if updated.active_workspace == 'harmony':
-            data = updated.harmony_exploration.model_dump() | {'focus': TypeAdapter(HarmonyFocus).validate_python(focus)}
+            target = TypeAdapter(HarmonyFocus).validate_python(focus)
+            if target.kind == 'voicing':
+                from app.v2.harmony import resolve_harmony
+                state = updated.harmony_exploration.model_copy(update={'focus': TypeAdapter(HarmonyFocus).validate_python({'kind': 'chord', 'chord': target.chord})})
+                resolved = resolve_harmony(state)
+                signature = {(p.string, p.fret) for p in target.voicing.positions}
+                options = resolved['voicings'] + resolved['triads'] + resolved['caged_regions']
+                if target.voicing.tuning != state.tuning or not any(
+                    signature == {(p['string'], p['fret']) for p in option['positions']} for option in options
+                ):
+                    raise ValueError('Tutor Focus voicing must match a deterministic shape')
+            data = updated.harmony_exploration.model_dump() | {'focus': target}
             updated.harmony_exploration = type(updated.harmony_exploration).model_validate(data)
         else:
             if not isinstance(focus, dict) or focus.get('kind') not in ('step', 'transition'):
@@ -132,7 +144,7 @@ def run_tutor_turn(
 
     agent = create_agent(
         model=chat_model,
-        tools=lookup_tools or [],
+        tools=[*(lookup_tools or []), *component_skill_tools(branch.active_workspace)],
         response_format=structured_response_format(TutorTerminal, provider, model),
     )
 

@@ -16,7 +16,23 @@ class WorkspaceModel(ScriptedTutorModel):
                 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
                     'hero': [{'kind': 'candidate-set'}], 'support': [{'kind': 'chord-inspector'}]}}}]
         question = str(messages[-1].content)
-        if 'Show one triad' in question:
+        if 'Compose linked mode exploration' in question:
+            self.outcomes = [{'message': 'Dorian has a natural sixth. Select it, then try another root.', 'focus': {'kind': 'degree', 'degree': 6}, 'presentation': {
+                'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'pattern': 'split', 'focal': 'items', 'slots': {'items': [
+                        {'kind': 'circle-of-fifths', 'size': 'small'}, {'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                            {'kind': 'explanation', 'config': {'text': 'Listen for the natural sixth.'}}, {'kind': 'scale-staff'}, {'kind': 'fretboard'}]}}]}}]}}}]
+        elif 'Compose linked chord shapes' in question:
+            self.outcomes = [{'message': 'Choose a diagram to see its exact frets.', 'presentation': {
+                'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'pattern': 'split', 'focal': 'items', 'slots': {'items': [{'kind': 'voicing-explorer'}, {'kind': 'chord-inspector'}]}},
+                    {'kind': 'fretboard'}]}}}]
+        elif 'Compose linked progression' in question:
+            self.outcomes = [{'message': 'Select a chord or a transition.', 'presentation': {
+                'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'pattern': 'grid', 'focal': 'items', 'slots': {'items': [{'kind': 'chord-diagram'}, {'kind': 'voice-leading'}]}},
+                    {'kind': 'fretboard'}]}}}]
+        elif 'Show one triad' in question:
             self.outcomes = [{'message': 'Play G, C and E on strings 3, 2 and 1.', 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {'hero': [{'kind': 'triad-explorer', 'config': {'string_set': 1, 'inversion': 2, 'max_shapes': 1}}], 'support': [{'kind': 'chord-inspector'}]}}}]
         elif 'Show progression analysis' in question:
             self.outcomes = [{'message': 'Inspect the chord functions and adjacent voices.', 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {'hero': [{'kind': 'voice-leading'}], 'support': [{'kind': 'harmonic-function'}, {'kind': 'chord-inspector'}, {'kind': 'fretboard'}]}}}]

@@ -350,6 +350,10 @@ class ApiClient {
     return this.fetch('/v2/harmony/resolve', { method: 'POST', body: JSON.stringify(state) });
   }
 
+  async deleteV2Session(sessionId: string): Promise<{ deleted: boolean }> {
+    return this.fetch(`/v2/sessions/${sessionId}`, { method: 'DELETE' });
+  }
+
   async getV2Session(sessionId: string): Promise<V2Session> {
     return this.fetch<V2Session>(`/v2/sessions/${sessionId}`);
   }

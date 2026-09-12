@@ -13,7 +13,10 @@ test('the chord sequence connects the fretboard, editor and Tutor without scroll
   await expect(page.getByLabel('Fretboard layers')).toContainText('A minor');
   await expect(page.getByLabel('Your Tutor')).toContainText('Four-chord progression · A minor');
   const fretboard = page.getByLabel('progression fretboard', { exact: true });
-  await fretboard.scrollIntoViewIfNeeded();
+  await expect(editor.getByLabel('Chord root')).not.toBeVisible();
+  await page.screenshot({ path: 'test-results/compact-editor-check.png', fullPage: true });
+  expect(await fretboard.evaluate(el => el.getBoundingClientRect().bottom)).toBeLessThan(1000);
+  await expect(page.getByLabel('Selected chord diagram', { exact: true })).toHaveCount(0);
   expect(await sequence.evaluate(el => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
   expect(await sequence.evaluate(el => el.getBoundingClientRect().bottom)).toBeLessThan(1000);
   const fretboardTop = await fretboard.evaluate(el => el.getBoundingClientRect().top);
@@ -27,13 +30,13 @@ test('the chord sequence connects the fretboard, editor and Tutor without scroll
   await expect(fretboard.getByRole('button').first()).toBeVisible();
   await page.getByText(/^Neck range · frets/).click();
   await page.screenshot({ path: 'test-results/progression-connected-desktop.png', fullPage: true });
+  await editor.getByText('Edit chord', { exact: true }).click();
   await editor.getByLabel('Chord root').selectOption('D');
   await expect(sequence.getByRole('button', { name: 'Chord 4: D major', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await editor.getByText('Reorder or remove this chord', { exact: true }).click();
-  await editor.getByRole('button', { name: 'Move earlier', exact: true }).click();
+  await sequence.getByRole('button', { name: 'Chord 4: D major', exact: true }).dragTo(sequence.getByRole('button', { name: 'Chord 3: A minor', exact: true }));
   await expect(editor.getByLabel('Step 3', { exact: true })).toBeVisible();
   await expect(sequence.getByRole('button', { name: 'Chord 3: D major', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await editor.getByRole('button', { name: 'Remove chord', exact: true }).click();
+  await sequence.getByRole('button', { name: 'Remove chord 3: D major', exact: true }).click();
   await expect(sequence.getByRole('button', { name: /^Chord / })).toHaveCount(3);
   await expect(editor.getByLabel('Chord root')).toHaveValue('C');
   await page.setViewportSize({ width: 320, height: 900 });
@@ -76,6 +79,7 @@ test('analysis, playback and failed selections keep the connected music consiste
   await expect(page.getByLabel('Fretboard layers')).toContainText('G major');
   await sequence.getByRole('button', { name: 'Chord 4: F major', exact: true }).click();
   await expect(page.getByLabel('Practice controls')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Explore chords', exact: true }).click();
   await expect(page.getByLabel('Progression editor').getByLabel('Chord root')).toHaveValue('F');
   await page.route('**/progression', route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, body: JSON.stringify({ detail: 'Try again' }) }) : route.continue());
   await sequence.getByRole('button', { name: 'Chord 1: C major', exact: true }).click();

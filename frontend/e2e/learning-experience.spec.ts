@@ -31,8 +31,8 @@ test('a learner can explore scales, triads and CAGED without asking the Tutor', 
   await page.getByLabel('String set', { exact: true }).selectOption('2');
   await page.getByLabel('Inversion', { exact: true }).selectOption('1');
   await expect(page.getByLabel('Triad explorer').getByRole('heading', { name: 'First inversion' }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Focus shape', exact: true }).first().click();
-  await expect(page.getByRole('button', { name: 'Focus shape', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Triad explorer').getByRole('button', { name: /^Select .*First inversion/ }).first().click();
+  await expect(page.getByLabel('Triad explorer').getByRole('button', { name: /^Select .*First inversion/ }).first()).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Pin shape', exact: true }).first().click();
   await expect(page.getByLabel('Pinned voicings')).toContainText('A minor');
   await page.getByRole('navigation', { name: 'Learning views' }).getByRole('button', { name: 'CAGED', exact: true }).click();
@@ -103,6 +103,7 @@ test('a progression can be practised immediately and the selected chord remains 
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await page.getByRole('button', { name: 'Chord 2: G major', exact: true }).click();
+  await page.getByLabel('Progression editor').getByText('Edit chord', { exact: true }).click();
   await expect(page.getByLabel('Progression editor').getByLabel('Step 2', { exact: true }).getByLabel('Chord root')).toBeVisible();
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });

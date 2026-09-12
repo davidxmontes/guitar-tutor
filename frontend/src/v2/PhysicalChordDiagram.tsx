@@ -11,6 +11,10 @@ interface PhysicalChordDiagramProps {
   // Arrays are string 1 through 6 (high to low), matching V2 physical data.
   tuning: string | readonly (string | number)[];
   label?: string;
+  onSelect?: () => void;
+  selected?: boolean;
+  disabled?: boolean;
+  onPreview?: (active: boolean) => void;
 }
 
 const STRINGS = [6, 5, 4, 3, 2, 1] as const;
@@ -24,7 +28,7 @@ function tuningLabel(tuning: PhysicalChordDiagramProps['tuning']): string {
   return typeof tuning === 'string' ? tuning : [...tuning].reverse().map(note => typeof note === 'number' ? midiToNoteName(note) : note).join(' ');
 }
 
-export function PhysicalChordDiagram({ positions, tuning, label }: PhysicalChordDiagramProps) {
+export function PhysicalChordDiagram({ positions, tuning, label, onSelect, selected, disabled, onPreview }: PhysicalChordDiagramProps) {
   const fretted = positions.filter(({ fret }) => fret > 0).map(({ fret }) => fret);
   const hasOpenStrings = positions.some(({ fret }) => fret === 0);
   const startFret = hasOpenStrings || fretted.length === 0 ? 1 : Math.min(...fretted);
@@ -50,7 +54,7 @@ export function PhysicalChordDiagram({ positions, tuning, label }: PhysicalChord
     ) : null;
   });
 
-  return (
+  const diagram = (
     <svg
       role="img"
       aria-label={description}
@@ -85,4 +89,6 @@ export function PhysicalChordDiagram({ positions, tuning, label }: PhysicalChord
       ))}
     </svg>
   );
+  return onSelect ? <button type="button" className="diagram-select" aria-label={`Select ${label ?? 'chord shape'}`} aria-pressed={!!selected} disabled={disabled}
+    onClick={onSelect} onMouseEnter={() => onPreview?.(true)} onMouseLeave={() => onPreview?.(false)} onFocus={() => onPreview?.(true)} onBlur={() => onPreview?.(false)}>{diagram}{selected && <span className="diagram-selected-mark" aria-hidden="true">✓</span>}</button> : diagram;
 }

@@ -42,3 +42,7 @@ single-context glossary and relevant ADRs as directed by
 Default to a light/low-effort review (e.g. `/code-review`) — do it
 yourself, inline, without spawning sub-agents — unless the user explicitly
 asks for a deeper or multi-agent pass.
+
+## UI design
+
+For user-facing changes, follow [UI design guidance](docs/agents/ui-design.md).

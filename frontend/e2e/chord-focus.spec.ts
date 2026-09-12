@@ -13,10 +13,10 @@ test('chord entry, CAGED selection, pinning and voicing comparison', async ({ pa
   expect(modelCalls).toBe(0);
   await page.getByLabel('Root', { exact: true }).selectOption('C');
   await expect(page.getByTestId('harmony-workspace')).toHaveAttribute('data-module', 'scale');
-  await page.getByRole('button', { name: 'Focus C', exact: true }).click();
+  await page.getByRole('button', { name: 'Select C', exact: true }).click();
   await page.getByLabel('Voicing view').selectOption('caged');
-  await expect(page.getByRole('button', { name: /^Select / })).toHaveCount(5);
-  await page.getByRole('button', { name: /^Select / }).first().click();
+  await expect(page.getByLabel('Voicing explorer').getByRole('button', { name: /^Select / })).toHaveCount(5);
+  await page.getByLabel('Voicing explorer').getByRole('button', { name: /^Select / }).first().click();
   await expect(page.getByLabel('Voicing explorer')).toBeVisible();
   await page.getByRole('button', { name: /^Pin / }).first().click();
   await expect(page.getByLabel('Pinned voicings')).toBeVisible();
@@ -29,7 +29,7 @@ test('chord entry, CAGED selection, pinning and voicing comparison', async ({ pa
   await page.getByRole('button', { name: 'Clear comparison' }).click();
   await page.getByRole('button', { name: 'Compare current chord' }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await page.getByRole('button', { name: 'Focus Dm', exact: true }).click();
+  await page.getByRole('button', { name: 'Select Dm', exact: true }).click();
   await page.getByRole('button', { name: 'Compare current chord' }).click();
   await expect(page.getByTestId('comparison-peer')).toHaveCount(2);
   await page.getByRole('button', { name: 'Clear comparison' }).click();

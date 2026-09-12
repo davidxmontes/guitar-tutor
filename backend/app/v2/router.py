@@ -76,6 +76,16 @@ async def get_session(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+@router.delete("/sessions/{session_id}")
+async def delete_session(session_id: str, user_id: str = Depends(get_current_user),
+                         store: V2Store = Depends(get_v2_store)):
+    try:
+        store.delete_session(session_id, user_id)
+        return {"deleted": True}
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 class CreateBranchRequest(BaseModel):
     """A conversational fork (UX-05): explicit alternative direction. Opens an
     empty Harmony Exploration unless a workspace is supplied (P1/H1 will)."""

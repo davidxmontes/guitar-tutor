@@ -25,6 +25,7 @@ test('the selected-chord editor follows active ideas without a model', async ({ 
   await page.locator(`[data-session-id="${sid}"]`).click();
   await expect(page.getByLabel('Progression ideas').getByRole('button', { name: /^Compare / })).toHaveCount(3);
   const first = page.getByLabel('Progression editor').getByRole('listitem').first();
+  await first.getByText('Edit chord', { exact: true }).click();
   await first.getByLabel('Beats', { exact: true }).fill('3');
   await expect(first.getByLabel('Beats', { exact: true })).toHaveValue('3');
   await first.getByLabel('Chord root').selectOption('D');
@@ -36,7 +37,7 @@ test('the selected-chord editor follows active ideas without a model', async ({ 
   await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('step 2');
   await page.getByLabel('Active idea').selectOption(ids[0]);
   await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('Whole idea');
-  await expect(page.getByLabel('Progression editor')).toContainText('Second idea');
+  await expect(page.getByLabel('Active idea')).toHaveValue(ids[0]);
   await page.getByRole('combobox', { name: 'Tuning', exact: true }).selectOption('drop-d');
   await page.getByRole('button', { name: 'Save idea', exact: true }).click();
   await expect(page.getByText('Idea saved.', { exact: true })).toBeVisible();

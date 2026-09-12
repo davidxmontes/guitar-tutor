@@ -21,6 +21,7 @@ export function V2App() {
   const [artifactView, setArtifactView] = useState<SongStudyArtifact | ExerciseArtifact | 'search' | null>(null);
   const [search, setSearch] = useState('');
   const [entryView, setEntryView] = useState<HarmonyView>('tutor');
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,6 +102,15 @@ export function V2App() {
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const deleteSession = async (session: V2Session) => {
+    if (!window.confirm('Delete this session and its conversations and unsaved work? Saved library items will stay.')) return;
+    setDeleting(session.id); setError(null);
+    try {
+      await apiClient.deleteV2Session(session.id);
+      setSessions(previous => previous?.filter(value => value.id !== session.id) ?? []);
+    } catch (err) { setError(String(err)); } finally { setDeleting(null); }
   };
 
   const patchBranch = useCallback((updated: V2Branch) => {
@@ -214,7 +224,7 @@ export function V2App() {
         <button className="learning-text-button" type="button" onClick={() => void handleConcept('A Dorian')}>What makes A Dorian different?</button>
       </form>
       {sessions === null && <p role="status">Loading your work…</p>}
-      {sessions !== null && sessions.length > 0 && <section className="learning-recent" aria-labelledby="continue-heading"><h2 id="continue-heading">Continue where you left off</h2><div className="learning-recent-list">{sessions.map(session => { const open = session.branches.find(branch => !branch.closed); return <button key={session.id} type="button" data-testid="v2-continue-session" data-session-id={session.id} onClick={() => handleContinue(session.id)}><span className="learning-eyebrow">{open?.active_workspace ?? 'Session'}</span><strong>{open?.title ?? 'Saved work'}</strong><span>Continue →</span></button>; })}</div></section>}
+      {sessions !== null && sessions.length > 0 && <section className="learning-recent" aria-labelledby="continue-heading"><h2 id="continue-heading">Continue where you left off</h2><div className="learning-recent-list">{sessions.map(session => { const open = session.branches.find(branch => !branch.closed); return <div className="learning-session-row" key={session.id}><button type="button" data-testid="v2-continue-session" data-session-id={session.id} onClick={() => handleContinue(session.id)}><span className="learning-eyebrow">{open?.active_workspace ?? 'Session'}</span><strong>{open?.title ?? 'Saved work'}</strong><span>Continue →</span></button><button className="session-delete" aria-label={`Delete session: ${open?.title ?? 'Saved work'}`} title="Delete session" disabled={deleting !== null} onClick={() => void deleteSession(session)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v8m4-8v8" /></svg></button></div>; })}</div></section>}
       <MyStuff onOpen={openSaved} />
     </main>
   );

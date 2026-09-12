@@ -74,6 +74,7 @@ class V2Store(Protocol):
     def create_session(self, user_id: str) -> Session: ...
     def get_session(self, session_id: str, user_id: str) -> Session: ...
     def list_sessions(self, user_id: str) -> list[Session]: ...
+    def delete_session(self, session_id: str, user_id: str) -> None: ...
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch: ...
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch: ...
     def commit_workspace_turn(self, branch: Branch, user_id: str, music: dict, question: str, content: dict) -> Branch: ...
@@ -116,6 +117,13 @@ class InMemoryV2Store:
             if session is None or session.user_id != user_id:
                 raise NotFoundError(f"Session {session_id!r} not found for this user")
             return session
+
+    def delete_session(self, session_id: str, user_id: str) -> None:
+        with self._branch_lock:
+            session = self.get_session(session_id, user_id)
+            for branch in session.branches:
+                self._tutor_messages.pop(branch.tutor_thread_id, None)
+            del self._sessions[session_id]
 
     def list_sessions(self, user_id: str) -> list[Session]:
         owned = [s for s in self._sessions.values() if s.user_id == user_id]
@@ -371,6 +379,10 @@ class SupabaseV2Store:
         if not rows:
             raise NotFoundError(f"Session {session_id!r} not found for this user")
         return self._load_session(rows[0])
+
+    def delete_session(self, session_id: str, user_id: str) -> None:
+        self.get_session(session_id, user_id)
+        self._client.rpc("v2_delete_session", {"p_session_id": session_id, "p_user_id": user_id}).execute()
 
     def list_sessions(self, user_id: str) -> list[Session]:
         rows = (

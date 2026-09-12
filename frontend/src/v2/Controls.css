@@ -49,11 +49,11 @@
 .v2-app option { background: var(--card-bg); color: var(--text-primary); font-weight: 400; }
 .v2-app :is(input, textarea)::placeholder { color: var(--text-tertiary); opacity: 1; }
 .v2-app :is(select, input, textarea):hover:not(:disabled) { border-color: var(--learning-ink); }
-.v2-app .music-controls input[type='number'] { width: 76px; }
+.v2-app .music-controls input:where([type='number']) { width: 76px; }
 .v2-app input:is([type='checkbox'], [type='radio']) { width: 18px; height: 18px; min-height: 18px; padding: 0; flex-shrink: 0; accent-color: var(--learning-green); cursor: pointer; }
 .v2-app label:has(> input:is([type='checkbox'], [type='radio'])) { min-height: 44px; cursor: pointer; }
 .v2-app .music-controls { align-items: end; gap: 12px; }
-.v2-app .music-controls label:has(> select, > input:not([type='checkbox']):not([type='radio'])) {
+.v2-app .music-controls label:where(:has(> select, > input:not([type='checkbox']):not([type='radio']))) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
