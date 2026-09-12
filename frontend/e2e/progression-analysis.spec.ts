@@ -23,7 +23,7 @@ test('function, real voice motion, replacement and Exercise from an idea', async
   }
   await page.reload(); await page.locator(`[data-session-id="${sid}"]`).click();
   await expect(page.getByLabel('Voice leading')).toContainText('Assigned voicings: real motion');
-  await page.getByRole('button', { name: 'Inspect transition', exact: true }).first().click();
+  await page.getByLabel('Voice leading', { exact: true }).getByRole('button', { name: 'C major → G major', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('transition 1');
   await expect(page.getByLabel('Fretboard layers')).toContainText('G major');
   await page.getByRole('button', { name: 'Replace chord', exact: true }).click();

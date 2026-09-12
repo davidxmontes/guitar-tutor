@@ -1,14 +1,14 @@
-import type { ProgressionResolved } from './progression';
+import type { ProgressionFocus, ProgressionResolved } from './progression';
 
-export function HarmonicFunction({ data }: { data: ProgressionResolved }) {
-  return <section aria-label="Harmonic function"><h3>Harmonic function</h3>{data.key_status === 'Set a key' ? <p>Set a key</p> : <ol>{data.steps.map(step => <li key={step.id}>{step.root} {step.quality}: {step.function} {step.function_family && `· ${step.function_family}`}</li>)}</ol>}</section>;
+export function HarmonicFunction({ data, selectedId, busy, onFocus }: { data: ProgressionResolved; selectedId?: string; busy: boolean; onFocus: (id: string) => void }) {
+  return <section aria-label="Harmonic function"><h3>Harmonic function</h3><p className="learning-hint">Select a chord to see where it lives on the neck.</p>{data.key_status === 'Set a key' ? <p>Set a key</p> : <ol className="progression-functions">{data.steps.map((step, index) => <li key={step.id}><button className="music-button" disabled={busy} aria-label={`Explore function of chord ${index + 1}: ${step.root} ${step.quality}`} aria-pressed={step.id === selectedId} onClick={() => onFocus(step.id)}><strong>{step.function ?? '—'}</strong><span>{step.root} {step.quality}<small>{step.function_family ?? 'No function label'}</small></span></button></li>)}</ol>}</section>;
 }
 
-export function VoiceLeading({ data, between, onFocus }: { data: ProgressionResolved; between?: unknown; onFocus: (from: string, to: string) => void }) {
+export function VoiceLeading({ data, between, focus, busy, onFocus }: { data: ProgressionResolved; between?: unknown; focus: ProgressionFocus | null; busy: boolean; onFocus: (from: string, to: string) => void }) {
   const target = between as { from_step_id?: string; to_step_id?: string } | undefined;
   const transitions = target ? data.transitions.filter(value => value.from_step_id === target.from_step_id && value.to_step_id === target.to_step_id) : data.transitions;
-  return <section aria-label="Voice leading"><h3>Voice leading</h3>{transitions.length === 0 && <p>Choose adjacent steps.</p>}{transitions.map(value => <div key={value.from_step_id}>
-    <button className="music-button" onClick={() => onFocus(value.from_step_id, value.to_step_id)}>Inspect transition</button>
+  return <section aria-label="Voice leading"><h3>Voice leading</h3><p className="learning-hint">Select a transition to compare both chords on the fretboard.</p>{transitions.length === 0 && <p>Choose adjacent steps.</p>}{transitions.map(value => { const from = data.steps.find(step => step.id === value.from_step_id)!; const to = data.steps.find(step => step.id === value.to_step_id)!; return <div className="progression-transition" key={value.from_step_id} data-selected={focus?.kind === 'transition' && focus.from_step_id === value.from_step_id && focus.to_step_id === value.to_step_id}>
+    <button className="music-button" disabled={busy} aria-pressed={focus?.kind === 'transition' && focus.from_step_id === value.from_step_id && focus.to_step_id === value.to_step_id} onClick={() => onFocus(value.from_step_id, value.to_step_id)}>{from.root} {from.quality} → {to.root} {to.quality}</button>
     {value.assigned ? <><p>Assigned voicings: real motion</p><ul>{value.movement.map(voice => <li key={voice.string}>String {voice.string}: {voice.kind}{voice.semitones !== null && ` (${voice.semitones > 0 ? '+' : ''}${voice.semitones} semitones)`}</li>)}</ul></> : <><p>Chord-tone relationships; default playback is one possible realization.</p><p>Common tones: {value.shared_notes.join(', ') || 'none'} · Entering: {value.entering_notes.join(', ') || 'none'} · Leaving: {value.leaving_notes.join(', ') || 'none'}</p></>}
-  </div>)}</section>;
+  </div>; })}</section>;
 }

@@ -138,6 +138,20 @@
 .learning-progression-practice { padding: 16px; border: 1px solid var(--control-border); border-radius: 16px; background: linear-gradient(120deg, var(--learning-wash), var(--card-bg)); box-shadow: var(--surface-shadow); }
 .learning-practice-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .learning-practice-heading h3 { margin-bottom: 4px; }
+.progression-workspace #workspace-music { scroll-margin-top: 16px; }
+.progression-chord-navigation { position: sticky; top: 8px; z-index: 5; min-width: 0; padding: 4px 8px; border: 1px solid var(--control-border); border-radius: 14px; background: var(--card-bg); box-shadow: var(--surface-shadow); }
+.progression-chord-navigation .learning-chord-strip { margin: 0; }
+.progression-linked-fretboard { scroll-margin-top: 132px; }
+.progression-focus-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.progression-focus-heading nav { display: flex; gap: 8px; }
+.progression-focus-heading h3 { margin: 4px 0; }
+.progression-playback-context { font-size: 13px; margin: 12px 0; color: var(--text-secondary); }
+.progression-functions { display: grid; gap: 8px; list-style: none; padding: 0; margin-top: 12px; }
+.learning-app .progression-functions .music-button { justify-content: start; width: 100%; text-align: left; gap: 12px; }
+.progression-functions strong { min-width: 32px; font-size: 20px; color: var(--learning-ink); }
+.progression-functions small { display: block; margin-top: 3px; font-weight: 400; color: var(--text-secondary); }
+.progression-transition { margin-top: 12px; padding: 14px; border: 1px solid var(--border-primary); border-radius: 12px; font-size: 13px; }
+.progression-transition[data-selected='true'] { border-color: var(--learning-ink); background: var(--learning-wash); }
 .fretboard-range { margin-bottom: 12px; font-size: 12px; color: var(--text-secondary); }
 .fretboard-range summary { min-height: 44px; padding-block: 12px; cursor: pointer; }
 .learning-practice-heading p { color: var(--text-secondary); font-size: .88rem; }

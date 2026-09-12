@@ -10,7 +10,7 @@ export function ProgressionEditor({ idea, data, catalog, focus, busy, edit, beat
   function reorder(index: number, offset: number) {
     const order = idea.chords.map(step => step.id);
     [order[index], order[index + offset]] = [order[index + offset], order[index]];
-    void edit({ order });
+    void edit({ order, focus: { kind: 'step', step_id: idea.chords[index].id } });
   }
   const index = Math.max(0, data.steps.findIndex(step => step.id === (focus?.kind === 'step' ? focus.step_id : focus?.from_step_id)));
   const step = data.steps[index];

@@ -29,9 +29,9 @@ CAPABILITIES = {
         'fretboard': ('focused step chord and next on transition; select note', ('labels', 'fret_window', 'overlay')),
         'chord-inspector': ('chord tones; function label; replace', ('subject',)),
         'progression-idea-list': ('kept ideas; click → active idea', ()),
-        'progression-editor': ('edit chord/quality/duration; reorder; assign voicing; click → step Focus', ('beats_per_bar',)),
-        'voice-leading': ('adjacent shared/moving voices; assigned real motion or realization-independent', ('between',)),
-        'harmonic-function': ('numerals and T/S/D with tonal centre; otherwise set a key', ()),
+        'progression-editor': ('one focused chord: edit quality/duration, reorder, assign and hear voicing; persistent chord navigation selects the step', ('beats_per_bar',)),
+        'voice-leading': ('adjacent shared/moving voices; select transition → Focus and both chords on fretboard; assigned real motion or realization-independent', ('between',)),
+        'harmonic-function': ('numerals and T/S/D with tonal centre; select chord → step Focus and fretboard; otherwise set a key', ()),
     },
 }
 for workspace, candidate_kinds in [('harmony', 'voicing'), ('progression', 'progression-idea/chord-replacement')]:

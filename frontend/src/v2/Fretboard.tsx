@@ -35,10 +35,13 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
   const [rootsOnly, setRootsOnly] = useState(false);
   const [direction, setDirection] = useState('ascending');
   const [audioError, setAudioError] = useState(false);
+  const stringTuning = tuning ?? preview?.tuning;
   const stop = useRef<(() => void) | null>(null);
   useEffect(() => () => stop.current?.(), []);
   const [first, last] = config.fret_window ?? [0, 12];
   const labels = config.labels ?? 'notes';
+  const focalNotes = (layers.find(layer => layer.focal) ?? layers[0])?.positions ?? [];
+  const shapeOutsideWindow = focalNotes.length > 0 && !focalNotes.some(note => note.fret >= first && note.fret <= last);
   const count = last - first + 1;
   const width = Math.max(360, count * 56 + 40);
   const x = (fret: number) => 40 + (fret - first + .5) * ((width - 48) / count);
@@ -56,7 +59,7 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
   const adjust = (value: ViewConfig) => { practice.reset(); onNudge(value); };
   const selectNote = (note: ResolvedNote, layer: NoteLayer) => {
     practice.pause();
-    if (tuning) { try { stop.current?.(); stop.current = playChord([note], 0, .7, tuning); } catch { setAudioError(true); } }
+    if (stringTuning) { try { stop.current?.(); stop.current = playChord([note], 0, .7, stringTuning); } catch { setAudioError(true); } }
     onSelect(note, layer);
   };
   const rangeControls = <>
@@ -82,10 +85,11 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
     <ul aria-label="Fretboard layers" className="music-layer-legend">
       {layers.map(layer => <li key={layer.id}>{layer.label}{layer.focal ? ' — main focus' : ' — context'}</li>)}
     </ul>
+    {shapeOutsideWindow && <p className="learning-notice">These notes are outside the displayed frets. <button type="button" className="music-button" onClick={() => { const start = Math.max(0, Math.min(...focalNotes.map(note => note.fret)) - 1); adjust({ fret_window: [start, Math.min(24, Math.max(start + 4, ...focalNotes.map(note => note.fret + 1)))] }); }}>Show these notes</button></p>}
     <div className="music-neck-scroll" tabIndex={0} aria-label="Scrollable fretboard">
       <svg width={width} height="244" viewBox={`0 0 ${width} 244`} aria-label={`${context} fretboard`}>
         {Array.from({ length: 6 }, (_, index) => <g key={index} aria-hidden="true">
-          <text x="8" y={y(index + 1) + 4}>{tuning ? midiToNoteName(tuning[index]) : index + 1}</text>
+          <text x="8" y={y(index + 1) + 4}>{stringTuning ? midiToNoteName(stringTuning[index]) : index + 1}</text>
           <line x1="32" x2={width - 8} y1={y(index + 1)} y2={y(index + 1)} stroke="currentColor" strokeWidth={.7 + index * .2} />
         </g>)}
         {Array.from({ length: count }, (_, index) => <g key={index} aria-hidden="true">
@@ -106,7 +110,7 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
         </g>)}
       </svg>
     </div>
-    <p className="learning-hint">String 1 is the thinnest, at the top. Fret 0 means an open string. <span className="learning-root-key">Root notes</span>{tuning && ' · Select a note to hear it.'}</p>
+    <p className="learning-hint">String 1 is the thinnest, at the top. Fret 0 means an open string. <span className="learning-root-key">Root notes</span>{stringTuning && ' · Select a note to hear it.'}</p>
     {tuning && <div className="learning-pattern-practice"><div className="music-controls"><label>Play direction<select value={direction} disabled={practice.running} onChange={event => { practice.reset(); setDirection(event.target.value); }}><option value="ascending">Ascending</option><option value="descending">Descending</option><option value="both">Up and down</option></select></label><span>{guide.length} notes · one note per beat</span></div><PracticeControls practice={{ ...practice, enter: () => { practice.setAudioMode('guide'); practice.enter(); } }} available={guide.length > 0} label="pattern" allowFocus={false} guideLabel="Listen to the highlighted notes, then try them yourself" /></div>}
     {audioError && <p role="alert">Audio is unavailable. You can still explore the notes.</p>}
   </div>;

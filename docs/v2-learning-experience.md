@@ -104,3 +104,37 @@ Practice controls group transport, timing and audio settings, with compact
 phone spacing. Song Study's behavior is unchanged. The production build,
 changed-file lint and all 34 browser journeys pass; desktop and 320px screens,
 expanded Tutor preferences and the active practice panel were visually checked.
+
+## Connected progression interactions
+
+The progression opens with a fretboard and one selected-chord editor. A sticky,
+clickable chord strip replaces the need to find a row-specific Focus button;
+arrow keys and Previous/Next beside the fretboard select the same musical Focus.
+The mobile strip scrolls horizontally to keep the selected chord visible without
+moving the page. Changing a chord updates its strip label, notes, diagram and
+Tutor context together. Reordering follows the chord's identity; removing it
+uses the backend's normal focus reconciliation. Focus updates appear immediately
+and revert to the previous surface when the request fails.
+
+Function cards select a chord, and named voice-leading transitions show both
+chords on the neck. Clicking a note in the context layer selects its source
+chord. The compact fretboard keeps range controls in a disclosure, plays clicked
+notes with the actual tuning, and offers to reveal notes outside the chosen
+range. Tutor compositions remain available; directly selecting a chord reveals
+the fretboard when the Tutor's current layout has no fretboard.
+
+Progression playback drives the chord strip, fretboard and shape together,
+without writing playhead movements to persistent Focus. Selecting a chord or
+editing the music exits playback. The editor is disabled during playback;
+the Tutor retains the learner's selected target. The audio clock still ticks
+at 25ms, while React updates only when the visible chord or count changes.
+Song Study keeps its existing practice behavior.
+
+Verification: 36 browser journeys and 217 V2 backend tests pass, along with the
+production build and changed-file lint. The connected-flow tests exercise
+keyboard navigation without scrolling the fretboard away, mobile overflow,
+reorder/remove, linked analysis, range recovery, timed playback, and failed
+selection rollback. Final mobile navigation and playback refinements were
+rechecked against the interaction and Song Study journeys. The live preview
+was also checked by selecting chords and stepping through the neck at phone
+size; its existing temporary sessions were preserved.
