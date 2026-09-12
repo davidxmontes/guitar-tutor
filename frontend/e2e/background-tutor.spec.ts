@@ -15,8 +15,10 @@ test('a tutor answer continues after closing its tab and reconnects without dupl
   await expect(returned.locator('.tutor-message--assistant')).toContainText('Choose a degree', { timeout: 15000 });
   await expect(returned.locator('.tutor-message--user')).toHaveCount(1);
   await expect(returned.getByLabel('Ask the Tutor')).toBeEmpty();
+  await returned.getByLabel('Ask the Tutor').fill('Take your time answering');
   await returned.reload();
   await returned.locator(`[data-session-id="${session}"]`).click();
+  await expect(returned.getByLabel('Ask the Tutor')).toHaveValue('Take your time answering');
   await expect(returned.locator('.tutor-message--assistant')).toHaveCount(1);
   await expect(returned.locator('.tutor-message--user')).toHaveCount(1);
 });

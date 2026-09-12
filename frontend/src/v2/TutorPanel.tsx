@@ -48,6 +48,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
       try {
         const job = await apiClient.latestTutorJob(branch.session_id, branch.id);
         if (!live) return;
+        const accepted = job?.status === 'running' || job?.id === submissionError.current;
         setError(submissionError.current && submissionError.current !== job?.id ? 'Your question is still here. Please try again.' : '');
         submissionError.current = null;
         const running = job?.status === 'running';
@@ -67,16 +68,15 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
           if (updated && updated.updated_at !== current.current.branch.updated_at) {
             await current.current.onRefresh(updated);
           }
-          if (updated && updated.updated_at === job.result.branch.updated_at && job.result.mutation && job.result.mutation.kind !== 'noop') {
-            setUndo({ id: updated.live_presentation_turn_id!, revision: updated.updated_at });
-          }
+          setUndo(updated && updated.updated_at === job.result.branch.updated_at && job.result.mutation && job.result.mutation.kind !== 'noop'
+            ? { id: updated.live_presentation_turn_id!, revision: updated.updated_at } : null);
         }
         const history = await apiClient.listTutorMessages(branch.tutor_thread_id);
         if (live) {
           setMessages(history); setLoading(false);
           current.current.onBusy(running);
           if (running) timer = setTimeout(() => void reconnect(), 2000);
-          if (job && job.status !== 'failed') {
+          if (job && accepted && job.status !== 'failed') {
             setQuestion(value => value === job.message ? '' : value);
             try { if (sessionStorage.getItem(draftKey) === job.message) sessionStorage.removeItem(draftKey); } catch { /* Draft stays available in memory. */ }
           }
