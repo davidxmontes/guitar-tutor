@@ -72,3 +72,14 @@ Verification: production build, changed-file lint, and all 42 browser journeys
 passed. Inspected signed-out entry, Explore, and Harmony in the browser, including
 mobile sign-in and collapsed navigation at 390px. Navigation acceptance coverage
 checks that the active session survives switching sections.
+
+## Theme and musical palette
+
+Reused the existing saved theme preference for the V2 sidebar and signed-out
+screen. Shared colors now cover neutral surfaces, sage notes, green roots,
+chord-wheel qualities, song-study necks, and Clerk dialogs in light/dark mode.
+Fretboard labels and keyboard focus retain independent contrast from note fills.
+
+Verified production build, changed-file lint, and eight distinct browser checks
+covering theme persistence, navigation, chord focus, wheel layout, and song study.
+Visually inspected both fretboard themes, the dark wheel, and mobile dark sign-in.

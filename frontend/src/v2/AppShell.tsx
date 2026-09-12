@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 import { AUTH_DEV_BYPASS } from '../lib/authBypass';
 import './AppShell.css';
+import { ThemeToggle } from './ThemeToggle';
 
 type Destination = 'explore' | 'sessions' | 'library' | 'workspace' | 'song';
 const paths: Record<Destination | 'collapse', string> = {
@@ -28,7 +29,7 @@ export function AppShell({ active, hasWorkspace, onNavigate, children }: {
       <nav id="sidebar-navigation" className="sidebar-navigation">
         {([['explore', 'Explore'], ['sessions', 'Sessions'], ['library', 'My Stuff'], ['song', 'Study a song'], ...(hasWorkspace ? [['workspace', 'Current workspace']] : [])] as [Destination, string][]).map(([page, label]) => <button key={page} title={label} aria-label={label} aria-current={active === page ? 'page' : undefined} onClick={() => onNavigate(page)}><NavIcon name={page} /><span className="sidebar-label">{label}</span></button>)}
       </nav>
-      <div className="sidebar-bottom">{!AUTH_DEV_BYPASS && <div className="sidebar-account"><UserButton /><span className="sidebar-label">Your account</span></div>}<a href="/classic" title="Classic fallback"><NavIcon name="workspace" /><span className="sidebar-label">Classic fallback</span></a></div>
+      <div className="sidebar-bottom"><ThemeToggle />{!AUTH_DEV_BYPASS && <div className="sidebar-account"><UserButton /><span className="sidebar-label">Your account</span></div>}<a href="/classic" title="Classic fallback"><NavIcon name="workspace" /><span className="sidebar-label">Classic fallback</span></a></div>
     </aside>
     <div id="app-content" tabIndex={-1} className="app-content">{children}</div>
   </div>;

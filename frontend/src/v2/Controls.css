@@ -1,5 +1,5 @@
 .v2-app {
-  --learning-accent: #9e4528;
+  --learning-accent: #27644e;
   --learning-green: #264d3e;
   --learning-ink: #315946;
   --learning-wash: #edf4ef;
@@ -11,7 +11,7 @@
 }
 
 .dark .v2-app {
-  --learning-accent: #e4a082;
+  --learning-accent: #82ba9d;
   --learning-ink: #b3d8c4;
   --learning-wash: #20382d;
   --control-divider: #25342c;
@@ -73,7 +73,7 @@
   padding: 9px 14px;
   border: 1px solid var(--control-border);
   border-radius: 10px;
-  background: linear-gradient(var(--card-bg), var(--bg-secondary));
+  background: var(--card-bg);
   color: var(--text-primary);
   box-shadow: var(--control-shadow);
   font-size: 13px;

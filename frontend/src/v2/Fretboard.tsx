@@ -124,7 +124,7 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
               aria-label={`${note.note}, degree ${note.degree ?? 'unknown'}, string ${note.string}, fret ${note.fret}, ${layer.label}${layer.focal ? ', main focus' : ', context'}`}
               onClick={() => selectNote(note, layer)}
               onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectNote(note, layer); } }}>
-              <circle cx={x(note.fret)} cy={y(note.string)} r={layer.focal ? 15 : 12} strokeWidth={layer.focal ? 3 : 1} strokeDasharray={layer.focal ? undefined : '2 2'} />
+              <circle cx={x(note.fret)} cy={y(note.string)} r={layer.focal ? 15 : 12} strokeWidth={layer.focal ? 1.5 : 1} strokeDasharray={layer.focal ? undefined : '2 2'} />
               <text x={x(note.fret)} y={y(note.string) + 4} textAnchor="middle" aria-hidden="true">{labels === 'degrees' ? note.degree ?? '—' : note.note}</text>
             </g>
           ))}

@@ -19,3 +19,21 @@ test('sidebar preserves the current session across destinations and collapses on
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('theme preference survives reload and fretboard labels stay legible', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Switch to light mode' })).toBeVisible();
+  await page.getByRole('button', { name: 'Learn the fretboard', exact: true }).click();
+  const root = page.locator('.music-note--root').first();
+  const fills = await root.evaluate(element => ({
+    note: getComputedStyle(element.querySelector('circle')!).fill,
+    label: getComputedStyle(element.querySelector('text')!).fill,
+  }));
+  expect(fills.note).not.toBe(fills.label);
+  await page.getByRole('button', { name: 'Switch to light mode' }).click();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+});

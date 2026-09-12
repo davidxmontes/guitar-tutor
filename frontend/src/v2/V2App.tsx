@@ -13,6 +13,7 @@ import { ExerciseWorkspace } from './ExerciseWorkspace';
 import type { ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
 import './Controls.css';
 import { AppShell } from './AppShell';
+import { ThemeToggle } from './ThemeToggle';
 
 export function V2App() {
   const { getToken, isSignedIn, isLoaded } = useAppAuth();
@@ -158,6 +159,7 @@ export function V2App() {
 
   if (!isLoaded) return <main className="v2-app sign-in-page"><p role="status">Opening Guitar Tutor…</p></main>;
   if (!isSignedIn) return <main className="v2-app sign-in-page">
+    <div className="sign-in-theme"><ThemeToggle /></div>
     <div className="sign-in-card">
       <div className="sign-in-story"><span className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></span>
         <div><span className="learning-eyebrow">A little curiosity. A little practice.</span><h1>Make the neck<br />feel like home.</h1><p>Explore a sound. Find its shape.<br />Make it part of your playing.</p></div>

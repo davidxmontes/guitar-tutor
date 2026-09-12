@@ -208,18 +208,18 @@
 .learning-workspace .learning-details summary { padding: 8px; min-height: 36px; background: transparent; }
 .learning-workspace .learning-circle-panel h3 { margin: 0; }
 .learning-workspace .circle-instructions { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--text-secondary); margin: 6px 0; }
-.circle-instructions span { color: var(--learning-green); }
+.circle-instructions span { color: var(--learning-ink); }
 .harmonic-wheel { display: block; width: min(100%, 340px); height: auto; margin: 4px auto; overflow: visible; }
 .harmonic-wheel text { text-anchor: middle; fill: var(--text-primary); pointer-events: none; font-size: 17px; font-weight: 650; }
 .harmonic-wheel [role='button'] { cursor: pointer; outline: none; }
 .harmonic-wheel [aria-disabled='true'] { cursor: wait; }
 .wheel-root path { fill: var(--bg-tertiary); stroke: var(--card-bg); stroke-width: 1; }
 .wheel-root[data-neighbour='true'] path { fill: var(--learning-wash); }
-.wheel-chord path { fill: #d2e5dc; stroke: var(--card-bg); stroke-width: 1; }
-.wheel-chord[data-quality='minor'] path { fill: #d8e3ee; }
-.wheel-chord[data-quality='diminished'] path { fill: #ecddd3; }
+.wheel-chord path { fill: var(--wheel-major); stroke: var(--card-bg); stroke-width: 1; }
+.wheel-chord[data-quality='minor'] path { fill: var(--wheel-minor); }
+.wheel-chord[data-quality='diminished'] path { fill: var(--wheel-diminished); }
 .wheel-empty { fill: var(--bg-secondary); opacity: .65; }
-.harmonic-wheel .wheel-chord text { font-size: 14px; fill: #203b30; }
+.harmonic-wheel .wheel-chord text { font-size: 14px; fill: var(--text-primary); }
 .harmonic-wheel .wheel-chord .wheel-numeral { font-size: 10px; font-weight: 500; }
 .harmonic-wheel [role='button']:hover path { stroke: var(--learning-green); stroke-width: 2; }
 .harmonic-wheel [aria-pressed='true'] path { fill: var(--learning-green); stroke: var(--learning-green); stroke-width: 2; }
