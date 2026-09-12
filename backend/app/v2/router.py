@@ -10,9 +10,12 @@ is ticket P1). The full Tutor per-turn contract is ticket T3.
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev user).
 """
 
-from typing import Any, Optional
+import asyncio
+from time import monotonic
+from uuid import uuid4
+from typing import Any, Optional, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -320,6 +323,7 @@ def get_tutor_model_factory() -> ModelFactory:
 
 
 class TutorTurnRequest(BaseModel):
+    request_id: str | None = Field(default=None, min_length=1, max_length=100)
     session_id: str
     branch_id: str
     message: str = Field(min_length=1, max_length=12000)
@@ -389,6 +393,81 @@ async def create_tutor_turn(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     response.branch = updated.model_dump()
     return response
+
+
+class TutorJob(BaseModel):
+    id: str
+    message: str
+    status: Literal["running", "completed", "failed"] = "running"
+    result: TutorResponse | None = None
+    error: str | None = None
+
+
+def tutor_jobs(request: Request) -> dict:
+    # ponytail: one Render process, like the current memory session store.
+    # Use a durable queue/store before adding workers or surviving server restarts.
+    if not hasattr(request.app.state, "tutor_jobs"):
+        request.app.state.tutor_jobs = {}
+        request.app.state.tutor_tasks = set()
+    jobs = request.app.state.tutor_jobs
+    for key, (job, created) in list(jobs.items()):
+        if job.status != "running" and monotonic() - created > 86400:
+            del jobs[key]
+    return jobs
+
+
+def owned_tutor_branch(store: V2Store, session_id: str, branch_id: str, user_id: str):
+    try:
+        session = store.get_session(session_id, user_id)
+        return next(branch for branch in session.branches if branch.id == branch_id)
+    except (NotFoundError, StopIteration) as exc:
+        raise HTTPException(status_code=404, detail="Branch not found") from exc
+
+
+@router.post("/tutor/jobs", response_model=TutorJob, status_code=202)
+async def start_tutor_job(
+    data: TutorTurnRequest, request: Request,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store),
+    settings: Settings = Depends(get_settings),
+    model_factory: ModelFactory = Depends(get_tutor_model_factory),
+):
+    owned_tutor_branch(store, data.session_id, data.branch_id, user_id)
+    jobs = tutor_jobs(request)
+    key = (user_id, data.session_id, data.branch_id)
+    previous = jobs.get(key)
+    if previous and (previous[0].status == "running" or previous[0].id == data.request_id):
+        if previous[0].message != data.message:
+            raise HTTPException(status_code=409, detail="A Tutor question is already in progress.")
+        return previous[0]
+    if len(jobs) >= 1000 and key not in jobs:
+        raise HTTPException(status_code=429, detail="The Tutor is busy. Please try again shortly.")
+    job = TutorJob(id=data.request_id or str(uuid4()), message=data.message)
+    jobs[key] = (job, monotonic())
+
+    async def finish():
+        try:
+            job.result = await create_tutor_turn(data, user_id, store, settings, model_factory)
+            job.status = "completed"
+        except Exception as exc:
+            job.error = ("The music changed while the Tutor was working. Please ask again."
+                         if isinstance(exc, HTTPException) and exc.status_code == 409
+                         else "The Tutor could not finish this turn. Please try again.")
+            job.status = "failed"
+
+    task = asyncio.create_task(finish())
+    request.app.state.tutor_tasks.add(task)
+    task.add_done_callback(request.app.state.tutor_tasks.discard)
+    return job
+
+
+@router.get("/tutor/jobs", response_model=TutorJob | None)
+async def latest_tutor_job(
+    session_id: str, branch_id: str, request: Request,
+    user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store),
+):
+    owned_tutor_branch(store, session_id, branch_id, user_id)
+    entry = tutor_jobs(request).get((user_id, session_id, branch_id))
+    return entry[0] if entry else None
 
 
 class TurnRestoreRequest(BaseModel):

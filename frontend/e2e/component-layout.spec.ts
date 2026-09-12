@@ -8,7 +8,7 @@ test('two-ring wheel supports keyboard chord selection and the neck fills its av
   await expect(wheel.locator('.wheel-root')).toHaveCount(12);
   await expect(wheel.locator('.wheel-chord')).toHaveCount(7);
   let modelCalls = 0;
-  page.on('request', request => { if (request.url().endsWith('/tutor/turns')) modelCalls++; });
+  page.on('request', request => { if (request.url().endsWith('/tutor/jobs')) modelCalls++; });
   const chord = wheel.getByRole('button', { name: 'Circle chord Am', exact: true });
   await chord.focus();
   await page.keyboard.press('Enter');

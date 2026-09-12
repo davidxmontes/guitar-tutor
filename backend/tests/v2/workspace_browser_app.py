@@ -1,5 +1,6 @@
 """Real app/stores with only the external Tutor model boundary scripted."""
 import json
+import time
 from app.config import get_settings
 from app.main import app
 from app.v2.harmony import chord_voicings
@@ -16,6 +17,10 @@ class WorkspaceModel(ScriptedTutorModel):
                 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
                     'hero': [{'kind': 'candidate-set'}], 'support': [{'kind': 'chord-inspector'}]}}}]
         question = str(messages[-1].content)
+        if 'Take your time answering' in question:
+            time.sleep(4)
+        if 'Simulate a failed tutor' in question:
+            raise RuntimeError('Scripted provider failure')
         if 'Compose linked mode exploration' in question:
             self.outcomes = [{'message': 'Dorian has a natural sixth. Select it, then try another root.', 'focus': {'kind': 'degree', 'degree': 6}, 'presentation': {
                 'pattern': 'stack', 'focal': 'items', 'slots': {'items': [

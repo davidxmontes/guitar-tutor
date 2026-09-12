@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('the selected-chord editor follows active ideas without a model', async ({ page }) => {
   let turns = 0;
-  page.on('request', request => { if (request.url().endsWith('/tutor/turns')) turns++; });
+  page.on('request', request => { if (request.url().endsWith('/tutor/jobs')) turns++; });
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
   await expect(page.getByTestId('progression-workspace')).toBeVisible();

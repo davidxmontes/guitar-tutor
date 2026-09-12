@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('chord entry, CAGED selection, pinning and voicing comparison', async ({ page }) => {
   let modelCalls = 0;
-  page.on('request', request => { if (request.url().endsWith('/tutor/turns')) modelCalls++; });
+  page.on('request', request => { if (request.url().endsWith('/tutor/jobs')) modelCalls++; });
   await page.goto('/v2');
   await page.getByLabel('Explore a scale, key or chord').fill('Cmaj7');
   await page.getByRole('button', { name: 'Explore music', exact: true }).click();

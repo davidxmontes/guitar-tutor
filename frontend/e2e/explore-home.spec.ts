@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('scale entry is deterministic; palette, header, circle and Compare work', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 })
   const turns: string[] = []
-  page.on('request', request => { if (request.url().endsWith('/tutor/turns')) turns.push(request.url()) })
+  page.on('request', request => { if (request.url().endsWith('/tutor/jobs')) turns.push(request.url()) })
   await page.goto('/v2')
   await page.getByLabel('Explore a scale, key or chord').fill('A Dorian')
   await page.getByRole('button', { name: 'Explore music', exact: true }).click()

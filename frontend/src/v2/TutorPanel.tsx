@@ -26,6 +26,11 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState('');
+  const [watch, setWatch] = useState(0);
+  const submissionError = useRef<string | null>(null);
+  const current = useRef({ branch, onBusy, onRefresh });
+  useEffect(() => { current.current = { branch, onBusy, onRefresh }; });
   const [notice, setNotice] = useState('');
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [undo, setUndo] = useState<{ id: string; revision: string } | null>(null);
@@ -38,11 +43,54 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
   useEffect(() => () => stop.current?.(), []);
   useEffect(() => {
     let live = true;
-    apiClient.listTutorMessages(branch.tutor_thread_id).then(value => { if (live) setMessages(value); })
-      .catch(() => { if (live) setError('Could not load the conversation. Reopen this session to try again.'); })
-      .finally(() => { if (live) setLoading(false); });
-    return () => { live = false; };
-  }, [branch.tutor_thread_id]);
+    let timer: ReturnType<typeof setTimeout>;
+    async function reconnect() {
+      try {
+        const job = await apiClient.latestTutorJob(branch.session_id, branch.id);
+        if (!live) return;
+        setError(submissionError.current && submissionError.current !== job?.id ? 'Your question is still here. Please try again.' : '');
+        submissionError.current = null;
+        const running = job?.status === 'running';
+        setSending(running);
+        if (running) current.current.onBusy(true);
+        setPendingQuestion(running ? job.message : '');
+        if (running) {
+          setError('');
+        } else if (job?.status === 'failed') {
+          setError(job.error ?? 'The Tutor could not finish this turn. Please try again.');
+          setQuestion(value => value || job.message);
+        } else if (job?.result?.branch) {
+          // Read today's branch, not the possibly older snapshot returned by the job.
+          const session = await apiClient.getV2Session(branch.session_id);
+          const updated = session.branches.find(value => value.id === branch.id);
+          if (!live) return;
+          if (updated && updated.updated_at !== current.current.branch.updated_at) {
+            await current.current.onRefresh(updated);
+          }
+          if (updated && updated.updated_at === job.result.branch.updated_at && job.result.mutation && job.result.mutation.kind !== 'noop') {
+            setUndo({ id: updated.live_presentation_turn_id!, revision: updated.updated_at });
+          }
+        }
+        const history = await apiClient.listTutorMessages(branch.tutor_thread_id);
+        if (live) {
+          setMessages(history); setLoading(false);
+          current.current.onBusy(running);
+          if (running) timer = setTimeout(() => void reconnect(), 2000);
+          if (job && job.status !== 'failed') {
+            setQuestion(value => value === job.message ? '' : value);
+            try { if (sessionStorage.getItem(draftKey) === job.message) sessionStorage.removeItem(draftKey); } catch { /* Draft stays available in memory. */ }
+          }
+        }
+      } catch {
+        if (live) {
+          setError('Connection lost. Reconnecting to your Tutor…');
+          timer = setTimeout(() => void reconnect(), 5000);
+        }
+      }
+    }
+    void reconnect();
+    return () => { live = false; clearTimeout(timer); };
+  }, [branch.id, branch.session_id, branch.tutor_thread_id, draftKey, watch]);
   useEffect(() => {
     if (conversation.current) conversation.current.scrollTop = conversation.current.scrollHeight;
   }, [messages, sending]);
@@ -53,19 +101,20 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
   async function ask() {
     if (busy || loading || !question.trim()) return;
     onBusy(true); setSending(true); setError(''); setNotice(''); stop.current?.();
-    let received = false;
+    const requestId = crypto.randomUUID();
     try {
-      const result = await apiClient.sendTutorTurn({ session_id: branch.session_id, branch_id: branch.id, message: question, learning_preferences: preferences });
-      received = true;
+      const job = await apiClient.startTutorJob({ request_id: requestId, session_id: branch.session_id, branch_id: branch.id, message: question, learning_preferences: preferences });
+      setPendingQuestion(job.message);
       updateQuestion('');
-      if (result.branch) {
-        setUndo(result.mutation && result.mutation.kind !== 'noop' ? { id: result.branch.live_presentation_turn_id!, revision: result.branch.updated_at } : null);
-        await onRefresh(result.branch);
-      }
-      setMessages(await apiClient.listTutorMessages(branch.tutor_thread_id));
-    } catch { setError(received ? 'Your Tutor replied, but the view could not refresh. Reopen this session to see the saved response.' : 'The Tutor could not finish this turn. Your question is still here. Please try again.'); }
-    finally { onBusy(false); setSending(false); }
+    } catch {
+      // An interrupted acknowledgement can still mean the server accepted it.
+      // Reconnect before enabling another submission.
+      submissionError.current = requestId;
+      setError('Checking whether your question reached the Tutor…');
+    }
+    setWatch(value => value + 1);
   }
+
   async function restore(turnId: string, musical = false) {
     onBusy(true); setError(''); stop.current?.();
     try {
@@ -105,14 +154,14 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
       </div>
     </details>
     <div className="tutor-conversation" aria-label="Tutor conversation" ref={conversation} tabIndex={0}>
-      {loading && <p role="status">Loading your conversation…</p>}
-      {!loading && messages.length === 0 && <div className="tutor-welcome"><h3>Start with one small question.</h3><p>Select a note, shape, or chord. I can explain it, compare alternatives, or turn it into something to practise.</p></div>}
+      {loading && !sending && <p role="status">Loading your conversation…</p>}
+      {!loading && !sending && messages.length === 0 && <div className="tutor-welcome"><h3>Start with one small question.</h3><p>Select a note, shape, or chord. I can explain it, compare alternatives, or turn it into something to practise.</p></div>}
       {messages.filter(message => message.role !== 'tool').map(message => <article key={message.id} className={`tutor-message tutor-message--${message.role}`}>
         <span className="tutor-speaker">{message.role === 'user' ? 'You' : 'Tutor'}</span>
         <div className="chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content.text ?? ''}</ReactMarkdown></div>
         {message.role === 'assistant' && message.content.presentation && message.id !== branch.live_presentation_turn_id && <button className="learning-text-button" disabled={busy} onClick={() => void restore(message.id)}>Show this teaching view</button>}
       </article>)}
-      {sending && <p className="tutor-thinking" role="status">Preparing an explanation and useful musical views…</p>}
+      {sending && <><article className="tutor-message tutor-message--user"><span className="tutor-speaker">You</span><p>{pendingQuestion || question}</p></article><p className="tutor-thinking" role="status">{pendingQuestion ? 'Working on your answer. You can leave and return to this session.' : 'Sending your question…'}</p></>}
     </div>
     {visible.length > 0 && <section className="tutor-candidates" aria-label="Candidates"><h3>Try an alternative</h3><p>Hear it first. Keep the one you like.</p>{visible.map(candidate => <div key={String(candidate.id)} role="group" aria-label={`Candidate: ${candidate.label}`}>
       <h4>{String(candidate.label)}</h4>

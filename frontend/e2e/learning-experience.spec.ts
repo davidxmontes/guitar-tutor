@@ -62,8 +62,8 @@ test('learner controls reach the Tutor; history, recovery and undo preserve the 
   await page.getByLabel('Teaching style').selectOption('practice');
   await page.getByLabel('Practice time').selectOption('10');
   await page.getByLabel('Ask the Tutor').fill('Change the key to E minor');
-  const request = page.waitForRequest(r => r.url().endsWith('/tutor/turns'));
-  const response = page.waitForResponse(r => r.url().endsWith('/tutor/turns'));
+  const request = page.waitForRequest(r => r.url().endsWith('/tutor/jobs'));
+  const response = page.waitForResponse(r => r.url().endsWith('/tutor/jobs'));
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   expect((await request).postDataJSON().learning_preferences).toEqual({ level: 'intermediate', style: 'practice', minutes: 10 });
   expect((await response).ok(), await (await response).text()).toBeTruthy();
@@ -80,7 +80,7 @@ test('learner controls reach the Tutor; history, recovery and undo preserve the 
   await expect(page.getByLabel('Ask the Tutor')).toHaveValue('Keep this unsent question');
   await page.getByText('How I teach · intermediate').click();
   await expect(page.getByLabel('Your level')).toHaveValue('intermediate');
-  await page.route('**/tutor/turns', route => route.fulfill({ status: 502, body: JSON.stringify({ detail: 'Provider unavailable' }) }));
+  await page.route('**/tutor/jobs', route => route.fulfill({ status: 502, body: JSON.stringify({ detail: 'Provider unavailable' }) }));
   await page.getByLabel('Ask the Tutor').fill('Help me find the root');
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   await expect(page.getByLabel('Ask the Tutor')).toHaveValue('Help me find the root');

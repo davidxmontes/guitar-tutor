@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 
 async function ask(page: Page, message: string) {
   await page.getByLabel('Ask the Tutor').fill(message);
-  const response = page.waitForResponse(r => r.url().endsWith('/tutor/turns'));
+  const response = page.waitForResponse(r => r.url().endsWith('/tutor/jobs'));
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   expect((await response).ok()).toBeTruthy();
   await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeDisabled();
@@ -17,7 +17,7 @@ test('Tutor layout links circle, pitch strip and fretboard without model calls o
   await ask(page, 'Compose linked mode exploration');
   await expect(page.getByLabel('Scale degrees').getByRole('button', { name: 'Degree 6' })).toHaveAttribute('aria-pressed', 'true');
   let turns = 0;
-  page.on('request', r => { if (r.url().endsWith('/tutor/turns')) turns++; });
+  page.on('request', r => { if (r.url().endsWith('/tutor/jobs')) turns++; });
   await page.getByRole('button', { name: 'Key E', exact: true }).click();
   await expect(page.getByLabel('Root', { exact: true })).toHaveValue('E');
   await expect(page.getByLabel('Scale', { exact: true })).toHaveValue('dorian');
@@ -46,7 +46,7 @@ test('diagram selection synchronizes exact physical notes and survives a failed 
   await page.getByRole('button', { name: /02 \/ TRIADS/ }).click();
   await ask(page, 'Compose linked chord shapes');
   let turns = 0;
-  page.on('request', r => { if (r.url().endsWith('/tutor/turns')) turns++; });
+  page.on('request', r => { if (r.url().endsWith('/tutor/jobs')) turns++; });
   const diagram = page.getByLabel('Voicing explorer').locator('.diagram-select').first();
   const description = await diagram.getByRole('img').getAttribute('aria-label');
   const expected = [...description!.matchAll(/String (\d) fret (\d+)/g)].map(m => `${m[1]}:${m[2]}`).sort();

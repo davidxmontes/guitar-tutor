@@ -83,3 +83,31 @@ Fretboard labels and keyboard focus retain independent contrast from note fills.
 Verified production build, changed-file lint, and eight distinct browser checks
 covering theme persistence, navigation, chord focus, wheel layout, and song study.
 Visually inspected both fretboard themes, the dark wheel, and mobile dark sign-in.
+
+## Background Tutor turns (2026-09-12)
+
+The browser submits an authenticated `/api/v2/tutor/jobs` request and receives an
+acceptance response immediately. Work runs independently of that HTTP connection.
+Reopening a Branch reconnects to its latest job, reloads the saved conversation,
+and reads the current Branch before refreshing its music. Failed jobs retain the
+question for retry; an active job or repeated request ID does not start a second
+turn. The existing turn transaction still checks ownership and revision before
+committing the question, answer, and musical change together.
+
+This uses the current single-process Render deployment, matching its in-memory
+session store. Job status is retained for up to 24 hours (at most 1,000 Branches);
+completed conversation messages remain in the session store. Server restarts and
+deploys can interrupt work and clear in-memory sessions. A durable queue and store
+are required before scaling to multiple processes or promising restart survival.
+
+Validation: production frontend build passes; changed Tutor/type/browser-test
+files pass lint. Backend: 275 passed, the previously documented Classic chord-test
+failure remains (run with AUTH_DEV_BYPASS=false and V2_TUTOR_MODEL=gpt-4o-mini so
+local development settings do not leak into tests). Background API tests cover
+independent completion, duplicate submission, ownership, failure, and retry.
+Browser checks close the tab mid-turn, reopen while running, reload the completed
+answer without duplicates, and restore a failed question. All six targeted
+background/learning journeys pass. Three unrelated layout assertions also fail on
+an untouched archive of 3f8b395: the progression neck bottom is 1003.5px against a
+1000px limit, and two shared-neck checks still expect a pre-theme 3px stroke rather
+than 1.5px. Full lint retains its existing 16 errors and 4 warnings.
