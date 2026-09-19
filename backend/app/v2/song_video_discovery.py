@@ -71,7 +71,7 @@ def estimate_score_duration(tab: dict) -> tuple[float | None, str]:
 
 
 KINDS = {"musicvideo": 0, "alternative": 1, "other": 2, "backing": 3, "solo": 4}
-VERSION_WORDS = {"live", "cover", "tutorial", "karaoke", "remix", "acoustic", "instrumental"}
+VERSION_WORDS = {"live", "cover", "tutorial", "karaoke", "remix", "acoustic", "instrumental", "8d", "slowed", "sped"}
 
 
 def _words(text: str) -> set[str]:
@@ -108,9 +108,9 @@ async def suggest_song_videos(payload: SongStudyPayload) -> VideoSuggestions:
         except (httpx.HTTPError, ValueError):
             pass
         if metadata is None:
-            return KINDS[kind], 1, 0, VideoSuggestion(
+            return 1, KINDS[kind], 0, VideoSuggestion(
                 video_id=video_id, title=f"{payload.artist} — {payload.title}", channel=None,
-                kind=kind, match_note="Linked by Songsterr; YouTube title unavailable. Preview to check availability and arrangement.",
+                kind=kind, match_note="Title unavailable. Preview to check.",
             )
         video_title = metadata["title"][:500]
         channel = metadata.get("author_name")
@@ -119,15 +119,14 @@ async def suggest_song_videos(payload: SongStudyPayload) -> VideoSuggestions:
         match_words = title_words | _words(channel or "")
         matching = int(bool(artist) and artist <= match_words) + int(bool(title) and title <= title_words)
         versions = sorted((title_words & VERSION_WORDS) - (title | artist))
-        note = "Linked by Songsterr. "
-        note += "Artist and title match. " if matching == 2 else "Check the artist and title. "
+        note = "Artist and title match. " if matching == 2 else "Check artist and title. "
         if kind in ("backing", "solo"):
             note += f"Marked as {kind}; may omit parts of the full recording. "
         if versions:
             note += f"Possible alternate version: {', '.join(versions)}. "
-        note += "Confirm the recording and arrangement by listening."
-        return KINDS[kind], int(bool(versions)), -matching, VideoSuggestion(
-            video_id=video_id, title=video_title, channel=channel, kind=kind, match_note=note,
+        mismatch = bool(versions) or matching != 2 or kind in ("backing", "solo")
+        return int(mismatch), KINDS[kind], -matching, VideoSuggestion(
+            video_id=video_id, title=video_title, channel=channel, kind=kind, match_note=note.strip(),
         )
 
     async with httpx.AsyncClient(timeout=5.0) as client:

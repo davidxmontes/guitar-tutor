@@ -60,12 +60,22 @@ def test_rank_validate_dedupe_without_saving(discovery):
     response = get(discovery)
     assert response.status_code == 200, response.text
     candidates = response.json()["candidates"]
-    assert [v["video_id"] for v in candidates] == ["video000003", "video000004", "video000002", "video000001", "video000000"]
-    assert "cover, live" in candidates[1]["match_note"]
+    assert [v["video_id"] for v in candidates] == ["video000003", "video000002", "video000004", "video000001", "video000000"]
+    assert "cover, live" in candidates[2]["match_note"]
     assert "may omit" in candidates[-1]["match_note"]
     assert "html" not in response.text
     assert len(requests) == 7
     assert store.get_artifact(song.id, "owner") == song
+
+
+@pytest.mark.parametrize("video_title", ["Artist - Song 8D", "Artist - Song slowed", "Artist - Song sped up", "Unrelated artist and title"])
+def test_plain_matching_alternative_outranks_mismatched_musicvideo(discovery, video_title):
+    discovery[3].extend([entry(0), entry(1, "alternative")])
+    discovery[4]["video000000"] = {"title": video_title, "author_name": "Someone else"}
+    candidates = get(discovery).json()["candidates"]
+    assert candidates[0]["video_id"] == "video000001"
+    assert candidates[0]["match_note"] == "Artist and title match."
+    assert "alternate version" in candidates[1]["match_note"] or "Check artist" in candidates[1]["match_note"]
 
 
 def test_metadata_failures_degrade_and_unavailable_links_are_skipped(discovery):
