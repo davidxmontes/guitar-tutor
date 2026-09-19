@@ -66,6 +66,10 @@ test('typed fret ranges stay within the neck and keep first before last', async 
   await expect(board.getByLabel('First fret')).toHaveValue('0')
   await board.getByLabel('Last fret').fill('30')
   await expect(board.getByLabel('Last fret')).toHaveValue('24')
+  await board.getByLabel('First fret').fill('2.5')
+  await expect(board.getByLabel('First fret')).toHaveValue('2')
+  await board.getByLabel('Last fret').fill('8.5')
+  await expect(board.getByLabel('Last fret')).toHaveValue('8')
 })
 
 test('bare and compact music displays compose independently at mobile and desktop sizes in both themes', async ({ page }) => {

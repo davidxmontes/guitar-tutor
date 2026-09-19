@@ -130,9 +130,9 @@ export function Fretboard({ context, layers, config = {}, onNudge, onSelect, pre
         <option value="0-5">Open position · 0–5</option><option value="5-9">Middle neck · 5–9</option><option value="9-13">Upper neck · 9–13</option><option value="0-12">One octave · 0–12</option><option value="0-19">Whole neck · 0–19</option>
       </select></label>
       <label>First fret <input aria-label="First fret" type="number" min="0" max={last} value={first}
-        onChange={e => adjust({ fret_window: [Math.max(0, Math.min(last, Number(e.target.value))), last] })} /></label>
+        onChange={e => adjust({ fret_window: [Math.max(0, Math.min(last, Math.trunc(Number(e.target.value)))), last] })} /></label>
       <label>Last fret <input aria-label="Last fret" type="number" min={first} max="24" value={last}
-        onChange={e => adjust({ fret_window: [first, Math.max(first, Math.min(24, Number(e.target.value)))] })} /></label>
+        onChange={e => adjust({ fret_window: [first, Math.max(first, Math.min(24, Math.trunc(Number(e.target.value))))] })} /></label>
   </>;
   return <div className="music-fretboard" data-context={context}>
     <div className="music-controls">
