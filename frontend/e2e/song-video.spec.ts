@@ -143,7 +143,7 @@ test('repeated score occurrences require a choice and bounded loops honor native
   await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(30);
   await page.getByLabel('Loop selection', { exact: true }).uncheck();
   for (let time = 30.5; time <= 35; time += 0.5) await nativeTime(page, time, 1);
-  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.state)).toBe(1);
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await page.locator('iframe[title="YouTube video player"]').focus();
   for (let time = 30.5; time <= 35.5; time += 0.5) await nativeTime(page, time, 1);
@@ -289,4 +289,35 @@ test('pending discovery respects a typed URL and explicit playback source choice
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
   await expect(page.locator('iframe[title="YouTube video player"]')).toHaveAttribute('src', /M7lc1UVf-VE/);
+});
+
+
+test('selection playback continues, jumps only while playing and pauses at an unknown selection', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await openSong(page);
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeDisabled();
+  await expect(page.locator('#song-video-play-reason')).toContainText('mark selection start');
+  await nativeTime(page, 10);
+  await page.getByRole('button', { name: 'Mark selection start', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('Loop selection', { exact: true })).toBeDisabled();
+  await nativeTime(page, 15);
+  await page.getByRole('button', { name: 'Mark selection end', exact: true }).click();
+  await page.getByText('Calibrate recording', { exact: false }).click();
+  await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+  for (let time = 10.5; time <= 16; time += 0.5) await nativeTime(page, time, 1);
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(1);
+  expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(16);
+  await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(13.333, 2);
+  await nativeTime(page, 14, 2);
+  await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
+  expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(14);
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+  await page.getByRole('button', { name: 'Select measure 3', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Align selected start', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mark selection start', exact: true })).toBeVisible();
 });

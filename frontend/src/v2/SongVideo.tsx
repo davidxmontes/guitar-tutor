@@ -58,6 +58,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const [loop, setLoop] = useState(false);
   const player = useRef<YouTubeControls>(null);
   const panel = useRef<HTMLElement>(null);
+  const calibration = useRef<HTMLDetailsElement>(null);
   const live = useRef(true);
   const reportedTime = useRef<number | null>(null);
   const playingState = useRef<YouTubeState>('loading');
@@ -70,6 +71,21 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const ranges = useMemo(() => selectionVideoRanges(timeline, draft?.passages ?? [], selection), [timeline, draft, selection]);
   const range = occurrence ? ranges.find(r => r.id === occurrence) : ranges.length === 1 ? ranges[0] : null;
   const points = selectionBoundaries(timeline, selection);
+  const selectionKey = JSON.stringify(selection);
+  const previousSelection = useRef(selectionKey);
+  const followSelection = useEffectEvent(() => {
+    if (!active || !['playing', 'buffering'].includes(playingState.current)) return;
+    if (!ready || !range || !draft?.recording_confirmed) {
+      clearPlayback();
+      return;
+    }
+    playSelection();
+  });
+  useEffect(() => {
+    if (previousSelection.current === selectionKey) return;
+    previousSelection.current = selectionKey;
+    followSelection();
+  }, [selectionKey]);
 
   useEffect(() => {
     live.current = true;
@@ -151,18 +167,12 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       }
     }
     if (currentRange?.seeking && Math.abs(time - currentRange.start) < 2) currentRange.seeking = false;
-    if (currentRange?.end != null && playingState.current === 'playing') {
-      if (time >= currentRange.end && !currentRange.seeking) {
-        if (currentRange.loop) {
-          currentRange.seeking = true;
-          player.current?.seek(currentRange.start);
-          player.current?.play();
-          return;
-        } else {
-          player.current?.pause();
-          playingRange.current = null;
-        }
-      }
+    if (currentRange?.loop && currentRange.end != null && playingState.current === 'playing'
+      && time >= currentRange.end && !currentRange.seeking) {
+      currentRange.seeking = true;
+      player.current?.seek(currentRange.start);
+      player.current?.play();
+      return;
     }
     const position = draft?.recording_confirmed ? videoPosition(timeline, draft.passages, time) : null;
     const key = position ? `${position.passageId}:${position.measureIndex}:${position.beatIndex}` : '';
@@ -227,6 +237,18 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     ? `Video ${timeLabel(duration)} · written score estimate ${timeLabel(scoreDuration)} · ${Math.abs(duration - scoreDuration).toFixed(1)} seconds ${duration >= scoreDuration ? 'longer' : 'shorter'}.`
     : suggestions?.duration_note;
 
+  const playReason = !ready ? 'Wait for the video to load, or retry the video if loading failed.'
+    : !draft?.recording_confirmed ? 'Confirm this recording matches the score, then mark where your selection starts.'
+    : !range ? ranges.length > 1 ? 'Choose which occurrence to play.'
+      : 'The selected start is unaligned. Pause the video where this measure or beat begins, then mark selection start.'
+    : null;
+  function openCalibration() {
+    if (!calibration.current) return;
+    player.current?.pause();
+    calibration.current.open = true;
+    calibration.current.querySelector<HTMLElement>('summary')?.focus();
+  }
+
   if (!active) return null;
   return <section ref={panel} className="song-video" aria-label="Song video">
     {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
@@ -245,13 +267,13 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
         {draft.passages.length > 1 && <label>Occurrence<select aria-label="Video occurrence" value={occurrence} onChange={event => { clearPlayback(); setOccurrence(event.target.value); setAnchorIndex(''); }}>
           <option value="">Choose occurrence</option>{draft.passages.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select></label>}
-        <div className="song-video-actions"><button type="button" className="music-button" disabled={!ready || !range || !draft.recording_confirmed} onClick={playSelection}>Play selection</button>
+        <div className="song-video-actions"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
           <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label></div>
-        <p>Native video controls take over from selection playback.</p>
-        {draft.recording_confirmed && !range && <p>{ranges.length > 1 ? 'Choose which occurrence to play.' : 'The selected start is unaligned. Add anchors or select an aligned beat.'}</p>}
-        {range && range.end === null && <p>Only the start is aligned. Use native video controls; looping needs an aligned end.</p>}
+        {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
+        <p>Playback continues beyond the selection unless Loop is on. Select another aligned beat while playing to jump there. Native video controls take over from a loop.</p>
+        {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
       </>}
-      <details open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
+      <details ref={calibration} open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
         <summary>{draft ? 'Calibrate recording' : 'Attach a YouTube recording'}{dirty ? ' · unsaved' : ''}</summary>
         <fieldset disabled={busy} className="song-video-calibration">
           {!draft && recordingChoices}
