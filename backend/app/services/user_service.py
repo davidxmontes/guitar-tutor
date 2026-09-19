@@ -141,11 +141,14 @@ def upsert_thread(
     last_message_at: datetime,
 ) -> None:
     client = _require_client()
-    payload = {
-        "id": thread_id,
-        "clerk_user_id": user_id,
+    metadata = {
         "title": title[:80],
         "preview": preview[:120] if preview else None,
         "last_message_at": last_message_at.isoformat(),
     }
-    client.table("conversation_threads").upsert(payload, on_conflict="id").execute()
+    # A colliding client-supplied ID must never transfer another user's thread.
+    client.table("conversation_threads").upsert(
+        {"id": thread_id, "clerk_user_id": user_id, **metadata},
+        on_conflict="id", ignore_duplicates=True,
+    ).execute()
+    client.table("conversation_threads").update(metadata).eq("id", thread_id).eq("clerk_user_id", user_id).execute()

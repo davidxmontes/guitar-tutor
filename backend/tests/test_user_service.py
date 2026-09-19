@@ -83,3 +83,23 @@ def test_list_favorites_returns_models(mock_get_client):
     results = list_favorites("user_abc")
     assert len(results) == 1
     assert results[0].title == "Comfortably Numb"
+
+
+def test_thread_metadata_insert_preserves_owner_and_updates_are_owner_scoped(monkeypatch):
+    from app.services import user_service
+    client = MagicMock()
+    chain = make_supabase_chain([])
+    client.table.return_value = chain
+    monkeypatch.setattr(user_service, "get_supabase_client", lambda: client)
+    stamp = datetime(2026, 9, 19, tzinfo=timezone.utc)
+
+    user_service.upsert_thread("user_abc", "shared-id", "New title", "New preview", stamp)
+
+    assert chain.upsert.call_args.kwargs == {"on_conflict": "id", "ignore_duplicates": True}
+    assert chain.upsert.call_args.args[0]["clerk_user_id"] == "user_abc"
+    assert chain.update.call_args.args[0] == {
+        "title": "New title", "preview": "New preview", "last_message_at": stamp.isoformat(),
+    }
+    assert [call.args for call in chain.eq.call_args_list] == [
+        ("id", "shared-id"), ("clerk_user_id", "user_abc"),
+    ]
