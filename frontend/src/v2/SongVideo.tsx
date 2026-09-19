@@ -204,11 +204,12 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
           </form></details>;
   const recordingChoices = <div className="song-video-suggestions" aria-label="Suggested recordings">
     <p>Recordings linked to this song on Songsterr. Preview and check the arrangement before confirming.</p>
+    {draft && <p>Choosing another recording resets alignment. Undo restores it.</p>}
     {suggestionError ? <p role="alert">Could not find recordings. <button type="button" className="music-button" onClick={() => { setSuggestionError(false); setSuggestions(null); setSuggestionAttempt(value => value + 1); }}>Retry recordings</button></p>
       : !suggestions ? <p role="status">Finding recordings…</p>
       : suggestions.candidates.length === 0 ? <p>No linked recordings found. You can paste a YouTube link below.</p>
       : <ul>{suggestions.candidates.map((candidate, index) => <li key={candidate.video_id}>
-        <button type="button" className="music-button" onClick={() => attachId(candidate.video_id)} aria-label={`Preview recording ${index + 1}: ${candidate.title}`}>{candidate.title}</button>
+        <button type="button" className="music-button" disabled={candidate.video_id === draft?.video_id} onClick={() => attachId(candidate.video_id)} aria-label={`Preview recording ${index + 1}: ${candidate.title}`}>{candidate.title}{candidate.video_id === draft?.video_id ? " · selected" : ""}</button>
         <p>{candidate.channel ? `${candidate.channel} · ` : ''}{candidate.kind === 'musicvideo' ? 'Music video' : candidate.kind} · {candidate.match_note}</p>
       </li>)}</ul>}
     {recordingInput}
