@@ -498,3 +498,50 @@ test('video and paused selection preview the next written beat without skipping 
   await nativeTime(page, 40, 2);
   await expect(upcoming).toHaveCount(0);
 });
+
+for (const width of [1280, 320]) {
+  test(`loop span controls select a beat, whole measure and multiple measures at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/video-suggestions', route => route.fulfill({ json: {
+      candidates: [{ video_id: 'M7lc1UVf-VE', title: 'Loop recording', channel: null, kind: 'musicvideo', match_note: 'Linked', timing: {
+        source: 'estimated', note: 'Estimated score timing.', passages: [{ id: 'score', label: 'Written score', anchors: [
+          { measure_index: 0, beat_index: 0, edge: 'start', video_seconds: 0 },
+          { measure_index: 7, beat_index: 1, edge: 'end', video_seconds: 32 },
+        ] }],
+      } }], score_duration_seconds: 32, duration_note: 'Written score estimate.',
+    } }));
+    await openSong(page, false);
+    await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M1 · beat 2');
+    await page.getByLabel('Loop selection', { exact: true }).check();
+    await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(8 / 3, 5);
+    for (let time = 3; time <= 4; time += 0.25) await nativeTime(page, time, 1);
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(8 / 3, 5);
+    await page.getByRole('button', { name: 'Whole measure', exact: true }).click();
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M1 (whole measure)');
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
+    for (let time = 0.5; time <= 4; time += 0.5) await nativeTime(page, time, 1);
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
+    await page.getByText('Choose measures', { exact: true }).click();
+    await page.getByLabel('From measure', { exact: true }).fill('2');
+    await page.getByLabel('Through measure', { exact: true }).fill('3');
+    expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M1 (whole measure)');
+    if (width === 320) await page.screenshot({ path: '/tmp/song-video-range-mobile.png', fullPage: false });
+    await page.getByRole('button', { name: 'Apply range', exact: true }).click();
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M2–3');
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
+    for (let time = 4.5; time <= 12; time += 0.5) await nativeTime(page, time, 1);
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
+    await page.getByText('Choose measures', { exact: true }).click();
+    await page.getByLabel('From measure', { exact: true }).fill('4');
+    await page.getByLabel('Through measure', { exact: true }).fill('2');
+    await page.getByRole('button', { name: 'Apply range', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('end at or after the start');
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M2–3');
+    expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
+    await page.getByLabel('From measure', { exact: true }).fill('0');
+    expect(await page.getByLabel('From measure', { exact: true }).evaluate((input: HTMLInputElement) => input.validity.rangeUnderflow)).toBe(true);
+  });
+}

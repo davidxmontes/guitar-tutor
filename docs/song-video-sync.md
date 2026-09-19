@@ -402,3 +402,14 @@ Rests remain empty; an unknown current position or the end of the score has no
 preview. Current notes retain their filled marker when the next beat repeats the
 same fret. This is a score preview, not a prediction of video loop/repeat jumps;
 synthesized practice retains its existing loop-aware upcoming beat.
+
+### Choosing loop length
+
+Looping still uses the shared SongSelection and existing video range mapping.
+A whole-measure selection spans its first beat's start through its last beat's
+end; an inclusive measure range uses those same boundaries across measures.
+Transport controls make the selected span visible and offer a whole-measure
+shortcut and a deliberate start/end measure choice. Tab beat clicks and overview
+measure/Shift-click selection continue to use the same state. Editing range fields
+does not seek until applied; missing alignment at an endpoint still disables
+looping. There is no second loop-region model or additional playback transport.

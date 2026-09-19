@@ -917,7 +917,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
       {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
       </div>
       <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
-    <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+    <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
       <div className="song-study-score flex w-full flex-col gap-4 min-w-0">
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
       {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}

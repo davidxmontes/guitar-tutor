@@ -14,10 +14,11 @@ const timeLabel = (seconds: number) => {
 };
 const anchorLabel = (anchor: SongVideoAnchor) => `M${anchor.measure_index + 1}, beat ${anchor.beat_index + 1} ${anchor.edge} · ${timeLabel(anchor.video_seconds)}`;
 
-export function SongVideo({ song, active, selection, onChange, onPosition }: {
+export function SongVideo({ song, active, selection, onSelectRange, onChange, onPosition }: {
   song: SongStudyArtifact;
   active: boolean;
   selection: SongSelection;
+  onSelectRange(start: number, end: number): void;
   onChange(song: SongStudyArtifact): void;
   onPosition(position: VideoPosition | null, resumeFollowing?: boolean): void;
 }) {
@@ -76,6 +77,11 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const ranges = useMemo(() => selectionVideoRanges(timeline, draft?.passages ?? [], selection), [timeline, draft, selection]);
   const range = occurrence ? ranges.find(r => r.id === occurrence) : ranges.length === 1 ? ranges[0] : null;
   const points = selectionBoundaries(timeline, selection);
+  const selectedStart = selection.type === 'beat' ? selection.measureIndex : selection.startMeasureIndex;
+  const selectedEnd = selection.type === 'beat' ? selection.measureIndex : selection.endMeasureIndex;
+  const measureCount = song.payload.tab_data.measures?.length ?? 0;
+  const selectionLabel = selection.type === 'beat' ? `M${selectedStart + 1} · beat ${selection.beatIndex + 1}`
+    : selectedStart === selectedEnd ? `M${selectedStart + 1} (whole measure)` : `M${selectedStart + 1}–${selectedEnd + 1}`;
   const previousSelection = useRef(selection);
   const followSelection = useEffectEvent(() => {
     if (!active || !['playing', 'buffering'].includes(playingState.current)) return;
@@ -296,6 +302,23 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
         {draft.passages.length > 1 && <label>Occurrence<select aria-label="Video occurrence" value={occurrence} onChange={event => { clearPlayback(); setOccurrence(event.target.value); setAnchorIndex(''); }}>
           <option value="">Choose occurrence</option>{draft.passages.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select></label>}
+        <div className="song-video-actions"><span data-testid="video-selected-span">Selection: {selectionLabel}</span>
+          {selection.type === 'beat' && <button type="button" className="music-button" onClick={() => onSelectRange(selectedStart, selectedStart)}>Whole measure</button>}
+        </div>
+        <details><summary>Choose measures</summary>
+          <form key={selectionLabel} className="song-video-actions" onSubmit={event => {
+            event.preventDefault();
+            const values = new FormData(event.currentTarget);
+            const start = Number(values.get('start')); const end = Number(values.get('end'));
+            if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > measureCount || start > end) { setError(`Choose measures from 1 to ${measureCount}, with the end at or after the start.`); return; }
+            onSelectRange(start - 1, end - 1); setError(null);
+            event.currentTarget.closest('details')!.open = false;
+          }}>
+            <label>From measure<input name="start" aria-label="From measure" type="number" min="1" max={measureCount} step="1" defaultValue={selectedStart + 1} required /></label>
+            <label>Through measure<input name="end" aria-label="Through measure" type="number" min="1" max={measureCount} step="1" defaultValue={selectedEnd + 1} required /></label>
+            <button type="submit" className="music-button">Apply range</button>
+          </form>
+        </details>
         <div className="song-video-actions"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
           <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label>
           <label>Speed<select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
