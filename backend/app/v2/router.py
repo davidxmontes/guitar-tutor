@@ -689,6 +689,17 @@ def owned_branch(store, session_id, branch_id, user_id):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def persist_workspace_edit(store: V2Store, branch: Branch, user_id: str, **fields: Any) -> Branch:
+    """Apply an edit only to the Branch state it was derived from."""
+    try:
+        return store.update_branch(branch.session_id, branch.id, user_id,
+                                   expected_updated_at=branch.updated_at, **fields)
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
 def harmony_response(branch, store, user_id):
     if branch.harmony_exploration is None:
         raise HTTPException(status_code=422, detail='No Harmony Exploration')
@@ -743,7 +754,7 @@ async def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdi
             state = pin_voicing(state, edit.pin.chord, edit.pin.voicing)
         if edit.unpin is not None:
             state = unpin_voicing(state, edit.unpin.chord, edit.unpin.voicing)
-        updated = store.update_branch(session_id, branch_id, user_id, harmony_exploration=state)
+        updated = persist_workspace_edit(store, branch, user_id, harmony_exploration=state)
         return harmony_response(updated, store, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -761,7 +772,7 @@ async def explore_subject(session_id: str, branch_id: str, data: ExploreRequest,
     updated, confirmation = explore_harmony(current, data.subject, data.confirmed)
     if confirmation:
         return {'branch': current, 'requires_confirmation': True}
-    branch = store.update_branch(session_id, branch_id, user_id, harmony_exploration=updated.harmony_exploration, active_workspace='harmony')
+    branch = persist_workspace_edit(store, current, user_id, harmony_exploration=updated.harmony_exploration, active_workspace='harmony')
     return {'branch': branch, 'requires_confirmation': False}
 
 
@@ -771,13 +782,11 @@ async def develop_scratch(session_id: str, branch_id: str, user_id: str = Depend
     current = owned_branch(store, session_id, branch_id, user_id)
     try:
         developed = develop_harmony(current)
-        updated = store.update_branch(session_id, branch_id, user_id, expected_updated_at=current.updated_at,
+        updated = persist_workspace_edit(store, current, user_id,
             progression_workspace=developed.progression_workspace, active_workspace='progression', live_presentation_turn_id=None)
         return {'available': True, 'branch': updated, 'message': 'Scratch developed into a new idea.'}
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
 
 
 # --- Progression idea Save / reopen ---
@@ -790,7 +799,7 @@ def reopen_progression(store, branch, artifact, user_id):
         artifact_id=artifact.id, base_revision_id=artifact.updated_at, dirty=False)
     workspace = branch.progression_workspace or ProgressionWorkspaceState()
     updated = ProgressionWorkspaceState(ideas=[*workspace.ideas, idea], active_idea_id=idea.id)
-    return store.update_branch(branch.session_id, branch.id, user_id, progression_workspace=updated,
+    return persist_workspace_edit(store, branch, user_id, progression_workspace=updated,
                                active_workspace='progression', live_presentation_turn_id=None)
 
 
@@ -859,7 +868,7 @@ async def edit_progression_surface(session_id: str, branch_id: str, edit: Progre
         raise HTTPException(422, 'No Progression Workspace')
     try:
         workspace = edit_progression(branch.progression_workspace, edit)
-        updated = store.update_branch(session_id, branch_id, user_id, progression_workspace=workspace)
+        updated = persist_workspace_edit(store, branch, user_id, progression_workspace=workspace)
         return progression_response(updated, store, user_id)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -909,8 +918,6 @@ async def keep_progression_candidate(session_id: str, branch_id: str, data: Keep
         updated = keep_candidate(branch, candidate_set['candidate_kind'], candidate)
         fields = {'progression_workspace': updated.progression_workspace, 'active_workspace': 'progression'}
         if data.develop: fields['live_presentation_turn_id'] = None
-        return store.update_branch(session_id, branch_id, user_id, expected_updated_at=branch.updated_at, **fields)
+        return persist_workspace_edit(store, branch, user_id, **fields)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    except RevisionConflictError as exc:
-        raise HTTPException(409, str(exc)) from exc
