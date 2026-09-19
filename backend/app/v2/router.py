@@ -39,6 +39,7 @@ from app.v2.models import (
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
 from app.v2.song_video import SongVideoAlignment, validate_video_alignment
+from app.v2.song_video_discovery import VideoSuggestions, suggest_song_videos
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
 from app.v2.tutor.contract import LearningPreferences, TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -232,6 +233,19 @@ def _owned_song_study(store: V2Store, artifact_id: str, user_id: str) -> tuple[A
     if artifact.kind != "song_study":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a SongStudy artifact")
     return artifact, SongStudyPayload.model_validate(artifact.payload)
+
+
+@router.get("/song-studies/{artifact_id}/video-suggestions", response_model=VideoSuggestions)
+async def get_song_video_suggestions(
+    artifact_id: str,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    _, payload = await run_in_threadpool(_owned_song_study, store, artifact_id, user_id)
+    try:
+        return await suggest_song_videos(payload)
+    except Exception as exc:
+        raise HTTPException(502, "Recording suggestions could not be loaded. Try again shortly.") from exc
 
 
 def _save_song_study(store: V2Store, artifact: Artifact, user_id: str, payload: SongStudyPayload, *, save: bool = False) -> Artifact:
