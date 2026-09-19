@@ -44,9 +44,6 @@ class NoteGroup(StrictModel):
 
 NATURAL_PITCHES = dict(zip('CDEFGAB', [0, 2, 4, 5, 7, 9, 11]))
 CHROMATIC = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
-# Diatonic-chord helper: the major-scale triad qualities by degree.
-DIATONIC_TRIADS = list(zip(['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
-                           ['major', 'minor', 'minor', 'major', 'major', 'minor', 'diminished']))
 
 
 def pitch_class(note: str) -> int:

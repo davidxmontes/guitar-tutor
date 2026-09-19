@@ -1,6 +1,6 @@
 """Trusted scale discovery metadata and deterministic CAGED physical regions."""
 from app.music.chords import note_to_index, get_note_at_position
-from app.v2.models import ScaleConceptId, CagedQualityId, CagedShapeId, CagedRegion, ConceptPosition
+from app.v2.models import CagedQualityId, CagedShapeId, CagedRegion, ConceptPosition
 
 CIRCLE_KEYS = ["C", "G", "D", "A", "E", "B", "Gb", "Db", "Ab", "Eb", "Bb", "F"]
 
@@ -19,15 +19,6 @@ SCALE_NAMES: dict[str, str] = {
     "pentatonic_major": "Major pentatonic",
     "pentatonic_minor": "Minor pentatonic",
     "blues": "Blues scale",
-}
-
-DEFAULT_COMPARISONS: dict[str, ScaleConceptId] = {
-    "major": "natural_minor", "ionian": "dorian", "dorian": "major",
-    "phrygian": "natural_minor", "lydian": "major", "mixolydian": "major",
-    "aeolian": "major", "natural_minor": "major", "locrian": "natural_minor",
-    "harmonic_minor": "natural_minor", "melodic_minor": "natural_minor",
-    "pentatonic_major": "major", "pentatonic_minor": "natural_minor",
-    "blues": "pentatonic_minor",
 }
 
 CAGED_SHAPES: tuple[CagedShapeId, ...] = ("C", "A", "G", "E", "D")
