@@ -149,3 +149,16 @@ def test_revision_selection_does_not_fall_back_to_rejected_edits():
         with pytest.raises(ValueError, match='No available revisions'):
             _latest_available_revision_id(revisions, 2)
     assert _latest_available_revision_id([{"revisionId": 3}], 2) == 3
+
+
+
+def test_optional_video_metadata_cannot_break_revision_import():
+    from app.models.songsterr import SongsterrRevisionResponse
+
+    video = {"videoId": "qNHcVevz7wo", "status": "done"}
+    revision = {"songId": 2, "revisionId": 8047059, "artist": "Oasis", "title": "Wonderwall",
+                "tracks": [{"instrumentId": 25, "instrument": "Acoustic Guitar"}]}
+    for raw, expected in (([None, video, 2, "bad"], [video]), (None, []), ({}, []), ("bad", [])):
+        result = SongsterrRevisionResponse.model_validate({**revision, "videos": raw})
+        assert len(result.tracks) == 1
+        assert result.videos == expected

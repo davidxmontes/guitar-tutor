@@ -100,8 +100,8 @@ def test_malformed_kind_and_revision(discovery):
     assert get(discovery).json()["candidates"][0]["kind"] == "other"
     discovery[3].append(None)
     response = get(discovery)
-    assert response.status_code == 502
-    assert response.json()["detail"] == "Recording suggestions could not be loaded. Try again shortly."
+    assert response.status_code == 200
+    assert response.json()["candidates"][0]["video_id"] == "video000000"
 
 
 def test_live_in_song_title_is_not_an_alternate_version(discovery):
