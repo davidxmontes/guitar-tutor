@@ -2,12 +2,49 @@
 
 ## Objective and scope
 
-Attach a user-selected YouTube recording, confirm its arrangement, align score
+Find and preview a likely YouTube recording, confirm its arrangement, align score
 positions manually, play a selected passage, follow actual video time, and
 reopen the saved setup. This is one feature on `feature/song-video-sync`, based
 on `main-v2` at `c91ba56`. Existing dirty checkouts are untouched. The detailed
 user brief authorizes routine design/implementation decisions and a draft PR;
 no merge, deployment, hosted changes, paid service or production credentials.
+
+### Recording discovery follow-up (2026-09-19)
+
+The user expanded the requirement after PR #129: SongStudy should find likely
+recordings; pasting a URL becomes a fallback. This supersedes the original
+manual-attachment-only scope below. The existing draft PR remains open; work
+resumes in build, with the conversation and this contract as the specification.
+
+- Reuse linked video IDs from Songsterr's accepted song revision. Prefer full
+  music videos to alternate versions, backing tracks, and solo excerpts. Fetch
+  bounded YouTube oEmbed title/channel metadata for useful candidate labels and
+  artist/title checks. No YouTube scraping, media extraction, API key, or new
+  paid service is needed for this source-linked discovery path.
+- Suggestions are read-only and ephemeral. Selecting Preview uses the existing
+  unconfirmed recording draft and Undo path. A fetch never replaces a saved or
+  edited recording. Confirmation, alignment, and Save remain deliberate.
+- Compare the embedded player's reported duration with score duration only
+  where the raw score provides an unambiguous timing model. Otherwise explain
+  why length cannot be checked. Similar length does not prove an arrangement
+  match or generate synchronization anchors.
+- Missing/failed suggestions must be distinguishable and retryable. Manual URL
+  attachment remains a secondary option for missing or incompatible links.
+- Fix the real import regression: a blocked newest revision must not replace
+  the accepted score represented by search results. Cover synchronous and
+  asynchronous callers and verify a real public song through the actual app.
+
+Verification will extend the existing fake-player journeys with discovery,
+replacement/Undo, failure/empty states, and duration hints. Public Songsterr and
+YouTube metadata/player checks supplement deterministic tests; no private data
+or production credentials. The local preview must use the actual song provider,
+not the browser-test fixture catalog.
+
+Additional sources checked:
+- https://oembed.com/providers.json (YouTube metadata endpoint registry)
+- https://developers.google.com/youtube/iframe_api_reference#getDuration
+- https://developers.google.com/youtube/v3/docs/search/list (global search is a
+  separate credentialed API; not required for the linked-recording path)
 
 ## Decisions
 
@@ -119,10 +156,11 @@ Official sources checked 2026-09-19:
   interaction bugs before their fixes. Measure controls retain native button
   semantics and work with Enter; the tab playhead uses `aria-current` without
   overwriting learner `aria-pressed` selection.
-- Contract above is settled for implementation. No automatic matching,
-  extraction, beat detection or repeat expansion is planned.
+- The initial manual-alignment contract was settled for implementation.
+  Recording discovery was added in the follow-up above. Extraction, beat
+  detection and repeat expansion remain outside scope.
 
-## Final review and delivery evidence
+## Initial manual-alignment delivery evidence
 
 | Check | Result |
 | --- | --- |
@@ -152,8 +190,8 @@ Loops and beat highlighting are approximate, and native control interaction
 releases selection playback. Alignment uses only completed, user-confirmed
 recordings; a user must mark extra anchors at tempo changes/drift and separate
 occurrences for repeated measures. Gaps and unmatched arrangements remain
-visibly unaligned. No automatic matching/alignment or live-stream support is
-implemented.
+visibly unaligned. This initial delivery did not include recording discovery;
+automatic alignment and live-stream support remain unimplemented.
 
 Verification used local auth, memory storage and scripted song/model providers;
 only the public YouTube sample used a live external service. No production
@@ -164,3 +202,72 @@ Workflow deviation: the detailed user brief and this in-repository contract
 serve as the feature specification/progress record. The work is one dedicated
 branch with focused commits and one draft PR, without manufacturing a separate
 spec/ticket issue hierarchy. No merge or deployment is authorized.
+
+## Recording discovery completion
+
+Implemented a read-only, owned `GET /song-studies/{id}/video-suggestions`.
+It validates and deduplicates Songsterr-linked IDs, inspects at most eight
+YouTube oEmbed records, and returns at most six suggestions. Known unavailable
+videos are skipped; unavailable metadata is labeled, not mistaken for a
+confirmed playable video. The native player remains the final availability
+check. Matching artist/title and ordinary recordings rank ahead of explicit
+covers, live/remixed/slowed/8D versions or partial backing/solo tracks. This
+searches source-linked recordings, not all of YouTube; songs without links
+retain the secondary manual URL option. No API key or additional service was
+introduced. oEmbed HTML is ignored.
+
+SongStudy automatically loads suggestions when YouTube playback is chosen.
+Preview uses the same draft, confirmation, alignment, Save and Undo path as
+manual attachment. A response cannot overwrite a selected recording. The
+current candidate is disabled; changing to another explicitly resets alignment
+with Undo available. Candidate labels remain unique when titles repeat.
+
+The written-score length estimate uses the displayed voice's rational beat
+durations, including rests and pickups, and explicit type-4 tempo changes at
+measure starts. Missing starting tempo/rhythm, changes within measures,
+repeats/jumps/directions and unsupported timing return an explained unknown.
+Duration is compared after the supported player reports it; it neither ranks
+unloaded videos by invented lengths nor creates alignment timestamps.
+
+The real import repair skips blocked/deleted/pending revisions in both sync
+and async callers. Optional malformed video metadata is ignored so it cannot
+break otherwise valid score imports.
+
+Verification:
+- Final backend suite: **394 passed**, two existing dependency warnings.
+- Frontend unit suite: **23 passed**; final lint and production build pass.
+  Local-auth-bypass build also passed during the full gate.
+- Full browser suite: **70 passed**. Focused discovery and intentional manual
+  same-video-reset checks passed again after the final UI review fixes.
+- Actual API and Chrome: imported Wonderwall's accepted revision `8047059`,
+  correct lead-guitar track and all **94 measures**. Automatic suggestions
+  supplied `qNHcVevz7wo` without a pasted URL; its supported embedded player
+  played and paused. Reported length was approximately **4:20**, compared with
+  **4:15** estimated from the actual score. This validates the discovery and
+  playback path, not an automatically verified musical arrangement/alignment.
+- Real public-song saving and reopening were checked through My Stuff. The
+  existing deterministic player journeys verify confirmation, anchor Save/reopen,
+  selection playback, source exclusivity, failed/empty suggestions and Undo.
+- Inspected real suggestions/player at desktop and 320px, dark/light, collapsed
+  and expanded controls. Keyboard discovery is covered by the browser journey.
+  No physical mobile-device claim.
+
+Correctness review fixed optional-metadata coupling, alternate-version ranking,
+duplicate accessible labels, stale duration on replacement, and selecting the
+current recording erasing anchors. A separate Ponytail review removed repeated
+candidate/duration explanations and kept the existing player, draft and storage
+paths. No new dependency, database migration, media framework or analysis
+pipeline. Earlier session-not-found errors were caused by restarting the local
+in-memory test API; the updated real-provider app uses a separate local instance
+to preserve the user's existing instance.
+
+Local handoff: actual API on `127.0.0.1:8310`, frontend at
+`http://localhost:5310/v2`. It uses local auth and memory storage with provider
+credentials empty. Saved work survives page reload, not backend restart. The
+old 8207/5287 instance was left untouched during this follow-up.
+
+Publishing status: the follow-up commits are local on `feature/song-video-sync`.
+Draft PR #129 still contains the earlier published implementation. Its existing
+Vercel Git integration automatically deployed a Preview on the previous push;
+another push therefore requires approval under the user's no-deployment rule.
+No follow-up push, merge, hosted setting change or deployment was performed.

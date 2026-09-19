@@ -118,6 +118,15 @@ iframe, readiness, commands and actual-time updates. `SongVideo` owns the local
 calibration draft and selection playback, publishing only changed musical
 positions to SongStudy. Keep synthesized practice on its existing clock.
 
+On first choosing YouTube playback, SongVideo requests ephemeral recording
+suggestions from the owned SongStudy endpoint. The backend reuses Songsterr's
+linked videos and YouTube oEmbed title/channel metadata; choosing a suggestion
+uses the same unconfirmed draft and Undo path as the secondary URL form.
+Suggestions never replace saved alignment automatically. The player reports
+video length; a conservative written-score estimate provides a comparison,
+not a synchronization model. Unsupported tempo or repeat order yields an
+explained unavailable estimate.
+
 Saving uses the existing SongStudy artifact, ownership/revision checks and
 History. Watching never persists player time. See
 [the alignment contract](../docs/song-video-sync.md) for the manual workflow,
