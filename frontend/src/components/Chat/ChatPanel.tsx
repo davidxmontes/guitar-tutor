@@ -284,7 +284,7 @@ export function ChatPanel({
       </div>
 
       {/* Input Area */}
-      <ChatInput onSend={onSendMessage} disabled={isLoading} darkMode={darkMode} />
+      <ChatInput onSend={onSendMessage} disabled={isLoading} />
     </div>
   );
 }

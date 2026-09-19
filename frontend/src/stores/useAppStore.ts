@@ -56,10 +56,10 @@ function loadMessages(): ChatMessage[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
+    const parsed: Array<Omit<ChatMessage, 'timestamp'> & { timestamp: string }> = JSON.parse(raw);
     return parsed
-      .filter((m: any) => m.content != null && m.content !== 'null')
-      .map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+      .filter((m) => m.content != null && m.content !== 'null')
+      .map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
   } catch {
     return [];
   }

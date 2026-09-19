@@ -73,7 +73,7 @@ export function SongSearch() {
               artist: fav.artist,
               tracks: [],
               has_chords: false,
-            } as any)
+            })
           }
           onToggle={(fav) => toggleFavorite({
             songsterr_song_id: fav.songsterr_song_id,

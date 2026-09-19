@@ -5,7 +5,7 @@ import type { Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, Exercis
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
 // nginx can proxy requests to the backend service in docker-compose.
-const API_BASE_URL = (import.meta.env as any).VITE_API_BASE_URL ?? '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 // Human-readable loading labels for LangGraph node names.
 export function nodeLabel(node: string): string {

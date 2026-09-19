@@ -183,7 +183,6 @@ export function ControlBar({
                     chords={scaleData.diatonic_chords}
                     onChordClick={onDiatonicChordClick}
                     selectedChord={selectedDiatonicChord}
-                    darkMode={darkMode}
                   />
                 </div>
               </div>

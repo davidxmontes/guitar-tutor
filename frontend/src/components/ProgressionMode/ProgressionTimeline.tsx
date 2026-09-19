@@ -107,7 +107,7 @@ export function ProgressionTimeline() {
 
   const handleLoad = async (p: SavedProgression) => {
     await setProgressionFromAgent(
-      p.slots as any,
+      p.slots,
       p.key_root ?? undefined,
       p.key_mode ?? undefined,
     );

@@ -645,7 +645,7 @@ function App() {
                 <p style={{ color: darkMode ? '#fca5a5' : '#b91c1c' }}>{error}</p>
                 <p className="text-sm mt-1" style={{ color: darkMode ? '#f87171' : '#dc2626' }}>
                   Make sure the backend is running and reachable. This app calls the API at{' '}
-                  <strong>{(import.meta.env as any).VITE_API_BASE_URL ?? '/api'}</strong>
+                  <strong>{import.meta.env.VITE_API_BASE_URL ?? '/api'}</strong>
                   {'. '}If you're running locally, the backend also listens on{' '}
                   <strong>http://localhost:8000</strong>.
                 </p>

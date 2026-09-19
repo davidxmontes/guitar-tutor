@@ -4,10 +4,9 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
-  darkMode?: boolean;
 }
 
-export function ChatInput({ onSend, disabled = false, placeholder = "Ask about chords, scales...", darkMode: _darkMode = false }: ChatInputProps) {
+export function ChatInput({ onSend, disabled = false, placeholder = "Ask about chords, scales..." }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
