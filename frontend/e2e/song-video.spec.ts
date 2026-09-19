@@ -5,7 +5,7 @@ import { installYouTubeFake } from './youtube-fake';
 async function openSong(page: Page, attachManually = true) {
   await installYouTubeFake(page);
   if (attachManually) await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
-  await page.goto('/v2');
+  await page.goto('/v2', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Study a song', exact: true }).click();
@@ -320,4 +320,70 @@ test('selection playback continues, jumps only while playing and pauses at an un
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Align selected start', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mark selection start', exact: true })).toBeVisible();
+});
+
+
+for (const source of ['estimated', 'songsterr'] as const) {
+  test(`${source} timing plays immediately and a start adjustment saves without false confirmation`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.route('**/video-suggestions', route => route.fulfill({ json: {
+      candidates: [{ video_id: 'M7lc1UVf-VE', title: 'Timed recording', channel: 'Practice Band', kind: 'musicvideo', match_note: 'Linked recording', timing: {
+        source, note: source === 'estimated' ? 'Estimated from score tempo; adjust the recording start.' : 'Timing supplied by Songsterr; check the arrangement.',
+        passages: [{ id: 'timed', label: 'Written score', anchors: [
+          { measure_index: 0, beat_index: 0, edge: 'start', video_seconds: 0 },
+          { measure_index: 1, beat_index: 0, edge: 'start', video_seconds: 4 },
+          { measure_index: 1, beat_index: 1, edge: 'end', video_seconds: 8 },
+        ] }],
+      } }], score_duration_seconds: 16, duration_note: 'Written score estimate.',
+    } }));
+    await openSong(page, false);
+    await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+    expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
+    await page.getByRole('button', { name: 'Select measure 2', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
+    await nativeTime(page, 5, 1);
+    await expect(page.getByTestId('song-video-position')).toContainText('M2');
+    await page.getByText('Adjust recording start', { exact: true }).click();
+    await page.getByLabel('First aligned beat at (seconds)').fill('86400');
+    await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('valid video time');
+    await page.getByLabel('First aligned beat at (seconds)').fill('10');
+    await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
+    await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(14);
+    await page.getByText('Calibrate recording', { exact: false }).click();
+    await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
+    await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
+    await expect(page.getByLabel('First aligned beat at (seconds)')).toHaveValue('0');
+    await page.getByLabel('First aligned beat at (seconds)').fill('10');
+    await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
+    await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Video setup saved');
+    await page.reload();
+    await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).first().click();
+    await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(10);
+    await page.getByText('Calibrate recording', { exact: false }).click();
+    await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
+  });
+}
+
+
+test('a pasted video can use the available score-tempo estimate when discovery has no matches', async ({ page }) => {
+  await page.route('**/video-suggestions', route => route.fulfill({ json: {
+    candidates: [], score_duration_seconds: 4, duration_note: 'Written score estimate.',
+    estimated_timing: { source: 'estimated', note: 'Initially estimated from score tempo at 0:00.', passages: [{ id: 'estimate', label: 'Written score', anchors: [
+      { measure_index: 0, beat_index: 0, edge: 'start', video_seconds: 0 },
+      { measure_index: 0, beat_index: 1, edge: 'end', video_seconds: 4 },
+    ] }] },
+  } }));
+  await openSong(page, false);
+  await expect(page.getByText('No linked recordings found.', { exact: false })).toBeVisible();
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
+  await page.getByLabel('YouTube link or video ID').fill('M7lc1UVf-VE');
+  await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+  await expect(page.getByText('Initially estimated from score tempo at 0:00.', { exact: false })).toBeVisible();
 });

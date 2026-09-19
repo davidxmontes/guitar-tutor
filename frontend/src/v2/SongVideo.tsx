@@ -34,7 +34,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const autoSelect = useRef(!initial);
   const receiveSuggestions = useEffectEvent((result: SongVideoSuggestions) => {
     setSuggestions(result); setSuggestionError(null);
-    if (autoSelect.current && result.candidates.length > 0) attachId(result.candidates[0].video_id);
+    if (autoSelect.current && result.candidates.length > 0) attachId(result.candidates[0].video_id, result.candidates[0].timing);
   });
   const discover = active && (!draft || changingRecording);
   useEffect(() => {
@@ -56,6 +56,10 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const [state, setState] = useState<YouTubeState>('loading');
   const [seconds, setSeconds] = useState<number | null>(null);
   const [loop, setLoop] = useState(false);
+  const [startTime, setStartTime] = useState('');
+  const timingEnabled = Boolean(draft && (draft.recording_confirmed || draft.timing_source));
+  const firstAnchor = useMemo(() => draft?.passages.flatMap(p => p.anchors).reduce<SongVideoAnchor | null>((first, anchor) => !first || anchor.video_seconds < first.video_seconds ? anchor : first, null) ?? null, [draft]);
+  const firstTime = firstAnchor?.video_seconds ?? Infinity;
   const player = useRef<YouTubeControls>(null);
   const panel = useRef<HTMLElement>(null);
   const calibration = useRef<HTMLDetailsElement>(null);
@@ -75,7 +79,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const previousSelection = useRef(selectionKey);
   const followSelection = useEffectEvent(() => {
     if (!active || !['playing', 'buffering'].includes(playingState.current)) return;
-    if (!ready || !range || !draft?.recording_confirmed) {
+    if (!ready || !range || !timingEnabled) {
       clearPlayback();
       return;
     }
@@ -119,10 +123,12 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   function attach() {
     const id = parseYouTubeId(url);
     if (!id) { setError('Enter a YouTube video link or its eleven-character video ID. Playlists and other sites are not supported.'); return; }
-    attachId(id);
+    attachId(id, suggestions?.estimated_timing);
   }
-  function attachId(id: string) {
-    change({ video_id: id, recording_confirmed: false, passages: [{ id: crypto.randomUUID(), label: 'Occurrence 1', anchors: [] }] });
+  function attachId(id: string, timing?: SongVideoSuggestions['candidates'][number]['timing']) {
+    const validTiming = timing && !validatePassages(timeline, timing.passages) ? timing : null;
+    change({ video_id: id, recording_confirmed: false, ...(validTiming ? { timing_source: validTiming.source } : {}), passages: validTiming?.passages ?? [{ id: crypto.randomUUID(), label: 'Occurrence 1', anchors: [] }] });
+    setStartTime('');
     setOccurrence('');
     setAnchorIndex('');
     setUrl('');
@@ -174,19 +180,19 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       player.current?.play();
       return;
     }
-    const position = draft?.recording_confirmed ? videoPosition(timeline, draft.passages, time) : null;
+    const position = timingEnabled && draft ? videoPosition(timeline, draft.passages, time) : null;
     const key = position ? `${position.passageId}:${position.measureIndex}:${position.beatIndex}` : '';
     if (key !== lastPosition.current) { lastPosition.current = key; onPosition(position); }
   }
   function playSelection() {
-    if (!ready || !range || !draft?.recording_confirmed) return;
+    if (!ready || !range || !timingEnabled) return;
     panel.current?.querySelector('iframe')?.scrollIntoView({ block: 'start', behavior: 'instant' });
     playingRange.current = { ...range, loop: loop && range.end !== null, seeking: true };
     player.current?.seek(range.start);
     player.current?.play();
   }
   async function save() {
-    if (draft && !draft.recording_confirmed) { setError('Confirm that this recording matches the score arrangement before saving.'); return; }
+    if (draft && !timingEnabled) { setError('Confirm that this recording matches the score arrangement before saving.'); return; }
     const issue = draft && (draft.passages.some(p => !p.label.trim()) ? 'Give each occurrence a name.' : validatePassages(timeline, draft.passages));
     if (issue) { setError(issue); return; }
     setBusy(true); setError(null);
@@ -227,7 +233,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       : !suggestions ? <p role="status">Finding recordings…</p>
       : suggestions.candidates.length === 0 ? <p>No linked recordings found. You can paste a YouTube link below.</p>
       : <ul>{suggestions.candidates.map((candidate, index) => <li key={candidate.video_id}>
-        <button type="button" className="music-button" disabled={candidate.video_id === draft?.video_id} onClick={() => attachId(candidate.video_id)} aria-label={`Preview recording ${index + 1}: ${candidate.title}`}>{candidate.title}{candidate.video_id === draft?.video_id ? " · selected" : ""}</button>
+        <button type="button" className="music-button" disabled={candidate.video_id === draft?.video_id} onClick={() => attachId(candidate.video_id, candidate.timing)} aria-label={`Preview recording ${index + 1}: ${candidate.title}`}>{candidate.title}{candidate.video_id === draft?.video_id ? " · selected" : ""}</button>
         <p>{candidate.channel ? `${candidate.channel} · ` : ''}{candidate.kind === 'musicvideo' ? 'Music video' : candidate.kind} · {candidate.match_note}</p>
       </li>)}</ul>}
     {recordingInput}
@@ -238,10 +244,19 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     : suggestions?.duration_note;
 
   const playReason = !ready ? 'Wait for the video to load, or retry the video if loading failed.'
-    : !draft?.recording_confirmed ? 'Confirm this recording matches the score, then mark where your selection starts.'
+    : !timingEnabled ? 'Confirm this recording matches the score, then mark where your selection starts.'
     : !range ? ranges.length > 1 ? 'Choose which occurrence to play.'
       : 'The selected start is unaligned. Pause the video where this measure or beat begins, then mark selection start.'
     : null;
+  function shiftStart() {
+    if (!draft || !Number.isFinite(firstTime)) return;
+    const desired = Number(startTime);
+    if (!startTime.trim() || !Number.isFinite(desired) || desired < 0) { setError('Enter a valid nonnegative start time.'); return; }
+    const passages = draft.passages.map(p => ({ ...p, anchors: p.anchors.map(a => ({ ...a, video_seconds: a.video_seconds + desired - firstTime })) }));
+    const issue = validatePassages(timeline, passages);
+    if (issue) { setError(issue); return; }
+    change({ ...draft, passages }); setStartTime('');
+  }
   function openCalibration() {
     if (!calibration.current) return;
     player.current?.pause();
@@ -259,8 +274,16 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       onTime={handleTime} onStateChange={value => { playingState.current = value; setState(value); }} />}
     <div className="song-video-tools">
       {draft && <>
+        {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
+        {Number.isFinite(firstTime) && <details><summary>Adjust recording start</summary>
+          <form className="song-video-actions" onSubmit={event => { event.preventDefault(); shiftStart(); }}>
+            <label>First aligned beat{firstAnchor ? ` (M${firstAnchor.measure_index + 1}, beat ${firstAnchor.beat_index + 1})` : ''} at (seconds)<input aria-label="First aligned beat at (seconds)" type="number" min="0" max="86400" step="0.1" value={startTime || String(firstTime)} onChange={event => setStartTime(event.target.value)} /></label>
+            <button type="submit" className="music-button" disabled={!startTime || busy}>Apply start time</button>
+          </form>
+          <p>Moves all timing points together. Undo edit restores the previous timing.</p>
+        </details>}
         {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
-        <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!draft.recording_confirmed ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
+        <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!timingEnabled ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
           const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1);
           return position ? `Video: M${position.measureIndex + 1}, beat ${position.beatIndex + 1} · ${draft.passages.find(p => p.id === position.passageId)?.label}` : 'Unaligned video section';
         })() : 'Unaligned video section'}</p>
