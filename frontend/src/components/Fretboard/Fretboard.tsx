@@ -138,7 +138,7 @@ export function Fretboard({
       <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
         <div className="min-w-[700px] md:min-w-[900px] lg:min-w-[1000px]">
           {/* Fret numbers */}
-          <FretboardHeader fretCount={fretCount} darkMode={darkMode} />
+          <FretboardHeader fretCount={fretCount} />
 
           {/* Strings */}
           <div className="border-t border-b" style={{ borderColor: 'var(--border-primary)' }}>

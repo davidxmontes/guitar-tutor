@@ -6,6 +6,7 @@ import { PlayTextButton } from '../PlayButton';
 import { SongControls } from '../SongControls';
 import { playChord, getChordDuration } from '../../utils/audio';
 import { useAppStore } from '../../stores';
+import { useThemeStore } from '../../stores/useThemeStore';
 import type { DiatonicChord } from '../../types';
 
 interface ControlBarProps {
@@ -21,9 +22,9 @@ export function ControlBar({
   onDirectChordSelect,
   onClearAll,
 }: ControlBarProps) {
+  const darkMode = useThemeStore((state) => state.darkMode);
   const {
     appMode,
-    darkMode,
     // Scale state
     selectedRoot,
     selectedMode,
@@ -183,7 +184,6 @@ export function ControlBar({
                     chords={scaleData.diatonic_chords}
                     onChordClick={onDiatonicChordClick}
                     selectedChord={selectedDiatonicChord}
-                    darkMode={darkMode}
                   />
                 </div>
               </div>

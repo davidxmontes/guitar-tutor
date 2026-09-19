@@ -6,11 +6,10 @@ Graph node implementations live in app.agent.nodes.
 """
 
 import logging
-import os
 import re
+from threading import Lock
 from typing import Any, Generator, List, Optional
 
-from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
@@ -30,8 +29,6 @@ from app.agent.nodes import (
 )
 from app.agent.schemas import OverallState
 from app.config import get_settings
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +85,7 @@ class GuitarTutorAgent:
         self.summary_char_threshold = max(1000, settings.agent_summary_char_threshold)
         self.recent_turn_window = max(2, settings.agent_recent_turn_window)
 
-        resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
+        resolved_key = api_key or settings.openai_api_key
         if not resolved_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
 
@@ -525,6 +522,7 @@ class GuitarTutorAgent:
 
 # Singleton instance (lazy initialization)
 _agent_instance: Optional[GuitarTutorAgent] = None
+_agent_lock = Lock()
 
 
 def get_agent() -> GuitarTutorAgent:
@@ -532,17 +530,18 @@ def get_agent() -> GuitarTutorAgent:
     from app.config import get_settings
 
     global _agent_instance
-    if _agent_instance is None:
-        settings = get_settings()
-        logger.info(
-            "Initializing agent: provider=%s, model=%s, base_url=%s",
-            settings.llm_provider,
-            settings.llm_model_name,
-            settings.llm_base_url,
-        )
-        _agent_instance = GuitarTutorAgent(
-            model_name=settings.llm_model_name,
-            base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key,
-        )
-    return _agent_instance
+    with _agent_lock:
+        if _agent_instance is None:
+            settings = get_settings()
+            logger.info(
+                "Initializing agent: provider=%s, model=%s, base_url=%s",
+                settings.llm_provider,
+                settings.llm_model_name,
+                settings.llm_base_url,
+            )
+            _agent_instance = GuitarTutorAgent(
+                model_name=settings.llm_model_name,
+                base_url=settings.llm_base_url,
+                api_key=settings.llm_api_key,
+            )
+        return _agent_instance

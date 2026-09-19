@@ -81,9 +81,6 @@
 .learning-note-chips [data-root='true'], .learning-note-chips .is-root { border-color: var(--learning-accent); color: var(--learning-accent); }
 .learning-details { border-top: 1px solid var(--border-primary); padding-top: 12px; }
 .learning-details summary { min-height: 44px; cursor: pointer; font-size: 13px; font-weight: 550; padding: 12px; border-radius: 9px; background: var(--bg-secondary); color: var(--learning-ink); }
-.learning-workspace .music-note--root circle { fill: var(--learning-accent); stroke: var(--learning-accent); }
-.learning-workspace .music-note--root text { fill: white; font-weight: 700; }
-.learning-workspace .music-note--playing circle { stroke: var(--accent-600); stroke-width: 6px; }
 .learning-root-key { font-weight: 650; color: var(--learning-accent); }
 .learning-pattern-practice { border-top: 1px solid var(--border-primary); margin-top: 16px; padding-top: 8px; }
 .tutor-panel { position: sticky; top: 16px; min-width: 0; border: 1px solid var(--control-border); background: var(--card-bg); border-radius: 18px; box-shadow: var(--surface-shadow); overflow: hidden; }
@@ -200,6 +197,7 @@
 .learning-view-bar nav, .learning-view-nav { border-radius: 8px; }
 .learning-chord-controls { padding: 8px 12px; border-radius: 8px; }
 .learning-workspace .learning-shape { padding: 12px; border-radius: 8px; background: var(--bg-secondary); }
+.learning-workspace .learning-shape > .diagram-select { width: 100%; }
 .learning-workspace .diagram-select { padding: 8px; gap: 4px; }
 .learning-workspace .diagram-select > svg { width: 100px; }
 .learning-workspace .learning-note-chips { gap: 6px; margin: 8px 0; }
@@ -283,8 +281,6 @@
 
 .learning-workspace .music-icon-button { display: inline-grid; place-items: center; width: 36px; min-width: 36px; min-height: 36px; padding: 6px; box-shadow: none; }
 .learning-step-heading > .music-icon-button { margin-left: auto; }
-.learning-workspace .diagram-select { position: relative; }
-.diagram-selected-mark { position: absolute; top: 6px; right: 8px; color: var(--learning-ink); font-size: 14px; }
 .learning-shape > .music-controls { justify-content: flex-end; border-top: 1px solid var(--border-primary); padding-top: 8px; }
 
 .music-icon-button > svg { width: 22px; height: 22px; min-width: 22px; flex-shrink: 0; }

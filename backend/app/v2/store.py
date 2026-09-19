@@ -11,7 +11,6 @@ Two backends, selected by Settings.v2_storage_backend:
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
-from functools import lru_cache
 from threading import RLock
 
 from typing import Any, Optional, Protocol
@@ -108,7 +107,8 @@ class InMemoryV2Store:
             updated_at=now,
         )
         session = Session(id=session_id, user_id=user_id, branches=[branch], created_at=now, updated_at=now)
-        self._sessions[session_id] = session
+        with self._branch_lock:
+            self._sessions[session_id] = session
         return session
 
     def get_session(self, session_id: str, user_id: str) -> Session:
@@ -126,24 +126,26 @@ class InMemoryV2Store:
             del self._sessions[session_id]
 
     def list_sessions(self, user_id: str) -> list[Session]:
-        owned = [s for s in self._sessions.values() if s.user_id == user_id]
+        with self._branch_lock:
+            owned = [s for s in self._sessions.values() if s.user_id == user_id]
         return sorted(owned, key=lambda s: s.created_at, reverse=True)
 
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
-        session = self.get_session(session_id, user_id)
-        now = _now()
-        fields = _branch_defaults(fields)
-        branch = Branch(
-            id=_new_id(),
-            session_id=session_id,
-            tutor_thread_id=_new_id(),
-            created_at=now,
-            updated_at=now,
-            **fields,
-        )
-        session.branches.append(branch)
-        session.updated_at = now
-        return branch
+        with self._branch_lock:
+            session = self.get_session(session_id, user_id)
+            now = _now()
+            fields = _branch_defaults(fields)
+            branch = Branch(
+                id=_new_id(),
+                session_id=session_id,
+                tutor_thread_id=_new_id(),
+                created_at=now,
+                updated_at=now,
+                **fields,
+            )
+            session.branches.append(branch)
+            session.updated_at = now
+            return branch
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         # ponytail: one memory-store lock; split by branch only if contention matters.
@@ -250,20 +252,23 @@ class InMemoryV2Store:
             created_at=now,
             updated_at=now,
         )
-        self._artifacts[artifact.id] = artifact
+        with self._branch_lock:
+            self._artifacts[artifact.id] = artifact
         return artifact
 
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact:
-        artifact = self._artifacts.get(artifact_id)
-        if artifact is None or artifact.user_id != user_id:
-            raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
-        return artifact
+        with self._branch_lock:
+            artifact = self._artifacts.get(artifact_id)
+            if artifact is None or artifact.user_id != user_id:
+                raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
+            return artifact
 
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]:
-        artifacts = [
-            artifact for artifact in self._artifacts.values()
-            if artifact.user_id == user_id and (kind is None or artifact.kind == kind)
-        ]
+        with self._branch_lock:
+            artifacts = [
+                artifact for artifact in self._artifacts.values()
+                if artifact.user_id == user_id and (kind is None or artifact.kind == kind)
+            ]
         return sorted(artifacts, key=lambda artifact: artifact.created_at, reverse=True)
 
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact:
@@ -291,7 +296,8 @@ class InMemoryV2Store:
             content=content,
             created_at=_now(),
         )
-        self._tutor_messages.setdefault(tutor_thread_id, []).append(message)
+        with self._branch_lock:
+            self._tutor_messages.setdefault(tutor_thread_id, []).append(message)
         return message
 
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]:
@@ -408,10 +414,14 @@ class SupabaseV2Store:
         return self._row_to_branch(rows[0])
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
-        self.get_session(session_id, user_id)  # raises NotFoundError if not owned
+        session = self.get_session(session_id, user_id)  # raises NotFoundError if not owned
+        current = next((branch for branch in session.branches if branch.id == branch_id), None)
+        if current is None:
+            raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
 
         expected = fields.pop('expected_updated_at', None)
         fields = _dump_fields(fields)
+        Branch.model_validate(current.model_dump() | fields)
         if fields: fields["updated_at"] = _now()
         query = self._client.table("v2_branches")
         # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
@@ -578,24 +588,29 @@ class SupabaseV2Store:
         return [self._row_to_tutor_message(r) for r in rows]
 
 
-@lru_cache
+_store: V2Store | None = None
+_store_lock = RLock()
+
+
 def get_v2_store() -> V2Store:
-    """Process-wide singleton store, backend chosen by Settings.v2_storage_backend.
-    lru_cache (same pattern as app.config.get_settings) memoizes this safely
-    across FastAPI's threadpool — a manual "if _store is None" global has a
-    check-then-set race under concurrent first requests.
-    """
+    """Share one store, including across concurrent first requests."""
+    global _store
     from app.config import get_settings  # local import avoids a config->store->config cycle
 
-    settings = get_settings()
-    if settings.v2_storage_backend == "supabase":
-        from app.db import get_supabase_client
+    with _store_lock:
+        if _store is not None:
+            return _store
+        settings = get_settings()
+        if settings.v2_storage_backend == "supabase":
+            from app.db import get_supabase_client
 
-        client = get_supabase_client()
-        if client is None:
-            raise RuntimeError(
-                "v2_storage_backend=supabase but Supabase is not configured "
-                "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
-            )
-        return SupabaseV2Store(client)
-    return InMemoryV2Store()
+            client = get_supabase_client()
+            if client is None:
+                raise RuntimeError(
+                    "v2_storage_backend=supabase but Supabase is not configured "
+                    "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
+                )
+            _store = SupabaseV2Store(client)
+        else:
+            _store = InMemoryV2Store()
+        return _store

@@ -1,9 +1,11 @@
+import { samePositions } from './harmony';
 import { MusicIcon } from './MusicIcon';
 import { useMusicalInteraction } from './musicalInteraction';
 import { useState } from 'react';
 import { Fretboard, Hear } from './Fretboard';
 import type { ViewConfig } from './Composition';
-import type { ChordRef, HarmonyResolved } from './harmony';
+import type { HarmonyResolved } from './harmony';
+import type { ChordRef } from '../types/music';
 import { physicalVoicing } from './harmony';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 
@@ -64,7 +66,7 @@ export function TriadExplorer({ chord, data, busy, edit, config }: {
       <label>Inversion<select aria-label="Inversion" value={inversion} onChange={event => setInversion(event.target.value)}><option value="all">All inversions</option>{names.map((name, index) => <option key={name} value={index}>{name}</option>)}</select></label>
     </div>
     {!options.length && <p className="learning-hint">Choose a major, minor, diminished or augmented chord to explore three-note shapes.</p>}
-    <div className="learning-shapes">{options.slice(0, limit).map(shape => { const voicing = physicalVoicing(shape); const selected = shape.positions.length === data.voicing_positions.length && shape.positions.every(note => data.voicing_positions.some(other => note.string === other.string && note.fret === other.fret)); return <article key={JSON.stringify(voicing.positions)} className="learning-shape" data-selected={selected}>
+    <div className="learning-shapes">{options.slice(0, limit).map(shape => { const voicing = physicalVoicing(shape); const selected = samePositions(shape.positions, data.voicing_positions); return <article key={JSON.stringify(voicing.positions)} className="learning-shape" data-selected={selected}>
       <h4>{names[shape.inversion]}</h4><p>{shape.bass} in the bass · frets {Math.min(...shape.positions.map(p => p.fret))}–{Math.max(...shape.positions.map(p => p.fret))}</p>
       <PhysicalChordDiagram positions={shape.positions} tuning={shape.tuning} label={`${chord.root} ${chord.quality} · ${names[shape.inversion]}`} selected={selected} disabled={busy}
         onSelect={() => interaction ? interaction.select({ type: 'voicing', chord, voicing }) : void edit({ focus: { kind: 'voicing', chord, voicing } })}
@@ -73,7 +75,7 @@ export function TriadExplorer({ chord, data, busy, edit, config }: {
       <div className="music-controls"><Hear voicing={voicing} /><button className="music-button music-icon-button" aria-label="Pin shape" title="Pin shape" disabled={busy} onClick={() => void edit({ pin: { chord, voicing } })}><MusicIcon name="pin" /></button></div>
     </article>; })}</div>
     {limit < Math.min(options.length, 12) && <button className="music-button" onClick={() => setLimit(12)}>Show more shapes</button>}
-    {options.length > 0 && <details className="learning-details"><summary>See these chord tones across the neck</summary><Fretboard context="harmony" tuning={options[0].tuning} layers={[{ id: 'triad', label: `${chord.root} ${chord.quality}`, focal: true, positions: data.chord_positions }]} config={view} onNudge={next => setView(previous => ({ ...previous, ...next }))} onSelect={() => {}} /></details>}
+    {options.length > 0 && <details className="learning-details"><summary>See these chord tones across the neck</summary><Fretboard context="harmony" tuning={options[0].tuning} layers={[{ id: 'triad', label: `${chord.root} ${chord.quality}`, focal: true, positions: data.chord_positions }]} config={view} onNudge={next => setView(previous => ({ ...previous, ...next }))} /></details>}
     {options.length > 0 && <p className="learning-hint">Diagrams run from thick strings on the left to thin strings on the right. ○ open string · × do not play. The number beside the grid is the first displayed fret.</p>}
   </section>;
 }

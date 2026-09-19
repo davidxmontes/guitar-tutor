@@ -1,5 +1,6 @@
 import { ChatPanel } from '../Chat';
 import { useAppStore, useStreamingStatus } from '../../stores';
+import { useThemeStore } from '../../stores/useThemeStore';
 
 interface ChatSidebarProps {
   onSendMessage: (message: string) => void;
@@ -12,11 +13,11 @@ export function ChatSidebar({
   onChordClick,
   onScaleClick,
 }: ChatSidebarProps) {
+  const darkMode = useThemeStore((state) => state.darkMode);
   const {
     messages,
     chatLoading,
     resetChat,
-    darkMode,
     chatCollapsed,
     toggleCollapsed,
     chatWidth,
@@ -120,11 +121,11 @@ export function MobileChatSheet({
   onChordClick,
   onScaleClick,
 }: MobileChatSheetProps) {
+  const darkMode = useThemeStore((state) => state.darkMode);
   const {
     messages,
     chatLoading,
     resetChat,
-    darkMode,
     mobileSheetOpen,
     setMobileSheetOpen,
     selectedChordRoot,

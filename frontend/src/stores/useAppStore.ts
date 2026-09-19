@@ -13,7 +13,6 @@ import type {
   ChordProResponse,
   HighlightedNote,
   TabBeat,
-  TabMeasure,
   TuningInfo,
   SavedProgression,
   FavoriteSong,
@@ -21,6 +20,7 @@ import type {
 } from '../types';
 import type { ChatMessage, UiContext, FretboardHighlightGroup } from '../types/chat';
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
+import { getBeatsFromMeasure } from '../utils/tab';
 import { setGuitarType as audioSetGuitarType, type GuitarType } from '../utils/audio';
 
 // App mode type
@@ -39,13 +39,18 @@ function generateThreadId(): string {
 // localStorage keys
 const STORAGE_KEY_THREAD = 'guitar-tutor-thread-id';
 const STORAGE_KEY_MESSAGES = 'guitar-tutor-messages';
+let storageScope = 'anonymous';
+
+function chatStorageKey(key: string): string {
+  return `${key}:${storageScope}`;
+}
 
 function loadThreadId(): string {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY_THREAD);
+    const stored = localStorage.getItem(chatStorageKey(STORAGE_KEY_THREAD));
     if (stored) return stored;
     const newId = generateThreadId();
-    localStorage.setItem(STORAGE_KEY_THREAD, newId);
+    localStorage.setItem(chatStorageKey(STORAGE_KEY_THREAD), newId);
     return newId;
   } catch {
     return generateThreadId();
@@ -54,12 +59,12 @@ function loadThreadId(): string {
 
 function loadMessages(): ChatMessage[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    const raw = localStorage.getItem(chatStorageKey(STORAGE_KEY_MESSAGES));
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
+    const parsed: Array<Omit<ChatMessage, 'timestamp'> & { timestamp: string }> = JSON.parse(raw);
     return parsed
-      .filter((m: any) => m.content != null && m.content !== 'null')
-      .map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+      .filter((m) => m.content != null && m.content !== 'null')
+      .map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
   } catch {
     return [];
   }
@@ -67,31 +72,9 @@ function loadMessages(): ChatMessage[] {
 
 function persistThread(threadId: string, messages: ChatMessage[]) {
   try {
-    localStorage.setItem(STORAGE_KEY_THREAD, threadId);
-    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
+    localStorage.setItem(chatStorageKey(STORAGE_KEY_THREAD), threadId);
+    localStorage.setItem(chatStorageKey(STORAGE_KEY_MESSAGES), JSON.stringify(messages));
   } catch { /* storage full or unavailable */ }
-}
-
-function getBeatsFromMeasure(measure?: TabMeasure): TabBeat[] {
-  if (!measure) return [];
-  const voices = measure.voices ?? [];
-  if (voices.length === 0) return [];
-  if (voices.length === 1) return voices[0]?.beats ?? [];
-
-  let bestBeats: TabBeat[] = voices[0]?.beats ?? [];
-  let bestScore = -1;
-  for (const voice of voices) {
-    const beats = voice?.beats ?? [];
-    const score = beats.reduce((acc, beat) => {
-      const noteCount = (beat.notes ?? []).filter((n) => !n.rest && !n.dead).length;
-      return acc + noteCount;
-    }, 0);
-    if (score > bestScore) {
-      bestScore = score;
-      bestBeats = beats;
-    }
-  }
-  return bestBeats;
 }
 
 function toHighlightedNotes(beat?: TabBeat): HighlightedNote[] {
@@ -121,11 +104,9 @@ function firstPlayableBeatIndex(beats: TabBeat[]): number | undefined {
 }
 
 // ============================================================================
-// Theme Slice
+// Playback Settings Slice
 // ============================================================================
-interface ThemeSlice {
-  darkMode: boolean;
-  toggleDarkMode: () => void;
+interface PlaybackSettingsSlice {
   guitarType: GuitarType;
   setGuitarType: (type: GuitarType) => void;
   autoPlay: boolean;
@@ -197,6 +178,8 @@ interface ChordSlice {
 // Chat Slice
 // ============================================================================
 interface ChatSlice {
+  accountId: string | null | undefined;
+  initializeAccount: (userId: string | null) => void;
   messages: ChatMessage[];
   chatLoading: boolean;
   streamingStatus: string | null;
@@ -342,38 +325,15 @@ interface UserSlice {
 // ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice & UserSlice;
+type AppStore = PlaybackSettingsSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice & UserSlice;
 
 // ============================================================================
 // Store Implementation
 // ============================================================================
 export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
-  // Theme Slice
+  // Playback Settings Slice
   // --------------------------------------------------------------------------
-  darkMode: (() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('darkMode');
-      if (saved !== null) return saved === 'true';
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  })(),
-  
-  toggleDarkMode: () => {
-    set((state) => {
-      const newMode = !state.darkMode;
-      localStorage.setItem('darkMode', String(newMode));
-      // Apply to DOM
-      if (newMode) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-      return { darkMode: newMode };
-    });
-  },
-
   guitarType: (() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('guitarType') as GuitarType) ?? 'acoustic';
@@ -531,10 +491,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   // Chat Slice
   // --------------------------------------------------------------------------
-  messages: loadMessages(),
+  accountId: undefined,
+  initializeAccount: (userId) => {
+    if (get().accountId !== undefined) return;
+    // Legacy unscoped history has no reliable owner; retain it without importing it.
+    storageScope = userId === null ? 'anonymous' : `user:${userId}`;
+    set({ accountId: userId, messages: loadMessages(), threadId: loadThreadId() });
+  },
+  messages: [],
   chatLoading: false,
   streamingStatus: null,
-  threadId: loadThreadId(),
+  threadId: '',
   debugMode: false,
   
   addMessage: (message) => {
@@ -1332,10 +1299,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   loadThread: (threadId: string) => {
-    try {
-      localStorage.setItem(STORAGE_KEY_THREAD, threadId);
-      localStorage.removeItem(STORAGE_KEY_MESSAGES);
-    } catch { /* ignore */ }
+    persistThread(threadId, []);
     set({ messages: [], threadId });
   },
 }));
@@ -1343,10 +1307,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
 // ============================================================================
 // Selector Hooks (for performance - only re-render when specific state changes)
 // ============================================================================
-
-// Theme selectors
-export const useDarkMode = () => useAppStore((state) => state.darkMode);
-export const useToggleDarkMode = () => useAppStore((state) => state.toggleDarkMode);
 
 // UI selectors
 export const useAppMode = () => useAppStore((state) => state.appMode);

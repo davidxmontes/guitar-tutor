@@ -1,3 +1,7 @@
+import pytest
+
+from app.v2.progression_state import ProgressionIdeaDraft, ProgressionWorkspaceState
+from app.v2.tutor.saved_work import saved_work_tools
 from tests.v2.workspace_fixtures import client, store, session_and_branch
 
 
@@ -53,6 +57,9 @@ def test_library_all_kinds_and_history_are_owner_scoped(client, store):
     listed = client.get('/api/v2/library').json()
     assert {a['kind'] for a in listed} == set(payloads)
     assert all('payload' not in a and 'revisions' not in a for a in listed)
+    by_kind = {a['kind']: a for a in listed}
+    assert by_kind['exercise']['provenance'] == {'title': 'Song'}
+    assert by_kind['song_study']['provenance']['title'] == 'song_study'
     foreign = store.create_artifact('other', 'progression', 'Private', {})
     assert client.post(f'/api/v2/library/{foreign.id}/restore', json={'revision': 'old', 'expected_updated_at': foreign.updated_at}).status_code == 404
 
@@ -63,3 +70,36 @@ def test_song_library_title_keeps_artist_when_saving_and_editing(client, store):
     assert saved['title'] == 'Artist - Song'
     changed = store.update_artifact(song.id, 'user_1', {**song.payload, 'saved_ranges': []}, saved['updated_at'])
     assert changed.title == 'Artist - Song'
+
+
+@pytest.mark.parametrize('tonal_center, provenance, source, source_query', [
+    ({'root': 'D', 'scale': 'dorian'},
+     {'kind': 'song-idea', 'song': {'title': 'Northern lights', 'artist': 'Example artist', 'song_id': 7}},
+     {'title': 'Northern lights', 'artist': 'Example artist', 'song_id': 7}, 'Northern lights'),
+    ({'root': 'E', 'scale': 'natural_minor'},
+     {'kind': 'concept-seed', 'concept': 'Circle of fifths'},
+     {'title': 'Circle of fifths'}, 'Circle fifths'),
+    ({'root': 'F#', 'scale': 'major'},
+     {'kind': 'harmony-develop', 'scratch': [{'id': 'g', 'root': 'G', 'quality': 'major'}]},
+     {'title': 'Harmony'}, 'Harmony'),
+])
+def test_saved_progression_key_and_source_are_visible_to_library_and_tutor(
+    client, store, session_and_branch, tonal_center, provenance, source, source_query,
+):
+    session_id, branch_id = session_and_branch
+    idea = ProgressionIdeaDraft(label='Night loop', tonal_center=tonal_center,
+                                chords=[{'root': 'G', 'quality': 'major'}], provenance=provenance)
+    branch = store.update_branch(session_id, branch_id, 'user_1', active_workspace='progression',
+        progression_workspace=ProgressionWorkspaceState(ideas=[idea], active_idea_id=idea.id))
+    response = client.post(f'/api/v2/sessions/{session_id}/branches/{branch_id}/progression/save',
+                           json={'expected_updated_at': branch.updated_at})
+    assert response.status_code == 200, response.text
+    saved = response.json()['artifact']
+    search, _ = saved_work_tools(store, 'user_1')
+    key = f"{tonal_center['root']} {tonal_center['scale'].replace('_', ' ')}"
+    assert [match['id'] for match in search.invoke({'query': key})['matches']] == [saved['id']]
+    assert [match['id'] for match in search.invoke({'query': source_query})['matches']] == [saved['id']]
+    listed = client.get('/api/v2/library').json()
+    assert listed[0]['provenance'] == source
+    assert 'payload' not in listed[0]
+    assert store.get_artifact(saved['id'], 'user_1').payload == saved['payload']

@@ -28,10 +28,10 @@ export function KeyPalette() {
   }, []);
 
   useEffect(() => {
-    if (!progressionKeyRoot) {
+    if (!useAppStore.getState().progressionKeyRoot) {
       setProgressionKey('C', 'major');
     }
-  }, []);
+  }, [setProgressionKey]);
 
   const handleRootChange = (root: string) => {
     setProgressionKey(root, progressionKeyMode ?? 'major');

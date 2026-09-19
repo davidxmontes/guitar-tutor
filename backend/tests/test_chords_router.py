@@ -27,11 +27,12 @@ def test_get_chord_invalid_root_returns_400() -> None:
 
 
 def test_get_chord_returns_404_when_voicing_not_available(monkeypatch) -> None:
-    from app.routers import chords as chords_router
+    from app.music import chords_db
 
-    monkeypatch.setattr(chords_router, "get_voicing_positions", lambda _r, _q: None)
+    monkeypatch.delitem(chords_db._CHORD_INDEX, ("C", "major"))
     response = client.get("/api/chords/C/major")
     assert response.status_code == 404
+    assert response.json()["detail"] == "Chord C major not available in voicings database"
 
 
 def test_mode_query_param_is_ignored() -> None:

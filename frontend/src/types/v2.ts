@@ -1,27 +1,66 @@
-import type { Composition } from '../v2/Composition';
 import type { TabData } from './song';
+import type { ChordRef, NoteGroup, PhysicalPosition, TonalCenter, VoicingValue } from './music';
+
+export type BlockSpec = {
+  kind: string;
+  subject?: unknown;
+  config?: Record<string, unknown>;
+  emphasis?: 'normal' | 'muted';
+  size?: 'small' | 'medium' | 'large' | 'fill';
+};
+export type Composition = {
+  pattern: 'hero-with-support' | 'comparison' | 'master-detail' | 'explanation-led' | 'stack' | 'split' | 'grid';
+  size?: 'small' | 'medium' | 'large' | 'fill';
+  slots: Record<string, (BlockSpec | Composition)[]>;
+  focal: string;
+  per_block_config?: Record<string, Record<string, unknown>>;
+};
 
 export type ArtifactKind = 'song_study' | 'progression' | 'exercise';
 export type WorkspaceKind = 'harmony' | 'progression';
 
-// Branch state (Spec #100 §5.1). Ticket #101 hard cutover: the old
-// concept_study / working_draft / selection / focus / recent_ideas /
-// fork_context fields are gone. HarmonyExploration (H1) and
-// ProgressionWorkspaceState (P1) internals are intentionally loose here.
+// Persisted state mirrors backend/app/v2/{harmony,progression}_state.py.
+export type HarmonyFocus =
+  | { kind: 'scale' }
+  | { kind: 'degree'; degree: number }
+  | { kind: 'chord'; chord: ChordRef }
+  | { kind: 'voicing'; chord: ChordRef; voicing: VoicingValue };
+export type ScratchChord = ChordRef & { id: string };
+export type PinnedVoicing = { chord: ChordRef; voicing: VoicingValue };
+export type Provenance =
+  | { kind: 'concept-seed'; concept: string; prompt?: string | null }
+  | { kind: 'harmony-develop'; scratch: ScratchChord[]; tonal_center: TonalCenter | null }
+  | { kind: 'song-idea'; song: Record<string, unknown> };
+
 export interface HarmonyExploration {
-  tonal_center: Record<string, unknown> | null;
+  tonal_center: TonalCenter | null;
   tuning: number[];
-  scratch: Record<string, unknown>[];
-  focus: Record<string, unknown>;
-  pinned_voicings: Record<string, unknown>[];
-  kept_note_groups: Record<string, unknown>[];
-  provenance: Record<string, unknown> | null;
+  scratch: ScratchChord[];
+  focus: HarmonyFocus;
+  pinned_voicings: PinnedVoicing[];
+  kept_note_groups: NoteGroup[];
+  provenance: Provenance | null;
+}
+
+export type ProgressionStep = ChordRef & { id: string; duration_beats: number; voicing: VoicingValue | null };
+export type ProgressionFocus = { kind: 'step'; step_id: string } | { kind: 'transition'; from_step_id: string; to_step_id: string };
+export interface ProgressionIdea {
+  id: string;
+  label: string;
+  tonal_center: TonalCenter | null;
+  tuning: number[];
+  chords: ProgressionStep[];
+  kept_note_groups: NoteGroup[];
+  artifact_id: string | null;
+  base_revision_id: string | null;
+  dirty: boolean;
+  provenance: Provenance | null;
 }
 
 export interface ProgressionWorkspaceState {
-  ideas: import('../v2/progression').ProgressionIdea[];
+  ideas: ProgressionIdea[];
   active_idea_id: string | null;
-  focus: import('../v2/progression').ProgressionFocus | null;
+  focus: ProgressionFocus | null;
 }
 
 export interface V2Branch {
@@ -104,7 +143,7 @@ export interface SongShapeSource {
 
 export interface SongShapeEvent {
   label: string | null;
-  positions: Array<{ string: number; fret: number }>;
+  positions: PhysicalPosition[];
   tuning: number[];
   sources: SongShapeSource[];
 }
@@ -147,24 +186,19 @@ export interface CreateSongStudyRequest {
   track_index: number;
 }
 
-// --- Tutor (stateless message turn — full contract is ticket T3, Spec §5.7) ---
-
-export interface TutorFretPosition {
-  string: number;
-  fret: number;
-}
+// --- Tutor turns and background jobs ---
 
 export interface BranchFocusGroup {
   branch_id: string;
   branch_title: string;
   label: string;
-  notes: TutorFretPosition[];
+  notes: PhysicalPosition[];
   tuning: number[];
 }
 
 export interface TutorAttention {
   role: string;
-  notes: TutorFretPosition[];
+  notes: PhysicalPosition[];
   label?: string | null;
 }
 
@@ -179,7 +213,7 @@ export interface TutorUsage {
 
 export type ProgressionArtifact = Omit<Artifact, 'payload' | 'kind'> & {
   kind: 'progression';
-  payload: { title: string } & Pick<import('../v2/progression').ProgressionIdea, 'tonal_center' | 'tuning' | 'chords' | 'provenance'>;
+  payload: { title: string } & Pick<ProgressionIdea, 'tonal_center' | 'tuning' | 'chords' | 'provenance'>;
 };
 
 export interface TutorResponse {
@@ -229,7 +263,7 @@ export interface TutorMessage {
 export interface ExerciseStep {
   label: string;
   beats: number;
-  positions: { string: number; fret: number }[];
+  positions: PhysicalPosition[];
   tuning: number[];
 }
 export interface ExerciseDraft {
@@ -245,7 +279,7 @@ export interface ExerciseProposal extends ExerciseDraft {
 }
 export type ExerciseArtifact = Omit<Artifact, 'kind' | 'payload'> & {
   kind: 'exercise';
-  payload: ExerciseDraft & { created_from: { artifact_id: string; title: string; kind: ArtifactKind; selection: Record<string, unknown> | null } | { kind: 'progression'; idea: import('../v2/progression').ProgressionIdea } };
+  payload: ExerciseDraft & { created_from: { artifact_id: string; title: string; kind: ArtifactKind; selection: Record<string, unknown> | null } | { kind: 'progression'; idea: ProgressionIdea } };
 };
 
 // Song view navigation is local to the artifact viewer, never Branch focus.

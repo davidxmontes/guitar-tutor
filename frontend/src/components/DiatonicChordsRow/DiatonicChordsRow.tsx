@@ -4,10 +4,9 @@ interface DiatonicChordsRowProps {
   chords: DiatonicChord[];
   onChordClick?: (chord: DiatonicChord) => void;
   selectedChord?: DiatonicChord | null;
-  darkMode?: boolean;
 }
 
-export function DiatonicChordsRow({ chords, onChordClick, selectedChord, darkMode: _darkMode = false }: DiatonicChordsRowProps) {
+export function DiatonicChordsRow({ chords, onChordClick, selectedChord }: DiatonicChordsRowProps) {
   if (chords.length === 0) {
     return null;
   }

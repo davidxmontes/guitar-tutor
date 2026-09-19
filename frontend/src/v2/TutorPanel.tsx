@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiClient } from '../api/client';
 import type { ExerciseStep, LearningPreferences, TutorMessage, V2Branch } from '../types/v2';
-import type { VoicingValue } from './Fretboard';
+import type { VoicingValue } from '../types/music';
 import { playChord, playTimedChords } from '../utils/audio';
 
 function readPreferences(): LearningPreferences {

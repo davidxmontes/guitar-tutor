@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PracticeState } from './usePractice';
 import { PracticeControls } from './PracticeControls';
-import type { ProgressionIdea, ProgressionResolved } from './progression';
+import type { ProgressionResolved } from './progression';
+import type { ProgressionIdea } from '../types/v2';
 
 export function ProgressionPractice({ idea, data, selectedId, busy, onSelect, edit, practice }: { idea: ProgressionIdea; data: ProgressionResolved; selectedId?: string; busy: boolean; onSelect: (id: string) => void; edit: (value: Record<string, unknown>) => Promise<void>; practice: PracticeState }) {
   const [dragged, setDragged] = useState<string | null>(null);

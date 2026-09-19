@@ -11,9 +11,7 @@ const QUICK_ACTIONS = [
   { label: "Beginner chords", prompt: "What are the easiest chords for beginners?", type: "chord" },
 ];
 
-export function QuickActions({ onAction, disabled = false, darkMode: _darkMode = false }: QuickActionsProps) {
-  // Check if we're in dark mode by looking at the document class
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+export function QuickActions({ onAction, disabled = false, darkMode: isDark = false }: QuickActionsProps) {
   
   const getButtonStyles = (type: string) => {
     if (type === 'scale') {

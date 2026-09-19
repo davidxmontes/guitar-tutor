@@ -5,18 +5,17 @@ import { Hear } from './Fretboard';
 import { TutorPanel } from './TutorPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { V2Branch } from '../types/v2';
+import type { Composition, V2Branch, ProgressionFocus } from '../types/v2';
 import { CompositionView } from './Composition';
 import { Fretboard } from './Fretboard';
-import type { ResolvedNote } from './Fretboard';
+import type { ResolvedNote } from '../types/music';
 import { ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
 import { ExerciseComposer } from './ExerciseComposer';
 import { ChordInspector } from './ChordFocus';
 import { HarmonicFunction, VoiceLeading } from './ProgressionAnalysis';
 import { ProgressionEditor } from './ProgressionEditor';
 import { useCompare } from './compare';
-import type { ProgressionFocus, ProgressionSurface } from './progression';
-import type { Composition } from './Composition';
+import type { ProgressionSurface } from './progression';
 import { ProgressionPractice } from './ProgressionPractice';
 import { usePractice } from './usePractice';
 
@@ -74,7 +73,7 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
   const selectStep = (step_id: string) => { if (busy) return; compare.clear(); void edit(intentFields({ type: 'step', step_id })); };
   const inspect = (target: ProgressionFocus) => {
     if (busy) return;
-    compare.clear(); const { kind, ...fields } = target; void edit(intentFields({ type: kind, ...fields } as import('./musicalInteraction').MusicalIntent));
+    compare.clear(); void edit({ focus: target });
     requestAnimationFrame(() => document.getElementById('workspace-music')?.scrollIntoView({ block: 'start' }));
   };
   return <MusicalInteraction scope={JSON.stringify([branch.id, surface.branch.live_presentation_turn_id, idea?.id, focus])} onSelect={intent => { if (!busy) void edit(intentFields(intent)); }}><section className="learning-workspace progression-workspace" data-testid="progression-workspace" aria-busy={busy}>
@@ -86,7 +85,7 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
     <div className="learning-workspace-layout"><div className="learning-workspace-main" id="workspace-music" tabIndex={-1}>
     {error && <p role="alert">{error}</p>}<p role="status">{compare.error}</p>
     {idea && data && <ProgressionPractice idea={idea} data={data} selectedId={selectedStep?.id} busy={busy} onSelect={selectStep} edit={edit} practice={{ ...practice, enter: () => { compare.clear(); practice.setAudioMode('both'); practice.enter(); } }} />}
-    {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <><h3>{peer.label}</h3><p>{String(peer.sequence ?? '')}</p><Fretboard context="progression" layers={[{ id: peer.id, label: peer.label, positions: peer.positions as ResolvedNote[], focal: true }]} config={config} onNudge={nudge} onSelect={() => {}} /></>} /> : <CompositionView composition={composition} liveTurnId={`${branch.id}:${view}:${surface.branch.live_presentation_turn_id ?? 'starter'}`} renderBlock={(block, _path, nudge) => {
+    {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <><h3>{peer.label}</h3><p>{String(peer.sequence ?? '')}</p><Fretboard context="progression" layers={[{ id: peer.id, label: peer.label, positions: peer.positions as ResolvedNote[], focal: true }]} config={config} onNudge={nudge} /></>} /> : <CompositionView composition={composition} liveTurnId={`${branch.id}:${view}:${surface.branch.live_presentation_turn_id ?? 'starter'}`} renderBlock={(block, _path, nudge) => {
       if (block.kind === 'progression-idea-list') return <section aria-label="Progression ideas"><h3>Ideas</h3>{workspace.ideas.map(value => <div key={value.id} className="music-controls"><button className="music-button" disabled={busy} aria-pressed={value.id === workspace.active_idea_id} onClick={() => void edit({ active_idea_id: value.id })}>{value.label}</button><button className="music-button" onClick={() => compare.toggle({ kind: 'progression-idea', id: value.id, label: value.label, sequence: value.chords.map(step => `${step.root} ${step.quality} (${step.duration_beats} beats)`).join(' → '), positions: surface.resolved[value.id].steps.flatMap(step => step.positions) })}>Compare {value.label}</button></div>)}</section>;
       if (block.kind === 'candidate-set') return <p>Audition and keep alternatives in <a href="#workspace-tutor">Your Tutor →</a></p>;
       if (block.kind === 'harmonic-function' && data) return <HarmonicFunction data={data} selectedId={step?.id} busy={busy} onFocus={step_id => inspect({ kind: 'step', step_id })} />;

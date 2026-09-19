@@ -1,137 +1,119 @@
 # Guitar Tutor
 
-> **Repository status:** V2 is the default product on `main-v2`. Some detailed
-> architecture and setup sections below still describe the original app. For
-> current V2 behavior, use the active GitHub specs, `CONTEXT.md`, relevant
-> `docs/adr/` decisions, and the code as the source of truth.
+Guitar Tutor is a React + FastAPI guitar learning workspace. V2 is the default
+product on `main-v2`; `/classic` preserves the original app.
 
-An interactive web app for learning guitar music theory. Pick a scale or chord, see it on the fretboard, search for songs with real tabs, and chat with an AI tutor that can answer questions and update the board in real time.
+## Product and ownership
 
-![React](https://img.shields.io/badge/React-19-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.114-green) ![Python](https://img.shields.io/badge/Python-3.12-yellow) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+A **Session** contains **Branches**. Each Branch owns its available Harmony and
+Progression workspaces, and one Tutor conversation.
 
-## What it does
+- **Harmony** explores scales, chords, triads, CAGED shapes, and a lightweight
+  Scratch Sequence. It autosaves within the Branch; it is not a saved Artifact.
+- **Progression** develops ordered chords, durations, and assigned voicings.
+  Develop copies Harmony scratch into an idea. Save promotes an idea into a
+  versioned Artifact in My Stuff.
+- **Tutor** runs against the current Branch, using deterministic music tools
+  and a validated Composition. Its musical change, messages, snapshot, and live
+  presentation pointer commit together. Restore changes the teaching surface;
+  Undo restores music only while the revision still matches.
+- **SongStudy and Exercise** are separate saved-artifact viewers. SongStudy
+  reuses tab, shape, enrichment, and practice facilities. Song-aware Tutor
+  conversation is not connected to these independent viewers.
 
-- **Interactive fretboard** — 22 frets, all 6 strings, clickable notes. Toggle between note names and intervals.
-- **Scale explorer** — 14+ scales with diatonic chord generation. Select a scale and see every note highlighted across the neck.
-- **Chord visualizer** — 18+ chord qualities powered by a curated voicing database. Explore real guitar voicings across positions on the neck.
-- **Voicing filtering** — Toggle individual voicings on/off, isolate one position, or view all voicings together.
-- **Song view** — Search for songs via Songsterr, browse tracks, and view tablature with a scrollable measure-by-measure tab viewer. Selecting a beat highlights the corresponding notes on the fretboard. Tuning auto-detects from the track. Switch between tab and chord/lyric views (ChordPro).
-- **AI tutor chat** — Ask questions about music theory and get answers that automatically update the fretboard. The agent can search for songs, navigate to specific measures, and highlight fret positions directly on the board. Suggestions come as clickable pills you can tap to load instantly.
-- **Agent fretboard highlights** — The tutor can overlay named highlight groups (chord shapes, scale boxes, voicings) on the fretboard with a carousel to cycle through alternatives.
-- **Mobile friendly** — Responsive layout with a slide-up chat panel on small screens.
+The backend owns musical derivation and persistence. React renders resolved
+notes and voicings; view controls, audio playback, and hover previews are local.
+The glossary is [CONTEXT.md](CONTEXT.md); durable boundaries are in
+[docs/adr](docs/adr). See [frontend/README.md](frontend/README.md) for musical
+component reuse and [project guidance](docs/agents/project.md) for the gate and
+remaining operational limits.
 
-## Tech stack
+## Local development
 
-**Frontend:** React, TypeScript, Vite, Tailwind CSS, Zustand
+Python 3.12 and Node.js 22 are the versions used by the Dockerfiles.
 
-**Backend:** FastAPI, LangGraph, LangChain, Pydantic
-
-**Infra:** Docker, Docker Compose, Nginx
-
-## Getting started
-
-### Docker (recommended)
-
-```bash
-cp .env.example .env
-# fill in your API keys
-
-docker-compose up --build
-```
-
-App runs at `http://localhost`, API at `http://localhost:8000`.
-
-### Local dev
-
-**Backend:**
-
-```bash
+```sh
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt 'uvicorn[standard]'
+AUTH_DEV_BYPASS=true V2_STORAGE_BACKEND=memory .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 ```
 
-**Frontend:**
+In a second terminal:
 
-```bash
+```sh
 cd frontend
-npm install
-npm run dev
+npm ci
+VITE_AUTH_DEV_BYPASS=true npm run dev
 ```
 
-Frontend runs at `http://localhost:5173` and proxies `/api` to the backend.
+Open `http://localhost:5173`. Vite proxies `/api` to the backend. The local auth
+bypass signs in as a fixed development user. In-memory work is lost when the
+backend stops. Neither provider credentials nor hosted services are needed for
+musical exploration or the scripted test suite.
 
-## Environment variables
+For authenticated/provider-backed use, the variable names are documented in
+[backend/.env.example](backend/.env.example) and
+[frontend/.env.example](frontend/.env.example). Both auth bypasses must be off
+outside local testing. Clerk uses `CLERK_ISSUER_URL` on the backend and
+`VITE_CLERK_PUBLISHABLE_KEY` in the frontend. V2 chooses its provider/model with
+`V2_TUTOR_PROVIDER` and `V2_TUTOR_MODEL`, independently of Classic.
 
-| Variable | Required | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | Yes | Powers the AI tutor |
-| `LANGSMITH_API_KEY` | No | LLM tracing/observability |
-| `LANGSMITH_TRACING` | No | Enable tracing (`true`/`false`) |
-| `ALLOWED_ORIGINS` | No | CORS origins, comma-separated |
+Classic chat history is isolated by account. Earlier unscoped browser records
+are preserved but no longer restored automatically because their owner is
+unknown; see [the compatibility note](docs/agents/project.md#deliberate-limits-and-decisions).
 
-## API
+## Verification
 
-The backend exposes a few endpoints — full docs available at `/docs` when the server is running.
+```sh
+cd frontend
+npm run lint
+npm run build
+npm test
+npm run test:e2e
 
-- `GET /api/fretboard` — Full chromatic fretboard grid
-- `GET /api/scales/{root}/{mode}` — Scale positions + diatonic chords
-- `GET /api/chords/{root}/{quality}` — Chord positions with database-backed voicings
-- `GET /api/tunings` — Available guitar tunings
-- `GET /api/songs/search?q=...` — Search songs via Songsterr
-- `GET /api/songs/{id}/tracks` — Track list for a song
-- `GET /api/songs/{id}/tab?track=0` — Tab data for a specific track
-- `GET /api/songs/{id}/chords` — ChordPro lyrics + chords
-- `POST /api/agent/chat` — Send a message to the AI tutor
-- `POST /api/agent/chat/stream` — SSE streaming chat
-- `POST /api/agent/resume` — Resume after a clarifying question
-
-## Agent architecture
-
-The AI tutor is a LangGraph state graph with three nodes:
-
-```
-START -> classify_input -> clarify_input -> generate_answer -> END
+cd ../backend
+.venv/bin/python -m pytest -q
 ```
 
-1. **classify_input** — Gate node. Classifies the user's message as proceed, needs-clarification, or out-of-scope. Uses a running conversation summary and UI context (selected scale/chord/song, playhead position) to make the decision.
-2. **clarify_input** — If the gate requested clarification, this node interrupts the graph (LangGraph `interrupt`) and returns the question to the user. When the user responds, the graph resumes and routes to `generate_answer`.
-3. **generate_answer** — Multi-step answer generation:
-   - **Song tool planning** — An LLM call decides whether to search for a song or navigate to a measure, producing action payloads the frontend executes.
-   - **Answer text** — The main LLM call generates the teaching response, grounded in conversation summary, UI context, and any tool results.
-   - **Post-processing** — A structured output call extracts metadata (scale name, chord choices, visualization flag) and fretboard highlight groups (named sets of string/fret positions) in one pass.
+Playwright starts both local servers, uses memory persistence and a scripted
+Tutor/Songsterr boundary, and needs installed Chromium (`npx playwright install
+chromium`). Set `PLAYWRIGHT_BACKEND_PORT` and `PLAYWRIGHT_FRONTEND_PORT` if the
+default ports are occupied. Unit/API tests use fixtures rather than paid model
+calls. The build includes TypeScript checking.
 
-The agent supports both synchronous and SSE streaming endpoints. Conversation state is checkpointed per thread (in-memory or SQLite) so multi-turn context survives across requests.
+The disposable PostgreSQL transaction check is
+`backend/tests/v2/check_workspace_transaction.py`; it requires PostgreSQL tools
+on PATH and operates on a temporary local cluster. It verifies the checked-in
+schema/RPCs, not a hosted database.
 
-## Project structure
+## Source map
 
-```
-├── frontend/
-│   ├── src/
-│   │   ├── components/       # Fretboard, Chat, Selectors, Song, TabViewer, Layout
-│   │   ├── stores/           # Zustand state (slices per domain)
-│   │   ├── api/              # API client
-│   │   ├── types/            # TypeScript interfaces
-│   │   └── App.tsx
-│   └── vite.config.ts
-│
-├── backend/
-│   ├── app/
-│   │   ├── routers/          # Thin FastAPI route handlers
-│   │   ├── services/         # Business logic (scale, chord, fretboard, songsterr)
-│   │   ├── music/            # Pure music theory engine (scales, chords, tunings, notes)
-│   │   ├── agent/            # LangGraph AI tutor (graph, nodes, prompts, parser)
-│   │   └── models/           # Pydantic schemas
-│   └── requirements.txt
-│
-└── docker-compose.yml
-```
+| Path | Responsibility |
+| --- | --- |
+| `frontend/src/v2/` | V2 shell, workspaces, shared music displays, Tutor, practice |
+| `frontend/src/components/`, `src/App.tsx`, `src/stores/useAppStore.ts` | Classic UI/state; selected tab/song components are reused by V2 |
+| `frontend/src/types/music.ts`, `src/types/v2.ts` | Shared musical values and persisted V2 workspace contracts |
+| `frontend/src/main.tsx`, `src/stores/useThemeStore.ts` | App entry selection and shared theme preference |
+| `frontend/src/utils/tab.ts` | Shared playable-voice selection for tab rendering and practice |
+| `frontend/src/api/client.ts` | HTTP and Classic streaming transport |
+| `backend/app/v2/` | V2 models, theory resolution, mutations, Tutor contracts and stores |
+| `backend/app/music/`, `app/services/` | Shared deterministic music and Songsterr services |
+| `backend/app/agent/`, `app/routers/agent.py` | Classic LangGraph agent and checkpoint routes |
+| `backend/app/dependencies/auth.py` | Clerk token verification and local bypass |
+| `docs/agents/` | Workflow, schema/RPC documents and verified limitations |
 
-## Design decisions
+## Deployment boundaries
 
-- **Backend-driven theory** — All music theory calculations (scale formulas, chord notes, voicing adaptation) live on the backend. The frontend is a display layer.
-- **Service layer** — Routers are thin (validate input, call service, return result). Business logic lives in `services/` so it can be shared between HTTP endpoints and the agent.
-- **CSS Grid fretboard** — The fretboard is built with Tailwind's CSS Grid, not SVG or canvas. Simpler to style and naturally responsive.
-- **LangGraph agent** — The AI tutor uses a three-node state graph (gate, interrupt, answer) with conversation summarization and checkpointed threads for multi-turn memory.
-- **Song-fretboard bridge** — Selecting a beat in the tab viewer highlights notes on the fretboard. The agent can also emit highlight groups and song navigation actions that the frontend applies automatically.
-- **Zustand over Redux** — Lightweight state management split into domain slices (scale, chord, song, chat, UI, agent highlights) without the boilerplate.
+Service Dockerfiles exist; there is no checked-in Docker Compose configuration.
+The frontend image serves the SPA through Nginx and expects a reachable
+`backend:8000` upstream unless its configuration is changed. Vite variables
+are build-time values. Backend Tutor guide Markdown files are runtime assets
+and must be included in its image.
+
+`V2_STORAGE_BACKEND=supabase` selects durable workspace storage; installation of
+the schema and transaction RPCs is an explicit deployment operation described
+in [project guidance](docs/agents/project.md). Background Tutor jobs are still
+process-local: use one backend worker, and expect unfinished jobs to be lost on
+server restart. A durable job system is needed before changing that deployment
+assumption. No service is deployed by the local verification commands above.

@@ -1,3 +1,4 @@
+import { samePositions } from './harmony';
 import { MusicalInteraction } from './MusicalInteractionProvider';
 import type { MusicalIntent } from './musicalInteraction';
 import { intentFields } from './musicalInteraction';
@@ -5,18 +6,16 @@ import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import { CircleOfFifths, TriadExplorer } from './LearningViews';
 import { harmonyViews } from './harmony';
 import type { HarmonyView } from './harmony';
-import type { Composition } from './Composition';
 import { TutorPanel } from './TutorPanel';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { V2Branch } from '../types/v2';
+import type { Composition, HarmonyFocus, V2Branch } from '../types/v2';
 import { CompositionView } from './Composition';
 import { ScratchSequence } from './ScratchSequence';
 import { ChordInspector, VoicingExplorer } from './ChordFocus';
 import { Hear } from './Fretboard';
-import type { VoicingValue } from './Fretboard';
 import { Fretboard } from './Fretboard';
-import type { ResolvedNote } from './Fretboard';
+import type { ResolvedNote } from '../types/music';
 import { ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
 import { useCompare } from './compare';
 import { harmonyModule } from './harmony';
@@ -38,15 +37,16 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
     if (busy) return;
     setBusy(true); setError('');
     const previous = surface;
-    const requested = fields.focus as { kind: string; voicing?: VoicingValue } | undefined;
-    if (surface && requested?.kind === 'voicing' && requested.voicing) {
+    const requested = fields.focus as HarmonyFocus | undefined;
+    if (surface && requested?.kind === 'voicing') {
       const positions = requested.voicing.positions.map(position => surface.resolved.chord_positions.find(note => note.string === position.string && note.fret === position.fret));
-      if (positions.every(position => position !== undefined)) setSurface({ ...surface, resolved: { ...surface.resolved, voicing_positions: positions }, branch: { ...surface.branch, harmony_exploration: { ...surface.branch.harmony_exploration!, focus: fields.focus as Record<string, unknown> } } });
+      if (positions.every(position => position !== undefined)) setSurface({ ...surface, resolved: { ...surface.resolved, voicing_positions: positions }, branch: { ...surface.branch, harmony_exploration: { ...surface.branch.harmony_exploration!, focus: requested } } });
     }
     try {
       const value = await apiClient.editHarmony(branch.session_id, branch.id, fields);
       setSurface(value); onChange(value.branch);
-      if (['triads', 'shapes', 'caged'].includes(view) && !value.branch.harmony_exploration?.focus.chord) setView('fretboard');
+      const nextFocus = value.branch.harmony_exploration?.focus;
+      if (['triads', 'shapes', 'caged'].includes(view) && (!nextFocus || !('chord' in nextFocus))) setView('fretboard');
     } catch (err) { setSurface(previous); setError(String(err)); } finally { setBusy(false); }
   }
   function select(intent: MusicalIntent) { if (!busy) void edit(intentFields(intent)); }
@@ -72,14 +72,14 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
   }
   if (!surface) return <p role="status">{error || 'Loading Harmony…'}</p>;
   const state = surface.branch.harmony_exploration!;
-  const root = String(state.tonal_center?.root ?? 'C');
-  const scale = String(state.tonal_center?.scale ?? 'major');
+  const root = state.tonal_center?.root ?? 'C';
+  const scale = state.tonal_center?.scale ?? 'major';
   const focus = state.focus;
-  const chord = focus.chord as { root: string; quality: string } | undefined;
+  const chord = 'chord' in focus ? focus.chord : undefined;
   const focusLabel = focus.kind === 'degree' ? `degree ${focus.degree}` : chord ? `${chord.root} ${chord.quality}` : state.tonal_center ? `${root} ${scale.replaceAll('_', ' ')}` : 'Choose a tonal centre';
   const data = surface.resolved;
   const notes = focus.kind === 'voicing' ? data.voicing_positions : focus.kind === 'chord' ? data.chord_positions : data.scale_positions;
-  const focusedDegree = focus.kind === 'degree' ? data.degrees[Number(focus.degree) - 1] : null;
+  const focusedDegree = focus.kind === 'degree' ? data.degrees[focus.degree - 1] : null;
   const layers = focusedDegree
     ? [{ id: 'scale', label: `${root} ${scale}`, subject: { root, scale }, positions: notes }, { id: 'degree', label: focusLabel, focal: true, positions: notes.filter(note => note.pitch_class === focusedDegree.pitch_class) }]
     : [{ id: 'music', label: focusLabel, focal: true, positions: notes }];
@@ -123,7 +123,7 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
     {error && <p role="alert">{error}</p>}
     <p role="status">{compare.error}</p>
     {compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <>
-      <h3>{peer.label}</h3>{peer.kind === 'voicing' && <PhysicalChordDiagram positions={peer.positions as ResolvedNote[]} tuning={(peer.tuning as number[]) ?? state.tuning} label={peer.label} />}{peer.subject != null && <button className="music-button" disabled={busy} onClick={() => void explore(peer.subject as Record<string, unknown>)}>Explore →</button>}<Fretboard context="harmony" layers={[{ id: peer.id, label: peer.label, focal: true, positions: peer.positions as ResolvedNote[] }]} config={config} onNudge={nudge} onSelect={() => {}} />
+      <h3>{peer.label}</h3>{peer.kind === 'voicing' && <PhysicalChordDiagram positions={peer.positions as ResolvedNote[]} tuning={(peer.tuning as number[]) ?? state.tuning} label={peer.label} />}{peer.subject != null && <button className="music-button" disabled={busy} onClick={() => void explore(peer.subject as Record<string, unknown>)}>Explore →</button>}<Fretboard context="harmony" layers={[{ id: peer.id, label: peer.label, focal: true, positions: peer.positions as ResolvedNote[] }]} config={config} onNudge={nudge} />
     </>} /> : <CompositionView composition={composition} liveTurnId={`${branch.id}:${view}:${surface.branch.live_presentation_turn_id ?? 'starter'}`}
       renderBlock={(block, _path, nudge) => {
         if (block.kind === 'scratch-sequence') return <ScratchSequence data={data.scratch} chord={chord} busy={busy} edit={edit} develop={develop} />;
@@ -135,10 +135,10 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
           const label = subject && typeof subject === 'object' && 'voicing_label' in subject ? subject.voicing_label : null;
           const positions = label ? data.voicings.find(option => option.label === label)?.positions ?? [] : data.voicing_positions.length ? data.voicing_positions : data.voicings[0]?.positions ?? [];
           const voicing = { positions: positions.map(({ string, fret }) => ({ string, fret })), tuning: state.tuning };
-          return <section aria-label="Selected chord diagram"><h3>{chord.root} {chord.quality}</h3>{positions.length ? <><PhysicalChordDiagram positions={positions} tuning={state.tuning} label={`${chord.root} ${chord.quality}`} selected={focus.kind === 'voicing' && positions.length === data.voicing_positions.length && positions.every(note => data.voicing_positions.some(other => note.string === other.string && note.fret === other.fret))} disabled={busy} onSelect={() => void edit({ focus: { kind: 'voicing', chord, voicing } })} /><Hear voicing={voicing} /><button className="music-button" disabled={busy} onClick={() => void edit({ pin: { chord, voicing } })}>Pin shape</button><button className="music-button" onClick={() => compare.toggle({ kind: 'voicing', id: JSON.stringify(voicing), label: `${chord.root} ${chord.quality}`, positions, tuning: state.tuning })}>Compare shape</button></> : <p>No playable shape is available for this chord and tuning.</p>}</section>;
+          return <section aria-label="Selected chord diagram"><h3>{chord.root} {chord.quality}</h3>{positions.length ? <><PhysicalChordDiagram positions={positions} tuning={state.tuning} label={`${chord.root} ${chord.quality}`} selected={focus.kind === 'voicing' && samePositions(positions, data.voicing_positions)} disabled={busy} onSelect={() => void edit({ focus: { kind: 'voicing', chord, voicing } })} /><Hear voicing={voicing} /><button className="music-button" disabled={busy} onClick={() => void edit({ pin: { chord, voicing } })}>Pin shape</button><button className="music-button" onClick={() => compare.toggle({ kind: 'voicing', id: JSON.stringify(voicing), label: `${chord.root} ${chord.quality}`, positions, tuning: state.tuning })}>Compare shape</button></> : <p>No playable shape is available for this chord and tuning.</p>}</section>;
         }
         if (block.kind === 'triad-explorer'  && chord) return <TriadExplorer key={`${chord.root}:${chord.quality}:${surface.branch.live_presentation_turn_id}`} chord={chord} data={data} busy={busy} edit={edit} config={block.config} />;
-        if (block.kind === 'fretboard') return <Fretboard key={JSON.stringify([state.tonal_center, state.tuning, focus.voicing])} tuning={state.tuning} context="harmony" layers={[...layers, ...data.note_groups]} fitPositions={focus.kind === 'voicing' ? data.voicing_positions : undefined} config={block.config} onNudge={nudge}
+        if (block.kind === 'fretboard') return <Fretboard key={JSON.stringify([state.tonal_center, state.tuning, focus.kind === 'voicing' ? focus.voicing : undefined])} tuning={state.tuning} context="harmony" layers={[...layers, ...data.note_groups]} fitPositions={focus.kind === 'voicing' ? data.voicing_positions : undefined} config={block.config} onNudge={nudge}
           onSelect={note => { if (busy) return; const index = data.degrees.findIndex(degree => degree.pitch_class === note.pitch_class); if (index >= 0) select({ type: 'degree', degree: index + 1 }); }} />;
         if (block.kind === 'chord-palette') return <section aria-label="Chord palette"><h3>Chords in this scale</h3><p className="learning-hint">Choose a chord to see its shapes. + adds it to your scratch sequence.</p><div className="learning-palette">{data.palette.map(item => <div key={item.numeral}>
           <button disabled={busy} className="music-button" aria-label={`Select ${item.display}`} aria-pressed={chord?.root === item.root && chord?.quality === item.quality} onClick={() => select({ type: 'chord', chord: { root: item.root, quality: item.quality } })}><strong>{item.display}</strong><small>{item.numeral}</small></button>
@@ -149,8 +149,7 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
         if (block.kind === 'explanation') return <Explanation text={String(block.config?.text ?? data.degrees.map(n => n.note).join(' · '))} />;
         return <p className="learning-hint">This teaching view has no matching musical selection. Choose a chord or use the view controls above.</p>;
       }} />}
-    {state.pinned_voicings.length > 0 && <section aria-label="Pinned voicings"><h3>Pinned voicings</h3>{state.pinned_voicings.map((value, index) => {
-      const pin = value as { chord: { root: string; quality: string }; voicing: VoicingValue };
+    {state.pinned_voicings.length > 0 && <section aria-label="Pinned voicings"><h3>Pinned voicings</h3>{state.pinned_voicings.map((pin, index) => {
       return <div key={index} className="music-controls"><strong>{pin.chord.root} {pin.chord.quality}</strong><PhysicalChordDiagram positions={pin.voicing.positions} tuning={pin.voicing.tuning} label={`${pin.chord.root} ${pin.chord.quality} pinned`} onSelect={() => void edit({ focus: { kind: 'voicing', chord: pin.chord, voicing: pin.voicing } })} disabled={busy} /><Hear voicing={pin.voicing} /><button className="music-button" disabled={busy} onClick={() => void edit({ unpin: pin })}>Unpin</button></div>;
     })}</section>}
     {answer && <p className="learning-notice" role="status">{answer}</p>}

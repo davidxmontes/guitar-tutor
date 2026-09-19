@@ -39,10 +39,7 @@
   .composition-items--grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   .composition-items--grid > [data-size='large'], .composition-items--grid > [data-size='fill'] { grid-column: 1 / -1; }
 }
-.diagram-select { display: grid; justify-items: center; gap: .5rem; width: 100%; padding: .75rem; border: 2px solid transparent; border-radius: .5rem; cursor: pointer; background: transparent; color: inherit; }
-.diagram-select[aria-pressed='true'] { border-color: var(--accent-500); background: var(--bg-tertiary); }
-.diagram-select:focus-visible { outline: 3px solid var(--accent-500); outline-offset: 3px; }
-.diagram-select:disabled { cursor: wait; }
+
 .scale-pitches { display: flex; flex-wrap: wrap; gap: .5rem; }
 .scale-pitches button { display: grid; min-width: 3rem; gap: .25rem; }
 .scale-pitches button[aria-pressed='true'] { outline: 2px solid var(--accent-500); }

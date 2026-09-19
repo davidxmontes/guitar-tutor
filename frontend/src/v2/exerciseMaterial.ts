@@ -1,5 +1,5 @@
 import type { ExerciseStep, SongStudyPayload, SongSelection, SongFocus } from '../types/v2';
-import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
+import { getBeatsFromMeasure } from '../utils/tab';
 import { beatDuration } from './practiceTiming';
 export function songDrill(payload: SongStudyPayload, selection: SongSelection | null, focus: SongFocus): ExerciseStep[] {
   const tuning = payload.track.tuning ?? payload.tab_data.tuning;

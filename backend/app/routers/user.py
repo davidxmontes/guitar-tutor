@@ -16,12 +16,12 @@ router = APIRouter()
 
 
 @router.get("/user/progressions", response_model=list[SavedProgression])
-async def get_progressions(user_id: str = Depends(get_current_user)):
+def get_progressions(user_id: str = Depends(get_current_user)):
     return user_service.list_progressions(user_id)
 
 
 @router.post("/user/progressions", response_model=SavedProgression, status_code=status.HTTP_201_CREATED)
-async def post_progression(
+def post_progression(
     data: SaveProgressionRequest,
     user_id: str = Depends(get_current_user),
 ):
@@ -29,7 +29,7 @@ async def post_progression(
 
 
 @router.delete("/user/progressions/{progression_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_progression(
+def delete_progression(
     progression_id: str,
     user_id: str = Depends(get_current_user),
 ):
@@ -37,12 +37,12 @@ async def delete_progression(
 
 
 @router.get("/user/favorites", response_model=list[FavoriteSong])
-async def get_favorites(user_id: str = Depends(get_current_user)):
+def get_favorites(user_id: str = Depends(get_current_user)):
     return user_service.list_favorites(user_id)
 
 
 @router.post("/user/favorites", response_model=FavoriteSong, status_code=status.HTTP_201_CREATED)
-async def post_favorite(
+def post_favorite(
     data: AddFavoriteRequest,
     user_id: str = Depends(get_current_user),
 ):
@@ -50,7 +50,7 @@ async def post_favorite(
 
 
 @router.delete("/user/favorites/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_favorite(
+def delete_favorite(
     song_id: int,
     user_id: str = Depends(get_current_user),
 ):
@@ -58,5 +58,5 @@ async def delete_favorite(
 
 
 @router.get("/user/threads", response_model=list[ConversationThread])
-async def get_threads(user_id: str = Depends(get_current_user)):
+def get_threads(user_id: str = Depends(get_current_user)):
     return user_service.list_threads(user_id)

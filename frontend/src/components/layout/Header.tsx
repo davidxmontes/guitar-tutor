@@ -3,17 +3,17 @@ import { SignInButton, UserButton } from '@clerk/clerk-react';
 import { AUTH_DEV_BYPASS, useAppAuth } from '../../lib/authBypass';
 import headstockSrc from '../../assets/white_headstock.png';
 import { useAppStore } from '../../stores';
+import { useThemeStore } from '../../stores/useThemeStore';
 import type { GuitarType } from '../../utils/audio';
 
 export function Header() {
+  const { darkMode, toggleDarkMode } = useThemeStore();
   const { isSignedIn } = useAppAuth();
   const {
     appMode,
     setAppMode,
     displayMode,
     setDisplayMode,
-    darkMode,
-    toggleDarkMode,
     guitarType,
     setGuitarType,
     autoPlay,

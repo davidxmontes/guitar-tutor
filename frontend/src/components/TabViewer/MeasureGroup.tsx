@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
+import { getBeatsFromMeasure } from '../../utils/tab';
 import type { TabBeat, TabMeasure, TabNote } from '../../types';
 
 interface MeasureGroupProps {
@@ -41,30 +42,6 @@ const TECHNIQUE_SUFFIXES: Array<{ key: keyof TabNote; suffix: string }> = [
   { key: 'staccato', suffix: '.' },
   { key: 'accentuated', suffix: '>' },
 ];
-
-function getBeats(measure: TabMeasure): TabBeat[] {
-  const voices = measure.voices ?? [];
-  if (voices.length === 0) return [];
-  if (voices.length === 1) return voices[0]?.beats ?? [];
-
-  // Pick the voice with the most playable notes to avoid rendering empty/rest-only voices.
-  let bestBeats: TabBeat[] = voices[0]?.beats ?? [];
-  let bestScore = -1;
-
-  for (const voice of voices) {
-    const beats = voice?.beats ?? [];
-    const score = beats.reduce((acc, beat) => {
-      const noteCount = (beat.notes ?? []).filter((n) => !n.rest && !n.dead).length;
-      return acc + noteCount;
-    }, 0);
-    if (score > bestScore) {
-      bestScore = score;
-      bestBeats = beats;
-    }
-  }
-
-  return bestBeats;
-}
 
 function hasRenderableNotes(beats: TabBeat[]): boolean {
   return beats.some((beat) => (beat.notes ?? []).some((note) => !note.rest));
@@ -235,7 +212,7 @@ export function MeasureGroup({
 
             {measures.map((measure, localMeasureIdx) => {
               const measureIndex = startMeasureIndex + localMeasureIdx;
-              const beats = getBeats(measure);
+              const beats = getBeatsFromMeasure(measure);
               const hasNotes = hasRenderableNotes(beats);
               const beatColumns = Math.max(beats.length, 1);
               const measureWidth = Math.max(measureMinWidthPx, beatColumns * beatSpacingPx);

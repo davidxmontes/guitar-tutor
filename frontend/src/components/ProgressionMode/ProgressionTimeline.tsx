@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppAuth } from '../../lib/authBypass';
 import { useAppStore } from '../../stores';
 import { ProgressionSlotCard } from './ProgressionSlotCard';
@@ -44,7 +44,7 @@ export function ProgressionTimeline() {
     return () => document.removeEventListener('mousedown', handle);
   }, [showSaveModal, showSavedList]);
 
-  const handleSetActive = async (index: number) => {
+  const handleSetActive = useCallback(async (index: number) => {
     const slot = progressionSlots[index];
     await setActiveSlot(index);
     if (!autoPlay) return;
@@ -59,17 +59,17 @@ export function ProgressionTimeline() {
         playChord(voicings[0].positions.map(p => ({ string: p.string, fret: p.fret })));
       }
     }
-  };
+  }, [autoPlay, progressionSlots, setActiveSlot]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (progressionSlots.length === 0) return;
     handleSetActive((activeSlotIndex - 1 + progressionSlots.length) % progressionSlots.length);
-  };
+  }, [activeSlotIndex, handleSetActive, progressionSlots.length]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (progressionSlots.length === 0) return;
     handleSetActive((activeSlotIndex + 1) % progressionSlots.length);
-  };
+  }, [activeSlotIndex, handleSetActive, progressionSlots.length]);
 
   useEffect(() => {
     if (progressionSlots.length === 0) return;
@@ -81,7 +81,7 @@ export function ProgressionTimeline() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [progressionSlots.length, activeSlotIndex]);
+  }, [progressionSlots.length, handlePrev, handleNext]);
 
   const handleAddDefault = () => {
     if (diatonicChords.length > 0) {
@@ -107,7 +107,7 @@ export function ProgressionTimeline() {
 
   const handleLoad = async (p: SavedProgression) => {
     await setProgressionFromAgent(
-      p.slots as any,
+      p.slots,
       p.key_root ?? undefined,
       p.key_mode ?? undefined,
     );

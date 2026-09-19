@@ -1,9 +1,11 @@
+import { samePositions } from './harmony';
 import { MusicIcon } from './MusicIcon';
 import { useMusicalInteraction } from './musicalInteraction';
 import { useState } from 'react';
 import { Hear } from './Fretboard';
 import { physicalVoicing } from './harmony';
-import type { ChordRef, HarmonyResolved } from './harmony';
+import type { HarmonyResolved } from './harmony';
+import type { ChordRef } from '../types/music';
 import type { ComparePeer } from './compare';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 
@@ -33,7 +35,7 @@ export function VoicingExplorer({ chord, data, tuning, initialView, busy, edit, 
     {!options.length && <p>No {view === 'caged' ? 'CAGED shapes' : 'voicings'} available for this chord and tuning.</p>}
     <div className="learning-shapes">{options.map((option, index) => {
       const voicing = physicalVoicing(option);
-      const selected = voicing.positions.length === data.voicing_positions.length && voicing.positions.every(note => data.voicing_positions.some(other => note.string === other.string && note.fret === other.fret));
+      const selected = samePositions(voicing.positions, data.voicing_positions);
       return <div className="learning-shape" data-selected={selected} key={`${view}:${index}`} role="group" aria-label={option.label}>
         <h4>{option.label}</h4><PhysicalChordDiagram positions={voicing.positions} tuning={tuning} label={`${chord.root} ${chord.quality} · ${option.label}`} selected={selected} disabled={busy}
           onSelect={() => interaction ? interaction.select({ type: 'voicing', chord, voicing }) : void edit({ focus: { kind: 'voicing', chord, voicing } })}

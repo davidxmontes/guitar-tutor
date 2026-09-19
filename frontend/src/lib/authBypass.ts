@@ -6,7 +6,7 @@ import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 // never changes across renders.
 export const AUTH_DEV_BYPASS = import.meta.env.VITE_AUTH_DEV_BYPASS === 'true';
 
-const bypassAuth = { isLoaded: true, isSignedIn: true, getToken: async () => null };
+const bypassAuth = { userId: 'dev-user', isLoaded: true, isSignedIn: true, getToken: async () => null };
 function useBypassAuth() {
   return bypassAuth;
 }

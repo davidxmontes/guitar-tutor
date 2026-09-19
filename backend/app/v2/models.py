@@ -8,18 +8,14 @@ saved/reopened independently of the branch that created it — common columns
 plus a JSON payload, strictly typed per concrete artifact route.
 """
 
-from typing import Annotated, Any, Literal, Optional, get_args
+from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 from app.v2.harmony_state import HarmonyExploration
 
 ArtifactKind = Literal["song_study", "progression", "exercise"]
 
-ARTIFACT_KINDS: tuple[str, ...] = get_args(ArtifactKind)
-
 WorkspaceKind = Literal["harmony", "progression"]
-
-_STANDARD_TUNING: list[int] = [64, 59, 55, 50, 45, 40]
 
 
 from app.v2.progression_state import ProgressionWorkspaceState
@@ -157,44 +153,6 @@ class SongStudyPayload(BaseModel):
 class ProgressionVoicingPosition(BaseModel):
     string: int = Field(ge=1, le=6, strict=True)
     fret: int = Field(ge=0, le=36, strict=True)
-
-
-ScaleConceptId = Literal[
-    "major",
-    "ionian",
-    "dorian",
-    "phrygian",
-    "lydian",
-    "mixolydian",
-    "aeolian",
-    "natural_minor",
-    "locrian",
-    "harmonic_minor",
-    "melodic_minor",
-    "pentatonic_major",
-    "pentatonic_minor",
-    "blues",
-]
-CagedQualityId = Literal["major", "minor"]
-CagedShapeId = Literal["C", "A", "G", "E", "D"]
-
-
-class ConceptNote(BaseModel):
-    note: str
-    interval: str
-
-
-class ConceptPosition(ConceptNote):
-    string: int = Field(ge=1, le=6)
-    fret: int = Field(ge=0, le=22)
-
-
-class CagedRegion(BaseModel):
-    shape: CagedShapeId
-    label: str
-    fret_start: int = Field(ge=0, le=22)
-    fret_end: int = Field(ge=0, le=22)
-    positions: list[ConceptPosition]
 
 
 class ArtifactRevision(BaseModel):

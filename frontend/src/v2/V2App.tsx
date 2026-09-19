@@ -1,6 +1,6 @@
 import './Learning.css';
 import type { HarmonyView } from './harmony';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { SignInButton } from '@clerk/clerk-react';
 import { apiClient } from '../api/client';
 import { useAppAuth } from '../lib/authBypass';
@@ -16,7 +16,29 @@ import { AppShell } from './AppShell';
 import { ThemeToggle } from './ThemeToggle';
 
 export function V2App() {
-  const { getToken, isSignedIn, isLoaded } = useAppAuth();
+  const { getToken, isSignedIn, isLoaded, userId } = useAppAuth();
+  // Bind auth before descendant effects load account-owned work.
+  useLayoutEffect(() => {
+    apiClient.setTokenGetter(isLoaded && isSignedIn ? () => getToken() : null);
+    return () => apiClient.setTokenGetter(null);
+  }, [getToken, isLoaded, isSignedIn, userId]);
+
+  if (!isLoaded) return <main className="v2-app sign-in-page"><p role="status">Opening Guitar Tutor…</p></main>;
+  if (!isSignedIn) return <main className="v2-app sign-in-page">
+    <div className="sign-in-theme"><ThemeToggle /></div>
+    <div className="sign-in-card">
+      <div className="sign-in-story"><span className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></span>
+        <div><span className="learning-eyebrow">A little curiosity. A little practice.</span><h1>Make the neck<br />feel like home.</h1><p>Explore a sound. Find its shape.<br />Make it part of your playing.</p></div>
+        <div className="sign-in-notes" aria-label="C major triad: C, E, G"><span>C<small>Root</small></span><i aria-hidden="true" /><span>E<small>Third</small></span><i aria-hidden="true" /><span>G<small>Fifth</small></span></div>
+      </div>
+      <section className="sign-in-action"><span className="learning-eyebrow">Your practice space</span><h2>Welcome back.</h2><p>Sign in to explore the fretboard, work on a song, or pick up where you left off.</p><SignInButton mode="modal"><button className="music-button learning-primary">Sign in to Guitar Tutor <span aria-hidden="true">→</span></button></SignInButton><span className="sign-in-caption">New here? You can create an account when you sign in.</span></section>
+    </div>
+  </main>;
+
+  return <SignedInV2App key={userId} />;
+}
+
+function SignedInV2App() {
   const [page, setPage] = useState<'explore' | 'sessions' | 'library' | 'workspace'>('explore');
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
@@ -28,16 +50,24 @@ export function V2App() {
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isSignedIn) {
-      apiClient.setTokenGetter(null);
-      return;
+  const sessionsRequest = useRef(0);
+  const loadSessions = useCallback(async () => {
+    const request = ++sessionsRequest.current;
+    try {
+      const next = await apiClient.listV2Sessions();
+      if (request === sessionsRequest.current) setSessions(next);
+    } catch (err) {
+      if (request === sessionsRequest.current) setError(String(err));
     }
-    apiClient.setTokenGetter(() => getToken());
-    apiClient.listV2Sessions().then(setSessions).catch((err) => setError(String(err)));
-  }, [isSignedIn, getToken]);
+  }, []);
+  useEffect(() => {
+    const requests = sessionsRequest;
+    void loadSessions();
+    return () => { requests.current++; };
+  }, [loadSessions]);
 
   const openSession = useCallback((session: V2Session, view: HarmonyView = 'tutor') => {
+    sessionsRequest.current++;
     setPage('workspace');
     setEntryView(view);
     setArtifactView(null);
@@ -127,6 +157,7 @@ export function V2App() {
     setDeleting(session.id); setError(null);
     try {
       await apiClient.deleteV2Session(session.id);
+      sessionsRequest.current++;
       setSessions(previous => previous?.filter(value => value.id !== session.id) ?? []);
       if (activeSession?.id === session.id) { setActiveSession(null); setActiveBranchId(null); }
     } catch (err) { setError(String(err)); } finally { setDeleting(null); }
@@ -168,20 +199,8 @@ export function V2App() {
   const shell = (content: ReactNode) => <AppShell active={artifactView ? 'song' : page} hasWorkspace={Boolean(activeSession)} onNavigate={destination => {
     if (destination === 'song') { void studySong(); return; }
     setArtifactView(null); setPage(destination); setError(null);
-    if (destination === 'explore' || destination === 'sessions') apiClient.listV2Sessions().then(setSessions).catch(err => setError(String(err)));
+    if (destination === 'explore' || destination === 'sessions') void loadSessions();
   }}>{content}</AppShell>;
-
-  if (!isLoaded) return <main className="v2-app sign-in-page"><p role="status">Opening Guitar Tutor…</p></main>;
-  if (!isSignedIn) return <main className="v2-app sign-in-page">
-    <div className="sign-in-theme"><ThemeToggle /></div>
-    <div className="sign-in-card">
-      <div className="sign-in-story"><span className="learning-brand">Guitar Tutor<span aria-hidden="true">.</span></span>
-        <div><span className="learning-eyebrow">A little curiosity. A little practice.</span><h1>Make the neck<br />feel like home.</h1><p>Explore a sound. Find its shape.<br />Make it part of your playing.</p></div>
-        <div className="sign-in-notes" aria-label="C major triad: C, E, G"><span>C<small>Root</small></span><i aria-hidden="true" /><span>E<small>Third</small></span><i aria-hidden="true" /><span>G<small>Fifth</small></span></div>
-      </div>
-      <section className="sign-in-action"><span className="learning-eyebrow">Your practice space</span><h2>Welcome back.</h2><p>Sign in to explore the fretboard, work on a song, or pick up where you left off.</p><SignInButton mode="modal"><button className="music-button learning-primary">Sign in to Guitar Tutor <span aria-hidden="true">→</span></button></SignInButton><span className="sign-in-caption">New here? You can create an account when you sign in.</span></section>
-    </div>
-  </main>;
 
   if (artifactView) return shell(<main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
     <div className="music-controls mb-4"><h1 className="learning-brand">Study & practice</h1>{sessionStarter}

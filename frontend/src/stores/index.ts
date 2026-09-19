@@ -3,8 +3,6 @@ export type { AppMode } from './useAppStore';
 
 // Re-export selector hooks for convenience
 export {
-  useDarkMode,
-  useToggleDarkMode,
   useAppMode,
   useDisplayMode,
   useShowScaleInChordMode,

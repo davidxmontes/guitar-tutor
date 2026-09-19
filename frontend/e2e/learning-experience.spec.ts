@@ -28,6 +28,23 @@ test('a learner can explore scales, triads and CAGED without asking the Tutor', 
   await expect(page.getByLabel('Triad explorer').getByRole('img').first()).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/learning-triads-desktop.png', fullPage: true });
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(() => document.documentElement.classList.add('dark'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({ animations: 'disabled', path: `test-results/learning-triads-${width}-dark.png`, fullPage: true });
+    const contrast = await page.locator('.music-note--root:visible').first().evaluate(note => {
+      const luminance = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map(value => {
+        const channel = value / 255;
+        return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+      }).reduce((total, channel, index) => total + channel * [.2126, .7152, .0722][index], 0);
+      const background = luminance(getComputedStyle(note.querySelector('circle')!).fill);
+      const text = luminance(getComputedStyle(note.querySelector('text')!).fill);
+      return (Math.max(background, text) + .05) / (Math.min(background, text) + .05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
+  }
+  await page.evaluate(() => document.documentElement.classList.remove('dark'));
   await page.getByLabel('String set', { exact: true }).selectOption('2');
   await page.getByLabel('Inversion', { exact: true }).selectOption('1');
   await expect(page.getByLabel('Triad explorer').getByRole('heading', { name: 'First inversion' }).first()).toBeVisible();

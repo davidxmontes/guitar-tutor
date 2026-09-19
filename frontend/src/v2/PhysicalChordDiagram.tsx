@@ -1,13 +1,10 @@
+import './PhysicalChordDiagram.css';
 import type { ReactNode } from 'react';
+import type { PhysicalPosition } from '../types/music';
 import { midiToNoteName } from '../utils/tuning';
 
-export interface PhysicalChordPosition {
-  string: number;
-  fret: number;
-}
-
 interface PhysicalChordDiagramProps {
-  positions: readonly PhysicalChordPosition[];
+  positions: readonly PhysicalPosition[];
   // Arrays are string 1 through 6 (high to low), matching V2 physical data.
   tuning: string | readonly (string | number)[];
   label?: string;

@@ -1,9 +1,8 @@
-import type { Composition } from './Composition';
+import type { Composition, V2Branch } from '../types/v2';
+import type { ResolvedNote, NoteLayer, VoicingValue, ChordRef } from '../types/music';
+
 export type HarmonyView = 'tutor' | 'fretboard' | 'shapes' | 'triads' | 'caged' | 'circle' | 'scratch';
 export const harmonyViews: [HarmonyView, string][] = [['tutor', "Tutor’s view"], ['fretboard', 'Fretboard'], ['shapes', 'Chord shapes'], ['triads', 'Triads'], ['caged', 'CAGED'], ['circle', 'Circle of fifths'], ['scratch', 'Scratch sequence']];
-import type { V2Branch } from '../types/v2';
-import type { ResolvedNote, NoteLayer, VoicingValue } from './Fretboard';
-export type ChordRef = { root: string; quality: string };
 export type HarmonyResolved = {
   function: string | null;
   palette: (ChordRef & { numeral: string; display: string })[];
@@ -26,3 +25,14 @@ export const harmonyModule = (kind: unknown) => kind === 'chord' || kind === 'vo
 export const physicalVoicing = (value: VoicingValue): VoicingValue => ({
   positions: value.positions.map(({ string, fret }) => ({ string, fret })), tuning: [...value.tuning],
 });
+
+// A physical shape has one position per string; array order is not musical identity.
+export function samePositions(left: VoicingValue['positions'], right: VoicingValue['positions']): boolean {
+  return left.length === right.length && left.every(note => right.some(other => note.string === other.string && note.fret === other.fret));
+}
+
+export function sameVoicing(left: VoicingValue, right: VoicingValue | null): boolean {
+  return right !== null && left.tuning.length === right.tuning.length
+    && left.tuning.every((note, index) => note === right.tuning[index])
+    && samePositions(left.positions, right.positions);
+}

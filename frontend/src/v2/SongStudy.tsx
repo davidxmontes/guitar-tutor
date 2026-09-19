@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
-import { getBeatsFromMeasure } from '../components/TabViewer/TabViewer';
+import { getBeatsFromMeasure } from '../utils/tab';
 import { SongEnrichmentPanel } from './SongEnrichment';
 import { SongShapeStrip } from './SongShapeStrip';
 import { SongLearningMap } from './SongLearningMap';

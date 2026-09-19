@@ -4,10 +4,9 @@ const DOUBLE_MARKERS = [12]; // Double dot at 12th fret
 
 interface FretboardHeaderProps {
   fretCount: number;
-  darkMode?: boolean;
 }
 
-export function FretboardHeader({ fretCount, darkMode: _darkMode = false }: FretboardHeaderProps) {
+export function FretboardHeader({ fretCount }: FretboardHeaderProps) {
   const frets = Array.from({ length: fretCount + 1 }, (_, i) => i);
   
   return (

@@ -12,6 +12,21 @@ from app.v2.models import Artifact, ArtifactKind
 from app.v2.store import NotFoundError, V2Store
 
 
+def saved_work_provenance(artifact: Artifact) -> dict | None:
+    """Source metadata for library labels and search, without changing the snapshot."""
+    payload = artifact.payload
+    provenance = payload.get('provenance') or {}
+    if provenance.get('kind') == 'song-idea':
+        return provenance['song']
+    if provenance.get('kind') == 'concept-seed':
+        return {'title': provenance['concept']}
+    if provenance.get('kind') == 'harmony-develop':
+        return {'title': 'Harmony'}
+    return payload.get('created_from') or (
+        {'title': artifact.title, 'song_id': payload.get('song_id'),
+         'track': payload.get('track', {}).get('name')} if artifact.kind == 'song_study' else None)
+
+
 def saved_work_tools(store: V2Store, user_id: str):
     @tool
     def search_saved_work(
@@ -27,7 +42,7 @@ def saved_work_tools(store: V2Store, user_id: str):
         clarification; never silently choose the first. No matches means ask for
         another descriptor, not invent a saved item. This tool never saves or opens.
         """
-        words = re.findall(r"[\w#]+", query.casefold())
+        words = re.findall(r"[\w#]+", query.casefold().replace('_', ' '))
         if not words or (saved_after and saved_before and saved_after > saved_before):
             return {"error": "Use a meaningful descriptor and a valid date range", "matches": []}
         matches = []
@@ -41,11 +56,13 @@ def saved_work_tools(store: V2Store, user_id: str):
                 continue
             payload = artifact.payload
             descriptors = [artifact.title, artifact.kind.replace('_', ' ')]
-            descriptors.extend(str(payload.get(key) or '') for key in ('artist', 'root', 'concept_id', 'intent'))
+            descriptors.extend(str(payload.get(key) or '') for key in ('artist', 'intent'))
+            tonal_center = payload.get('tonal_center') or {}
+            descriptors.extend(str(tonal_center.get(key) or '') for key in ('root', 'scale'))
             descriptors.extend(f"{chord.get('root', '')} {chord.get('quality', '')}" for chord in payload.get('chords', []))
-            provenance = payload.get('created_from') or payload.get('inspired_by') or {}
-            descriptors.extend(str(provenance.get(key) or '') for key in ('title', 'artifact_title', 'study'))
-            tokens = set(re.findall(r"[\w#]+", ' '.join(descriptors).casefold()))
+            provenance = saved_work_provenance(artifact) or {}
+            descriptors.extend(str(provenance.get(key) or '') for key in ('title', 'artist', 'artifact_title', 'study'))
+            tokens = set(re.findall(r"[\w#]+", ' '.join(descriptors).casefold().replace('_', ' ')))
             if not all(word in tokens for word in words):
                 continue
             matches.append({"id": artifact.id, "kind": artifact.kind, "title": artifact.title,
