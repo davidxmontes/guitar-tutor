@@ -406,6 +406,10 @@ class ApiClient {
   }
 
 
+  async saveSongVideoAlignment(artifactId: string, revision: string, video_alignment: import('../types/songVideo').SongVideoAlignment | null): Promise<SongStudyArtifact> {
+    return this.fetch(`/v2/song-studies/${artifactId}/video-alignment`, { method: 'PUT', body: JSON.stringify({ expected_updated_at: revision, video_alignment }) });
+  }
+
   async saveSongRanges(artifactId: string, revision: string, ranges: import('../types/v2').SongSavedRange[]): Promise<SongStudyArtifact> {
     return this.fetch(`/v2/song-studies/${artifactId}/ranges`, { method: 'PUT', body: JSON.stringify({ expected_updated_at: revision, ranges }) });
   }
