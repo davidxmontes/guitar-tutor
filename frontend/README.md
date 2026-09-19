@@ -137,6 +137,13 @@ video length; a conservative written-score estimate provides a comparison,
 not a synchronization model. Unsupported tempo or repeat order yields an
 explained unavailable estimate.
 
+The Speed control uses the embedded player's supported rates and actual rate-change
+feedback; video time remains the clock. Explicit paused tab selection previews its
+notes on the fretboard, while playback and native seeking resume video follow.
+Guitar search choices stay visible; other instruments are collapsed by default.
+Song URLs reopen the owned artifact on refresh, and breadcrumbs preserve the
+search query and cached results for Back/Forward navigation.
+
 Saving uses the existing SongStudy artifact, ownership/revision checks and
 History. Watching never persists player time. See
 [the alignment contract](../docs/song-video-sync.md) for the manual workflow,

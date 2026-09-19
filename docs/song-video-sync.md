@@ -352,3 +352,44 @@ selection prevents playhead updates from triggering seeks. The Ponytail pass kep
 the existing anchor model, Undo, persistence and player boundary. Initial timing
 is bounded to 256 anchors; unsupported repeats/jumps and unmapped tails remain
 manual rather than fabricated. No new dependency or hosted change.
+
+### Playback controls, navigation and lead-note follow-up
+
+The compact Speed selector exposes only the rates advertised by the embedded
+player, and reflects its actual rate-change event. It does not rewrite musical
+timing or start paused playback. The real Wonderwall player advertised 0.25,
+0.5, 0.75, 1, 1.25, 1.5, 1.75 and 2; arbitrary tenths are not guaranteed by
+YouTube. A paused change to 0.5 was verified in the real player.
+
+SongStudy now uses native URL/history state to reopen an owned song on refresh.
+Breadcrumbs return to the cached song search and preserve its query, with
+Back/Forward support and guards against late requests reopening abandoned songs.
+The compact breadcrumb baseline and title truncation were inspected in the dark
+in-app browser; navigation checks include 320px containment. Refresh preserves
+song identity and saved artifact data, not unsaved calibration or playback speed.
+
+Search keeps guitar instruments visible and puts other instruments in native,
+closed-by-default details. Vocal flags and explicit vocal names override a guitar
+instrument label because provider metadata sometimes labels vocals as guitar.
+All tracks retain their original import indices and remain accessible.
+
+The fretboard's shared active-beat projection previously ignored learner selection
+in video mode, displaying the old video position or an empty neck. Explicit
+selection now takes over that projection until video playback or a native seek
+resumes follow. Actual video time still owns playback highlighting; unmapped
+sections and rests do not invent notes. The public Wonderwall lead track has
+24 opening measures of rests. Real verification selected M25 (string 5, fret 3),
+played through later measures, then paused and selected M25 beat 4 (string 3,
+fret 0) while the video remained at M46. Single notes do not require chord shapes.
+
+Verification before the final fretboard correction: all 80 browser journeys,
+23 unit tests, lint and production builds passed; the additional grouped-track
+journey passed with keyboard expansion and 320px containment. Backend remains
+unchanged from the 417-test passing run above. Follow-up changes remain local:
+no push, merge, deployment or hosted-service change was made.
+
+Final fretboard verification: 18 affected browser journeys passed, followed by
+three focused seek/loop/lead checks after the shared seek predicate was reviewed.
+Lint and production build passed. The regression first reproduced an empty neck
+for a paused single-note selection, then verified single notes, rests, native
+resume at the same beat, native paused seeking, and unmapped selection behavior.
