@@ -7,6 +7,13 @@ interface FakePlayer {
   time: number;
   state: number;
   duration: number;
+  rate: number;
+  rates: number[];
+  rejectRates: boolean;
+  emitRate(rate: number): void;
+  getPlaybackRate(): number;
+  getAvailablePlaybackRates(): number[];
+  setPlaybackRate(rate: number): void;
   destroyed: boolean;
   reads: number;
   ready(): void;
@@ -35,6 +42,9 @@ function fakeScript(options: FakeOptions) {
     time = 0;
     state = -1;
     duration = 120;
+    rate = 1;
+    rates = [0.25, 0.5, 0.75, 1, 1.5, 2];
+    rejectRates = false;
     destroyed = false;
     reads = 0;
     iframe: HTMLIFrameElement;
@@ -52,6 +62,10 @@ function fakeScript(options: FakeOptions) {
     getCurrentTime() { this.reads++; return this.time; }
     getDuration() { return this.duration; }
     getPlayerState() { return this.state; }
+    getPlaybackRate() { return this.rate; }
+    getAvailablePlaybackRates() { return this.rates; }
+    emitRate(rate: number) { this.rate = rate; this.events.onPlaybackRateChange?.({ target: this, data: rate }); }
+    setPlaybackRate(rate: number) { if (!this.rejectRates && this.rates.includes(rate)) this.emitRate(rate); }
     playVideo() { this.emitState(1); }
     pauseVideo() { this.emitState(2); }
     seekTo(seconds: number) { this.time = seconds; if (this.state !== 2) this.emitState(1); }

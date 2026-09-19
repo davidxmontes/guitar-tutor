@@ -51,7 +51,6 @@ test('calibration saves, follows actual time without changing selection, and reo
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(15);
   await page.reload();
-  await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
 });
@@ -171,7 +170,7 @@ test('source switching and navigation stop video before synthesized practice sta
   await expect(page.getByTestId('practice-status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
-  await page.getByRole('button', { name: 'Explore', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Song navigation' }).getByRole('button', { name: 'Explore', exact: true }).click();
   expect(await page.evaluate(() => window.youtubeFake.active.destroyed)).toBe(true);
 });
 
@@ -260,7 +259,6 @@ test('recording discovery retries, previews without URL and preserves saved alig
   await page.getByLabel('Playback source').selectOption('video');
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await page.reload();
-  await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
 });
 
@@ -366,7 +364,6 @@ for (const source of ['estimated', 'songsterr'] as const) {
     await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Video setup saved');
     await page.reload();
-    await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).first().click();
     await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Play selection', exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(10);
@@ -393,4 +390,34 @@ test('a pasted video can use the available score-tempo estimate when discovery h
   await expect(page.getByText('Estimated from score tempo', { exact: true })).toBeVisible();
   await page.getByText('Adjust recording start', { exact: true }).click();
   await expect(page.getByText('Initially estimated from score tempo at 0:00.', { exact: false })).toBeVisible();
+});
+
+
+test('video speed follows supported player rates without autoplay or changing score timing', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await openSong(page); await alignFirstMeasure(page);
+  await page.getByText('Calibrate recording', { exact: false }).click();
+  const speed = page.getByLabel('Video speed', { exact: true });
+  await expect(speed.locator('option')).toHaveText(['0.25×', '0.5×', '0.75×', '1×', '1.5×', '2×']);
+  await speed.selectOption('0.5');
+  await expect(speed).toHaveValue('0.5');
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await page.evaluate(() => window.youtubeFake.active.emitRate(0.75));
+  await expect(speed).toHaveValue('0.75');
+  await page.evaluate(() => { window.youtubeFake.active.rejectRates = true; });
+  await speed.selectOption('0.5');
+  await expect(speed).toHaveValue('0.75');
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await page.getByLabel('Loop selection', { exact: true }).check();
+  await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+  for (let time = 10.5; time <= 14; time += 0.5) await nativeTime(page, time, 1);
+  await expect(page.getByTestId('song-video-position')).toContainText('beat 2');
+  await nativeTime(page, 14.5, 1); await nativeTime(page, 15, 1);
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(10);
+  await expect(speed).toHaveValue('0.75');
+  await page.evaluate(() => { window.youtubeFake.active.rates.push(0.6); window.youtubeFake.active.emitRate(0.6); });
+  await expect(speed).toHaveValue('0.6');
+  await page.evaluate(() => window.youtubeFake.active.fail(101));
+  await expect(speed).toHaveValue('1');
+  await expect(speed).toBeDisabled();
 });

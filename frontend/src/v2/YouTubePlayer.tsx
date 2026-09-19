@@ -9,17 +9,22 @@ export interface YouTubeControls {
   play(): void;
   pause(): void;
   seek(seconds: number): void;
+  setPlaybackRate(rate: number): void;
 }
 interface Props {
   videoId: string;
   onReadyChange(ready: boolean): void;
   onTime(seconds: number): void;
   onStateChange(state: YouTubeState): void;
+  onRateChange?(rate: number, available: number[]): void;
 }
 interface Player {
   getCurrentTime(): number;
   getDuration(): number;
   getPlayerState(): number;
+  getPlaybackRate(): number;
+  getAvailablePlaybackRates(): number[];
+  setPlaybackRate(rate: number): void;
   playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
@@ -100,6 +105,7 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
   useImperativeHandle(controlsRef, () => ({
     getCurrentTime: () => ready.current && player.current ? player.current.getCurrentTime() : null,
     getDuration: () => ready.current && player.current ? player.current.getDuration() || null : null,
+    setPlaybackRate: rate => { if (ready.current && player.current?.getAvailablePlaybackRates().includes(rate)) player.current.setPlaybackRate(rate); },
     play: () => { if (ready.current && visible(iframe.current)) player.current?.playVideo(); },
     pause: () => { if (ready.current) player.current?.pauseVideo(); },
     seek: seconds => {
@@ -124,6 +130,10 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
       if (disposed || !ready.current || !instance) return;
       const time = instance.getCurrentTime();
       if (Number.isFinite(time) && time >= 0) callbacks.current.onTime(time);
+    };
+    const publishRate = () => {
+      if (disposed || !ready.current || !instance) return;
+      callbacks.current.onRateChange?.(instance.getPlaybackRate(), instance.getAvailablePlaybackRates());
     };
     const fail = (text: string) => {
       if (disposed) return;
@@ -158,6 +168,7 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
           callbacks.current.onStateChange(states[instance.getPlayerState()] ?? 'unstarted');
           if (pendingSeek.current !== null) { seekPlayer(instance, pendingSeek.current); pendingSeek.current = null; }
           publishTime();
+          publishRate();
           poll = window.setInterval(publishTime, 200);
         },
         onStateChange: event => {
@@ -166,7 +177,9 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
           callbacks.current.onStateChange(states[event.data ?? -1] ?? 'unstarted');
           if (event.data === 1) setMessage(null);
           publishTime();
+          publishRate();
         },
+        onPlaybackRateChange: publishRate,
         onError: event => fail(errors[event.data ?? 0] ?? 'YouTube could not play this video. Please try again.'),
         onAutoplayBlocked: () => {
           if (disposed || !ready.current) return;

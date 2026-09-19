@@ -55,6 +55,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<YouTubeState>('loading');
   const [seconds, setSeconds] = useState<number | null>(null);
+  const [playbackRate, setPlaybackRate] = useState({ rate: 1, available: [1] });
   const [loop, setLoop] = useState(false);
   const [startTime, setStartTime] = useState('');
   const timingEnabled = Boolean(draft && (draft.recording_confirmed || draft.timing_source));
@@ -267,10 +268,10 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   return <section ref={panel} className="song-video" aria-label="Song video">
     {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
       setReady(value);
-      if (!value) setDuration(null);
+      if (!value) { setDuration(null); setPlaybackRate({ rate: 1, available: [1] }); }
       if (!value) { playingRange.current = null; previousSample.current = null; lastPosition.current = ''; onPosition(null); }
     }}
-      onTime={handleTime} onStateChange={value => { playingState.current = value; setState(value); }} />}
+      onTime={handleTime} onRateChange={(rate, available) => setPlaybackRate({ rate, available })} onStateChange={value => { playingState.current = value; setState(value); }} />}
     <div className="song-video-tools">
       {draft && <>
         {draft.timing_source && <p>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : 'Songsterr timing'}</p>}
@@ -292,7 +293,10 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
           <option value="">Choose occurrence</option>{draft.passages.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select></label>}
         <div className="song-video-actions"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
-          <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label></div>
+          <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label>
+          <label>Speed<select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
+            {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
+          </select></label></div>
         {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
         <p>Select a beat while playing to jump. Loop repeats the selection.</p>
         {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
