@@ -229,7 +229,7 @@ test('recording discovery retries, previews without URL and preserves saved alig
   await openSong(page, false);
   await page.getByRole('button', { name: 'Retry recordings' }).click();
   await expect(page.getByLabel('YouTube link or video ID')).not.toBeVisible();
-  await page.getByRole('button', { name: 'Preview Study Fixture recording', exact: true }).focus();
+  await page.getByRole('button', { name: 'Preview recording 1: Study Fixture recording', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('video-duration-comparison')).toContainText('20.0 seconds longer');
   await page.getByText('Calibrate recording', { exact: false }).click();
@@ -239,7 +239,7 @@ test('recording discovery retries, previews without URL and preserves saved alig
   await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Video setup saved');
   await page.getByText('Change or remove recording', { exact: true }).click();
-  await page.getByRole('button', { name: 'Preview Study Fixture backing', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview recording 2: Study Fixture backing', exact: true }).click();
   await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
   await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
   await expect(page.getByLabel('Correct an anchor').locator('option')).toHaveCount(3);

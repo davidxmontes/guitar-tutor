@@ -207,15 +207,15 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     {suggestionError ? <p role="alert">Could not find recordings. <button type="button" className="music-button" onClick={() => { setSuggestionError(false); setSuggestions(null); setSuggestionAttempt(value => value + 1); }}>Retry recordings</button></p>
       : !suggestions ? <p role="status">Finding recordings…</p>
       : suggestions.candidates.length === 0 ? <p>No linked recordings found. You can paste a YouTube link below.</p>
-      : <ul>{suggestions.candidates.map(candidate => <li key={candidate.video_id}>
-        <button type="button" className="music-button" onClick={() => attachId(candidate.video_id)} aria-label={`Preview ${candidate.title}`}>{candidate.title}</button>
+      : <ul>{suggestions.candidates.map((candidate, index) => <li key={candidate.video_id}>
+        <button type="button" className="music-button" onClick={() => attachId(candidate.video_id)} aria-label={`Preview recording ${index + 1}: ${candidate.title}`}>{candidate.title}</button>
         <p>{candidate.channel ? `${candidate.channel} · ` : ''}{candidate.kind === 'musicvideo' ? 'Music video' : candidate.kind} · {candidate.match_note}</p>
       </li>)}</ul>}
     {recordingInput}
   </div>;
   const scoreDuration = suggestions?.score_duration_seconds;
   const durationComparison = duration !== null && scoreDuration != null && scoreDuration > 0 && Number.isFinite(scoreDuration)
-    ? `Video ${timeLabel(duration)} · score estimate ${timeLabel(scoreDuration)} · ${Math.abs(duration - scoreDuration).toFixed(1)} seconds ${duration >= scoreDuration ? 'longer' : 'shorter'}. ${suggestions?.duration_note ?? ''}`
+    ? `Video ${timeLabel(duration)} · written score estimate ${timeLabel(scoreDuration)} · ${Math.abs(duration - scoreDuration).toFixed(1)} seconds ${duration >= scoreDuration ? 'longer' : 'shorter'}.`
     : suggestions?.duration_note;
 
   if (!active) return null;
