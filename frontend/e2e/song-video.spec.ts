@@ -4,6 +4,7 @@ import { installYouTubeFake } from './youtube-fake';
 
 async function openSong(page: Page, attachManually = true) {
   await installYouTubeFake(page);
+  if (attachManually) await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
   await page.goto('/v2');
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
@@ -11,7 +12,7 @@ async function openSong(page: Page, attachManually = true) {
   await page.getByLabel('Search songs').fill('fixture');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
-  await page.getByLabel('Playback source').selectOption('video');
+  await expect(page.getByLabel('Playback source')).toHaveValue('video');
   if (!attachManually) return;
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('https://youtu.be/M7lc1UVf-VE');
@@ -216,10 +217,9 @@ test('mobile dark calibration keeps a visible native player and usable score', a
 
 
 test('recording discovery retries, previews without URL and preserves saved alignment', async ({ page }) => {
-  let attempts = 0;
+  let unavailable = true;
   await page.route('**/video-suggestions', route => {
-    attempts++;
-    return attempts === 1 ? route.fulfill({ status: 503, json: { detail: 'Unavailable' } }) : route.fulfill({ json: {
+    return unavailable ? route.fulfill({ status: 503, json: { detail: 'Unavailable' } }) : route.fulfill({ json: {
       candidates: [
         { video_id: 'M7lc1UVf-VE', title: 'Study Fixture recording', channel: 'Practice Band', kind: 'musicvideo', match_note: 'Linked recording' },
         { video_id: 'dQw4w9WgXcQ', title: 'Study Fixture backing', channel: null, kind: 'backing', match_note: 'Backing track' },
@@ -227,11 +227,17 @@ test('recording discovery retries, previews without URL and preserves saved alig
     } });
   });
   await openSong(page, false);
+  await expect(page.getByRole('alert')).toContainText('Unavailable');
+  unavailable = false;
   await page.getByRole('button', { name: 'Retry recordings' }).click();
   await expect(page.getByLabel('YouTube link or video ID')).not.toBeVisible();
-  await page.getByRole('button', { name: 'Preview recording 1: Study Fixture recording', exact: true }).focus();
-  await page.keyboard.press('Enter');
+  await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).not.toBe(1);
   await expect(page.getByTestId('video-duration-comparison')).toContainText('20.0 seconds longer');
+  await page.getByText('Calibrate recording', { exact: false }).click();
+  await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
+  await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Preview recording 1: Study Fixture recording', exact: true }).click();
   await page.getByText('Calibrate recording', { exact: false }).click();
   await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
   await page.getByLabel('I checked that this recording matches the score arrangement.').check();
@@ -262,4 +268,25 @@ test('no linked recording leaves a usable collapsed URL fallback', async ({ page
   await expect(page.getByText('No linked recordings found.', { exact: false })).toBeVisible();
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await expect(page.getByLabel('YouTube link or video ID')).toBeVisible();
+});
+
+
+test('pending discovery respects a typed URL and explicit playback source choice', async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/video-suggestions', async route => {
+    await pending;
+    await route.fulfill({ json: { candidates: [{ video_id: 'dQw4w9WgXcQ', title: 'Late recording', channel: null, kind: 'other', match_note: 'Linked' }], score_duration_seconds: null, duration_note: 'Unknown score duration.' } });
+  });
+  await openSong(page, false);
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
+  await page.getByLabel('YouTube link or video ID').fill('M7lc1UVf-VE');
+  await page.getByLabel('Playback source').selectOption('practice');
+  release();
+  await page.getByLabel('Playback source').selectOption('video');
+  await expect(page.getByRole('button', { name: 'Preview recording 1: Late recording' })).toBeVisible();
+  await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
+  await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
+  await expect(page.locator('iframe[title="YouTube video player"]')).toHaveAttribute('src', /M7lc1UVf-VE/);
 });

@@ -564,7 +564,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   );
   const [selection, setSelection] = useState<SongSelection | null>(null);
   const [showFullTab, setShowFullTab] = useState(false);
-  const [playbackSource, setPlaybackSource] = useState<'practice' | 'video'>(payload.video_alignment ? 'video' : 'practice');
+  const [playbackSource, setPlaybackSource] = useState<'practice' | 'video'>('video');
   const [followVideo, setFollowVideo] = useState(true);
   const [videoPlayhead, setVideoPlayhead] = useState<VideoPosition | null>(null);
   const receiveVideoPosition = useCallback((position: VideoPosition | null) => {

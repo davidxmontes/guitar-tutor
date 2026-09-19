@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { SongSelection, SongStudyArtifact } from '../types/v2';
 import type { SongVideoAlignment, SongVideoAnchor, SongVideoSuggestions } from '../types/songVideo';
@@ -27,19 +27,25 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const revision = useRef(song.updated_at);
   const [history, setHistory] = useState<Array<SongVideoAlignment | null>>([]);
   const [suggestions, setSuggestions] = useState<SongVideoSuggestions | null>(null);
-  const [suggestionError, setSuggestionError] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [suggestionAttempt, setSuggestionAttempt] = useState(0);
   const [changingRecording, setChangingRecording] = useState(false);
   const [duration, setDuration] = useState<number | null>(null);
+  const autoSelect = useRef(!initial);
+  const receiveSuggestions = useEffectEvent((result: SongVideoSuggestions) => {
+    setSuggestions(result); setSuggestionError(null);
+    if (autoSelect.current && result.candidates.length > 0) attachId(result.candidates[0].video_id);
+  });
   const discover = active && (!draft || changingRecording);
   useEffect(() => {
+    if (!active) autoSelect.current = false;
     if (!discover) return;
     let cancelled = false;
     apiClient.getSongVideoSuggestions(song.id).then(result => {
-      if (!cancelled) { setSuggestions(result); setSuggestionError(false); }
-    }).catch(() => { if (!cancelled) setSuggestionError(true); });
+      if (!cancelled) receiveSuggestions(result);
+    }).catch(cause => { if (!cancelled) setSuggestionError(cause instanceof Error ? cause.message : 'Please try again.'); });
     return () => { cancelled = true; };
-  }, [discover, song.id, suggestionAttempt]);
+  }, [active, discover, song.id, suggestionAttempt]);
   const [url, setUrl] = useState('');
   const [occurrence, setOccurrence] = useState('');
   const [anchorIndex, setAnchorIndex] = useState('');
@@ -86,6 +92,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     onPosition(null);
   }
   function change(next: SongVideoAlignment | null) {
+    autoSelect.current = false;
     clearPlayback();
     if (!dirty) revision.current = song.updated_at;
     setHistory(previous => [...previous.slice(-49), draft]);
@@ -185,6 +192,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     } finally { if (live.current) setBusy(false); }
   }
   async function discard() {
+    autoSelect.current = false;
     clearPlayback(); setBusy(true); setError(null);
     try {
       const saved = await apiClient.getSongStudy(song.id);
@@ -199,13 +207,13 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
 
   const recordingInput = <details><summary>Paste a YouTube link instead</summary><form onSubmit={event => { event.preventDefault(); attach(); }}>
             <p>Use a finished recording, not an ongoing livestream.</p>
-            <label>YouTube link or video ID<input aria-label="YouTube link or video ID" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://www.youtube.com/watch?v=…" /></label>
+            <label>YouTube link or video ID<input aria-label="YouTube link or video ID" value={url} onChange={event => { autoSelect.current = false; setUrl(event.target.value); }} placeholder="https://www.youtube.com/watch?v=…" /></label>
             <button type="submit" className="music-button" disabled={!url.trim()}>{draft ? 'Replace recording and reset alignment' : 'Attach recording'}</button>
           </form></details>;
   const recordingChoices = <div className="song-video-suggestions" aria-label="Suggested recordings">
     <p>Recordings linked to this song on Songsterr. Preview and check the arrangement before confirming.</p>
     {draft && <p>Choosing another recording resets alignment. Undo restores it.</p>}
-    {suggestionError ? <p role="alert">Could not find recordings. <button type="button" className="music-button" onClick={() => { setSuggestionError(false); setSuggestions(null); setSuggestionAttempt(value => value + 1); }}>Retry recordings</button></p>
+    {suggestionError ? <p role="alert">Recording suggestions unavailable: {suggestionError} <button type="button" className="music-button" onClick={() => { setSuggestionError(null); setSuggestions(null); setSuggestionAttempt(value => value + 1); }}>Retry recordings</button></p>
       : !suggestions ? <p role="status">Finding recordings…</p>
       : suggestions.candidates.length === 0 ? <p>No linked recordings found. You can paste a YouTube link below.</p>
       : <ul>{suggestions.candidates.map((candidate, index) => <li key={candidate.video_id}>
