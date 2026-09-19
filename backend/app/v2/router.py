@@ -42,7 +42,7 @@ from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_s
 from app.v2.tutor.contract import LearningPreferences, TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
-from app.v2.tutor.saved_work import saved_work_tools
+from app.v2.tutor.saved_work import saved_work_provenance, saved_work_tools
 from app.v2.tutor.branch_comparison import branch_tools
 from app.v2.tutor.workspace_tools import workspace_tools
 
@@ -599,9 +599,7 @@ class RestoreArtifactRequest(SaveArtifactRequest):
 @router.get("/library")
 def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     return [{**a.model_dump(exclude={"payload"}),
-             "provenance": a.payload.get("created_from") or a.payload.get("inspired_by")
-             or ({"title": a.title, "song_id": a.payload.get("song_id"),
-                  "track": a.payload.get("track", {}).get("name")} if a.kind == "song_study" else None)}
+             "provenance": saved_work_provenance(a)}
             for a in store.list_artifacts(user_id) if a.saved_at]
 
 
