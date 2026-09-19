@@ -155,28 +155,6 @@ class ProgressionVoicingPosition(BaseModel):
     fret: int = Field(ge=0, le=36, strict=True)
 
 
-CagedQualityId = Literal["major", "minor"]
-CagedShapeId = Literal["C", "A", "G", "E", "D"]
-
-
-class ConceptNote(BaseModel):
-    note: str
-    interval: str
-
-
-class ConceptPosition(ConceptNote):
-    string: int = Field(ge=1, le=6)
-    fret: int = Field(ge=0, le=22)
-
-
-class CagedRegion(BaseModel):
-    shape: CagedShapeId
-    label: str
-    fret_start: int = Field(ge=0, le=22)
-    fret_end: int = Field(ge=0, le=22)
-    positions: list[ConceptPosition]
-
-
 class ArtifactRevision(BaseModel):
     revision: str
     payload: dict[str, Any]
