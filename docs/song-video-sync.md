@@ -84,10 +84,12 @@ Additional sources checked:
   maps within one occurrence. Native video controls own pause/resume/seeking;
   the song control starts from a selected score position. No parallel generic
   transport framework.
-- Native player interaction releases bounded selection playback; Play selection
-  arms it again. Looping follows reported time and therefore has approximate
+- Native player interaction releases an armed selection loop; Play selection
+  arms it again. Playback continues beyond the selected end when looping is off. Looping follows reported time and therefore has approximate
   boundaries. Explicit score navigation owns the detail view until the video
-  moves to another mapped beat; it never seeks the player by itself.
+  moves to another mapped beat. While video plays, a new learner selection seeks
+  to its mapped start; paused selection changes do not start playback. Unknown
+  or ambiguous positions pause rather than seek to an invented timestamp.
 - Calibration is a disclosure beside the player: select score position, pause
   or seek the video, mark its start/end here, correct/remove anchors, save or
   discard the draft. Keep editing recovery local and use Artifact History for
@@ -296,3 +298,57 @@ and loaded YouTube's native paused player in Chrome. The hidden in-app browser
 initially hit the readiness timeout; after showing the tab, Retry loaded the
 player successfully (4:20 video versus 4:15 written score estimate). The local
 app was left open on that paused preview.
+
+
+### Selection-driven playback and initial timing (2026-09-19)
+
+The user superseded the manual-only setup requirement: opening a recording should
+make selection playback usable, defaulting to 0:00 plus score BPM if necessary.
+Non-loop playback now continues past the selected boundary. Explicit learner
+selection changes seek while playing, without feeding the video playhead back
+into learner selection. Loops remain opt-in; turning them off continues playback.
+
+Primary-provider investigation found public
+`GET https://www.songsterr.com/api/video-points/{songId}/{revisionId}/list`.
+The public client (`common-DWZ1FVtGLtYGNv20.js`, September 19) converts these
+seconds to player milliseconds and indexes them by the expanded measure
+progression. The integration therefore accepts straight written order only;
+repeat/jump arrangements still need explicit manual occurrences. It does not
+copy Songsterr's trailing-time extrapolation. Wonderwall revision 8047059 has
+92 supplied measure-start points for 94 written measures; the trailing section
+must remain visibly unmapped.
+
+Timing is pinned to the imported score revision and exact video. Otherwise,
+supported score rhythm and tempo produce a clearly labeled estimate from 0:00,
+including measure-start tempo changes. These initial mappings are not claims
+that the learner verified the recording's arrangement. Source provenance saves
+with the existing alignment; confirmation remains a separate explicit checkbox.
+No media downloading, audio analysis, provider writes, or new services are used.
+
+Final verification for this follow-up:
+- Backend: 417 passed, two existing dependency warnings.
+- Full browser suite: 75 passed on the automatic-timing change. After compact
+  layout and same-selection replay corrections, all 15 affected video journeys
+  passed again; lint and production build passed.
+- Real API: Frisky (47 anchors, first 0.03s), Roman Holiday (129, 0.02s),
+  Don't Look Back in Anger (97, 0.29s), Wonderwall (92, 1.2s) all received
+  Songsterr-supplied timing for the chosen recording.
+- Real Chrome: selected Wonderwall M6, Play selection started at M6, playback
+  advanced through M13 without stopping at M6, and selecting Intro returned
+  playback to the opening measures. The native player remained the clock.
+- Inspected 1280px desktop, 320px light mode, and the 824px dark in-app browser.
+  Expanded controls scroll within a bounded area so the native player and score
+  remain available; 320px document width was 314px, without horizontal overflow.
+- Both frontend addresses (5310 and 5287) now proxy to the updated API on 8311.
+  Four local sessions, five saved/imported artifacts and their available message
+  histories were copied into the new local process with IDs preserved. Original
+  API 8310 remains running; no original memory data was deleted. The app is left
+  open on the automatically timed, paused Wonderwall preview.
+
+Review: source matching, tempo fallback, timing provenance, save/reopen, actual
+clock ownership and explicit selection ownership were checked. A fresh explicit
+selection object seeks even when reselecting the same measure; memoized fallback
+selection prevents playhead updates from triggering seeks. The Ponytail pass kept
+the existing anchor model, Undo, persistence and player boundary. Initial timing
+is bounded to 256 anchors; unsupported repeats/jumps and unmapped tails remain
+manual rather than fabricated. No new dependency or hosted change.

@@ -125,7 +125,13 @@ once, paused and unconfirmed, through the existing draft and Undo path. The
 learner can choose another suggestion or use the secondary URL form. Automatic
 selection never replaces saved alignment or overrides edits, removal, Undo,
 a typed URL, or an explicit playback-source choice. Failed discovery shows the
-API error and offers Retry; confirmation and saving remain deliberate.
+API error and offers Retry. For supported scores, initial timing comes from the
+exact Songsterr revision/video or a labeled score-tempo estimate beginning at
+0:00. The learner can adjust the recording start. This enables selection
+playback without falsely checking arrangement confirmation; saving remains
+deliberate. Playback continues beyond a selection unless Loop is enabled, and
+selecting another aligned measure while playing seeks there. Paused selection
+does not start playback; unmapped or ambiguous positions pause rather than guess.
 The player reports
 video length; a conservative written-score estimate provides a comparison,
 not a synchronization model. Unsupported tempo or repeat order yields an
