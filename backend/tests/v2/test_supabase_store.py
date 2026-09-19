@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, ANY
 
 import pytest
 
-from app.v2.models import HarmonyExploration
+from app.v2.models import HarmonyExploration, Session
 from app.v2.store import NotFoundError, SupabaseV2Store
 from conftest import make_supabase_chain as _chain
 
@@ -133,6 +133,22 @@ def test_update_branch_with_no_fields_selects_instead_of_updating():
     assert branch.id == "branch-1"
     branch_chain.update.assert_not_called()
     branch_chain.select.assert_called_with("*")
+
+
+@pytest.mark.parametrize("fields", [
+    {"active_workspace": "progression"}, {"harmony_exploration": None},
+    {"title": None}, {"closed": None},
+])
+def test_update_branch_rejects_invalid_state_before_database_write(fields):
+    client = MagicMock()
+    session_chain = _chain([_session_row()])
+    branch_chain = _chain([_branch_row()])
+    client.table.side_effect = lambda name: {"v2_sessions": session_chain, "v2_branches": branch_chain}[name]
+
+    with pytest.raises(ValueError):
+        SupabaseV2Store(client).update_branch("sess-1", "branch-1", "user_1", **fields)
+
+    branch_chain.update.assert_not_called()
 
 
 def test_update_branch_persists_workspace_fields():
@@ -381,7 +397,8 @@ def test_progression_save_rpc_round_trip_and_conflict():
 def test_branch_gesture_compare_and_swap_filters_timestamp():
     from app.v2.store import RevisionConflictError
     client = MagicMock(); store = SupabaseV2Store(client)
-    store.get_session = MagicMock()
+    store.get_session = MagicMock(return_value=Session(id='s', user_id='owner', created_at='t0', updated_at='t0',
+        branches=[store._row_to_branch(_branch_row('s', 'b'))]))
     chain = _chain([]); client.table.return_value = chain
     with pytest.raises(RevisionConflictError):
         store.update_branch('s','b','owner',expected_updated_at='t1',title='Changed')

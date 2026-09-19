@@ -408,10 +408,14 @@ class SupabaseV2Store:
         return self._row_to_branch(rows[0])
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
-        self.get_session(session_id, user_id)  # raises NotFoundError if not owned
+        session = self.get_session(session_id, user_id)  # raises NotFoundError if not owned
+        current = next((branch for branch in session.branches if branch.id == branch_id), None)
+        if current is None:
+            raise NotFoundError(f"Branch {branch_id!r} not found on session {session_id!r}")
 
         expected = fields.pop('expected_updated_at', None)
         fields = _dump_fields(fields)
+        Branch.model_validate(current.model_dump() | fields)
         if fields: fields["updated_at"] = _now()
         query = self._client.table("v2_branches")
         # PostgREST rejects .update({}) — a no-op PATCH just re-reads the row.
