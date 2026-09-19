@@ -1,7 +1,8 @@
 import { Hear } from './Fretboard';
 import { physicalVoicing, sameVoicing } from './harmony';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
-import type { ProgressionIdea, ProgressionSurface, ProgressionResolved, ProgressionFocus } from './progression';
+import type { ProgressionSurface, ProgressionResolved } from './progression';
+import type { ProgressionIdea, ProgressionFocus } from '../types/v2';
 
 export function ProgressionEditor({ idea, data, catalog, focus, busy, edit, beatsPerBar }: {
   idea: ProgressionIdea; data: ProgressionResolved; catalog: ProgressionSurface['catalog']; focus: ProgressionFocus | null;

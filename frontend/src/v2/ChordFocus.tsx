@@ -4,7 +4,8 @@ import { useMusicalInteraction } from './musicalInteraction';
 import { useState } from 'react';
 import { Hear } from './Fretboard';
 import { physicalVoicing } from './harmony';
-import type { ChordRef, HarmonyResolved } from './harmony';
+import type { HarmonyResolved } from './harmony';
+import type { ChordRef } from '../types/music';
 import type { ComparePeer } from './compare';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 

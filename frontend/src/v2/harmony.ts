@@ -1,9 +1,9 @@
 import type { Composition } from './Composition';
+import type { V2Branch } from '../types/v2';
+import type { ResolvedNote, NoteLayer, VoicingValue, ChordRef } from '../types/music';
+
 export type HarmonyView = 'tutor' | 'fretboard' | 'shapes' | 'triads' | 'caged' | 'circle' | 'scratch';
 export const harmonyViews: [HarmonyView, string][] = [['tutor', "Tutor’s view"], ['fretboard', 'Fretboard'], ['shapes', 'Chord shapes'], ['triads', 'Triads'], ['caged', 'CAGED'], ['circle', 'Circle of fifths'], ['scratch', 'Scratch sequence']];
-import type { V2Branch } from '../types/v2';
-import type { ResolvedNote, NoteLayer, VoicingValue } from './Fretboard';
-export type ChordRef = { root: string; quality: string };
 export type HarmonyResolved = {
   function: string | null;
   palette: (ChordRef & { numeral: string; display: string })[];

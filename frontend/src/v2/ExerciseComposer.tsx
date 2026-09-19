@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { ExerciseArtifact, ExerciseStep, SongSelection, V2Branch } from '../types/v2';
-import type { ProgressionIdea } from './progression';
+import type { ExerciseArtifact, ExerciseStep, SongSelection, V2Branch, ProgressionIdea } from '../types/v2';
 import { playTimedChords } from '../utils/audio';
 
 type ComposerSource = { branch: V2Branch; idea: ProgressionIdea } | {

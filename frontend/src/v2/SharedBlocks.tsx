@@ -6,7 +6,7 @@ import type { ViewConfig } from './Composition';
 import { CompositionView } from './Composition';
 import { comparisonComposition } from './compare';
 import type { ComparePeer } from './compare';
-import type { NoteLayer } from './Fretboard';
+import type { NoteLayer } from '../types/music';
 
 export function Explanation({ text, subject }: { text: string; subject?: string }) {
   return <section aria-label={subject ? `Explanation: ${subject}` : 'Explanation'}>

@@ -1,6 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ChordRef } from './harmony';
-import type { VoicingValue } from './Fretboard';
+import type { ChordRef, VoicingValue } from '../types/music';
 export type MusicalIntent =
   | { type: 'tonal-center'; root: string; scale: string }
   | { type: 'degree'; degree: number }

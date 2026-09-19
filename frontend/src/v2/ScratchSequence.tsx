@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { playChordSequence } from '../utils/audio';
-import type { ChordRef, HarmonyResolved } from './harmony';
+import type { HarmonyResolved } from './harmony';
+import type { ChordRef } from '../types/music';
 
 export function ScratchSequence({ data, chord, busy, edit, develop }: {
   data: HarmonyResolved['scratch']; chord?: ChordRef; busy: boolean;

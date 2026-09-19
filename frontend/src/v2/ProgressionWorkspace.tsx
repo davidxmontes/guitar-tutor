@@ -5,17 +5,17 @@ import { Hear } from './Fretboard';
 import { TutorPanel } from './TutorPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { V2Branch } from '../types/v2';
+import type { V2Branch, ProgressionFocus } from '../types/v2';
 import { CompositionView } from './Composition';
 import { Fretboard } from './Fretboard';
-import type { ResolvedNote } from './Fretboard';
+import type { ResolvedNote } from '../types/music';
 import { ComparisonView, Explanation, WorkspaceHeader } from './SharedBlocks';
 import { ExerciseComposer } from './ExerciseComposer';
 import { ChordInspector } from './ChordFocus';
 import { HarmonicFunction, VoiceLeading } from './ProgressionAnalysis';
 import { ProgressionEditor } from './ProgressionEditor';
 import { useCompare } from './compare';
-import type { ProgressionFocus, ProgressionSurface } from './progression';
+import type { ProgressionSurface } from './progression';
 import type { Composition } from './Composition';
 import { ProgressionPractice } from './ProgressionPractice';
 import { usePractice } from './usePractice';
@@ -74,7 +74,7 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
   const selectStep = (step_id: string) => { if (busy) return; compare.clear(); void edit(intentFields({ type: 'step', step_id })); };
   const inspect = (target: ProgressionFocus) => {
     if (busy) return;
-    compare.clear(); const { kind, ...fields } = target; void edit(intentFields({ type: kind, ...fields } as import('./musicalInteraction').MusicalIntent));
+    compare.clear(); void edit({ focus: target });
     requestAnimationFrame(() => document.getElementById('workspace-music')?.scrollIntoView({ block: 'start' }));
   };
   return <MusicalInteraction scope={JSON.stringify([branch.id, surface.branch.live_presentation_turn_id, idea?.id, focus])} onSelect={intent => { if (!busy) void edit(intentFields(intent)); }}><section className="learning-workspace progression-workspace" data-testid="progression-workspace" aria-busy={busy}>

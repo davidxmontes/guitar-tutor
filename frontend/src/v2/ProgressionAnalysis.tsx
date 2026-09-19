@@ -1,4 +1,5 @@
-import type { ProgressionFocus, ProgressionResolved } from './progression';
+import type { ProgressionResolved } from './progression';
+import type { ProgressionFocus } from '../types/v2';
 
 export function HarmonicFunction({ data, selectedId, busy, onFocus }: { data: ProgressionResolved; selectedId?: string; busy: boolean; onFocus: (id: string) => void }) {
   return <section aria-label="Harmonic function"><h3>Harmonic function</h3><p className="learning-hint">Select a chord to see where it lives on the neck.</p>{data.key_status === 'Set a key' ? <p>Set a key</p> : <ol className="progression-functions">{data.steps.map((step, index) => <li key={step.id}><button className="music-button" disabled={busy} aria-label={`Explore function of chord ${index + 1}: ${step.root} ${step.quality}`} aria-pressed={step.id === selectedId} onClick={() => onFocus(step.id)}><strong>{step.function ?? '—'}</strong><span>{step.root} {step.quality}<small>{step.function_family ?? 'No function label'}</small></span></button></li>)}</ol>}</section>;

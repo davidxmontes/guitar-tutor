@@ -1,3 +1,4 @@
+import type { ResolvedNote, NoteLayer, VoicingValue } from '../types/music';
 import { MusicIcon } from './MusicIcon';
 import { useMusicalInteraction } from './musicalInteraction';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -8,9 +9,6 @@ import { PracticeControls } from './PracticeControls';
 import type { ViewConfig } from './Composition';
 import './Fretboard.css';
 
-export type ResolvedNote = { string: number; fret: number; note: string; degree?: string; midi?: number; pitch_class?: number };
-export type NoteLayer = { id: string; label: string; positions: ResolvedNote[]; focal?: boolean };
-export type VoicingValue = { positions: { string: number; fret: number }[]; tuning: number[] };
 
 export function Hear({ voicing, label = 'Hear' }: { voicing: VoicingValue; label?: string }) {
   const stop = useRef<(() => void) | null>(null);
