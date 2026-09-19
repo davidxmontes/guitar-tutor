@@ -183,3 +183,41 @@ def test_delete_session_checks_owner_and_removes_conversations(store):
     assert thread not in store._tutor_messages
     with pytest.raises(NotFoundError):
         store.get_session(session.id, 'owner')
+
+
+def test_concurrent_first_requests_share_one_store(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from importlib.util import module_from_spec, spec_from_file_location
+    from pathlib import Path
+    from threading import Event
+    from app import config
+
+    # A fresh module gives this check a cold store without changing the app's store.
+    spec = spec_from_file_location('isolated_v2_store', Path(__file__).parents[2] / 'app/v2/store.py')
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(config, 'get_settings', lambda: config.Settings(_env_file=None, v2_storage_backend='memory'))
+    original = module.InMemoryV2Store
+    entered, duplicate, release = Event(), Event(), Event()
+
+    def slow_constructor():
+        if entered.is_set():
+            duplicate.set()
+        entered.set()
+        assert release.wait(5)
+        return original()
+
+    monkeypatch.setattr(module, 'InMemoryV2Store', slow_constructor)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(module.get_v2_store)
+        try:
+            assert entered.wait(2)
+            second = pool.submit(module.get_v2_store)
+            duplicate.wait(1)
+        finally:
+            release.set()
+        first_store, second_store = first.result(), second.result()
+
+    assert first_store is second_store is module.get_v2_store()
+    session = first_store.create_session('owner')
+    assert second_store.get_session(session.id, 'owner').id == session.id

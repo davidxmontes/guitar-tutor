@@ -11,7 +11,6 @@ Two backends, selected by Settings.v2_storage_backend:
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
-from functools import lru_cache
 from threading import RLock
 
 from typing import Any, Optional, Protocol
@@ -582,24 +581,29 @@ class SupabaseV2Store:
         return [self._row_to_tutor_message(r) for r in rows]
 
 
-@lru_cache
+_store: V2Store | None = None
+_store_lock = RLock()
+
+
 def get_v2_store() -> V2Store:
-    """Process-wide singleton store, backend chosen by Settings.v2_storage_backend.
-    lru_cache (same pattern as app.config.get_settings) memoizes this safely
-    across FastAPI's threadpool — a manual "if _store is None" global has a
-    check-then-set race under concurrent first requests.
-    """
+    """Share one store, including across concurrent first requests."""
+    global _store
     from app.config import get_settings  # local import avoids a config->store->config cycle
 
-    settings = get_settings()
-    if settings.v2_storage_backend == "supabase":
-        from app.db import get_supabase_client
+    with _store_lock:
+        if _store is not None:
+            return _store
+        settings = get_settings()
+        if settings.v2_storage_backend == "supabase":
+            from app.db import get_supabase_client
 
-        client = get_supabase_client()
-        if client is None:
-            raise RuntimeError(
-                "v2_storage_backend=supabase but Supabase is not configured "
-                "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
-            )
-        return SupabaseV2Store(client)
-    return InMemoryV2Store()
+            client = get_supabase_client()
+            if client is None:
+                raise RuntimeError(
+                    "v2_storage_backend=supabase but Supabase is not configured "
+                    "(SUPABASE_URL / SUPABASE_SERVICE_KEY missing)"
+                )
+            _store = SupabaseV2Store(client)
+        else:
+            _store = InMemoryV2Store()
+        return _store
