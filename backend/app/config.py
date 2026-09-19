@@ -9,10 +9,9 @@ from typing import Optional
 
 from pydantic_settings import BaseSettings
 
-# Resolve .env from project root (two levels up from this file: app/ -> backend/ -> root/)
-# Falls back to empty string if file doesn't exist (e.g., Docker where env vars come from compose)
-_candidate = Path(__file__).resolve().parents[2] / ".env"
-_ENV_FILE = str(_candidate) if _candidate.exists() else None
+# Keep the existing root fallback; the documented backend/.env takes precedence.
+# Settings ignores missing files and gives process environment variables priority.
+_ENV_FILES = tuple(Path(__file__).resolve().parents[level] / ".env" for level in (2, 1))
 
 
 class Settings(BaseSettings):
@@ -97,7 +96,7 @@ class Settings(BaseSettings):
     def origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
-    model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
+    model_config = {"env_file": _ENV_FILES, "extra": "ignore"}
 
 
 @lru_cache

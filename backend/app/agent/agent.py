@@ -6,11 +6,9 @@ Graph node implementations live in app.agent.nodes.
 """
 
 import logging
-import os
 import re
 from typing import Any, Generator, List, Optional
 
-from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
@@ -30,8 +28,6 @@ from app.agent.nodes import (
 )
 from app.agent.schemas import OverallState
 from app.config import get_settings
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +84,7 @@ class GuitarTutorAgent:
         self.summary_char_threshold = max(1000, settings.agent_summary_char_threshold)
         self.recent_turn_window = max(2, settings.agent_recent_turn_window)
 
-        resolved_key = api_key or os.environ.get("OPENAI_API_KEY")
+        resolved_key = api_key or settings.openai_api_key
         if not resolved_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
 
