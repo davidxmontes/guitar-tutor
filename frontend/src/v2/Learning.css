@@ -81,9 +81,6 @@
 .learning-note-chips [data-root='true'], .learning-note-chips .is-root { border-color: var(--learning-accent); color: var(--learning-accent); }
 .learning-details { border-top: 1px solid var(--border-primary); padding-top: 12px; }
 .learning-details summary { min-height: 44px; cursor: pointer; font-size: 13px; font-weight: 550; padding: 12px; border-radius: 9px; background: var(--bg-secondary); color: var(--learning-ink); }
-.learning-workspace .music-note--root circle { fill: var(--learning-accent); stroke: var(--learning-accent); }
-.learning-workspace .music-note--root text { fill: white; font-weight: 700; }
-.learning-workspace .music-note--playing circle { stroke: var(--accent-600); stroke-width: 6px; }
 .learning-root-key { font-weight: 650; color: var(--learning-accent); }
 .learning-pattern-practice { border-top: 1px solid var(--border-primary); margin-top: 16px; padding-top: 8px; }
 .tutor-panel { position: sticky; top: 16px; min-width: 0; border: 1px solid var(--control-border); background: var(--card-bg); border-radius: 18px; box-shadow: var(--surface-shadow); overflow: hidden; }
