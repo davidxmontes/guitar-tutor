@@ -20,64 +20,112 @@ cd frontend && npm install
 cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
-## Known gate gaps (verified 2026-09-06)
+## Maintainability review (2026-09-18)
 
-Verified against a clean archive of `main-v2` at `c2492c7` with the installed
-lockfile dependencies. These existing failures remain outside #95; no passing
-test may regress.
+Started from `main-v2` at `899b488` in an isolated worktree. The original working
+copies and their uncommitted changes were preserved. The baseline was measured
+before fixes:
 
-- `npm run lint`: 16 errors / 4 warnings on both baseline and integration.
-  Existing Classic components and `src/stores/useAppStore.ts` own these;
-  the changed V2 files introduce no new lint diagnostics.
-- `python -m pytest -q`: the same single failure on every branch,
-  `tests/test_chords_router.py::test_get_chord_returns_404_when_voicing_not_available`.
-  It patches the removed `chords_router.get_voicing_positions` symbol.
-  Counts: 248 passed at `c2492c7`; 268 after #95–96; **210 after #101** (the
-  ConceptWorkspace / workspace-turn suites were deleted with the code they
-  asserted). No pre-existing passing test regressed.
-- Playwright (`npm run test:e2e`): after #101 the harness boots the real
-  `app.main:app` (the ConceptWorkspace-model browser harness is deleted) and
-  runs the shell/entry specs (`v2-foundation`, `default-entry`,
-  `workspace-shell`). The concept/workspace/song/tutor/progression specs were
-  removed with their surfaces.
-- #96 clears the four formerly failing Tutor/history browser tests. The full
-  browser suite now passes 43/43, including multi-source Tutor composition,
-  re-binding without duplicate Blocks, persistent NoteGroup emphasis, transient
-  attention expiry, and preview/restore with unsent-question preservation.
+| Check | Baseline | After review |
+| --- | --- | --- |
+| Frontend lint | 16 errors, 4 warnings | Clean |
+| Production build / TypeScript | Pass | Pass |
+| Frontend unit tests | 1 passed | 2 passed |
+| Backend tests | 276 passed, 1 failed | 301 passed |
+| Browser journeys | 42 passed, 5 failed | 56 passed |
+| Local PostgreSQL 16 transaction check | Not part of the initial gate | Pass |
 
-#96 verification: production build (including `VITE_AUTH_DEV_BYPASS=true`) and
-17 adapter tests pass; full gate output is in its PR. The bypass build emits
-only the existing large-chunk advisory. TutorFocus contains only one-turn
-attention; cross-workspace comparison shapes use separate `comparison_groups`
-response data. Existing historical comparison shapes remain readable.
+The backend failure patched a removed chord-catalog symbol. Browser failures
+were two ambiguous duplicate headings, two obsolete SVG stroke assertions,
+and a Progression neck pushed below the desktop viewport. These were corrected
+without accepting the old failures as a permanent gate exception.
 
-#95 verification: 46/46 browser tests, 17 adapter tests, and both production
-build modes pass. The Music bar now owns selected-Block settings and source
-chips; inspected notes/chords/steps take precedence, with a bottom sheet at
-320px. `update-view` delegates to the existing validated `update_view` operation.
-One initial full-suite run hit the existing SongStudy test's immediate server
-read before its asynchronous selection save completed; its isolated rerun and
-the final full suite passed. If this recurs, wait for that save in the test.
+Reviewed end to end: Session create/list/continue/delete and Branch navigation;
+Harmony Focus, scratch, triads, voicings and CAGED; Develop, Progression editing,
+Save/reopen and practice; shared rendering, playback and transient previews;
+Tutor job submission/polling, failure recovery, candidate actions, Undo/Restore;
+owned memory/Supabase writes, Classic checkpoint/thread boundaries; auth,
+configuration, CORS and image build inputs. SongStudy remains an independent
+artifact viewer with shared tab, shape and practice controls.
 
-## Local dev
+Completed corrections include stale list/account-state isolation, optimistic
+revision checks for workspace gestures, durable Branch validation, preview
+preflights, nonblocking signing-key lookup, Classic thread ownership, centralized
+environment loading, storage-setting validation, one store across concurrent
+startup requests, and retaining Tutor guides in Docker build inputs. Removed
+Classic mirrored chord state and dead props, repaired playback/callback behavior,
+and restored the frontend lint gate.
 
-```bash
-# backend
-cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000
+Musical reuse uses the existing `PhysicalChordDiagram` plus a bare
+`FretboardDiagram` extracted from the workspace wrapper. Existing callers use
+one neck renderer, component-owned styles and order-independent physical shape
+identity. Read-only necks expose descriptions rather than inert note buttons;
+controls remain with callers. See [frontend reuse guide](../../frontend/README.md)
+for compact and expanded compositions and the intentional Classic boundary.
 
-# frontend
-cd frontend && npm run dev
-```
+Verification uses local auth, memory storage, scripted external-provider
+boundaries, and a disposable local database. No live Clerk, Supabase, model,
+Songsterr or deployed-service verification is claimed. The Docker daemon was
+unavailable; image contents/configuration were checked statically, not by running
+images. Browser inspection includes compact/bare/expanded music at desktop and
+320px, light/dark themes, keyboard interaction and page containment. The build's
+large-bundle advisory and upstream Python deprecation warnings remain.
 
-Or `docker-compose up --build` per the README — note there's currently no
-`docker-compose.yml` or `.env.example` at the repo root despite the README
-referencing them; local dev (above) is the path that actually works today.
+### Deliberate limits and decisions
+
+- Tutor jobs are process-local, bounded and expiring. One backend worker is the
+  supported deployment assumption; unfinished jobs do not survive restart. Use
+  durable jobs before requiring multiple workers or restart recovery.
+- Supabase Session creation inserts Session and initial Branch separately. Making
+  that operation atomic requires a new deployed RPC/migration; the reviewed
+  workspace turn and Save RPCs are already transactional.
+- Some durable storage calls are synchronous inside async routes. No production
+  throughput or latency claim is made; measure before changing that boundary.
+- Kept NoteGroups and pinned physical shapes retain absolute notes/frets when key
+  or tuning changes. Transposing them needs a product rule for binding, movement
+  and out-of-range notes, rather than an inferred renderer transformation.
+- SongStudy/Exercise Tutor context remains disconnected. Adding it requires an
+  explicit artifact-context contract; workspace Tutor is available on return.
+- Classic chat now uses explicit anonymous/per-user browser-storage keys. Old
+  unscoped chat records remain untouched but are no longer loaded automatically:
+  their owner cannot be inferred safely. Assigning/recovering that legacy local
+  history needs an explicit owner decision. Switching accounts reloads Classic
+  to discard pending callbacks and unsaved UI state; saved scoped chat returns
+  when that account returns.
+- Classic and V2 diagram wrappers keep their distinct selection, barre, interval
+  and color semantics. No universal rendering framework or new dependency was
+  introduced. File size alone was not used to split working modules.
+
+### Final review
+
+Correctness review covered authentication boundaries, concurrent writes, local
+state ownership and the changed display callers. An independent musical-UI pass
+found obsolete workspace CSS overriding the shared renderer's dark root colors;
+removing it restored readable root-label contrast, verified in the expanded
+workspace. A separate Ponytail pass retained purposeful Classic/V2 semantics,
+the two storage implementations and Composer validation, and removed redundant
+state/styles rather than adding adapters or generic presentation controls.
+After the corrections and final full gate, no further high-value, low-risk
+change was identified; the remaining decisions above require a separate scope.
+
+### Local development and additional checks
+
+The root [README](../../README.md) has the working local setup. There is no
+checked-in Docker Compose file. The backend loads root `.env` as a compatibility
+fallback, then `backend/.env`; process environment values take precedence.
+
+Alongside the required gate, run `npm test` and `npm run test:e2e` in `frontend`.
+Browser verification boots both servers and needs installed Chromium. From
+`backend`, `.venv/bin/python tests/v2/check_workspace_transaction.py` uses
+PostgreSQL tools on PATH to create a disposable local cluster; it does not target
+a hosted database. It checks Branch constraints, turn/save commit and rollback,
+ownership, stale rejection, Undo and Restore.
 
 ## Base branch: `main-v2`
 
 The Guitar Tutor V2 effort (Spec issue #10 and its sub-issue tickets) branches
-off and lands on **`main-v2`**, not `main`, until V2 is proven and made the
-default (see ticket #26, "Make V2 the default, keep Classic as fallback").
+off and lands on **`main-v2`**, not `main`, for the current V2 development line.
+V2 is already the default entry; `/classic` is the fallback.
 Treat `main-v2` as this repo's main for every V2 ticket:
 
 - Ticket branches: `feature/issue-<n>-<slug>`, based on `main-v2`.
@@ -95,7 +143,7 @@ Treat `main-v2` as this repo's main for every V2 ticket:
   incoming request surface in `docs/agents/issue-tracker.md`.
 - **Structure:** keep the existing `frontend/` + `backend/` split — it's
   intentional (backend-driven theory engine, thin frontend display layer per
-  the README's Design decisions), not something to reorganize as part of
+  the README's ownership section), not something to reorganize as part of
   workflow setup.
 - **YAGNI / dependency policy:** ponytail (full) governs this — lowest rung
   of the ladder that meets acceptance criteria, no speculative abstractions,
@@ -105,8 +153,8 @@ Treat `main-v2` as this repo's main for every V2 ticket:
 - **Primary context docs:** `CONTEXT.md` defines product language;
   `docs/adr/` records durable decisions; current GitHub specs define feature
   behavior; and `docs/guitar_tutor_v2_ux_reference.html` is the general V2
-  UX/layout reference. `README.md` remains a broad product and legacy-system
-  overview, so verify V2 behavior against current specs and code.
+  UX/layout reference. `README.md` covers the current product, setup and source
+  map; verify detailed behavior against current specs and code.
   `docs/superpowers/specs/` and `docs/superpowers/plans/` are historical
   inputs, not active workflow instructions; use a Superpowers skill only when
   the user names it.
@@ -134,117 +182,35 @@ Treat `main-v2` as this repo's main for every V2 ticket:
   presentation cues from it, but expect its interaction/visuals to be
   refined in this pass rather than carried over unchanged.
 
-## Branch storage — Harmony + Progression re-carve (#100, ticket #101)
+## Workspace storage and Tutor transactions
 
-**Hard cutover with a wiped store.** On deploy, the V2 data store (sessions,
-branches, artifacts, tutor threads) is **cleared**. There is no converter, no
-compatibility layer, and no legacy-shape routing — after the wipe there is no
-old data to read. Running that wipe / production DDL is a deploy step; this
-repo only prepares the SQL.
+The checked-in SQL describes the #100 Harmony/Progression hard cutover. These
+are installation/reset documents, **not incremental migrations**. Do not rerun
+them on a populated database without a separately planned and authorized reset.
+No production reset or SQL installation is part of the maintainability review.
 
-`docs/agents/v2-schema.sql` holds the **replaced** `v2_branches` table
-(Spec #100 §5.1): `harmony_exploration jsonb`, `progression_workspace jsonb`,
-`active_workspace text` (`'harmony'|'progression'`), `live_presentation_turn_id
-text`, plus a table CHECK enforcing "at least one workspace present, and
-`active_workspace` names a present one". The old columns
-(`current_artifact_kind`/`current_artifact_id`, `working_draft`,
-`saved_artifact_revision`, `selection`, `focus`, `recent_ideas`,
-`fork_context`) are gone. `concept_study` is removed from every artifact-kind
-CHECK. A Branch never links an Artifact — the link moves onto the Progression
-idea draft (ticket P1).
+Install in order for an explicitly prepared store:
 
-The ConceptWorkspace-era RPCs (`v2-workspace-turns.sql`,
-`v2-workspace-saves.sql`, `v2_commit_workspace_turn`, `v2_save_workspace_study`)
-are **deleted outright**. The new turn transaction (Spec §5.7) lands with
-ticket T3.
+1. `v2-schema.sql`: Sessions, Branches, Artifacts, messages and ownership.
+2. `v2-workspace-turns.sql`: the service-role-only atomic turn/Undo/Restore RPC.
+3. `v2-progression-saves.sql`: the service-role-only atomic idea Save RPC.
 
-**Seam 3 check** — run against a disposable local PostgreSQL 16 cluster
-(tools on PATH) from `backend`:
-`.venv/bin/python tests/v2/check_workspace_transaction.py`. It loads the
-replaced schema and round-trips the new Branch shape (active-workspace switch,
-live-turn pointer, the workspace invariant, and the artifact-kind CHECK).
+A Branch owns Harmony Exploration and/or Progression Workspace. Its
+`active_workspace` must name a present workspace. A Branch never links an
+Artifact directly; a Progression idea draft holds that link. The former
+ConceptWorkspace columns and RPCs are gone.
 
-**Frontend shell (#101).** `Session → Branch → Workspace` routing on
-`branch.active_workspace` with thin placeholder panels; `BranchNavigation`
-kept for rare conversational forks (UX-05). A new Session / conversational
-fork opens a Branch with an empty Harmony Exploration. The real Harmony
-surface is ticket H1, Progression P1, the presentation runtime T2, the Tutor
-per-turn contract T3 — between shell and those, the Progression workflow may
-be non-functional (Spec §8), the only hard rule per merge being the gate.
+Each assistant turn owns an immutable `presentation` and `musical_snapshot`.
+The Branch holds the live-turn pointer; transient attention is not stored. The
+turn RPC checks ownership and revision before changing messages or music. Undo
+restores the snapshot, while Restore selects the historical teaching surface.
+Save checks both Branch and Artifact revisions; reopen creates a fresh draft
+and clears the live surface pointer. Candidate IDs make Keep then Develop
+idempotent; Develop copies Harmony scratch and provenance while keeping the
+original exploration.
 
-**Deleted with this cutover.** Backend: `ConceptWorkspace` and everything in
-`app.v2.workspace` except the retained helpers (`NoteGroup`, `NoteRef`,
-`workspace_caged` CAGED region generation, note-spelling / diatonic-triad
-helpers); `resolve_workspace`; `app.v2.workspace_changes` (`WorkspacePatch`
-ops, the Inspection union, `materialize_inspection`); `app.v2.workspace_catalog`
-and `app.v2.workspace_progressions`; the ConceptWorkspace catalog / create /
-update / resolve / save / turn endpoints; `TutorTerminal.workspace_patch` and
-`concept_suggestion`; the `concept_study` ArtifactKind and `ConceptStudyArtifact`.
-Frontend: the whole `src/v2` UI except `BranchNavigation` (rebuilt as the
-shell), `src/types/conceptWorkspace.ts`, `adaptBlock` / `workspaceAdapter` /
-`ConceptWorkspacePanel` / `ConceptWorkspaceBlocks` / the old `ProgressionWorkspace`
-+ `ProgressionPayload` editor path. Suites asserting those contracts were
-removed or rewritten in the same change. `song_study` / `exercise` /
-`progression` artifact kinds and their backend routes stay.
-
-## Tutor turn transaction (#105)
-
-`v2-workspace-turns.sql` defines the service-role-only `v2_workspace_turn` RPC
-for atomic commit, Undo and Restore. Load after `v2-schema.sql` on the wiped
-store. Each assistant message owns one immutable `presentation` and a
-`musical_snapshot`; Branch stores only the live-turn pointer. The RPC checks
-ownership and `updated_at` before changing anything. The disposable PostgreSQL
-check now verifies a forced mid-commit rollback, stale rejection, Undo and
-Restore in addition to the Branch schema. Attention is excluded from storage.
-
-T3 ships the no-op mutation dispatch seam and a deterministic shell surface;
-H3/P3 add concrete musical operations, and H2a/P2a replace shell starters.
-The removed legacy progression-candidate tests are replaced by the new Turn
-contract and transactional flow tests; candidate payload effects land in H2b/P3.
-
-## Progression idea Save (#104)
-
-Load `v2-progression-saves.sql` after the schema on the wiped store. Its
-service-role-only RPC atomically saves the active idea and artifact revision,
-checking both Branch and artifact timestamps. The disposable PostgreSQL check
-verifies rollback after the artifact write, ownership and stale rejection.
-Progression reopen creates a fresh draft and clears the live surface pointer.
-
-## Harmony/Progression ready-ticket delivery (#102–#112)
-
-Both workspace surfaces now use the shared Composition runtime. Tutor mutations
-are strict musical commands; Progression candidates are resolved before the
-turn transaction and kept from owned assistant-message data. Candidate idea IDs
-make Keep followed by Develop idempotent. Gesture writes use Branch timestamp
-checks. Harmony Develop copies scratch and provenance into a new idea and keeps
-the original exploration unchanged.
-
-Run all three SQL documents on the hard-cutover store: `v2-schema.sql`,
-`v2-workspace-turns.sql`, and `v2-progression-saves.sql`. The disposable PostgreSQL
-check exercises the turn and save transactions. Production reset/SQL installation
-is a separate deployment operation.
-
-## SongStudy and saved-practice restoration (#113)
-
-SongStudy opens from Explore or My Stuff as an independent artifact viewer.
-Its current measure/beat selection is local view state; saved ranges remain
-artifact data. Returning to the workspace preserves its Harmony/Progression
-music. No removed Branch fields, new Workspace kind or schema migration is
-introduced. The restored tab overview/full-tab, shape strip, enrichment,
-learning map and practice transport reuse the pre-cutover implementation.
-The existing Exercise composer accepts song passages as well as Progression
-ideas; saved exercises reopen in a shared practice player.
-
-The old SongStudy/Exercise Tutor rail is not restored: it depended on deleted
-Branch artifact/selection fields and the old Tutor contract. A song-aware
-Tutor needs an explicit artifact-context contract before being connected to
-these independent viewers. Workspace Tutor remains available on return, and
-SongStudy's existing enrichment provider remains connected. This is a known
-remaining gap, not a claim of restored conversational song tutoring.
-
-Verification: browser journeys cover workspace return without music changes,
-search failure/recovery, tab views, enrichment, saved ranges, library reopen,
-exercise copying with rests and alternate tuning, practice playback and
-320px overflow. Providers are scripted only at the external Songsterr/model
-boundary; routes, ownership and persistence are real. Artist names remain in
-SongStudy library titles when saving or editing.
+SongStudy opens independently from Explore or My Stuff. Current measure/beat
+selection is local; saved ranges are artifact data. Returning to the workspace
+preserves its music. Exercise composition accepts song passages or Progression
+ideas, and saved exercises reopen in the shared practice player. Existing tests
+cover rests, alternate tuning, enrichment failure/recovery and 320px layouts.
