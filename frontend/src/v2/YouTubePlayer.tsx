@@ -15,7 +15,6 @@ interface Props {
   onReadyChange(ready: boolean): void;
   onTime(seconds: number): void;
   onStateChange(state: YouTubeState): void;
-  onError?(message: string | null): void;
 }
 interface Player {
   getCurrentTime(): number;
@@ -77,7 +76,9 @@ function seekPlayer(player: Player, seconds: number) {
 function visible(iframe: HTMLIFrameElement | null) {
   if (!iframe || document.hidden) return false;
   const box = iframe.getBoundingClientRect();
-  return box.width > 0 && box.height > 0 && box.bottom > 0 && box.right > 0 && box.top < window.innerHeight && box.left < window.innerWidth;
+  const width = Math.max(0, Math.min(box.right, window.innerWidth) - Math.max(box.left, 0));
+  const height = Math.max(0, Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0));
+  return width * height > box.width * box.height / 2;
 }
 
 export const YouTubePlayer = forwardRef<YouTubeControls, Props>(function YouTubePlayer(props, ref) {
@@ -114,12 +115,11 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
     let frame: HTMLIFrameElement | null = null;
     let timeout: number | undefined;
     let poll: number | undefined;
-    const observer = new IntersectionObserver(() => { if (ready.current && !visible(frame)) instance?.pauseVideo(); });
+    const observer = new IntersectionObserver(() => { if (ready.current && !visible(frame)) instance?.pauseVideo(); }, { threshold: [0, 0.5, 1] });
     const pauseHidden = () => { if (document.hidden && ready.current) instance?.pauseVideo(); };
     document.addEventListener('visibilitychange', pauseHidden);
     callbacks.current.onReadyChange(false);
     callbacks.current.onStateChange('loading');
-    callbacks.current.onError?.(null);
     const publishTime = () => {
       if (disposed || !ready.current || !instance) return;
       const time = instance.getCurrentTime();
@@ -133,7 +133,6 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
       instance?.destroy(); frame?.remove(); instance = null; player.current = null;
       callbacks.current.onReadyChange(false);
       callbacks.current.onStateChange('error');
-      callbacks.current.onError?.(text);
       setMessage(text); setFailed(true);
     };
     void loadAPI().then(api => {
@@ -165,7 +164,7 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
           if (disposed || !ready.current) return;
           if (event.data === 1 && !visible(frame)) { instance?.pauseVideo(); return; }
           callbacks.current.onStateChange(states[event.data ?? -1] ?? 'unstarted');
-          if (event.data === 1) { setMessage(null); callbacks.current.onError?.(null); }
+          if (event.data === 1) setMessage(null);
           publishTime();
         },
         onError: event => fail(errors[event.data ?? 0] ?? 'YouTube could not play this video. Please try again.'),
@@ -173,7 +172,7 @@ function PlayerInstance({ videoId, controlsRef, ...events }: Props & { controlsR
           if (disposed || !ready.current) return;
           const text = 'Press Play in the video to start playback.';
           callbacks.current.onStateChange('blocked');
-          callbacks.current.onError?.(text); setMessage(text);
+          setMessage(text);
         },
       } });
       player.current = instance;

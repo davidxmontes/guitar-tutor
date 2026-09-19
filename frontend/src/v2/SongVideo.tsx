@@ -8,7 +8,10 @@ import { buildScoreTimeline, parseYouTubeId, selectionBoundaries, selectionVideo
 import type { VideoPosition, VideoRange } from './songVideoTiming';
 import './SongVideo.css';
 
-const timeLabel = (seconds: number) => `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(1).padStart(4, '0')}`;
+const timeLabel = (seconds: number) => {
+  const tenths = Math.round(seconds * 10);
+  return `${Math.floor(tenths / 600)}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
+};
 const anchorLabel = (anchor: SongVideoAnchor) => `M${anchor.measure_index + 1}, beat ${anchor.beat_index + 1} ${anchor.edge} · ${timeLabel(anchor.video_seconds)}`;
 
 export function SongVideo({ song, active, selection, onChange, onPosition }: {
@@ -83,7 +86,6 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     setOccurrence('');
     setAnchorIndex('');
     setUrl('');
-    setReady(false);
     setSeconds(null);
   }
   function editAnchor(edge: 'start' | 'end', replace = false) {
@@ -183,7 +185,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
 
   if (!active) return null;
   return <section ref={panel} className="song-video" aria-label="Song video">
-    {draft && <YouTubePlayer key={draft.video_id} ref={player} videoId={draft.video_id} onReadyChange={value => {
+    {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
       setReady(value);
       if (!value) { playingRange.current = null; previousSample.current = null; lastPosition.current = ''; onPosition(null); }
     }}

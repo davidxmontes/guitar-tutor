@@ -34,7 +34,10 @@ test('queues only the latest seek, follows actual paused time, and cleans up wit
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.getByRole('button', { name: 'Play selection' }).click();
   await expect(page.getByTestId('state')).toHaveText('playing');
-  await page.evaluate(() => window.scrollTo(0, 1400));
+  await page.evaluate(() => {
+    const frame = document.querySelector('iframe')!.getBoundingClientRect();
+    window.scrollTo(0, window.scrollY + frame.top + frame.height * 0.75);
+  });
   await expect(page.getByTestId('state')).toHaveText('paused');
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole('button', { name: 'Play selection' }).click();
@@ -69,6 +72,7 @@ test('recovers from script failure and reports blocked playback and embedding er
   await page.evaluate(() => window.youtubeFake.active.block());
   await expect(page.getByTestId('state')).toHaveText('blocked');
   await expect(page.getByText('Press Play in the video to start playback.')).toBeVisible();
+  await page.getByTitle('YouTube video player', { exact: true }).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.youtubeFake.active.emitState(1));
   await expect(page.getByTestId('state')).toHaveText('playing');
   await expect(page.getByText('Press Play in the video to start playback.')).toHaveCount(0);

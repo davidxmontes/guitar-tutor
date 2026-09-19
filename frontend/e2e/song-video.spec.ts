@@ -43,6 +43,10 @@ test('calibration saves, follows actual time without changing selection, and reo
   await expect(page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-video-playhead="true"] button')).toHaveAttribute('aria-current', 'step');
   await expect(page.getByTestId('song-study-fretboard')).toHaveAttribute('aria-label', /Active: rest/);
+  await page.getByRole('button', { name: 'Select measure 2', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(15);
   await page.reload();
   await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
@@ -106,6 +110,10 @@ test('corrections, local undo, replacement confirmation and conflict reload pres
   await expect(page.getByLabel('Correct an anchor')).toHaveCount(0);
   await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Confirm that this recording');
+  await expect(page.getByRole('button', { name: 'Mark selection start', exact: true })).toBeEnabled();
+  await page.getByLabel('YouTube link or video ID').fill('dQw4w9WgXcQ');
+  await page.getByRole('button', { name: 'Replace recording and reset alignment', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mark selection start', exact: true })).toBeEnabled();
 });
 
 test('repeated score occurrences require a choice and bounded loops honor native controls', async ({ page }) => {

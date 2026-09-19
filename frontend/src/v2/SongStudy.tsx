@@ -347,7 +347,7 @@ function MeasureOverviewStrip({
               letterSpacing: '0.04em',
               padding: '4px 6px',
               border: 0,
-              backgroundColor: isCurrentSection ? 'var(--accent-50, var(--bg-secondary))' : 'var(--bg-secondary)',
+              backgroundColor: isCurrentSection ? 'rgba(16,185,129,0.12)' : 'var(--bg-secondary)',
               borderBottom: collapsed ? 0 : '1px solid var(--border-primary)',
               color: 'var(--text-secondary)',
               cursor: 'pointer',
@@ -357,7 +357,7 @@ function MeasureOverviewStrip({
           </button>
           {!collapsed && (
           <div
-            role="list"
+            role="group"
             aria-label={section.label}
             style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 20px)', gap: 2, padding: 4 }}
           >
@@ -373,7 +373,7 @@ function MeasureOverviewStrip({
                   <button
                     key={idx}
                     type="button"
-                    role="listitem"
+                    aria-label={`Select measure ${idx + 1}`}
                     data-testid="song-study-overview-measure"
                     data-measure-index={idx}
                     onClick={(e) => handleClick(idx, e.shiftKey)}
@@ -1035,7 +1035,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
                   sections={overviewSections}
                   focusMeasureIndex={displayMeasureIndex}
                   selection={selection}
-                  onJump={jumpToMeasure}
+                  onJump={(index) => selectRange(index, index, true)}
                   onRangeSelect={selectRange}
                   enrichedRanges={payload.enrichment?.ranges ?? []}
                 />
