@@ -26,3 +26,14 @@ export const harmonyModule = (kind: unknown) => kind === 'chord' || kind === 'vo
 export const physicalVoicing = (value: VoicingValue): VoicingValue => ({
   positions: value.positions.map(({ string, fret }) => ({ string, fret })), tuning: [...value.tuning],
 });
+
+// A physical shape has one position per string; array order is not musical identity.
+export function samePositions(left: VoicingValue['positions'], right: VoicingValue['positions']): boolean {
+  return left.length === right.length && left.every(note => right.some(other => note.string === other.string && note.fret === other.fret));
+}
+
+export function sameVoicing(left: VoicingValue, right: VoicingValue | null): boolean {
+  return right !== null && left.tuning.length === right.tuning.length
+    && left.tuning.every((note, index) => note === right.tuning[index])
+    && samePositions(left.positions, right.positions);
+}

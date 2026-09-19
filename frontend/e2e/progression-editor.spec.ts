@@ -1,4 +1,30 @@
 import { expect, test } from '@playwright/test';
+import type { ProgressionSurface } from '../src/v2/progression';
+
+test('an assigned shape stays selected when its physical positions arrive in a different order', async ({ page }) => {
+  await page.route('**/api/v2/sessions/*/branches/*/progression', async route => {
+    const response = await route.fetch();
+    const surface: ProgressionSurface = await response.json();
+    for (const idea of Object.values(surface.resolved)) {
+      for (const step of idea.steps) {
+        if (step.voicing) step.voicing.positions.reverse();
+      }
+    }
+    await route.fulfill({ response, json: surface });
+  });
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
+  const editor = page.getByLabel('Progression editor', { exact: true });
+  await editor.getByText('Edit chord', { exact: true }).click();
+  const assigned = editor.getByLabel('Assigned voicing');
+  const label = await assigned.locator('option').nth(1).textContent();
+  await assigned.selectOption({ label: label! });
+  await expect(assigned.locator('option:checked')).toHaveText(label!);
+  await editor.getByText('Choose a playable shape', { exact: true }).click();
+  await expect(editor.getByRole('button', { name: new RegExp(`Select .*${label}`) })).toHaveAttribute('aria-pressed', 'true');
+  await assigned.selectOption({ label: 'Default playback' });
+  await expect(editor.locator('.diagram-select[aria-pressed="true"]')).toHaveCount(0);
+});
 
 test('the selected-chord editor follows active ideas without a model', async ({ page }) => {
   let turns = 0;

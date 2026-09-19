@@ -200,6 +200,7 @@
 .learning-view-bar nav, .learning-view-nav { border-radius: 8px; }
 .learning-chord-controls { padding: 8px 12px; border-radius: 8px; }
 .learning-workspace .learning-shape { padding: 12px; border-radius: 8px; background: var(--bg-secondary); }
+.learning-workspace .learning-shape > .diagram-select { width: 100%; }
 .learning-workspace .diagram-select { padding: 8px; gap: 4px; }
 .learning-workspace .diagram-select > svg { width: 100px; }
 .learning-workspace .learning-note-chips { gap: 6px; margin: 8px 0; }
@@ -283,8 +284,6 @@
 
 .learning-workspace .music-icon-button { display: inline-grid; place-items: center; width: 36px; min-width: 36px; min-height: 36px; padding: 6px; box-shadow: none; }
 .learning-step-heading > .music-icon-button { margin-left: auto; }
-.learning-workspace .diagram-select { position: relative; }
-.diagram-selected-mark { position: absolute; top: 6px; right: 8px; color: var(--learning-ink); font-size: 14px; }
 .learning-shape > .music-controls { justify-content: flex-end; border-top: 1px solid var(--border-primary); padding-top: 8px; }
 
 .music-icon-button > svg { width: 22px; height: 22px; min-width: 22px; flex-shrink: 0; }

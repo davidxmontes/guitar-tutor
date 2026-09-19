@@ -1,0 +1,5 @@
+.diagram-select { display: grid; justify-items: center; gap: .5rem; width: fit-content; max-width: 100%; flex-shrink: 0; position: relative; padding: .75rem; border: 2px solid transparent; border-radius: .5rem; cursor: pointer; background: transparent; color: inherit; }
+.diagram-select[aria-pressed='true'] { border-color: var(--accent-500); background: var(--bg-tertiary); }
+.diagram-select:focus-visible { outline: 3px solid var(--accent-500); outline-offset: 3px; }
+.diagram-select:disabled { cursor: wait; }
+.diagram-selected-mark { position: absolute; top: 6px; right: 8px; color: var(--accent-600); font-size: 14px; }

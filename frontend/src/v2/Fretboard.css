@@ -8,9 +8,15 @@
 .music-layer-legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0; list-style: none; font-size: .75rem; }
 .music-neck-scroll { max-width: 100%; overflow-x: auto; color: var(--text-secondary, #54616c); }
 .music-neck-scroll svg { display: block; }
-.music-note { cursor: pointer; }
-.music-note circle { fill: var(--card-bg, #fff); stroke: var(--text-secondary, #54616c); }
-.music-note text { fill: var(--text-primary, #17232d); font-size: 11px; pointer-events: none; }
-.music-note--focal circle { fill: var(--accent-100, #d8e9e5); stroke: var(--text-primary, #17232d); }
+.music-note[role="button"] { cursor: pointer; }
 .music-note:focus { outline: none; }
-.music-note:focus circle { stroke: var(--accent-600, #067565); stroke-width: 5px; }
+
+.music-neck-scroll { background: var(--neck-bg, var(--bg-primary, #fff)); border: 1px solid var(--border-primary); border-radius: 10px; padding: 8px 0; color: var(--neck-line, var(--text-secondary, #54616c)); }
+.music-neck-scroll svg > g > text { fill: var(--text-secondary); font-size: 11px; }
+.music-note circle { fill: var(--card-bg); stroke: var(--note-stroke, var(--border-secondary, #54616c)); }
+.music-note--focal circle { fill: var(--note-fill, var(--accent-100, #d8e9e5)); stroke: var(--note-stroke, var(--border-secondary, #54616c)); }
+.music-note text { fill: var(--note-text, var(--text-primary, #17232d)); font-weight: 600; font-size: 11px; pointer-events: none; }
+.music-note--root circle { fill: var(--root-fill, var(--accent-700, #27644e)); stroke: var(--root-fill, var(--accent-700, #27644e)); stroke-width: 2px; }
+.music-note--root text { fill: var(--root-text, #fff); font-weight: 700; }
+.music-note[role="button"]:hover circle { stroke: var(--accent-700); stroke-width: 3px; }
+.music-note:focus-visible circle, .music-note--playing circle { stroke: var(--text-primary); stroke-width: 4px; }
