@@ -83,7 +83,7 @@ def _verify_token(token: str) -> str:
     )
 
 
-async def get_current_user(
+def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> str:
     """FastAPI dependency: verify Bearer token, return user_id. Raises 401 if missing/invalid."""
@@ -98,7 +98,7 @@ async def get_current_user(
     return _verify_token(credentials.credentials)
 
 
-async def get_optional_user(
+def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Optional[str]:
     """FastAPI dependency: verify Bearer token if present, return user_id or None."""
