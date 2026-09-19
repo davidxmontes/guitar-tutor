@@ -37,7 +37,7 @@ export function CandidateSet({ candidates, onPlay, onKeep, onDevelop, onDismiss,
 }
 
 export function WorkspaceHeader({ title, focus, onBack, children }: { title: string; focus: string; onBack?: () => void; children: ReactNode }) {
-  return <header className="learning-workspace-header"><div><p className="learning-eyebrow">{title === 'Harmony' ? 'Explore the fretboard' : 'Put the chords together'}</p><h2>{title}</h2></div><div className="music-controls">{children}</div>
+  return <header className="learning-workspace-header" aria-label={`${title} workspace controls`}><div className="music-controls">{children}</div>
     <nav aria-label="Focus breadcrumb"><span>Looking at</span> {focus} {onBack && <button type="button" className="music-button music-icon-button" aria-label="Back" title="Back to the whole workspace" onClick={onBack}><MusicIcon name="back" /></button>}</nav>
   </header>;
 }
