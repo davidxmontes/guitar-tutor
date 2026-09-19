@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useCallback, useState } from 'react';
 import { useAppAuth } from './lib/authBypass';
 import { Fretboard } from './components/Fretboard';
 import { ChordDiagramRow } from './components/ChordDiagram';
@@ -15,8 +15,34 @@ import { ProgressionMode } from './components/ProgressionMode/ProgressionMode';
 import type { AgentAction, FretboardHighlightAction, ProgressionSetAction } from './types/chat';
 
 function App() {
+  const { getToken, isSignedIn, isLoaded, userId } = useAppAuth();
+  const accountId = isSignedIn ? userId : null;
+  const initializedAccountId = useAppStore((state) => state.accountId);
+  const initializeAccount = useAppStore((state) => state.initializeAccount);
+
+  useLayoutEffect(() => {
+    if (!isLoaded || (isSignedIn && !userId)) {
+      apiClient.setTokenGetter(async () => { throw new Error('Classic account is loading'); });
+      return;
+    }
+    if (initializedAccountId !== undefined && initializedAccountId !== accountId) {
+      // ponytail: reload clears the shared runtime; use account-local stores if unsaved drafts must survive account changes.
+      apiClient.setTokenGetter(async () => { throw new Error('Classic account changed'); });
+      window.location.reload();
+      return;
+    }
+    apiClient.setTokenGetter(isSignedIn ? () => getToken() : null);
+    initializeAccount(accountId ?? null);
+    return () => apiClient.setTokenGetter(null);
+  }, [accountId, getToken, initializeAccount, initializedAccountId, isLoaded, isSignedIn, userId]);
+
+  if (!isLoaded || (isSignedIn && !userId) || initializedAccountId !== accountId) return null;
+  return <ClassicApp />;
+}
+
+function ClassicApp() {
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
-  const { getToken, isSignedIn, isLoaded } = useAppAuth();
+  const { isSignedIn } = useAppAuth();
 
   // ============================================================================
   // Zustand Store - only what App.tsx needs directly
@@ -103,18 +129,15 @@ function App() {
   }, [darkMode]);
 
   // ============================================================================
-  // Wire Clerk auth token into API client and fetch user data on sign-in
+  // The parent has bound the account token before these requests run.
   // ============================================================================
   useEffect(() => {
     if (isSignedIn) {
-      apiClient.setTokenGetter(() => getToken());
       fetchProgressions();
       fetchFavorites();
       fetchThreads();
-    } else {
-      apiClient.setTokenGetter(null);
     }
-  }, [isSignedIn, getToken, fetchProgressions, fetchFavorites, fetchThreads]);
+  }, [isSignedIn, fetchProgressions, fetchFavorites, fetchThreads]);
 
   // ============================================================================
   // Fetch available tunings on mount
@@ -526,8 +549,6 @@ function App() {
       }
     }
   }, [sendMessage, executeAgentActions, handleChatChordClick]);
-
-  if (!isLoaded) return null;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>

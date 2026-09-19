@@ -39,13 +39,18 @@ function generateThreadId(): string {
 // localStorage keys
 const STORAGE_KEY_THREAD = 'guitar-tutor-thread-id';
 const STORAGE_KEY_MESSAGES = 'guitar-tutor-messages';
+let storageScope = 'anonymous';
+
+function chatStorageKey(key: string): string {
+  return `${key}:${storageScope}`;
+}
 
 function loadThreadId(): string {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY_THREAD);
+    const stored = localStorage.getItem(chatStorageKey(STORAGE_KEY_THREAD));
     if (stored) return stored;
     const newId = generateThreadId();
-    localStorage.setItem(STORAGE_KEY_THREAD, newId);
+    localStorage.setItem(chatStorageKey(STORAGE_KEY_THREAD), newId);
     return newId;
   } catch {
     return generateThreadId();
@@ -54,7 +59,7 @@ function loadThreadId(): string {
 
 function loadMessages(): ChatMessage[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    const raw = localStorage.getItem(chatStorageKey(STORAGE_KEY_MESSAGES));
     if (!raw) return [];
     const parsed: Array<Omit<ChatMessage, 'timestamp'> & { timestamp: string }> = JSON.parse(raw);
     return parsed
@@ -67,8 +72,8 @@ function loadMessages(): ChatMessage[] {
 
 function persistThread(threadId: string, messages: ChatMessage[]) {
   try {
-    localStorage.setItem(STORAGE_KEY_THREAD, threadId);
-    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
+    localStorage.setItem(chatStorageKey(STORAGE_KEY_THREAD), threadId);
+    localStorage.setItem(chatStorageKey(STORAGE_KEY_MESSAGES), JSON.stringify(messages));
   } catch { /* storage full or unavailable */ }
 }
 
@@ -197,6 +202,8 @@ interface ChordSlice {
 // Chat Slice
 // ============================================================================
 interface ChatSlice {
+  accountId: string | null | undefined;
+  initializeAccount: (userId: string | null) => void;
   messages: ChatMessage[];
   chatLoading: boolean;
   streamingStatus: string | null;
@@ -531,10 +538,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
   // Chat Slice
   // --------------------------------------------------------------------------
-  messages: loadMessages(),
+  accountId: undefined,
+  initializeAccount: (userId) => {
+    if (get().accountId !== undefined) return;
+    // Legacy unscoped history has no reliable owner; retain it without importing it.
+    storageScope = userId === null ? 'anonymous' : `user:${userId}`;
+    set({ accountId: userId, messages: loadMessages(), threadId: loadThreadId() });
+  },
+  messages: [],
   chatLoading: false,
   streamingStatus: null,
-  threadId: loadThreadId(),
+  threadId: '',
   debugMode: false,
   
   addMessage: (message) => {
@@ -1332,10 +1346,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   loadThread: (threadId: string) => {
-    try {
-      localStorage.setItem(STORAGE_KEY_THREAD, threadId);
-      localStorage.removeItem(STORAGE_KEY_MESSAGES);
-    } catch { /* ignore */ }
+    persistThread(threadId, []);
     set({ messages: [], threadId });
   },
 }));
