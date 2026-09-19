@@ -107,7 +107,8 @@ class InMemoryV2Store:
             updated_at=now,
         )
         session = Session(id=session_id, user_id=user_id, branches=[branch], created_at=now, updated_at=now)
-        self._sessions[session_id] = session
+        with self._branch_lock:
+            self._sessions[session_id] = session
         return session
 
     def get_session(self, session_id: str, user_id: str) -> Session:
@@ -125,24 +126,26 @@ class InMemoryV2Store:
             del self._sessions[session_id]
 
     def list_sessions(self, user_id: str) -> list[Session]:
-        owned = [s for s in self._sessions.values() if s.user_id == user_id]
+        with self._branch_lock:
+            owned = [s for s in self._sessions.values() if s.user_id == user_id]
         return sorted(owned, key=lambda s: s.created_at, reverse=True)
 
     def create_branch(self, session_id: str, user_id: str, **fields: Any) -> Branch:
-        session = self.get_session(session_id, user_id)
-        now = _now()
-        fields = _branch_defaults(fields)
-        branch = Branch(
-            id=_new_id(),
-            session_id=session_id,
-            tutor_thread_id=_new_id(),
-            created_at=now,
-            updated_at=now,
-            **fields,
-        )
-        session.branches.append(branch)
-        session.updated_at = now
-        return branch
+        with self._branch_lock:
+            session = self.get_session(session_id, user_id)
+            now = _now()
+            fields = _branch_defaults(fields)
+            branch = Branch(
+                id=_new_id(),
+                session_id=session_id,
+                tutor_thread_id=_new_id(),
+                created_at=now,
+                updated_at=now,
+                **fields,
+            )
+            session.branches.append(branch)
+            session.updated_at = now
+            return branch
 
     def update_branch(self, session_id: str, branch_id: str, user_id: str, **fields: Any) -> Branch:
         # ponytail: one memory-store lock; split by branch only if contention matters.
@@ -249,20 +252,23 @@ class InMemoryV2Store:
             created_at=now,
             updated_at=now,
         )
-        self._artifacts[artifact.id] = artifact
+        with self._branch_lock:
+            self._artifacts[artifact.id] = artifact
         return artifact
 
     def get_artifact(self, artifact_id: str, user_id: str) -> Artifact:
-        artifact = self._artifacts.get(artifact_id)
-        if artifact is None or artifact.user_id != user_id:
-            raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
-        return artifact
+        with self._branch_lock:
+            artifact = self._artifacts.get(artifact_id)
+            if artifact is None or artifact.user_id != user_id:
+                raise NotFoundError(f"Artifact {artifact_id!r} not found for this user")
+            return artifact
 
     def list_artifacts(self, user_id: str, kind: Optional[str] = None) -> list[Artifact]:
-        artifacts = [
-            artifact for artifact in self._artifacts.values()
-            if artifact.user_id == user_id and (kind is None or artifact.kind == kind)
-        ]
+        with self._branch_lock:
+            artifacts = [
+                artifact for artifact in self._artifacts.values()
+                if artifact.user_id == user_id and (kind is None or artifact.kind == kind)
+            ]
         return sorted(artifacts, key=lambda artifact: artifact.created_at, reverse=True)
 
     def update_artifact(self, artifact_id: str, user_id: str, payload: dict[str, Any], expected_updated_at: Optional[str] = None, *, save: bool = False) -> Artifact:
@@ -290,7 +296,8 @@ class InMemoryV2Store:
             content=content,
             created_at=_now(),
         )
-        self._tutor_messages.setdefault(tutor_thread_id, []).append(message)
+        with self._branch_lock:
+            self._tutor_messages.setdefault(tutor_thread_id, []).append(message)
         return message
 
     def list_tutor_messages(self, tutor_thread_id: str, user_id: str) -> list[TutorMessage]:

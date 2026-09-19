@@ -1,4 +1,7 @@
 """Per-idea save/revision and fresh reopen through owned HTTP routes."""
+from concurrent.futures import ThreadPoolExecutor, wait
+from threading import Event
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -56,3 +59,40 @@ def test_save_one_idea_revisions_reopen_and_rollback(monkeypatch):
     assert client.post(url+'/save', json={'expected_updated_at': before.updated_at}).status_code == 409
     app.dependency_overrides[get_current_user] = lambda: 'other'
     assert client.post(url+'/save', json={'expected_updated_at': current.updated_at}).status_code == 404
+
+
+def test_failed_idea_save_preserves_concurrently_created_artifact(monkeypatch):
+    store = InMemoryV2Store()
+    session = store.create_session('owner')
+    idea = ProgressionIdeaDraft(label='Idea', chords=[{'root': 'C', 'quality': 'major'}])
+    branch = store.update_branch(session.id, session.branches[0].id, 'owner',
+                                 progression_workspace=ProgressionWorkspaceState(ideas=[idea], active_idea_id=idea.id))
+    saving, release, creating = Event(), Event(), Event()
+
+    def fail_branch_update(*args, **kwargs):
+        saving.set()  # The save has staged its artifact but not committed the branch.
+        assert release.wait(5)
+        raise RuntimeError('injected save failure')
+
+    def create_song():
+        creating.set()
+        return store.create_artifact('other', 'song_study', 'Keep this song', {'song_id': 7})
+
+    monkeypatch.setattr(store, '_update_branch', fail_branch_update)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        failed_save = pool.submit(store.save_progression_idea, branch, 'owner')
+        try:
+            assert saving.wait(2)
+            created = pool.submit(create_song)
+            assert creating.wait(2)
+            # A correctly serialized creation waits for the save's rollback.
+            wait([created], timeout=.5)
+        finally:
+            release.set()
+        with pytest.raises(RuntimeError, match='injected save failure'):
+            failed_save.result(timeout=2)
+        artifact = created.result(timeout=2)
+
+    assert store.get_artifact(artifact.id, 'other') == artifact
+    assert store.list_artifacts('owner') == []
+    assert store.get_session(session.id, 'owner').branches[0] == branch
