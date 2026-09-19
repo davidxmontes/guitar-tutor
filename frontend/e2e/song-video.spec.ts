@@ -462,3 +462,39 @@ test('paused lead-note selection drives the fretboard while video following stil
   await expect(page.getByTestId('song-video-position')).toContainText('Unaligned');
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
 });
+
+test('video and paused selection preview the next written beat without skipping rests', async ({ page }) => {
+  await page.route('**/api/v2/song-studies', async route => {
+    const response = await route.fetch();
+    const song = await response.json();
+    const next = song.payload.tab_data.measures[0].voices[0].beats[1];
+    next.rest = false;
+    next.notes = [{ string: 5, fret: 0 }, { string: 4, fret: 3 }];
+    await route.fulfill({ response, json: song });
+  });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await openSong(page);
+  const upcoming = page.getByTestId('fretboard-upcoming-note');
+  await expect(upcoming).toHaveCount(0);
+  await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
+  await expect(upcoming).toHaveCount(1);
+  await expect(upcoming).toHaveAttribute('data-string', '5');
+  await expect(upcoming).toHaveAttribute('data-fret', '3');
+  await expect(upcoming).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(page.locator('[data-testid="fretboard-active-note"][data-string="6"][data-fret="0"]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
+  await alignFirstMeasure(page);
+  await nativeTime(page, 11, 1);
+  await expect(upcoming).toHaveAttribute('data-fret', '3');
+  await nativeTime(page, 14, 1);
+  await expect(page.getByTestId('song-study-fretboard')).toHaveAttribute('aria-label', /Upcoming: string 6 fret 1, string 5 fret 3\./);
+  await nativeTime(page, 14, 2);
+  await page.getByRole('button', { name: 'Select measure 2', exact: true }).click();
+  await expect(upcoming).toHaveCount(0);
+  await page.getByRole('button', { name: 'Verse', exact: true }).click();
+  await page.getByRole('button', { name: 'Select measure 8', exact: true }).click();
+  await page.getByRole('button', { name: 'Select beat 2 of measure 8', exact: true }).click();
+  await expect(upcoming).toHaveCount(0);
+  await nativeTime(page, 40, 2);
+  await expect(upcoming).toHaveCount(0);
+});

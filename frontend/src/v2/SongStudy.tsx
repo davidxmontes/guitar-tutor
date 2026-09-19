@@ -691,7 +691,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
 
   const videoBeatIndex = videoPlayhead ? beatSequence.findIndex(beat => beat.measureIndex === videoPlayhead.measureIndex && beat.beatIndex === videoPlayhead.beatIndex) : -1;
   const activeBeatIndex = playbackSource === 'video' && followVideo ? videoBeatIndex : practice.active ? practiceBeats[Math.max(0, practice.position.index)]?.sequenceIndex ?? -1 : selectedBeatIndex;
-  const nextBeatIndex = playbackSource === 'video' ? -1 : practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex < 0 ? -1 : activeBeatIndex + 1;
+  const nextBeatIndex = practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex < 0 ? -1 : activeBeatIndex + 1;
   const displayMeasureIndex = (practice.active || playbackSource === 'video' && followVideo) && activeBeatIndex >= 0 ? beatSequence[activeBeatIndex].measureIndex : focus.measureIndex;
 
   const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);

@@ -393,3 +393,12 @@ three focused seek/loop/lead checks after the shared seek predicate was reviewed
 Lint and production build passed. The regression first reproduced an empty neck
 for a paused single-note selection, then verified single notes, rests, native
 resume at the same beat, native paused seeking, and unmapped selection behavior.
+
+### Next-beat fretboard preview
+
+Video mode reuses the existing hollow upcoming-note markers to preview the next
+written tab beat, both while following playback and inspecting a paused selection.
+Rests remain empty; an unknown current position or the end of the score has no
+preview. Current notes retain their filled marker when the next beat repeats the
+same fret. This is a score preview, not a prediction of video loop/repeat jumps;
+synthesized practice retains its existing loop-aware upcoming beat.
