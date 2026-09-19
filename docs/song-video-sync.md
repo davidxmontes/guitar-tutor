@@ -216,9 +216,10 @@ searches source-linked recordings, not all of YouTube; songs without links
 retain the secondary manual URL option. No API key or additional service was
 introduced. oEmbed HTML is ignored.
 
-SongStudy automatically loads suggestions when YouTube playback is chosen.
-Preview uses the same draft, confirmation, alignment, Save and Undo path as
-manual attachment. A response cannot overwrite a selected recording. The
+SongStudy defaults to YouTube playback and automatically previews the highest-ranked
+linked recording, paused and unconfirmed. Preview uses the same draft, confirmation,
+alignment, Save and Undo path as manual attachment. A late response cannot overwrite
+a selected recording, typed URL, Undo, or a switch to synthesized practice. The
 current candidate is disabled; changing to another explicitly resets alignment
 with Undo available. Candidate labels remain unique when titles repeat.
 
@@ -264,10 +265,34 @@ to preserve the user's existing instance.
 Local handoff: actual API on `127.0.0.1:8310`, frontend at
 `http://localhost:5310/v2`. It uses local auth and memory storage with provider
 credentials empty. Saved work survives page reload, not backend restart. The
-old 8207/5287 instance was left untouched during this follow-up.
+old backend on 8207 remains preserved, but frontend 5287 now also proxies to 8310.
+Its previous stale backend caused discovery 404s and Wonderwall guitar-track errors.
 
 Publishing status: the follow-up commits are local on `feature/song-video-sync`.
 Draft PR #129 still contains the earlier published implementation. Its existing
 Vercel Git integration automatically deployed a Preview on the previous push;
 another push therefore requires approval under the user's no-deployment rule.
 No follow-up push, merge, hosted setting change or deployment was performed.
+
+
+### Local failure and automatic-preview follow-up (2026-09-19)
+
+The user's all-song discovery failure matched the outdated 5287 → 8207 process,
+whose recording-suggestions route returned 404. Both local frontend addresses now
+use the current API on 8310; that API was not restarted, preserving memory data.
+Public-provider imports and discovery succeeded for Frisky (47 measures, 4
+suggestions), Roman Holiday (135, 6), Don't Look Back in Anger (97, 6), and
+Wonderwall (94, 6), each using a guitar track. No provider responses were mocked
+for these checks.
+
+Automatic first preview supersedes the earlier explicit-preview interaction.
+It does not start playback, confirm an arrangement, create anchors, or save an
+alignment. Failed discovery displays the actual API error and offers Retry.
+Lint/build and all 71 browser tests pass, including deferred responses, source
+switching, Undo, saved bindings, and first-success retry.
+
+Real browser recheck: opening saved Wonderwall automatically selected the video
+and loaded YouTube's native paused player in Chrome. The hidden in-app browser
+initially hit the readiness timeout; after showing the tab, Retry loaded the
+player successfully (4:20 video versus 4:15 written score estimate). The local
+app was left open on that paused preview.
