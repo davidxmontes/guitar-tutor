@@ -75,8 +75,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const ranges = useMemo(() => selectionVideoRanges(timeline, draft?.passages ?? [], selection), [timeline, draft, selection]);
   const range = occurrence ? ranges.find(r => r.id === occurrence) : ranges.length === 1 ? ranges[0] : null;
   const points = selectionBoundaries(timeline, selection);
-  const selectionKey = JSON.stringify(selection);
-  const previousSelection = useRef(selectionKey);
+  const previousSelection = useRef(selection);
   const followSelection = useEffectEvent(() => {
     if (!active || !['playing', 'buffering'].includes(playingState.current)) return;
     if (!ready || !range || !timingEnabled) {
@@ -86,10 +85,10 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     playSelection();
   });
   useEffect(() => {
-    if (previousSelection.current === selectionKey) return;
-    previousSelection.current = selectionKey;
+    if (previousSelection.current === selection) return;
+    previousSelection.current = selection;
     followSelection();
-  }, [selectionKey]);
+  }, [selection]);
 
   useEffect(() => {
     live.current = true;
@@ -274,15 +273,17 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       onTime={handleTime} onStateChange={value => { playingState.current = value; setState(value); }} />}
     <div className="song-video-tools">
       {draft && <>
-        {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
+        {draft.timing_source && <p>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : 'Songsterr timing'}</p>}
         {Number.isFinite(firstTime) && <details><summary>Adjust recording start</summary>
+          {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
+          {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
           <form className="song-video-actions" onSubmit={event => { event.preventDefault(); shiftStart(); }}>
             <label>First aligned beat{firstAnchor ? ` (M${firstAnchor.measure_index + 1}, beat ${firstAnchor.beat_index + 1})` : ''} at (seconds)<input aria-label="First aligned beat at (seconds)" type="number" min="0" max="86400" step="0.1" value={startTime || String(firstTime)} onChange={event => setStartTime(event.target.value)} /></label>
             <button type="submit" className="music-button" disabled={!startTime || busy}>Apply start time</button>
           </form>
           <p>Moves all timing points together. Undo edit restores the previous timing.</p>
         </details>}
-        {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
+        {!Number.isFinite(firstTime) && durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
         <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!timingEnabled ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
           const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1);
           return position ? `Video: M${position.measureIndex + 1}, beat ${position.beatIndex + 1} · ${draft.passages.find(p => p.id === position.passageId)?.label}` : 'Unaligned video section';
@@ -293,7 +294,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
         <div className="song-video-actions"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
           <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label></div>
         {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
-        <p>Playback continues beyond the selection unless Loop is on. Select another aligned beat while playing to jump there. Native video controls take over from a loop.</p>
+        <p>Select a beat while playing to jump. Loop repeats the selection.</p>
         {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
       </>}
       <details ref={calibration} open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>

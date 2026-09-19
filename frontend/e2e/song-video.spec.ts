@@ -196,6 +196,8 @@ test('unsupported links and player errors recover without losing calibrated work
 test('mobile dark calibration keeps a visible native player and usable score', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await openSong(page); await alignFirstMeasure(page);
+  expect((await page.locator('.song-video').boundingBox())!.height).toBeLessThan(630);
+  await page.screenshot({ path: '/tmp/song-video-mobile-expanded.png', fullPage: false });
   await page.getByText('Calibrate recording', { exact: false }).click();
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: /Switch to dark/ }).click();
@@ -310,6 +312,9 @@ test('selection playback continues, jumps only while playing and pauses at an un
   expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(16);
   await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(13.333, 2);
+  await nativeTime(page, 14, 1);
+  await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(13.333, 2);
   await nativeTime(page, 14, 2);
   await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
   expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(14);
@@ -385,5 +390,7 @@ test('a pasted video can use the available score-tempo estimate when discovery h
   await page.getByLabel('YouTube link or video ID').fill('M7lc1UVf-VE');
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+  await expect(page.getByText('Estimated from score tempo', { exact: true })).toBeVisible();
+  await page.getByText('Adjust recording start', { exact: true }).click();
   await expect(page.getByText('Initially estimated from score tempo at 0:00.', { exact: false })).toBeVisible();
 });

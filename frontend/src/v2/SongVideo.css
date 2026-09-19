@@ -15,7 +15,8 @@
   .song-video-layout { display: flex; flex-direction: column; }
   .song-video { top: 0; }
   .song-video .youtube-player { max-width: 480px; margin-inline: auto; }
-  .song-video-calibration { max-height: 30vh; }
+  .song-video-tools { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
+  .song-video-calibration { max-height: none; overflow-y: visible; }
 }
 
 .song-video-suggestions { display: grid; gap: 8px; }

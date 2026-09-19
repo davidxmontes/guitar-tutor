@@ -563,6 +563,9 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
     { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE },
   );
   const [selection, setSelection] = useState<SongSelection | null>(null);
+  // New selection objects represent learner gestures, including reselecting a beat.
+  // Keep the fallback stable so playback highlights cannot trigger a seek.
+  const videoSelection = useMemo<SongSelection>(() => selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }, [selection, focus.measureIndex]);
   const [showFullTab, setShowFullTab] = useState(false);
   const [playbackSource, setPlaybackSource] = useState<'practice' | 'video'>('video');
   const [followVideo, setFollowVideo] = useState(true);
@@ -910,7 +913,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
       {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
       </div>
       <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
-    <SongVideo song={songStudy} active={playbackSource === 'video'} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+    <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
       <div className="song-study-score flex w-full flex-col gap-4 min-w-0">
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
       {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
