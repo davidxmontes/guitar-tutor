@@ -93,7 +93,7 @@ export function SongShapeStrip({
       ) : (
         <p role="status" className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           {tuningAvailable
-            ? 'No chord-like events in this passage. Single-note lead playing stays in the tab.'
+            ? 'No chord-like events in this passage. Single notes are shown in the tab and fretboard.'
             : 'Shape diagrams are unavailable because this track has no tuning data.'}
         </p>
       )}

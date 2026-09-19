@@ -421,3 +421,44 @@ test('video speed follows supported player rates without autoplay or changing sc
   await expect(speed).toHaveValue('1');
   await expect(speed).toBeDisabled();
 });
+
+test('paused lead-note selection drives the fretboard while video following still shows rests', async ({ page }) => {
+  await page.route('**/api/v2/song-studies', async route => {
+    const response = await route.fetch();
+    const song = await response.json();
+    // Same zero-based single-note shape as the public Wonderwall lead entrance.
+    song.payload.tab_data.measures[0].voices[0].beats[0].notes = [{ string: 4, fret: 3 }];
+    await route.fulfill({ response, json: song });
+  });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await openSong(page);
+  const neck = page.getByTestId('song-study-fretboard');
+  await expect(page.getByTestId('song-video-position')).toContainText('Unaligned');
+  await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
+  await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
+  await expect(neck).toHaveAttribute('aria-label', /Active: string 5 fret 3\./);
+  await expect(page.getByTestId('fretboard-active-note')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
+  await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
+  await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
+  await alignFirstMeasure(page);
+  await nativeTime(page, 14, 1);
+  await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
+  await nativeTime(page, 14, 2);
+  await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
+  await expect(neck).toHaveAttribute('aria-label', /Active: string 5 fret 3\./);
+  expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(14);
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await nativeTime(page, 14.25, 2);
+  await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
+  await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
+  await expect(neck).toHaveAttribute('aria-label', /Active: string 5 fret 3\./);
+  await nativeTime(page, 14.25, 1);
+  await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
+  await page.getByRole('button', { name: 'Select measure 3', exact: true }).click();
+  await expect(neck).toHaveAttribute('aria-label', /Active: string 6 fret 2/);
+  expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await nativeTime(page, 40, 2);
+  await expect(page.getByTestId('song-video-position')).toContainText('Unaligned');
+  await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
+});

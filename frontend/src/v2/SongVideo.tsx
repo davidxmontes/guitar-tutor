@@ -19,7 +19,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   active: boolean;
   selection: SongSelection;
   onChange(song: SongStudyArtifact): void;
-  onPosition(position: VideoPosition | null): void;
+  onPosition(position: VideoPosition | null, resumeFollowing?: boolean): void;
 }) {
   const initial = song.payload.video_alignment ?? null;
   const [draft, setDraft] = useState<SongVideoAlignment | null>(initial);
@@ -161,16 +161,14 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     const sample = previousSample.current;
     const now = performance.now();
     previousSample.current = { time, at: now };
+    const delta = sample ? time - sample.time : 0;
+    const nativeSeek = sample && (delta < -0.25 || delta > Math.max(1, (now - sample.at) / 250 + 0.25)
+      || playingState.current === 'paused' && Math.abs(delta) > 0.05);
     let currentRange = playingRange.current;
-    // Native scrubbing takes ownership. Our own seeks are acknowledged by
-    // reported time; ordinary clock drift and native speed changes are allowed.
-    if (currentRange && !currentRange.seeking && sample) {
-      const delta = time - sample.time;
-      if (delta < -0.25 || delta > Math.max(1, (now - sample.at) / 250 + 0.25)
-        || playingState.current === 'paused' && Math.abs(delta) > 0.05) {
-        playingRange.current = null;
-        currentRange = null;
-      }
+    // Actual seeks resume score following; our own seeks must not release a loop.
+    if (currentRange && !currentRange.seeking && nativeSeek) {
+      playingRange.current = null;
+      currentRange = null;
     }
     if (currentRange?.seeking && Math.abs(time - currentRange.start) < 2) currentRange.seeking = false;
     if (currentRange?.loop && currentRange.end != null && playingState.current === 'playing'
@@ -182,7 +180,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     }
     const position = timingEnabled && draft ? videoPosition(timeline, draft.passages, time) : null;
     const key = position ? `${position.passageId}:${position.measureIndex}:${position.beatIndex}` : '';
-    if (key !== lastPosition.current) { lastPosition.current = key; onPosition(position); }
+    if (key !== lastPosition.current || nativeSeek) { lastPosition.current = key; onPosition(position, true); }
   }
   function playSelection() {
     if (!ready || !range || !timingEnabled) return;
@@ -271,7 +269,13 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       if (!value) { setDuration(null); setPlaybackRate({ rate: 1, available: [1] }); }
       if (!value) { playingRange.current = null; previousSample.current = null; lastPosition.current = ''; onPosition(null); }
     }}
-      onTime={handleTime} onRateChange={(rate, available) => setPlaybackRate({ rate, available })} onStateChange={value => { playingState.current = value; setState(value); }} />}
+      onTime={handleTime} onRateChange={(rate, available) => setPlaybackRate({ rate, available })} onStateChange={value => {
+        playingState.current = value; setState(value);
+        if (value === 'playing') {
+          const time = player.current?.getCurrentTime();
+          onPosition(timingEnabled && draft && time != null ? videoPosition(timeline, draft.passages, time) : null, true);
+        }
+      }} />}
     <div className="song-video-tools">
       {draft && <>
         {draft.timing_source && <p>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : 'Songsterr timing'}</p>}

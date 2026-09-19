@@ -520,7 +520,7 @@ export function SongStudySearch({ state, onStateChange, ensureSession, onSearch,
           const guitarTracks: TrackSummary[] = [];
           const otherTracks: TrackSummary[] = [];
           for (const track of song.tracks) {
-            const isGuitar = !track.is_vocal && /\bguitar\b/i.test(track.instrument) && !/\bbass\b/i.test(track.instrument);
+            const isGuitar = !track.is_vocal && !/\b(vocals?|voice)\b/i.test(track.name) && /\bguitar\b/i.test(track.instrument) && !/\bbass\b/i.test(track.instrument);
             (isGuitar ? guitarTracks : otherTracks).push(track);
           }
           const renderTrack = (track: TrackSummary) => {
@@ -590,8 +590,8 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
   const [playbackSource, setPlaybackSource] = useState<'practice' | 'video'>('video');
   const [followVideo, setFollowVideo] = useState(true);
   const [videoPlayhead, setVideoPlayhead] = useState<VideoPosition | null>(null);
-  const receiveVideoPosition = useCallback((position: VideoPosition | null) => {
-    setFollowVideo(true);
+  const receiveVideoPosition = useCallback((position: VideoPosition | null, resumeFollowing = false) => {
+    if (position || resumeFollowing) setFollowVideo(true);
     setVideoPlayhead(previous => previous?.passageId === position?.passageId && previous?.measureIndex === position?.measureIndex && previous?.beatIndex === position?.beatIndex ? previous : position);
   }, []);
   // Shape strip's per-card diagrams default off — the active shape's
@@ -690,7 +690,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
   }, [selection, beatSequence, focus.measureIndex]);
 
   const videoBeatIndex = videoPlayhead ? beatSequence.findIndex(beat => beat.measureIndex === videoPlayhead.measureIndex && beat.beatIndex === videoPlayhead.beatIndex) : -1;
-  const activeBeatIndex = playbackSource === 'video' ? videoBeatIndex : practice.active ? practiceBeats[Math.max(0, practice.position.index)]?.sequenceIndex ?? -1 : selectedBeatIndex;
+  const activeBeatIndex = playbackSource === 'video' && followVideo ? videoBeatIndex : practice.active ? practiceBeats[Math.max(0, practice.position.index)]?.sequenceIndex ?? -1 : selectedBeatIndex;
   const nextBeatIndex = playbackSource === 'video' ? -1 : practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex < 0 ? -1 : activeBeatIndex + 1;
   const displayMeasureIndex = (practice.active || playbackSource === 'video' && followVideo) && activeBeatIndex >= 0 ? beatSequence[activeBeatIndex].measureIndex : focus.measureIndex;
 

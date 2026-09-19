@@ -10,6 +10,7 @@ test('guitar tracks stay visible while other instruments collapse and retain imp
       { ...guitar, index: 9, name: 'Drums', instrument: 'Drums' },
       { ...guitar, name: 'Lead guitar', instrument: 'Overdriven Guitar' },
       { ...guitar, index: 7, name: 'Vocals', is_vocal: true },
+      { ...guitar, index: 8, name: 'Lead Vocals', is_vocal: false },
       { ...guitar, index: 4, name: 'Bass', instrument: 'Electric Bass (finger)' },
     ];
     await route.fulfill({ response, json: data });
@@ -21,7 +22,7 @@ test('guitar tracks stay visible while other instruments collapse and retain imp
   await expect(page.getByRole('button', { name: 'Lead guitar', exact: true })).toBeVisible();
   const others = page.getByTestId('song-study-result').locator('details');
   await expect(others).not.toHaveAttribute('open', '');
-  for (const name of ['Drums', 'Vocals', 'Bass']) {
+  for (const name of ['Drums', 'Vocals', 'Lead Vocals', 'Bass']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeHidden();
   }
   await page.setViewportSize({ width: 320, height: 900 });
