@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { SongSelection, SongStudyArtifact } from '../types/v2';
-import type { SongVideoAlignment, SongVideoAnchor } from '../types/songVideo';
+import type { SongVideoAlignment, SongVideoAnchor, SongVideoSuggestions } from '../types/songVideo';
 import { YouTubePlayer } from './YouTubePlayer';
 import type { YouTubeControls, YouTubeState } from './YouTubePlayer';
 import { buildScoreTimeline, parseYouTubeId, selectionBoundaries, selectionVideoRanges, validatePassages, videoPosition } from './songVideoTiming';
@@ -26,6 +26,20 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   const baseline = useRef(initial);
   const revision = useRef(song.updated_at);
   const [history, setHistory] = useState<Array<SongVideoAlignment | null>>([]);
+  const [suggestions, setSuggestions] = useState<SongVideoSuggestions | null>(null);
+  const [suggestionError, setSuggestionError] = useState(false);
+  const [suggestionAttempt, setSuggestionAttempt] = useState(0);
+  const [changingRecording, setChangingRecording] = useState(false);
+  const [duration, setDuration] = useState<number | null>(null);
+  const discover = active && (!draft || changingRecording);
+  useEffect(() => {
+    if (!discover) return;
+    let cancelled = false;
+    apiClient.getSongVideoSuggestions(song.id).then(result => {
+      if (!cancelled) { setSuggestions(result); setSuggestionError(false); }
+    }).catch(() => { if (!cancelled) setSuggestionError(true); });
+    return () => { cancelled = true; };
+  }, [discover, song.id, suggestionAttempt]);
   const [url, setUrl] = useState('');
   const [occurrence, setOccurrence] = useState('');
   const [anchorIndex, setAnchorIndex] = useState('');
@@ -82,11 +96,15 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   function attach() {
     const id = parseYouTubeId(url);
     if (!id) { setError('Enter a YouTube video link or its eleven-character video ID. Playlists and other sites are not supported.'); return; }
+    attachId(id);
+  }
+  function attachId(id: string) {
     change({ video_id: id, recording_confirmed: false, passages: [{ id: crypto.randomUUID(), label: 'Occurrence 1', anchors: [] }] });
     setOccurrence('');
     setAnchorIndex('');
     setUrl('');
     setSeconds(null);
+    setDuration(null);
   }
   function editAnchor(edge: 'start' | 'end', replace = false) {
     if (!draft || !passage || !points) { setError('Select a score beat or range and choose an occurrence first.'); return; }
@@ -108,6 +126,8 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
   }
   function handleTime(time: number) {
     reportedTime.current = time;
+    const length = player.current?.getDuration();
+    setDuration(length != null && Number.isFinite(length) && length > 0 ? length : null);
     setSeconds(previous => previous !== null && Math.floor(previous * 10) === Math.floor(time * 10) ? previous : time);
     const sample = previousSample.current;
     const now = performance.now();
@@ -177,21 +197,38 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
     finally { if (live.current) setBusy(false); }
   }
 
-  const recordingInput = <form onSubmit={event => { event.preventDefault(); attach(); }}>
+  const recordingInput = <details><summary>Paste a YouTube link instead</summary><form onSubmit={event => { event.preventDefault(); attach(); }}>
             <p>Use a finished recording, not an ongoing livestream.</p>
             <label>YouTube link or video ID<input aria-label="YouTube link or video ID" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://www.youtube.com/watch?v=…" /></label>
             <button type="submit" className="music-button" disabled={!url.trim()}>{draft ? 'Replace recording and reset alignment' : 'Attach recording'}</button>
-          </form>;
+          </form></details>;
+  const recordingChoices = <div className="song-video-suggestions" aria-label="Suggested recordings">
+    <p>Recordings linked to this song on Songsterr. Preview and check the arrangement before confirming.</p>
+    {suggestionError ? <p role="alert">Could not find recordings. <button type="button" className="music-button" onClick={() => { setSuggestionError(false); setSuggestions(null); setSuggestionAttempt(value => value + 1); }}>Retry recordings</button></p>
+      : !suggestions ? <p role="status">Finding recordings…</p>
+      : suggestions.candidates.length === 0 ? <p>No linked recordings found. You can paste a YouTube link below.</p>
+      : <ul>{suggestions.candidates.map(candidate => <li key={candidate.video_id}>
+        <button type="button" className="music-button" onClick={() => attachId(candidate.video_id)} aria-label={`Preview ${candidate.title}`}>{candidate.title}</button>
+        <p>{candidate.channel ? `${candidate.channel} · ` : ''}{candidate.kind === 'musicvideo' ? 'Music video' : candidate.kind} · {candidate.match_note}</p>
+      </li>)}</ul>}
+    {recordingInput}
+  </div>;
+  const scoreDuration = suggestions?.score_duration_seconds;
+  const durationComparison = duration !== null && scoreDuration != null && scoreDuration > 0 && Number.isFinite(scoreDuration)
+    ? `Video ${timeLabel(duration)} · score estimate ${timeLabel(scoreDuration)} · ${Math.abs(duration - scoreDuration).toFixed(1)} seconds ${duration >= scoreDuration ? 'longer' : 'shorter'}. ${suggestions?.duration_note ?? ''}`
+    : suggestions?.duration_note;
 
   if (!active) return null;
   return <section ref={panel} className="song-video" aria-label="Song video">
     {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
       setReady(value);
+      if (!value) setDuration(null);
       if (!value) { playingRange.current = null; previousSample.current = null; lastPosition.current = ''; onPosition(null); }
     }}
       onTime={handleTime} onStateChange={value => { playingState.current = value; setState(value); }} />}
     <div className="song-video-tools">
       {draft && <>
+        {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
         <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!draft.recording_confirmed ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
           const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1);
           return position ? `Video: M${position.measureIndex + 1}, beat ${position.beatIndex + 1} · ${draft.passages.find(p => p.id === position.passageId)?.label}` : 'Unaligned video section';
@@ -208,7 +245,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
       <details open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
         <summary>{draft ? 'Calibrate recording' : 'Attach a YouTube recording'}{dirty ? ' · unsaved' : ''}</summary>
         <fieldset disabled={busy} className="song-video-calibration">
-          {!draft && recordingInput}
+          {!draft && recordingChoices}
           {draft && <>
             <label><input type="checkbox" checked={draft.recording_confirmed} onChange={event => change({ ...draft, recording_confirmed: event.target.checked })} /> I checked that this recording matches the score arrangement.</label>
             <p>Pause at the selected score boundary, then mark it. Between-anchor timing is estimated; gaps stay unaligned. Add anchors for tempo drift and named occurrences for repeats.</p>
@@ -235,7 +272,7 @@ export function SongVideo({ song, active, selection, onChange, onPosition }: {
             <button type="button" className="music-button" disabled={!dirty} onClick={save}>{busy ? 'Saving…' : 'Save video setup'}</button>
             <button type="button" className="music-button" onClick={discard}>Discard and reload</button>
           </div>
-          {draft && <details><summary>Change or remove recording</summary>{recordingInput}
+          {draft && <details onToggle={event => setChangingRecording(event.currentTarget.open)}><summary>Change or remove recording</summary>{recordingChoices}
             <button type="button" className="music-button" onClick={() => change(null)}>Remove recording</button>
           </details>}
         </fieldset>

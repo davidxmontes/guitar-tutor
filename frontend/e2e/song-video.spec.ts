@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { installYouTubeFake } from './youtube-fake';
 
-async function openSong(page: Page) {
+async function openSong(page: Page, attachManually = true) {
   await installYouTubeFake(page);
   await page.goto('/v2');
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
@@ -12,6 +12,8 @@ async function openSong(page: Page) {
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
   await page.getByLabel('Playback source').selectOption('video');
+  if (!attachManually) return;
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('https://youtu.be/M7lc1UVf-VE');
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
   await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
@@ -104,6 +106,7 @@ test('corrections, local undo, replacement confirmation and conflict reload pres
   await page.getByRole('button', { name: 'Discard and reload', exact: true }).click();
   await expect(page.getByLabel('Occurrence name')).toHaveValue('Changed elsewhere');
   await page.getByText('Change or remove recording', { exact: true }).click();
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('dQw4w9WgXcQ');
   await page.getByRole('button', { name: 'Replace recording and reset alignment', exact: true }).click();
   await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
@@ -175,6 +178,7 @@ test('unsupported links and player errors recover without losing calibrated work
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page); await alignFirstMeasure(page);
   await page.getByText('Change or remove recording', { exact: true }).click();
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('https://youtube.com.evil.test/watch?v=M7lc1UVf-VE');
   await page.getByRole('button', { name: 'Replace recording and reset alignment', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('not supported');
@@ -208,4 +212,51 @@ test('mobile dark calibration keeps a visible native player and usable score', a
   await expect(page.getByTestId('song-video-position')).toContainText('beat 2');
   expect(await frame.boundingBox()).toEqual(bounds);
   await page.screenshot({ path: '/tmp/song-video-mobile-dark.png', fullPage: false });
+});
+
+
+test('recording discovery retries, previews without URL and preserves saved alignment', async ({ page }) => {
+  let attempts = 0;
+  await page.route('**/video-suggestions', route => {
+    attempts++;
+    return attempts === 1 ? route.fulfill({ status: 503, json: { detail: 'Unavailable' } }) : route.fulfill({ json: {
+      candidates: [
+        { video_id: 'M7lc1UVf-VE', title: 'Study Fixture recording', channel: 'Practice Band', kind: 'musicvideo', match_note: 'Linked recording' },
+        { video_id: 'dQw4w9WgXcQ', title: 'Study Fixture backing', channel: null, kind: 'backing', match_note: 'Backing track' },
+      ], score_duration_seconds: 100, duration_note: 'Score estimate excludes repeats.',
+    } });
+  });
+  await openSong(page, false);
+  await page.getByRole('button', { name: 'Retry recordings' }).click();
+  await expect(page.getByLabel('YouTube link or video ID')).not.toBeVisible();
+  await page.getByRole('button', { name: 'Preview Study Fixture recording', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('video-duration-comparison')).toContainText('20.0 seconds longer');
+  await page.getByText('Calibrate recording', { exact: false }).click();
+  await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
+  await page.getByLabel('I checked that this recording matches the score arrangement.').check();
+  await alignFirstMeasure(page);
+  await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Video setup saved');
+  await page.getByText('Change or remove recording', { exact: true }).click();
+  await page.getByRole('button', { name: 'Preview Study Fixture backing', exact: true }).click();
+  await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
+  await expect(page.getByLabel('Correct an anchor').locator('option')).toHaveCount(3);
+  await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).toBeChecked();
+  await page.getByLabel('Playback source').selectOption('practice');
+  await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
+  await page.getByLabel('Playback source').selectOption('video');
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
+});
+
+test('no linked recording leaves a usable collapsed URL fallback', async ({ page }) => {
+  await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
+  await openSong(page, false);
+  await expect(page.getByText('No linked recordings found.', { exact: false })).toBeVisible();
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
+  await expect(page.getByLabel('YouTube link or video ID')).toBeVisible();
 });

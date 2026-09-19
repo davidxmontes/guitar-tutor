@@ -406,6 +406,10 @@ class ApiClient {
   }
 
 
+  async getSongVideoSuggestions(artifactId: string): Promise<import('../types/songVideo').SongVideoSuggestions> {
+    return this.fetch(`/v2/song-studies/${artifactId}/video-suggestions`);
+  }
+
   async saveSongVideoAlignment(artifactId: string, revision: string, video_alignment: import('../types/songVideo').SongVideoAlignment | null): Promise<SongStudyArtifact> {
     return this.fetch(`/v2/song-studies/${artifactId}/video-alignment`, { method: 'PUT', body: JSON.stringify({ expected_updated_at: revision, video_alignment }) });
   }

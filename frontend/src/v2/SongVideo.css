@@ -17,3 +17,7 @@
   .song-video .youtube-player { max-width: 480px; margin-inline: auto; }
   .song-video-calibration { max-height: 30vh; }
 }
+
+.song-video-suggestions { display: grid; gap: 8px; }
+.song-video-suggestions ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; max-height: 24vh; overflow-y: auto; }
+.song-video-suggestions button { white-space: normal; overflow-wrap: anywhere; text-align: left; }

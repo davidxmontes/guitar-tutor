@@ -16,3 +16,15 @@ export interface SongVideoAlignment {
   recording_confirmed: boolean;
   passages: SongVideoPassage[];
 }
+
+export interface SongVideoSuggestions {
+  candidates: Array<{
+    video_id: string;
+    title: string;
+    channel: string | null;
+    kind: 'musicvideo' | 'alternative' | 'backing' | 'solo' | 'other';
+    match_note: string;
+  }>;
+  score_duration_seconds: number | null;
+  duration_note: string;
+}
