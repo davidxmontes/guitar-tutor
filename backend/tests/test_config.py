@@ -1,6 +1,16 @@
 from pathlib import Path
 import runpy
 
+import pytest
+from pydantic import ValidationError
+
+
+def test_misspelled_storage_backend_fails_instead_of_using_memory(monkeypatch):
+    from app.config import Settings
+    monkeypatch.setenv("V2_STORAGE_BACKEND", "supabse")
+    with pytest.raises(ValidationError, match="v2_storage_backend"):
+        Settings(_env_file=None)
+
 
 def test_settings_load_backend_env_without_classic_imports(tmp_path, monkeypatch):
     monkeypatch.delenv("V2_TUTOR_MODEL", raising=False)

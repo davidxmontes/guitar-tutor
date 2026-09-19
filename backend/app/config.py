@@ -5,7 +5,7 @@ Application configuration, CORS middleware, and logging setup.
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings
 
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     supabase_db_url: Optional[str] = None  # postgres:// connection string for LangGraph checkpoint saver
 
     # V2 (Session/Branch/Artifact) persistence
-    v2_storage_backend: str = "memory"  # memory | supabase
+    v2_storage_backend: Literal["memory", "supabase"] = "memory"
 
     # V2 tutor (ticket #13) — owns its own provider/model selection,
     # deliberately separate from V1's llm_provider/model_name above (no
