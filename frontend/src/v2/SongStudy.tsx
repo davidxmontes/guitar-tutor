@@ -3,7 +3,7 @@ import type { VideoPosition } from './songVideoTiming';
 import { SaveToLibrary } from './MyStuff';
 import { ExerciseComposer } from './ExerciseComposer';
 import { songDrill } from './exerciseMaterial';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
@@ -415,18 +415,23 @@ function MeasureOverviewStrip({
 
 // --- Search: find a song, pick a track, open (or create) its SongStudy ---
 
-export function SongStudySearch({
-  sessionId,
-  branchId,
-  onCreated,
-}: {
-  sessionId: string;
-  branchId: string;
+export interface SongSearchState {
+  query: string;
+  results: SongSearchResult[];
+  searched: boolean;
+  resultsQuery?: string;
+}
+
+export function SongStudySearch({ state, onStateChange, ensureSession, onSearch, onCreated }: {
+  state: SongSearchState;
+  onStateChange: React.Dispatch<React.SetStateAction<SongSearchState>>;
+  ensureSession: () => Promise<{ sessionId: string; branchId: string }>;
+  onSearch: (query: string) => void;
   onCreated: (artifact: SongStudyArtifact) => void;
 }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SongSearchResult[]>([]);
-  const [searched, setSearched] = useState(false);
+  const { query, results, searched } = state;
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
@@ -435,17 +440,18 @@ export function SongStudySearch({
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searching || creatingKey || query.trim().length < 2) return;
-    setResults([]);
-    setSearched(true);
+    const submitted = query.trim();
+    onStateChange(previous => ({ ...previous, results: [], searched: true, resultsQuery: submitted }));
+    onSearch(submitted);
     setSearching(true);
     setSearchError(null);
     try {
-      const data = await apiClient.searchSongs(query.trim());
-      setResults(data.results);
+      const data = await apiClient.searchSongs(submitted);
+      if (mounted.current) onStateChange(previous => ({ ...previous, results: data.results, resultsQuery: submitted }));
     } catch (err) {
-      setSearchError(String(err));
+      if (mounted.current) setSearchError(String(err));
     } finally {
-      setSearching(false);
+      if (mounted.current) setSearching(false);
     }
   };
 
@@ -454,17 +460,19 @@ export function SongStudySearch({
     setCreatingKey(key);
     setCreateError(null);
     try {
+      const { sessionId, branchId } = await ensureSession();
+      if (!mounted.current) return;
       const artifact = await apiClient.createSongStudy({
         session_id: sessionId,
         branch_id: branchId,
         song_id: songId,
         track_index: trackIndex,
       });
-      onCreated(artifact);
+      if (mounted.current) onCreated(artifact);
     } catch (err) {
-      setCreateError(String(err));
+      if (mounted.current) setCreateError(String(err));
     } finally {
-      setCreatingKey(null);
+      if (mounted.current) setCreatingKey(null);
     }
   };
 
@@ -474,7 +482,7 @@ export function SongStudySearch({
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => onStateChange(previous => ({ ...previous, query: e.target.value, results: [], searched: false, resultsQuery: undefined }))}
           aria-label="Search songs"
           placeholder="Search for a song or artist..."
           data-testid="song-study-search-input"
@@ -550,9 +558,8 @@ export function SongStudySearch({
 
 // --- Workspace: overview + focused detail window, full-tab toggle, fretboard sync ---
 
-export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange }: {
+export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
   songStudy: SongStudyArtifact;
-  onSearchAgain: () => void;
   onSongStudyChange: (artifact: SongStudyArtifact) => void;
 }) {
   const payload = songStudy.payload;
@@ -846,14 +853,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
     return (
       <div data-testid="song-study-workspace" className="space-y-3">
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No tab measures found for this track.</p>
-        <button
-          type="button"
-          onClick={onSearchAgain}
-          className="px-3 py-2 rounded-lg border text-xs font-medium transition-colors hover:bg-[var(--bg-hover)]"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-        >
-          Search another song
-        </button>
+
       </div>
     );
   }
@@ -880,16 +880,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
             </p>
           </div>
           <div className="flex gap-2 flex-wrap" style={{ display: practice.focused ? 'none' : undefined }}>
-            <button
-              type="button"
-              data-testid="song-study-search-again"
-              disabled={practice.active}
-              onClick={onSearchAgain}
-              className={headerButtonClass}
-              style={headerButtonStyle}
-            >
-              Search another song
-            </button>
+
             <button
               type="button"
               data-testid="song-study-toggle-full-tab"
