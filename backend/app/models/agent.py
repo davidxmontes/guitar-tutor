@@ -6,6 +6,9 @@ from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
+# The router reserves ':' for the authenticated user's checkpoint namespace.
+ThreadId = Annotated[str, Field(min_length=1, pattern=r"^[^:]+$")]
+
 
 class AgentMessage(BaseModel):
     """A single message in a conversation."""
@@ -66,7 +69,7 @@ class AgentRequest(BaseModel):
     bootstrap_history: List[AgentMessage] = Field(default_factory=list)
     require_existing_thread: bool = False
     ui_context: Optional[UiContext] = None
-    thread_id: Optional[str] = "default"
+    thread_id: ThreadId = "default"
 
 
 class ChordApiRequest(BaseModel):
@@ -94,7 +97,7 @@ class ApiRequests(BaseModel):
 class ResumeRequest(BaseModel):
     """Request for /api/agent/resume endpoint."""
     response: str  # User's response to the clarifying question
-    thread_id: str = "default"
+    thread_id: ThreadId = "default"
     ui_context: Optional[UiContext] = None
 
 
