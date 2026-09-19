@@ -11,7 +11,7 @@
 .song-video-calibration form { display: grid; gap: 6px; }
 .song-video-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .song-video-status { min-height: 18px; }
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .song-video-layout { display: flex; flex-direction: column; }
   .song-video { top: 0; }
   .song-video .youtube-player { max-width: 480px; margin-inline: auto; }
