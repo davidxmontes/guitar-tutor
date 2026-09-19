@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import DynamicCORSMiddleware, get_settings, setup_logging
+from app.config import PREVIEW_ORIGIN_REGEX, get_settings, setup_logging
 from app.exceptions import register_exception_handlers
 from app.routers import fretboard, tunings, scales, chords, agent, songs, user
 from app.v2.router import router as v2_router
@@ -26,10 +26,10 @@ except ImportError:
 
 # CORS
 settings = get_settings()
-app.add_middleware(DynamicCORSMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
+    allow_origin_regex=PREVIEW_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
