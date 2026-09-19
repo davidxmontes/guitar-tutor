@@ -37,11 +37,12 @@ class SongVideoPassage(StrictModel):
 class SongVideoAlignment(StrictModel):
     video_id: str = Field(min_length=11, max_length=11, pattern=r"^[A-Za-z0-9_-]{11}$")
     recording_confirmed: bool = Field(strict=True)
+    timing_source: Literal["songsterr", "estimated"] | None = Field(default=None, exclude_if=lambda value: value is None)
     passages: list[SongVideoPassage] = Field(default_factory=list, max_length=100)
 
     @model_validator(mode="after")
     def confirmed_nonoverlapping_occurrences(self):
-        if not self.recording_confirmed:
+        if not self.recording_confirmed and not self.timing_source:
             raise ValueError("Confirm this recording and arrangement before saving")
         if len({passage.id for passage in self.passages}) != len(self.passages):
             raise ValueError("Passage IDs must be unique")
