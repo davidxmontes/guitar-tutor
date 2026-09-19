@@ -9,6 +9,7 @@ import { ChordProView } from './components/ChordProView';
 import { Header, ChatSidebar, MobileChatSheet, ControlBar } from './components/layout';
 import { useFretboard } from './hooks';
 import { useAppStore } from './stores';
+import { useThemeStore } from './stores/useThemeStore';
 import { apiClient } from './api/client';
 import type { DiatonicChord } from './types';
 import { ProgressionMode } from './components/ProgressionMode/ProgressionMode';
@@ -41,6 +42,7 @@ function App() {
 }
 
 function ClassicApp() {
+  const darkMode = useThemeStore((state) => state.darkMode);
   const [agentHighlightKeyScopeActive, setAgentHighlightKeyScopeActive] = useState(false);
   const { isSignedIn } = useAppAuth();
 
@@ -48,7 +50,6 @@ function ClassicApp() {
   // Zustand Store - only what App.tsx needs directly
   // ============================================================================
   const {
-    darkMode,
     appMode,
     setAppMode,
     displayMode,
@@ -115,18 +116,6 @@ function ClassicApp() {
   // ============================================================================
   const tuningNotes = customTuningNotes?.join(',');
   const { fretboardData, loading, error } = useFretboard(selectedTuning, tuningNotes);
-
-  // ============================================================================
-  // Apply dark mode class on mount and sync with localStorage
-  // ============================================================================
-  useEffect(() => {
-    const html = document.documentElement;
-    if (darkMode) {
-      html.classList.add('dark');
-    } else {
-      html.classList.remove('dark');
-    }
-  }, [darkMode]);
 
   // ============================================================================
   // The parent has bound the account token before these requests run.

@@ -1,8 +1,8 @@
-import { useAppStore } from '../stores/useAppStore';
+import { useThemeStore } from '../stores/useThemeStore';
 
 export function ThemeToggle() {
-  const dark = useAppStore(state => state.darkMode);
-  const toggle = useAppStore(state => state.toggleDarkMode);
+  const dark = useThemeStore(state => state.darkMode);
+  const toggle = useThemeStore(state => state.toggleDarkMode);
   const label = dark ? 'Switch to light mode' : 'Switch to dark mode';
   return <button type="button" className="theme-toggle" onClick={toggle} aria-label={label} title={label}>
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">

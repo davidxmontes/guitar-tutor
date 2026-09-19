@@ -13,7 +13,6 @@ import type {
   ChordProResponse,
   HighlightedNote,
   TabBeat,
-  TabMeasure,
   TuningInfo,
   SavedProgression,
   FavoriteSong,
@@ -21,6 +20,7 @@ import type {
 } from '../types';
 import type { ChatMessage, UiContext, FretboardHighlightGroup } from '../types/chat';
 import { midiTuningToNotes, matchTuningId } from '../utils/tuning';
+import { getBeatsFromMeasure } from '../utils/tab';
 import { setGuitarType as audioSetGuitarType, type GuitarType } from '../utils/audio';
 
 // App mode type
@@ -77,28 +77,6 @@ function persistThread(threadId: string, messages: ChatMessage[]) {
   } catch { /* storage full or unavailable */ }
 }
 
-function getBeatsFromMeasure(measure?: TabMeasure): TabBeat[] {
-  if (!measure) return [];
-  const voices = measure.voices ?? [];
-  if (voices.length === 0) return [];
-  if (voices.length === 1) return voices[0]?.beats ?? [];
-
-  let bestBeats: TabBeat[] = voices[0]?.beats ?? [];
-  let bestScore = -1;
-  for (const voice of voices) {
-    const beats = voice?.beats ?? [];
-    const score = beats.reduce((acc, beat) => {
-      const noteCount = (beat.notes ?? []).filter((n) => !n.rest && !n.dead).length;
-      return acc + noteCount;
-    }, 0);
-    if (score > bestScore) {
-      bestScore = score;
-      bestBeats = beats;
-    }
-  }
-  return bestBeats;
-}
-
 function toHighlightedNotes(beat?: TabBeat): HighlightedNote[] {
   if (!beat) return [];
   const seen = new Set<string>();
@@ -126,11 +104,9 @@ function firstPlayableBeatIndex(beats: TabBeat[]): number | undefined {
 }
 
 // ============================================================================
-// Theme Slice
+// Playback Settings Slice
 // ============================================================================
-interface ThemeSlice {
-  darkMode: boolean;
-  toggleDarkMode: () => void;
+interface PlaybackSettingsSlice {
   guitarType: GuitarType;
   setGuitarType: (type: GuitarType) => void;
   autoPlay: boolean;
@@ -349,38 +325,15 @@ interface UserSlice {
 // ============================================================================
 // Combined Store Type
 // ============================================================================
-type AppStore = ThemeSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice & UserSlice;
+type AppStore = PlaybackSettingsSlice & UISlice & ScaleSlice & ChordSlice & ChatSlice & ChatPanelSlice & SongSlice & TuningSlice & AgentHighlightSlice & ProgressionSlice & UserSlice;
 
 // ============================================================================
 // Store Implementation
 // ============================================================================
 export const useAppStore = create<AppStore>((set, get) => ({
   // --------------------------------------------------------------------------
-  // Theme Slice
+  // Playback Settings Slice
   // --------------------------------------------------------------------------
-  darkMode: (() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('darkMode');
-      if (saved !== null) return saved === 'true';
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  })(),
-  
-  toggleDarkMode: () => {
-    set((state) => {
-      const newMode = !state.darkMode;
-      localStorage.setItem('darkMode', String(newMode));
-      // Apply to DOM
-      if (newMode) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-      return { darkMode: newMode };
-    });
-  },
-
   guitarType: (() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('guitarType') as GuitarType) ?? 'acoustic';
@@ -1354,10 +1307,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
 // ============================================================================
 // Selector Hooks (for performance - only re-render when specific state changes)
 // ============================================================================
-
-// Theme selectors
-export const useDarkMode = () => useAppStore((state) => state.darkMode);
-export const useToggleDarkMode = () => useAppStore((state) => state.toggleDarkMode);
 
 // UI selectors
 export const useAppMode = () => useAppStore((state) => state.appMode);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../../stores/useAppStore';
 import type { HighlightedNote, TabBeat, TabData, TabMeasure } from '../../types';
 import { MeasureGroup } from './MeasureGroup';
+import { getBeatsFromMeasure } from '../../utils/tab';
 
 interface TabViewerProps {
   tabData: TabData;
@@ -40,31 +41,6 @@ function toHighlightedNotes(beat: TabBeat): HighlightedNote[] {
   }
 
   return highlights;
-}
-
-// Exported for V2's SongStudy.tsx (ticket #12 dedup) to import instead of
-// duplicating. HMR-only rule below, no behavior impact.
-// eslint-disable-next-line react-refresh/only-export-components
-export function getBeatsFromMeasure(measure: TabMeasure): TabBeat[] {
-  const voices = measure.voices ?? [];
-  if (voices.length === 0) return [];
-  if (voices.length === 1) return voices[0]?.beats ?? [];
-
-  let bestBeats: TabBeat[] = voices[0]?.beats ?? [];
-  let bestScore = -1;
-
-  for (const voice of voices) {
-    const beats = voice?.beats ?? [];
-    const score = beats.reduce((acc, beat) => {
-      const noteCount = (beat.notes ?? []).filter((n) => !n.rest && !n.dead).length;
-      return acc + noteCount;
-    }, 0);
-    if (score > bestScore) {
-      bestScore = score;
-      bestBeats = beats;
-    }
-  }
-  return bestBeats;
 }
 
 function getBeatsPerMeasure(measure?: TabMeasure): number {
