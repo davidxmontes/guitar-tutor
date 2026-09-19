@@ -201,10 +201,14 @@ export interface TutorResponse {
 }
 
 export interface TutorTurnRequest {
+  request_id?: string;
   session_id: string;
   branch_id: string;
   message: string;
+  learning_preferences?: LearningPreferences;
 }
+
+export type LearningPreferences = { level: 'beginner' | 'intermediate'; style: 'balanced' | 'explain' | 'practice'; minutes: 5 | 10 | 20 };
 
 export type TutorMessageRole = 'user' | 'assistant' | 'tool';
 
@@ -250,3 +254,11 @@ export type SongSelection = { [key: string]: unknown } & (
   | { type: 'range'; startMeasureIndex: number; endMeasureIndex: number }
 );
 export interface SongFocus { measureIndex: number; windowSize: number }
+
+export interface TutorJob {
+  id: string;
+  message: string;
+  status: 'running' | 'completed' | 'failed';
+  result: TutorResponse | null;
+  error: string | null;
+}

@@ -74,11 +74,11 @@ A trusted visual placed by the Tutor into a Workspace's Composition. What a Bloc
 _Avoid_: Widget, plugin
 
 **Composition**:
-The arrangement of Blocks the Tutor produces for one Tutor Turn — a layout Pattern, the Blocks in its slots, and which element is focal. It belongs to the turn, not to saved music.
+The arrangement of Blocks the Tutor produces for one Tutor Turn — a bounded tree of stack, split or grid containers, or a retained layout Pattern preset. It belongs to the turn, not to saved music.
 _Avoid_: Dashboard, layout file
 
 **Pattern**:
-One of a small closed set of layout shapes a Composition may use, such as hero-with-support, comparison, master-detail, or explanation-led. Each has exactly one focal element per level.
+A retained layout preset, such as hero-with-support, comparison, master-detail, or explanation-led. New Compositions can use recursive stack, split and grid containers instead; patterns are no longer the limit on Tutor presentation.
 _Avoid_: Template, grid
 
 **Candidate**:

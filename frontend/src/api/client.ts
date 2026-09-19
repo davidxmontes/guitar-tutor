@@ -1,6 +1,6 @@
 import type { FretboardResponse, TuningsResponse, ScalesListResponse, ScaleResponse, ChordResponse, ChordQualitiesResponse, SongSearchResponse, SongTracksResponse, TabDataResponse, ChordProResponse, SavedProgression, SaveProgressionRequest, FavoriteSong, AddFavoriteRequest, ConversationThread } from '../types';
 import type { AgentRequest, AgentResponse, ChatMessage, ResumeRequest, SseEvent, UiContext } from '../types/chat';
-import type { Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, CreateBranchRequest, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorResponse, TutorTurnRequest, ProgressionArtifact } from '../types/v2';
+import type { Artifact, ArtifactRevision, LibraryItem, ExerciseArtifact, ExerciseProposal, V2Session, V2Branch, CreateBranchRequest, UpdateBranchRequest, SongStudyArtifact, CreateSongStudyRequest, TutorMessage, TutorJob, TutorTurnRequest, ProgressionArtifact } from '../types/v2';
 
 // Read base URL from Vite env at build-time (VITE_API_BASE_URL).
 // Use a relative URL by default so the browser calls the same origin (/api) and
@@ -350,6 +350,10 @@ class ApiClient {
     return this.fetch('/v2/harmony/resolve', { method: 'POST', body: JSON.stringify(state) });
   }
 
+  async deleteV2Session(sessionId: string): Promise<{ deleted: boolean }> {
+    return this.fetch(`/v2/sessions/${sessionId}`, { method: 'DELETE' });
+  }
+
   async getV2Session(sessionId: string): Promise<V2Session> {
     return this.fetch<V2Session>(`/v2/sessions/${sessionId}`);
   }
@@ -420,11 +424,16 @@ class ApiClient {
     return this.fetch<TutorMessage[]>(`/v2/tutor/threads/${tutorThreadId}/messages`);
   }
 
-  async sendTutorTurn(data: TutorTurnRequest): Promise<TutorResponse> {
-    return this.fetch<TutorResponse>('/v2/tutor/turns', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  async startTutorJob(data: TutorTurnRequest): Promise<TutorJob> {
+    return this.fetch('/v2/tutor/jobs', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async latestTutorJob(sessionId: string, branchId: string): Promise<TutorJob | null> {
+    return this.fetch(`/v2/tutor/jobs?session_id=${encodeURIComponent(sessionId)}&branch_id=${encodeURIComponent(branchId)}`);
+  }
+
+  async restoreTutorTurn(branch: V2Branch, turnId: string, undo = false): Promise<{ branch: V2Branch }> {
+    return this.fetch('/v2/tutor/restore', { method: 'POST', body: JSON.stringify({ session_id: branch.session_id, branch_id: branch.id, turn_id: turnId, undo, expected_updated_at: branch.updated_at }) });
   }
 
   async saveExercise(data: ExerciseProposal): Promise<ExerciseArtifact> {

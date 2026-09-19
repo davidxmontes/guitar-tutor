@@ -1,4 +1,5 @@
 """Harmony derivation and value operations. No Artifact, Save, or model call."""
+from itertools import product
 from pydantic import ValidationError
 from app.music.chords import CHORD_INTERVALS, index_to_note
 from app.music.scales import SCALE_INTERVALS, SCALE_DEGREE_NAMES, get_diatonic_chords
@@ -57,6 +58,30 @@ def chord_voicings(chord: ChordRef, tuning: list[int]) -> list[dict]:
     return result
 
 
+def triad_shapes(notes: list[dict], tuning: list[int]) -> list[dict]:
+    """Three distinct chord tones on adjacent strings, in a compact fret span."""
+    if len(notes) != 3 or notes[1]['degree'] not in ('3', 'b3') or notes[2]['degree'] not in ('5', 'b5', '#5'):
+        return []
+    positions = note_positions(notes, tuning)
+    shapes = []
+    for first in range(1, 5):
+        strings = list(range(first, first + 3))
+        candidates = []
+        for combination in product(*[[p for p in positions if p['string'] == string and p['fret'] <= 15] for string in strings]):
+            if len({p['pitch_class'] for p in combination}) != 3:
+                continue
+            frets = [p['fret'] for p in combination]
+            if max(frets) - min(frets) > 4:
+                continue
+            bass = min(combination, key=lambda p: p['midi'])
+            inversion = next(i for i, note in enumerate(notes) if note['pitch_class'] == bass['pitch_class'])
+            candidates.append({'strings': strings, 'inversion': inversion, 'bass': bass['note'],
+                               'positions': list(combination), 'tuning': list(tuning)})
+        candidates.sort(key=lambda shape: (max(p['fret'] for p in shape['positions']), sum(p['fret'] for p in shape['positions'])))
+        shapes.extend(candidates)
+    return shapes
+
+
 def resolve_harmony(exploration: HarmonyExploration) -> dict:
     center = exploration.tonal_center
     degrees, palette, circle = [], [], None
@@ -67,7 +92,7 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
             chord['root'] = degrees[index]['note']
             chord['display'] = chord['root'] + {'major': '', 'minor': 'm', 'diminished': '°', 'augmented': '+'}.get(chord['quality'], '')
         home = next(i for i, key in enumerate(CIRCLE_KEYS) if pitch_class(key) == pitch_class(center.root))
-        circle = {'home': center.root, 'keys': CIRCLE_KEYS.copy(),
+        circle = {'home': center.root, 'home_key': CIRCLE_KEYS[home], 'keys': CIRCLE_KEYS.copy(),
                   'neighbours': [CIRCLE_KEYS[(home - 1) % 12], CIRCLE_KEYS[(home + 1) % 12]]}
     focus = exploration.focus
     chord = focus.chord if focus.kind in ('chord', 'voicing') else None
@@ -91,7 +116,7 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
     return {'function': function, 'degrees': degrees, 'palette': palette, 'circle': circle,
             'scale_positions': note_positions(degrees, exploration.tuning),
             'chord_positions': note_positions(notes, exploration.tuning), 'chord_notes': notes,
-            'voicing_positions': physical, 'caged_regions': regions,
+            'voicing_positions': physical, 'caged_regions': regions, 'triads': triad_shapes(notes, exploration.tuning),
             'voicings': chord_voicings(chord, exploration.tuning) if chord else [],
             'scratch': scratch, 'note_groups': [resolve_note_group(group, exploration.tuning) for group in exploration.kept_note_groups]}
 

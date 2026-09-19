@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('Progression recipe and master-detail editor follow active ideas without a model', async ({ page }) => {
+test('the selected-chord editor follows active ideas without a model', async ({ page }) => {
   let turns = 0;
-  page.on('request', request => { if (request.url().endsWith('/tutor/turns')) turns++; });
+  page.on('request', request => { if (request.url().endsWith('/tutor/jobs')) turns++; });
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
   await expect(page.getByTestId('progression-workspace')).toBeVisible();
@@ -25,17 +25,19 @@ test('Progression recipe and master-detail editor follow active ideas without a 
   await page.locator(`[data-session-id="${sid}"]`).click();
   await expect(page.getByLabel('Progression ideas').getByRole('button', { name: /^Compare / })).toHaveCount(3);
   const first = page.getByLabel('Progression editor').getByRole('listitem').first();
+  await first.getByText('Edit chord', { exact: true }).click();
   await first.getByLabel('Beats', { exact: true }).fill('3');
   await expect(first.getByLabel('Beats', { exact: true })).toHaveValue('3');
   await first.getByLabel('Chord root').selectOption('D');
   await first.getByRole('combobox', { name: 'Quality', exact: true }).selectOption('minor');
   await first.getByLabel('Assigned voicing').selectOption({ index: 1 });
-  await first.getByRole('button', { name: 'Focus step 1' }).click();
-  await first.getByRole('button', { name: 'Move down' }).click();
+  await page.getByRole('button', { name: 'Chord 1: D minor', exact: true }).click();
+  await first.getByText('Reorder or remove this chord', { exact: true }).click();
+  await first.getByRole('button', { name: 'Move later' }).click();
   await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('step 2');
   await page.getByLabel('Active idea').selectOption(ids[0]);
   await expect(page.getByRole('navigation', { name: 'Focus breadcrumb' })).toContainText('Whole idea');
-  await expect(page.getByLabel('Progression editor').getByRole('heading')).toHaveText('Second idea');
+  await expect(page.getByLabel('Active idea')).toHaveValue(ids[0]);
   await page.getByRole('combobox', { name: 'Tuning', exact: true }).selectOption('drop-d');
   await page.getByRole('button', { name: 'Save idea', exact: true }).click();
   await expect(page.getByText('Idea saved.', { exact: true })).toBeVisible();

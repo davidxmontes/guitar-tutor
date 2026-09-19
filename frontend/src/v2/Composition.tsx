@@ -8,9 +8,11 @@ export type BlockSpec = {
   subject?: unknown;
   config?: Record<string, unknown>;
   emphasis?: 'normal' | 'muted';
+  size?: 'small' | 'medium' | 'large' | 'fill';
 };
 export type Composition = {
-  pattern: 'hero-with-support' | 'comparison' | 'master-detail' | 'explanation-led';
+  pattern: 'hero-with-support' | 'comparison' | 'master-detail' | 'explanation-led' | 'stack' | 'split' | 'grid';
+  size?: 'small' | 'medium' | 'large' | 'fill';
   slots: Record<string, (BlockSpec | Composition)[]>;
   focal: string;
   per_block_config?: Record<string, Record<string, unknown>>;
@@ -31,20 +33,21 @@ function Viewer({ composition, renderBlock }: Props) {
   const [overrides, setOverrides] = useState<Record<string, ViewConfig>>({});
   function layout(surface: Composition, prefix = '', inherited: Composition['per_block_config'] = {}): ReactNode {
     const config = { ...Object.fromEntries(Object.entries(surface.per_block_config ?? {}).map(([path, value]) => [prefix + path, value])), ...inherited };
+    const free = ['stack', 'split', 'grid'].includes(surface.pattern);
     // Focal first in reading order as well as visually, including mobile.
     const slots = Object.entries(surface.slots).sort(([a], [b]) => Number(b === surface.focal) - Number(a === surface.focal));
     return (
-      <div className={`composition composition--${surface.pattern}`} data-testid="composition">
+      <div className={`composition composition--${surface.pattern}`} data-testid="composition" data-layout={surface.pattern} data-size={surface.size ?? 'fill'}>
         {slots.filter(([, blocks]) => blocks.length).map(([slot, blocks]) => (
-          <section key={slot} data-focal={slot === surface.focal} className="composition-slot"
+          <section key={slot} data-focal={slot === surface.focal} className={`composition-slot ${free ? 'composition-slot--free' : ''}`}
             aria-label={slot === surface.focal ? `Main focus: ${slot}` : `Supporting: ${slot}`}>
-            <span className="composition-label">{slot === surface.focal ? 'Main focus' : 'Supporting context'}</span>
-            <div className={`composition-content ${slot === 'peers' ? 'composition-peers' : ''}`}>
+            {!free && <span className="composition-label">{slot === surface.focal ? 'Main focus' : 'Supporting context'}</span>}
+            <div className={`composition-content ${slot === 'peers' ? 'composition-peers' : ''} ${free ? `composition-items--${surface.pattern}` : ''}`}>
               {blocks.map((block, index) => {
                 const path = `${prefix}${slot}.${index}`;
-                if ('pattern' in block) return <div key={path}>{layout(block, path + '.', config)}</div>;
+                if ('pattern' in block) return <div key={path} className="composition-child" data-size={block.size ?? 'fill'}>{layout(block, path + '.', config)}</div>;
                 const resolved = { ...block, config: { ...block.config, ...config[path], ...overrides[path] } };
-                return <div key={path} className="composition-block" data-emphasis={block.emphasis ?? 'normal'}>
+                return <div key={path} className="composition-block" data-component={block.kind} data-size={block.size ?? 'medium'} data-emphasis={block.emphasis ?? 'normal'}>
                   {renderBlock(resolved, path, (value) => {
                     if (block.kind !== 'fretboard') return;
                     const safe: ViewConfig = {};

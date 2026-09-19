@@ -1,5 +1,7 @@
 """Real app/stores with only the external Tutor model boundary scripted."""
 import json
+import time
+from app.config import get_settings
 from app.main import app
 from app.v2.harmony import chord_voicings
 from app.v2.harmony_state import ChordRef
@@ -15,7 +17,29 @@ class WorkspaceModel(ScriptedTutorModel):
                 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {
                     'hero': [{'kind': 'candidate-set'}], 'support': [{'kind': 'chord-inspector'}]}}}]
         question = str(messages[-1].content)
-        if 'Show progression analysis' in question:
+        if 'Take your time answering' in question:
+            time.sleep(4)
+        if 'Simulate a failed tutor' in question:
+            raise RuntimeError('Scripted provider failure')
+        if 'Compose linked mode exploration' in question:
+            self.outcomes = [{'message': 'Dorian has a natural sixth. Select it, then try another root.', 'focus': {'kind': 'degree', 'degree': 6}, 'presentation': {
+                'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'pattern': 'split', 'focal': 'items', 'slots': {'items': [
+                        {'kind': 'circle-of-fifths', 'size': 'small'}, {'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                            {'kind': 'explanation', 'config': {'text': 'Listen for the natural sixth.'}}, {'kind': 'scale-staff'}, {'kind': 'fretboard'}]}}]}}]}}}]
+        elif 'Compose linked chord shapes' in question:
+            self.outcomes = [{'message': 'Choose a diagram to see its exact frets.', 'presentation': {
+                'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'pattern': 'split', 'focal': 'items', 'slots': {'items': [{'kind': 'voicing-explorer'}, {'kind': 'chord-inspector'}]}},
+                    {'kind': 'fretboard'}]}}}]
+        elif 'Compose linked progression' in question:
+            self.outcomes = [{'message': 'Select a chord or a transition.', 'presentation': {
+                'pattern': 'stack', 'focal': 'items', 'slots': {'items': [
+                    {'pattern': 'grid', 'focal': 'items', 'slots': {'items': [{'kind': 'chord-diagram'}, {'kind': 'voice-leading'}]}},
+                    {'kind': 'fretboard'}]}}}]
+        elif 'Show one triad' in question:
+            self.outcomes = [{'message': 'Play G, C and E on strings 3, 2 and 1.', 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {'hero': [{'kind': 'triad-explorer', 'config': {'string_set': 1, 'inversion': 2, 'max_shapes': 1}}], 'support': [{'kind': 'chord-inspector'}]}}}]
+        elif 'Show progression analysis' in question:
             self.outcomes = [{'message': 'Inspect the chord functions and adjacent voices.', 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {'hero': [{'kind': 'voice-leading'}], 'support': [{'kind': 'harmonic-function'}, {'kind': 'chord-inspector'}, {'kind': 'fretboard'}]}}}]
         elif 'Show scratch' in question:
             self.outcomes = [{'message': 'Arrange your scratch chords.', 'presentation': {'pattern': 'hero-with-support', 'focal': 'hero', 'slots': {'hero': [{'kind': 'scratch-sequence'}], 'support': [{'kind': 'chord-inspector'}]}}}]
@@ -48,6 +72,9 @@ def scripted_factory(*args, **kwargs):
 
 
 app.dependency_overrides[get_tutor_model_factory] = lambda: scripted_factory
+# The scripted model emits tool calls; developer-local provider settings may
+# select native JSON output. Keep this test boundary deterministic.
+app.dependency_overrides[get_settings] = lambda: get_settings().model_copy(update={'v2_tutor_provider': 'openai', 'v2_tutor_model': 'gpt-4o-mini'})
 
 # Only the external providers are replaced for SongStudy browser acceptance.
 from app.services import songsterr

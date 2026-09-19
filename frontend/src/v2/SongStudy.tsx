@@ -169,8 +169,8 @@ function SongStudyFretboard({
       role="img"
       aria-label={`Fretboard. Active: ${activeNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}. Upcoming: ${upcomingNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}.`}
       style={{
-        background: 'linear-gradient(180deg,#20252b 0%,#171b20 100%)',
-        border: '1px solid #343b44',
+        background: 'var(--neck-bg)',
+        border: '1px solid var(--border-primary)',
         borderRadius: 12,
         overflowX: 'auto',
         padding: 6,
@@ -181,7 +181,7 @@ function SongStudyFretboard({
       <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${frets.length},minmax(22px,1fr))` }}>
         <span />
         {frets.map((f) => (
-          <span key={f} style={{ fontSize: 8, color: '#8d98a5', textAlign: 'center', fontWeight: 800 }}>
+          <span key={f} style={{ fontSize: 8, color: 'var(--text-secondary)', textAlign: 'center', fontWeight: 800 }}>
             {f}
           </span>
         ))}
@@ -198,7 +198,7 @@ function SongStudyFretboard({
               height: 22,
             }}
           >
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#b7c0c9', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-secondary)', textAlign: 'center' }}>
               {tuningNotes[i] ?? '?'}
             </div>
             {frets.map((fret) => {
@@ -209,7 +209,7 @@ function SongStudyFretboard({
                 <div
                   key={fret}
                   style={{
-                    borderLeft: '1px solid #3a424b',
+                    borderLeft: '1px solid var(--border-secondary)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -218,7 +218,7 @@ function SongStudyFretboard({
                 >
                   <span
                     aria-hidden="true"
-                    style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px solid #56606b99' }}
+                    style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px solid var(--neck-line)' }}
                   />
                   {label && (
                     <span
@@ -235,9 +235,9 @@ function SongStudyFretboard({
                         justifyContent: 'center',
                         fontSize: 7,
                         fontWeight: 900,
-                        background: isActive ? 'linear-gradient(180deg,#2aa878,#1f8f67)' : 'transparent',
-                        color: isActive ? '#fff' : '#9fe0c8',
-                        border: isActive ? '1px solid #46ba8f' : '2px solid #38a67b',
+                        background: isActive ? 'var(--root-fill)' : 'transparent',
+                        color: isActive ? 'var(--root-text)' : 'var(--note-text)',
+                        border: '1px solid var(--note-stroke)',
                       }}
                     >
                       {label}
@@ -258,16 +258,16 @@ function SongStudyFretboard({
           <div key={fret} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
             {DOUBLE_INLAY_FRETS.has(fret) ? (
               <>
-                <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#4a545f' }} />
-                <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#4a545f' }} />
+                <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--neck-line)' }} />
+                <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--neck-line)' }} />
               </>
             ) : SINGLE_INLAY_FRETS.has(fret) ? (
-              <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#4a545f' }} />
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--neck-line)' }} />
             ) : null}
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: '#8d98a5' }}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: 'var(--text-secondary)' }}>
         <span>● active beat</span>
         <span>○ upcoming beat</span>
       </div>

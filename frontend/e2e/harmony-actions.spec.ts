@@ -16,7 +16,7 @@ test('Explore confirms key changes; scratch edits and Tutor mutations work', asy
   await expect(page.getByLabel('Root', { exact: true })).toHaveValue('C');
   await page.getByRole('button', { name: 'Add C to scratch', exact: true }).click();
   await page.getByRole('button', { name: 'Add Dm to scratch', exact: true }).click();
-  await page.getByRole('button', { name: 'Focus C', exact: true }).click();
+  await page.getByRole('button', { name: 'Select C', exact: true }).click();
   await page.getByRole('button', { name: 'Explore →', exact: true }).click();
   await expect(page.getByLabel('Root', { exact: true })).toHaveValue('C');
   async function ask(text: string) { await page.getByLabel('Ask the Tutor').fill(text); await page.getByRole('button', { name: 'Ask', exact: true }).click(); }

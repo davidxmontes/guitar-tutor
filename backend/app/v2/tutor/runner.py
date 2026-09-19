@@ -20,11 +20,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool
 
 from app.v2.models import Branch, TutorMessage
-from app.v2.tutor.contract import TutorResponse, TutorTerminal, TutorUsage
+from app.v2.tutor.contract import LearningPreferences, TutorResponse, TutorTerminal, TutorUsage
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 from app.v2.turns import live_composition, musical_snapshot
 from app.v2.presentation import validate_composition
+from app.v2.component_skills import component_skill_tools
 from pydantic import ValidationError, TypeAdapter
 from app.v2.harmony_state import HarmonyFocus, ChordRef, VoicingValue
 from app.v2.harmony import chord_voicings
@@ -76,7 +77,18 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
     if terminal.focus is not None:
         focus = terminal.focus.model_dump() if hasattr(terminal.focus, 'model_dump') else terminal.focus
         if updated.active_workspace == 'harmony':
-            data = updated.harmony_exploration.model_dump() | {'focus': TypeAdapter(HarmonyFocus).validate_python(focus)}
+            target = TypeAdapter(HarmonyFocus).validate_python(focus)
+            if target.kind == 'voicing':
+                from app.v2.harmony import resolve_harmony
+                state = updated.harmony_exploration.model_copy(update={'focus': TypeAdapter(HarmonyFocus).validate_python({'kind': 'chord', 'chord': target.chord})})
+                resolved = resolve_harmony(state)
+                signature = {(p.string, p.fret) for p in target.voicing.positions}
+                options = resolved['voicings'] + resolved['triads'] + resolved['caged_regions']
+                if target.voicing.tuning != state.tuning or not any(
+                    signature == {(p['string'], p['fret']) for p in option['positions']} for option in options
+                ):
+                    raise ValueError('Tutor Focus voicing must match a deterministic shape')
+            data = updated.harmony_exploration.model_dump() | {'focus': target}
             updated.harmony_exploration = type(updated.harmony_exploration).model_validate(data)
         else:
             if not isinstance(focus, dict) or focus.get('kind') not in ('step', 'transition'):
@@ -113,6 +125,7 @@ def run_tutor_turn(
     model_factory: ModelFactory = build_tutor_model,
     lookup_tools: Optional[list[BaseTool]] = None,
     siblings: Optional[list[dict[str, Any]]] = None,
+    learning_preferences: LearningPreferences | None = None,
 ) -> TutorResponse:
     cache_key = branch.tutor_thread_id
 
@@ -127,11 +140,11 @@ def run_tutor_turn(
 
     request_messages = [stable_system_message(provider)]
     request_messages.extend(reconstruct_history(history))
-    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings))
+    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings, learning_preferences=learning_preferences))
 
     agent = create_agent(
         model=chat_model,
-        tools=lookup_tools or [],
+        tools=[*(lookup_tools or []), *component_skill_tools(branch.active_workspace)],
         response_format=structured_response_format(TutorTerminal, provider, model),
     )
 
@@ -143,10 +156,17 @@ def run_tutor_turn(
             try:
                 updated = resolve_turn_music(branch, terminal)
                 break
-            except (ValueError, ValidationError):
+            except (ValueError, ValidationError) as exc:
                 if attempt:
-                    raise TutorCapabilityError('Tutor musical change is invalid')
-                final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content='The musical result is invalid. Return one corrected result without derived positions in mutations.')]}, config={'recursion_limit': 16})
+                    raise TutorCapabilityError('Tutor musical change is invalid') from exc
+                details = str(exc) if not isinstance(exc, ValidationError) else str(exc.errors(include_input=False, include_url=False))
+                feedback = (
+                    f'The musical result is invalid in {branch.active_workspace}: {details}. '
+                    'Correct the specific validation error. Keep the answer useful even if no musical edit is possible: '
+                    'use mutation=null, candidates=null and focus=null, and explain the suggestion in message. '
+                    'Do not claim unapplied changes. Never include derived positions in mutations.'
+                )
+                final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content=feedback)]}, config={'recursion_limit': 16})
                 terminal = final_state['structured_response']
         presentation = live_composition(branch, history)
         presentation_applied = False
