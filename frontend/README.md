@@ -1,7 +1,22 @@
 # Frontend and reusable musical displays
 
 V2 lives in `src/v2`; `main.tsx` routes `/classic` to the original app and all
-other entry URLs to V2. The root [README](../README.md) covers setup and checks.
+other entry URLs to V2, loading only the selected app entry. The root
+[README](../README.md) covers setup and checks.
+
+## Shared data and state
+
+`types/music.ts` owns physical positions, voicings, chord references and resolved
+notes without importing a renderer. `types/v2.ts` owns persisted Harmony and
+Progression state and Tutor Composition contracts; `v2/harmony.ts` and
+`v2/progression.ts` describe their resolved
+responses and helpers. This keeps wire models from depending on UI modules.
+The backend remains responsible for validation and musical derivation.
+
+`stores/useThemeStore.ts` owns the shared theme preference. `main.tsx` applies it
+to the document and Clerk; Classic's `useAppStore` owns only Classic state.
+`utils/tab.ts` selects the playable voice for both tab rendering and practice,
+so V2 does not import a Classic component just to process a measure.
 
 ## Rendering and interaction boundaries
 

@@ -30,9 +30,9 @@ before fixes:
 | --- | --- | --- |
 | Frontend lint | 16 errors, 4 warnings | Clean |
 | Production build / TypeScript | Pass | Pass |
-| Frontend unit tests | 1 passed | 2 passed |
-| Backend tests | 276 passed, 1 failed | 301 passed |
-| Browser journeys | 42 passed, 5 failed | 56 passed |
+| Frontend unit tests | 1 passed | 3 passed |
+| Backend tests | 276 passed, 1 failed | 337 passed |
+| Browser journeys | 42 passed, 5 failed | 57 passed |
 | Local PostgreSQL 16 transaction check | Not part of the initial gate | Pass |
 
 The backend failure patched a removed chord-catalog symbol. Browser failures
@@ -56,6 +56,28 @@ startup requests, and retaining Tutor guides in Docker build inputs. Removed
 Classic mirrored chord state and dead props, repaired playback/callback behavior,
 and restored the frontend lint gate.
 
+Shared musical values now live in `frontend/src/types/music.ts`, and persisted
+Harmony/Progression state and Tutor Composition contracts live in `types/v2.ts`.
+The former dependency from wire models back into UI modules is gone;
+Harmony's implemented Focus states replace
+the old placeholder dictionaries. Theme state has one shared owner, Classic and
+V2 load separate app entries, and tab rendering/practice share one playable-voice
+selector. Backend CAGED resolution directly produces the current Harmony shape;
+unused cutover vocabulary and intermediate Concept models were removed. An
+exact before/after comparison covered 292 CAGED root/quality/tuning cases,
+including enharmonic spelling and stable ordering when projected frets tie.
+Saved-work search and My Stuff now read current progression tonal-center and
+provenance fields. Three real idea-to-Save regressions cover key lookup and song,
+concept and Harmony source labels; stored snapshots remain unchanged.
+
+Synchronous storage/provider handlers now use FastAPI's native worker threads.
+Songsterr and Tutor job orchestration remain async, with their synchronous phases
+offloaded. The existing memory transaction lock now also protects creation and
+iteration, so a failed Save cannot erase another request's newly created
+Artifact. Concurrent Classic startup shares one agent/checkpoint store.
+Regression checks hold slow operations while an unrelated health request
+completes; the 42 affected API path schemas are unchanged.
+
 Musical reuse uses the existing `PhysicalChordDiagram` plus a bare
 `FretboardDiagram` extracted from the workspace wrapper. Existing callers use
 one neck renderer, component-owned styles and order-independent physical shape
@@ -68,8 +90,13 @@ boundaries, and a disposable local database. No live Clerk, Supabase, model,
 Songsterr or deployed-service verification is claimed. The Docker daemon was
 unavailable; image contents/configuration were checked statically, not by running
 images. Browser inspection includes compact/bare/expanded music at desktop and
-320px, light/dark themes, keyboard interaction and page containment. The build's
-large-bundle advisory and upstream Python deprecation warnings remain.
+320px, light/dark themes, keyboard interaction and page containment. Browser
+checks also verify theme persistence and that each app loads independently.
+The local-auth-bypass build's V2 entry plus shared JavaScript is about 567 kB
+minified, down from the former 697 kB combined app. Total JavaScript remains
+nearly unchanged; this is deferred loading, not a measured startup-speed claim.
+No chunk now triggers the 500 kB build advisory. Upstream Python deprecation
+and browser-mapping-age warnings remain.
 
 ### Deliberate limits and decisions
 
@@ -79,8 +106,9 @@ large-bundle advisory and upstream Python deprecation warnings remain.
 - Supabase Session creation inserts Session and initial Branch separately. Making
   that operation atomic requires a new deployed RPC/migration; the reviewed
   workspace turn and Save RPCs are already transactional.
-- Some durable storage calls are synchronous inside async routes. No production
-  throughput or latency claim is made; measure before changing that boundary.
+- Storage and model clients remain synchronous and use the native worker pool.
+  No production throughput or latency claim is made; pool saturation and hosted
+  performance were not measured.
 - Kept NoteGroups and pinned physical shapes retain absolute notes/frets when key
   or tuning changes. Transposing them needs a product rule for binding, movement
   and out-of-range notes, rather than an inferred renderer transformation.
@@ -95,6 +123,9 @@ large-bundle advisory and upstream Python deprecation warnings remain.
 - Classic and V2 diagram wrappers keep their distinct selection, barre, interval
   and color semantics. No universal rendering framework or new dependency was
   introduced. File size alone was not used to split working modules.
+- Frontend persisted workspace and presentation types now have explicit owners;
+  edit-command payloads still use open dictionaries. This is not a full generated
+  or runtime-validated client API contract.
 
 ### Final review
 
@@ -105,8 +136,12 @@ removing it restored readable root-label contrast, verified in the expanded
 workspace. A separate Ponytail pass retained purposeful Classic/V2 semantics,
 the two storage implementations and Composer validation, and removed redundant
 state/styles rather than adding adapters or generic presentation controls.
-After the corrections and final full gate, no further high-value, low-risk
-change was identified; the remaining decisions above require a separate scope.
+The structural review removed duplicate tab logic, component-owned wire types,
+and CAGED conversion models instead of adding a new service or rendering layer.
+Retained contracts with different accepted fret ranges rather than merging them
+based on similar names. This record describes the covered flows and observed
+limits; it is not a claim that the repository has no further improvement
+opportunities.
 
 ### Local development and additional checks
 

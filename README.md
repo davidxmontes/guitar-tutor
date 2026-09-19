@@ -92,7 +92,10 @@ schema/RPCs, not a hosted database.
 | Path | Responsibility |
 | --- | --- |
 | `frontend/src/v2/` | V2 shell, workspaces, shared music displays, Tutor, practice |
-| `frontend/src/components/`, `src/App.tsx`, `src/stores/` | Classic UI/state; selected tab/song components are reused by V2 |
+| `frontend/src/components/`, `src/App.tsx`, `src/stores/useAppStore.ts` | Classic UI/state; selected tab/song components are reused by V2 |
+| `frontend/src/types/music.ts`, `src/types/v2.ts` | Shared musical values and persisted V2 workspace contracts |
+| `frontend/src/main.tsx`, `src/stores/useThemeStore.ts` | App entry selection and shared theme preference |
+| `frontend/src/utils/tab.ts` | Shared playable-voice selection for tab rendering and practice |
 | `frontend/src/api/client.ts` | HTTP and Classic streaming transport |
 | `backend/app/v2/` | V2 models, theory resolution, mutations, Tutor contracts and stores |
 | `backend/app/music/`, `app/services/` | Shared deterministic music and Songsterr services |
