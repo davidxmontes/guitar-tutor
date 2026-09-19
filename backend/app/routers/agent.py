@@ -122,7 +122,7 @@ def _try_upsert_thread(
 # --- Synchronous endpoints ---
 
 @router.post("/agent/chat", response_model=AgentResponse)
-async def chat_with_agent(
+def chat_with_agent(
     request: AgentRequest,
     user_id: Optional[str] = Depends(get_optional_user),
 ):
@@ -155,7 +155,7 @@ async def chat_with_agent(
 
 
 @router.get("/agent/health")
-async def agent_health():
+def agent_health():
     """Check if the agent is properly configured and ready."""
     try:
         agent = get_agent()
@@ -167,7 +167,7 @@ async def agent_health():
 
 
 @router.post("/agent/resume", response_model=AgentResponse)
-async def resume_agent_chat(
+def resume_agent_chat(
     request: ResumeRequest,
     user_id: Optional[str] = Depends(get_optional_user),
 ):

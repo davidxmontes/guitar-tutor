@@ -53,7 +53,7 @@ router = APIRouter()
 
 
 @router.post("/sessions", response_model=Session, status_code=status.HTTP_201_CREATED)
-async def create_session(
+def create_session(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
@@ -61,7 +61,7 @@ async def create_session(
 
 
 @router.get("/sessions", response_model=list[Session])
-async def list_sessions(
+def list_sessions(
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
 ):
@@ -69,7 +69,7 @@ async def list_sessions(
 
 
 @router.get("/sessions/{session_id}", response_model=Session)
-async def get_session(
+def get_session(
     session_id: str,
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
@@ -81,7 +81,7 @@ async def get_session(
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str, user_id: str = Depends(get_current_user),
+def delete_session(session_id: str, user_id: str = Depends(get_current_user),
                          store: V2Store = Depends(get_v2_store)):
     try:
         store.delete_session(session_id, user_id)
@@ -98,7 +98,7 @@ class CreateBranchRequest(BaseModel):
 
 
 @router.post("/sessions/{session_id}/branches", response_model=Branch, status_code=status.HTTP_201_CREATED)
-async def create_branch(
+def create_branch(
     session_id: str,
     data: CreateBranchRequest,
     user_id: str = Depends(get_current_user),
@@ -119,7 +119,7 @@ class UpdateBranchRequest(BaseModel):
 
 
 @router.patch("/sessions/{session_id}/branches/{branch_id}", response_model=Branch)
-async def update_branch(
+def update_branch(
     session_id: str,
     branch_id: str,
     data: UpdateBranchRequest,
@@ -156,12 +156,7 @@ async def create_song_study(
     """Load the entire selected track once and persist it as a SongStudy
     artifact. Ticket #101: no longer linked onto the Branch (the branch↔
     artifact link is gone) — the artifact stands on its own."""
-    try:
-        session = store.get_session(data.session_id, user_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    if not any(b.id == data.branch_id for b in session.branches):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+    await run_in_threadpool(owned_branch, store, data.session_id, data.branch_id, user_id)
 
     try:
         revision = await songsterr.get_song_revision(data.song_id)
@@ -199,7 +194,8 @@ async def create_song_study(
         shape_events=project_song_shapes(tab_data, tuning),
     )
 
-    return store.create_artifact(
+    return await run_in_threadpool(
+        store.create_artifact,
         user_id=user_id,
         kind="song_study",
         title=f"{revision.artist} - {revision.title}",
@@ -209,7 +205,7 @@ async def create_song_study(
 
 
 @router.get("/song-studies/{artifact_id}", response_model=Artifact)
-async def get_song_study(
+def get_song_study(
     artifact_id: str,
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
@@ -250,7 +246,7 @@ class UpdateSongRangesRequest(BaseModel):
 
 
 @router.put("/song-studies/{artifact_id}/ranges", response_model=Artifact)
-async def update_song_ranges(artifact_id: str, data: UpdateSongRangesRequest,
+def update_song_ranges(artifact_id: str, data: UpdateSongRangesRequest,
                              user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     artifact, payload = _owned_song_study(store, artifact_id, user_id)
     if artifact.updated_at != data.expected_updated_at:
@@ -268,7 +264,7 @@ async def enhance_song_study(
     settings: Settings = Depends(get_settings),
     model_factory: ModelFactory = Depends(get_enrichment_model_factory),
 ):
-    artifact, payload = _owned_song_study(store, artifact_id, user_id)
+    artifact, payload = await run_in_threadpool(_owned_song_study, store, artifact_id, user_id)
 
     if payload.chordpro is None:
         try:
@@ -277,10 +273,11 @@ async def enhance_song_study(
             chordpro = None
         if chordpro:
             payload = payload.model_copy(update={"chordpro": chordpro})
-            artifact = _save_song_study(store, artifact, user_id, payload)
+            artifact = await run_in_threadpool(_save_song_study, store, artifact, user_id, payload)
 
     try:
-        enrichment = run_song_enrichment(
+        enrichment = await run_in_threadpool(
+            run_song_enrichment,
             artifact_id=artifact.id,
             tab_data=payload.tab_data,
             chordpro=payload.chordpro,
@@ -299,11 +296,11 @@ async def enhance_song_study(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Song enrichment provider call failed") from exc
 
     payload = payload.model_copy(update={"enrichment": enrichment})
-    return _save_song_study(store, artifact, user_id, payload)
+    return await run_in_threadpool(_save_song_study, store, artifact, user_id, payload)
 
 
 @router.delete("/song-studies/{artifact_id}/enrichment", response_model=Artifact)
-async def remove_song_study_enrichment(
+def remove_song_study_enrichment(
     artifact_id: str,
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
@@ -332,7 +329,7 @@ class TutorTurnRequest(BaseModel):
 
 
 @router.post("/tutor/turns", response_model=TutorResponse)
-async def create_tutor_turn(
+def create_tutor_turn(
     data: TutorTurnRequest,
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
@@ -353,8 +350,7 @@ async def create_tutor_turn(
     history = store.list_tutor_messages(branch.tutor_thread_id, user_id)
 
     try:
-        response = await run_in_threadpool(
-            run_tutor_turn,
+        response = run_tutor_turn(
             branch=branch,
             history=history,
             lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id) + workspace_tools(branch),
@@ -407,6 +403,7 @@ class TutorJob(BaseModel):
 def tutor_jobs(request: Request) -> dict:
     # ponytail: one Render process, like the current memory session store.
     # Use a durable queue/store before adding workers or surviving server restarts.
+    # Registry reads and writes stay on the event loop; only the work runs in threads.
     if not hasattr(request.app.state, "tutor_jobs"):
         request.app.state.tutor_jobs = {}
         request.app.state.tutor_tasks = set()
@@ -432,7 +429,7 @@ async def start_tutor_job(
     settings: Settings = Depends(get_settings),
     model_factory: ModelFactory = Depends(get_tutor_model_factory),
 ):
-    owned_tutor_branch(store, data.session_id, data.branch_id, user_id)
+    await run_in_threadpool(owned_tutor_branch, store, data.session_id, data.branch_id, user_id)
     jobs = tutor_jobs(request)
     key = (user_id, data.session_id, data.branch_id)
     previous = jobs.get(key)
@@ -447,7 +444,7 @@ async def start_tutor_job(
 
     async def finish():
         try:
-            job.result = await create_tutor_turn(data, user_id, store, settings, model_factory)
+            job.result = await run_in_threadpool(create_tutor_turn, data, user_id, store, settings, model_factory)
             job.status = "completed"
         except Exception as exc:
             cause = exc
@@ -475,7 +472,7 @@ async def latest_tutor_job(
     session_id: str, branch_id: str, request: Request,
     user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store),
 ):
-    owned_tutor_branch(store, session_id, branch_id, user_id)
+    await run_in_threadpool(owned_tutor_branch, store, session_id, branch_id, user_id)
     entry = tutor_jobs(request).get((user_id, session_id, branch_id))
     return entry[0] if entry else None
 
@@ -489,7 +486,7 @@ class TurnRestoreRequest(BaseModel):
 
 
 @router.post('/tutor/restore')
-async def restore_tutor_turn(data: TurnRestoreRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def restore_tutor_turn(data: TurnRestoreRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     from app.v2.turns import live_composition
     try:
         session = store.get_session(data.session_id, user_id)
@@ -507,7 +504,7 @@ async def restore_tutor_turn(data: TurnRestoreRequest, user_id: str = Depends(ge
 
 
 @router.get("/tutor/threads/{tutor_thread_id}/messages", response_model=list[TutorMessage])
-async def list_tutor_thread_messages(
+def list_tutor_thread_messages(
     tutor_thread_id: str,
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
@@ -522,7 +519,7 @@ async def list_tutor_thread_messages(
 
 
 @router.get("/progressions/{artifact_id}", response_model=Artifact)
-async def get_progression(
+def get_progression(
     artifact_id: str,
     user_id: str = Depends(get_current_user),
     store: V2Store = Depends(get_v2_store),
@@ -546,7 +543,7 @@ class CreateExerciseRequest(ExerciseDraft):
 
 
 @router.post("/exercises", response_model=ExerciseArtifact, status_code=201)
-async def create_exercise(data: CreateExerciseRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def create_exercise(data: CreateExerciseRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
         source = store.get_artifact(data.source_artifact_id, user_id)
     except NotFoundError as exc:
@@ -564,12 +561,12 @@ async def create_exercise(data: CreateExerciseRequest, user_id: str = Depends(ge
 
 
 @router.get("/exercises", response_model=list[ExerciseArtifact])
-async def list_exercises(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def list_exercises(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     return store.list_artifacts(user_id, "exercise")
 
 
 @router.get("/exercises/{artifact_id}", response_model=ExerciseArtifact)
-async def get_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def get_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
         artifact = store.get_artifact(artifact_id, user_id)
         if artifact.kind != "exercise":
@@ -580,8 +577,8 @@ async def get_exercise(artifact_id: str, user_id: str = Depends(get_current_user
 
 
 @router.post("/exercises/{artifact_id}/open", response_model=Session, status_code=201)
-async def open_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
-    await get_exercise(artifact_id, user_id, store)
+def open_exercise(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    get_exercise(artifact_id, user_id, store)
     # Ticket #101: reopen no longer links the artifact onto the branch; a
     # fresh Session with a main Harmony Branch. P1 wires artifact reopen.
     session = store.create_session(user_id)
@@ -600,7 +597,7 @@ class RestoreArtifactRequest(SaveArtifactRequest):
 
 
 @router.get("/library")
-async def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     return [{**a.model_dump(exclude={"payload"}),
              "provenance": a.payload.get("created_from") or a.payload.get("inspired_by")
              or ({"title": a.title, "song_id": a.payload.get("song_id"),
@@ -609,7 +606,7 @@ async def list_library(user_id: str = Depends(get_current_user), store: V2Store 
 
 
 @router.post("/library/{artifact_id}/save", response_model=Artifact)
-async def save_artifact(artifact_id: str, data: SaveArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def save_artifact(artifact_id: str, data: SaveArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
         artifact = store.get_artifact(artifact_id, user_id)
         return store.update_artifact(artifact_id, user_id, artifact.payload, data.expected_updated_at, save=True)
@@ -630,13 +627,13 @@ def _saved_artifact(store: V2Store, artifact_id: str, user_id: str) -> Artifact:
 
 
 @router.get("/library/{artifact_id}/revisions")
-async def artifact_revisions(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def artifact_revisions(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     artifact = _saved_artifact(store, artifact_id, user_id)
     return [{"revision": r.revision, "current": False} for r in artifact.revisions] + [{"revision": artifact.updated_at, "current": True}]
 
 
 @router.post("/library/{artifact_id}/restore", response_model=Artifact)
-async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     artifact = _saved_artifact(store, artifact_id, user_id)
     revision = next((r for r in artifact.revisions if r.revision == data.revision), None)
     if revision is None:
@@ -648,7 +645,7 @@ async def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_
 
 
 @router.post("/library/{artifact_id}/open", response_model=Session, status_code=201)
-async def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     _saved_artifact(store, artifact_id, user_id)
     artifact = store.get_artifact(artifact_id, user_id)
     session = store.create_session(user_id)
@@ -709,7 +706,7 @@ def harmony_response(branch, store, user_id):
 
 
 @router.post('/harmony/open', response_model=Session)
-async def open_harmony(subject: TonalCenter | ChordRef, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def open_harmony(subject: TonalCenter | ChordRef, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     session = store.create_session(user_id)
     branch = session.branches[0]
     is_scale = isinstance(subject, TonalCenter)
@@ -722,17 +719,17 @@ async def open_harmony(subject: TonalCenter | ChordRef, user_id: str = Depends(g
 
 
 @router.post('/harmony/resolve')
-async def resolve_harmony_preview(state: HarmonyExploration, user_id: str = Depends(get_current_user)):
+def resolve_harmony_preview(state: HarmonyExploration, user_id: str = Depends(get_current_user)):
     return resolve_harmony(state)
 
 
 @router.get('/sessions/{session_id}/branches/{branch_id}/harmony')
-async def read_harmony_surface(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def read_harmony_surface(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     return harmony_response(owned_branch(store, session_id, branch_id, user_id), store, user_id)
 
 
 @router.patch('/sessions/{session_id}/branches/{branch_id}/harmony')
-async def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     branch = owned_branch(store, session_id, branch_id, user_id)
     state = branch.harmony_exploration
     if state is None:
@@ -766,7 +763,7 @@ class ExploreRequest(StrictModel):
 
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/explore')
-async def explore_subject(session_id: str, branch_id: str, data: ExploreRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def explore_subject(session_id: str, branch_id: str, data: ExploreRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     from app.v2.harmony_actions import explore_harmony
     current = owned_branch(store, session_id, branch_id, user_id)
     updated, confirmation = explore_harmony(current, data.subject, data.confirmed)
@@ -777,7 +774,7 @@ async def explore_subject(session_id: str, branch_id: str, data: ExploreRequest,
 
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/develop')
-async def develop_scratch(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def develop_scratch(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     from app.v2.progression_tutor import develop_harmony
     current = owned_branch(store, session_id, branch_id, user_id)
     try:
@@ -808,7 +805,7 @@ class SaveIdeaRequest(StrictModel):
 
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/progression/save')
-async def save_progression_idea(session_id: str, branch_id: str, data: SaveIdeaRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def save_progression_idea(session_id: str, branch_id: str, data: SaveIdeaRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     branch = owned_branch(store, session_id, branch_id, user_id)
     try:
         if branch.updated_at != data.expected_updated_at:
@@ -824,7 +821,7 @@ async def save_progression_idea(session_id: str, branch_id: str, data: SaveIdeaR
 
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/progression/open/{artifact_id}')
-async def open_progression_idea(session_id: str, branch_id: str, artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def open_progression_idea(session_id: str, branch_id: str, artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     branch = owned_branch(store, session_id, branch_id, user_id)
     artifact = _saved_artifact(store, artifact_id, user_id)
     if artifact.kind != 'progression':
@@ -847,7 +844,7 @@ def progression_response(branch, store, user_id):
 
 
 @router.post('/progression/open', response_model=Session)
-async def open_progression_recipe(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def open_progression_recipe(user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     session = store.create_session(user_id)
     idea = ProgressionIdeaDraft(label='Four-chord progression', tonal_center={'root': 'C', 'scale': 'major'},
         chords=[{'root': root, 'quality': quality} for root, quality in [('C','major'),('G','major'),('A','minor'),('F','major')]])
@@ -857,12 +854,12 @@ async def open_progression_recipe(user_id: str = Depends(get_current_user), stor
 
 
 @router.get('/sessions/{session_id}/branches/{branch_id}/progression')
-async def read_progression_surface(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def read_progression_surface(session_id: str, branch_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     return progression_response(owned_branch(store, session_id, branch_id, user_id), store, user_id)
 
 
 @router.patch('/sessions/{session_id}/branches/{branch_id}/progression')
-async def edit_progression_surface(session_id: str, branch_id: str, edit: ProgressionEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def edit_progression_surface(session_id: str, branch_id: str, edit: ProgressionEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     branch = owned_branch(store, session_id, branch_id, user_id)
     if branch.progression_workspace is None:
         raise HTTPException(422, 'No Progression Workspace')
@@ -883,7 +880,7 @@ class IdeaExerciseRequest(StrictModel):
 
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/progression/exercise', response_model=ExerciseArtifact, status_code=201)
-async def compose_idea_exercise(session_id: str, branch_id: str, data: IdeaExerciseRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def compose_idea_exercise(session_id: str, branch_id: str, data: IdeaExerciseRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     from app.v2.progression import exercise_from_idea
     branch = owned_branch(store, session_id, branch_id, user_id)
     if branch.updated_at != data.expected_updated_at:
@@ -906,7 +903,7 @@ class KeepCandidateRequest(StrictModel):
 
 
 @router.post('/sessions/{session_id}/branches/{branch_id}/candidates/keep')
-async def keep_progression_candidate(session_id: str, branch_id: str, data: KeepCandidateRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+def keep_progression_candidate(session_id: str, branch_id: str, data: KeepCandidateRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     from app.v2.progression_tutor import keep_candidate
     branch = owned_branch(store, session_id, branch_id, user_id)
     turn = next((turn for turn in store.list_tutor_messages(branch.tutor_thread_id, user_id) if turn.id == data.turn_id and turn.role == 'assistant'), None)
