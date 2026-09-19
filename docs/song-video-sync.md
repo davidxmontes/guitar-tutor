@@ -413,3 +413,17 @@ shortcut and a deliberate start/end measure choice. Tab beat clicks and overview
 measure/Shift-click selection continue to use the same state. Editing range fields
 does not seek until applied; missing alignment at an endpoint still disables
 looping. There is no second loop-region model or additional playback transport.
+
+### Fretboard technique cues
+
+The fretboard uses imported note/beat flags to describe current and upcoming
+techniques alongside the existing note markers. Hammer-on/pull-off flags remain
+“hammer-on / pull-off” when direction is unspecified; slide direction and bend amount are not
+invented from boolean flags. Muted/dead notes describe the string without adding
+a pitched fret marker. Technique cues follow the same selected/playback beat and
+next-written-beat projection as the neck, and clear on rests or unknown positions.
+Existing tab notation remains unchanged.
+
+Verification: 26 affected SongVideo/SongStudy browser tests passed, including
+technique cues during paused selection, video playback, upcoming beats, rests,
+and the 320px layout. Frontend lint and production build passed.

@@ -15,7 +15,7 @@ import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
 import { beatDuration } from './practiceTiming';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
-import type { SongSearchResult, TabBeat, TabMeasure, TrackSummary } from '../types';
+import type { SongSearchResult, TabBeat, TabMeasure, TabNote, TrackSummary } from '../types';
 import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
@@ -51,6 +51,25 @@ function toFretNotes(beat?: TabBeat): FretNote[] {
     notes.push({ string: stringNumber, fret: note.fret });
   }
   return notes;
+}
+
+const NOTE_TECHNIQUES: Array<[keyof TabNote, string]> = [
+  ['slide', 'slide'], ['bend', 'bend'], ['hp', 'hammer-on / pull-off'],
+  ['vibrato', 'vibrato'], ['harmonic', 'harmonic'], ['ghost', 'ghost note'],
+  ['staccato', 'staccato'], ['accentuated', 'accent'],
+];
+
+function beatTechniques(beat?: TabBeat): string[] {
+  if (!beat || beat.rest) return [];
+  const notes = (beat.notes ?? []).filter(note => !note.rest && Number.isInteger(note.string) && note.string >= 0 && (note.dead || Number.isFinite(note.fret)));
+  if (!notes.length) return [];
+  const labels = notes.flatMap(note => {
+    const techniques = note.dead ? ['muted note'] : NOTE_TECHNIQUES.filter(([key]) => note[key]).map(([, label]) => label);
+    return techniques.length ? [`String ${note.string + 1}${note.dead ? '' : `, fret ${note.fret}`}: ${techniques.join(', ')}`] : [];
+  });
+  if (beat.palmMute) labels.push('Palm mute');
+  if (beat.letRing) labels.push('Let ring');
+  return labels;
 }
 
 function parseBeatId(beatId: string): { measureIndex: number; beatIndex: number } | null {
@@ -143,6 +162,8 @@ function SongStudyFretboard({
   tuningNotes,
   activeNotes,
   upcomingNotes,
+  activeTechniques,
+  upcomingTechniques,
   // Fills the middle panel's width by default instead of a small fixed cap —
   // pass a smaller value (e.g. the rail layout's 760) only to compare sizes.
   maxWidth = '100%',
@@ -151,6 +172,8 @@ function SongStudyFretboard({
   tuningNotes: string[];
   activeNotes: FretNote[];
   upcomingNotes: FretNote[];
+  activeTechniques: string[];
+  upcomingTechniques: string[];
   // Layout-comparison toggle (rail variant) passes a smaller pixel value to
   // see whether less width is worth it (kept as a size comparison knob).
   maxWidth?: number | string;
@@ -170,7 +193,7 @@ function SongStudyFretboard({
     <div
       data-testid="song-study-fretboard"
       role="img"
-      aria-label={`Fretboard. Active: ${activeNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}. Upcoming: ${upcomingNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}.`}
+      aria-label={`Fretboard. Active: ${activeNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}. Upcoming: ${upcomingNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}.${activeTechniques.length ? ` Active techniques: ${activeTechniques.join("; ")}.` : ""}${upcomingTechniques.length ? ` Upcoming techniques: ${upcomingTechniques.join("; ")}.` : ""}`}
       style={{
         background: 'var(--neck-bg)',
         border: '1px solid var(--border-primary)',
@@ -270,6 +293,11 @@ function SongStudyFretboard({
           </div>
         ))}
       </div>
+      {([['Active', activeTechniques], ['Upcoming', upcomingTechniques]] as const).map(([role, techniques]) => techniques.length > 0 && (
+        <div key={role} data-testid={`fretboard-${role.toLowerCase()}-techniques`} style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
+          <strong>{role === 'Active' ? '●' : '○'} {role}: </strong>{techniques.join(' · ')}
+        </div>
+      ))}
       <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: 'var(--text-secondary)' }}>
         <span>● active beat</span>
         <span>○ upcoming beat</span>
@@ -1009,6 +1037,8 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
                   tuningNotes={tuningNotes}
                   activeNotes={activeNotes}
                   upcomingNotes={upcomingNotes}
+                  activeTechniques={beatTechniques(beatSequence[activeBeatIndex]?.beat)}
+                  upcomingTechniques={beatTechniques(activeBeatIndex >= 0 ? beatSequence[nextBeatIndex]?.beat : undefined)}
                 />
               ) : (
                 <p role="status">No tuning data for this track — showing tab only.</p>

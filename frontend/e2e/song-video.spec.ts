@@ -545,3 +545,52 @@ for (const width of [1280, 320]) {
     expect(await page.getByLabel('From measure', { exact: true }).evaluate((input: HTMLInputElement) => input.validity.rangeUnderflow)).toBe(true);
   });
 }
+
+for (const width of [1280, 320]) {
+  test(`fretboard techniques follow selected and video beats at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.route('**/api/v2/song-studies', async route => {
+      const response = await route.fetch();
+      const song = await response.json();
+      const beats = song.payload.tab_data.measures[0].voices[0].beats;
+      beats[0].notes = [{ string: 4, fret: 3, slide: true, hp: true, bend: true }];
+      beats[0].palmMute = true;
+      beats[1].rest = false;
+      beats[1].notes = [{ string: 2, fret: 7, vibrato: true, harmonic: true }, { string: 0, fret: 99, dead: true }];
+      beats[1].letRing = true;
+      await route.fulfill({ response, json: song });
+    });
+    await openSong(page);
+    const active = page.getByTestId('fretboard-active-techniques');
+    const upcoming = page.getByTestId('fretboard-upcoming-techniques');
+    const neck = page.getByTestId('song-study-fretboard');
+    await expect(active).toHaveCount(0);
+    await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
+    await expect(active).toContainText('String 5, fret 3: slide, bend, hammer-on / pull-off');
+    await expect(active).toContainText('Palm mute');
+    await expect(upcoming).toContainText('String 3, fret 7: vibrato, harmonic');
+    await expect(upcoming).toContainText('String 1: muted note');
+    await expect(upcoming).toContainText('Let ring');
+    await expect(neck).toHaveAttribute('aria-label', /Active techniques: String 5, fret 3: slide, bend, hammer-on \/ pull-off/);
+    await expect(page.locator('[data-fret="99"]')).toHaveCount(0);
+    if (width === 320) {
+      await neck.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: '/tmp/song-video-techniques-mobile.png' });
+      const bounds = await active.boundingBox();
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+    }
+    await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
+    await alignFirstMeasure(page);
+    await nativeTime(page, 14, 1);
+    await expect(active).toContainText('vibrato, harmonic');
+    await expect(active).not.toContainText('slide');
+    await nativeTime(page, 14, 2);
+    await page.getByRole('button', { name: 'Select measure 2', exact: true }).click();
+    await page.getByRole('button', { name: 'Select beat 2 of measure 2', exact: true }).click();
+    await expect(active).toHaveCount(0);
+    await expect(upcoming).toHaveCount(0);
+    await nativeTime(page, 40, 2);
+    await expect(active).toHaveCount(0);
+    await expect(upcoming).toHaveCount(0);
+  });
+}
