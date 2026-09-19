@@ -1,6 +1,20 @@
-import type { Composition } from '../v2/Composition';
 import type { TabData } from './song';
 import type { ChordRef, NoteGroup, PhysicalPosition, TonalCenter, VoicingValue } from './music';
+
+export type BlockSpec = {
+  kind: string;
+  subject?: unknown;
+  config?: Record<string, unknown>;
+  emphasis?: 'normal' | 'muted';
+  size?: 'small' | 'medium' | 'large' | 'fill';
+};
+export type Composition = {
+  pattern: 'hero-with-support' | 'comparison' | 'master-detail' | 'explanation-led' | 'stack' | 'split' | 'grid';
+  size?: 'small' | 'medium' | 'large' | 'fill';
+  slots: Record<string, (BlockSpec | Composition)[]>;
+  focal: string;
+  per_block_config?: Record<string, Record<string, unknown>>;
+};
 
 export type ArtifactKind = 'song_study' | 'progression' | 'exercise';
 export type WorkspaceKind = 'harmony' | 'progression';

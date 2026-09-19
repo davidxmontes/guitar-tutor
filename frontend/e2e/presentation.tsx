@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CompositionView } from '../src/v2/Composition';
-import type { Composition } from '../src/v2/Composition';
+import type { Composition } from '../src/types/v2';
 
 const fretboard = { kind: 'fretboard', config: { labels: 'notes', fret_window: [0, 12] } };
 const explanation = { kind: 'explanation', config: { text: 'Listen for the notes that stay the same as the chord changes.' } };

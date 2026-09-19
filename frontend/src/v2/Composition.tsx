@@ -1,22 +1,9 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import type { BlockSpec, Composition } from '../types/v2';
 import './Composition.css';
 
 export type ViewConfig = { labels?: 'notes' | 'degrees'; fret_window?: [number, number] };
-export type BlockSpec = {
-  kind: string;
-  subject?: unknown;
-  config?: Record<string, unknown>;
-  emphasis?: 'normal' | 'muted';
-  size?: 'small' | 'medium' | 'large' | 'fill';
-};
-export type Composition = {
-  pattern: 'hero-with-support' | 'comparison' | 'master-detail' | 'explanation-led' | 'stack' | 'split' | 'grid';
-  size?: 'small' | 'medium' | 'large' | 'fill';
-  slots: Record<string, (BlockSpec | Composition)[]>;
-  focal: string;
-  per_block_config?: Record<string, Record<string, unknown>>;
-};
 type Props = {
   composition: Composition;
   liveTurnId: string;

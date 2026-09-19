@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Composition } from './Composition';
+import type { Composition } from '../types/v2';
 
 export type ComparePeer = { kind: 'scale' | 'chord' | 'voicing' | 'progression-idea'; id: string; label: string; [key: string]: unknown };
 

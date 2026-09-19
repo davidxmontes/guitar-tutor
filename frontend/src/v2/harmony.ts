@@ -1,5 +1,4 @@
-import type { Composition } from './Composition';
-import type { V2Branch } from '../types/v2';
+import type { Composition, V2Branch } from '../types/v2';
 import type { ResolvedNote, NoteLayer, VoicingValue, ChordRef } from '../types/music';
 
 export type HarmonyView = 'tutor' | 'fretboard' | 'shapes' | 'triads' | 'caged' | 'circle' | 'scratch';

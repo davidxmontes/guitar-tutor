@@ -5,7 +5,7 @@ import { Hear } from './Fretboard';
 import { TutorPanel } from './TutorPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
-import type { V2Branch, ProgressionFocus } from '../types/v2';
+import type { Composition, V2Branch, ProgressionFocus } from '../types/v2';
 import { CompositionView } from './Composition';
 import { Fretboard } from './Fretboard';
 import type { ResolvedNote } from '../types/music';
@@ -16,7 +16,6 @@ import { HarmonicFunction, VoiceLeading } from './ProgressionAnalysis';
 import { ProgressionEditor } from './ProgressionEditor';
 import { useCompare } from './compare';
 import type { ProgressionSurface } from './progression';
-import type { Composition } from './Composition';
 import { ProgressionPractice } from './ProgressionPractice';
 import { usePractice } from './usePractice';
 
