@@ -7,6 +7,7 @@ Graph node implementations live in app.agent.nodes.
 
 import logging
 import re
+from threading import Lock
 from typing import Any, Generator, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -521,6 +522,7 @@ class GuitarTutorAgent:
 
 # Singleton instance (lazy initialization)
 _agent_instance: Optional[GuitarTutorAgent] = None
+_agent_lock = Lock()
 
 
 def get_agent() -> GuitarTutorAgent:
@@ -528,17 +530,18 @@ def get_agent() -> GuitarTutorAgent:
     from app.config import get_settings
 
     global _agent_instance
-    if _agent_instance is None:
-        settings = get_settings()
-        logger.info(
-            "Initializing agent: provider=%s, model=%s, base_url=%s",
-            settings.llm_provider,
-            settings.llm_model_name,
-            settings.llm_base_url,
-        )
-        _agent_instance = GuitarTutorAgent(
-            model_name=settings.llm_model_name,
-            base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key,
-        )
-    return _agent_instance
+    with _agent_lock:
+        if _agent_instance is None:
+            settings = get_settings()
+            logger.info(
+                "Initializing agent: provider=%s, model=%s, base_url=%s",
+                settings.llm_provider,
+                settings.llm_model_name,
+                settings.llm_base_url,
+            )
+            _agent_instance = GuitarTutorAgent(
+                model_name=settings.llm_model_name,
+                base_url=settings.llm_base_url,
+                api_key=settings.llm_api_key,
+            )
+        return _agent_instance
