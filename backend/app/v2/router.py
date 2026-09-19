@@ -38,6 +38,7 @@ from app.v2.models import (
 )
 from app.v2.song_enrichment import run_song_enrichment
 from app.v2.song_shapes import project_song_shapes
+from app.v2.song_video import SongVideoAlignment, validate_video_alignment
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
 from app.v2.tutor.contract import LearningPreferences, TutorResponse
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
@@ -233,9 +234,9 @@ def _owned_song_study(store: V2Store, artifact_id: str, user_id: str) -> tuple[A
     return artifact, SongStudyPayload.model_validate(artifact.payload)
 
 
-def _save_song_study(store: V2Store, artifact: Artifact, user_id: str, payload: SongStudyPayload) -> Artifact:
+def _save_song_study(store: V2Store, artifact: Artifact, user_id: str, payload: SongStudyPayload, *, save: bool = False) -> Artifact:
     try:
-        return store.update_artifact(artifact.id, user_id, payload.model_dump(), artifact.updated_at)
+        return store.update_artifact(artifact.id, user_id, payload.model_dump(), artifact.updated_at, save=save)
     except RevisionConflictError as exc:
         raise HTTPException(409, "SongStudy changed; reload before trying again") from exc
 
@@ -254,6 +255,30 @@ def update_song_ranges(artifact_id: str, data: UpdateSongRangesRequest,
     if any(item.end_measure > len(payload.tab_data.get("measures", [])) for item in data.ranges):
         raise HTTPException(422, "Range is outside the track")
     return _save_song_study(store, artifact, user_id, payload.model_copy(update={"saved_ranges": data.ranges}))
+
+
+class UpdateSongVideoAlignmentRequest(BaseModel):
+    expected_updated_at: str = Field(min_length=1)
+    video_alignment: SongVideoAlignment | None
+
+
+@router.put("/song-studies/{artifact_id}/video-alignment", response_model=Artifact)
+def update_song_video_alignment(
+    artifact_id: str,
+    data: UpdateSongVideoAlignmentRequest,
+    user_id: str = Depends(get_current_user),
+    store: V2Store = Depends(get_v2_store),
+):
+    artifact, payload = _owned_song_study(store, artifact_id, user_id)
+    if artifact.updated_at != data.expected_updated_at:
+        raise HTTPException(409, "SongStudy changed; reload before trying again")
+    if data.video_alignment is not None:
+        try:
+            validate_video_alignment(data.video_alignment, payload.tab_data)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    return _save_song_study(store, artifact, user_id,
+                           payload.model_copy(update={"video_alignment": data.video_alignment}), save=True)
 
 
 @router.post("/song-studies/{artifact_id}/enrichment", response_model=Artifact)

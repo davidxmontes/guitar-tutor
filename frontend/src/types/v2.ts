@@ -1,4 +1,5 @@
 import type { TabData } from './song';
+import type { SongVideoAlignment } from './songVideo';
 import type { ChordRef, NoteGroup, PhysicalPosition, TonalCenter, VoicingValue } from './music';
 
 export type BlockSpec = {
@@ -158,6 +159,7 @@ export interface SongStudyPayload {
   chordpro: string | null;
   enrichment: SongEnrichment | null;
   saved_ranges?: SongSavedRange[];
+  video_alignment?: SongVideoAlignment | null;
 }
 
 export interface ArtifactRevision { revision: string; current: boolean }

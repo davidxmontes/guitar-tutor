@@ -1,0 +1,18 @@
+export interface SongVideoAnchor {
+  measure_index: number;
+  beat_index: number;
+  edge: 'start' | 'end';
+  video_seconds: number;
+}
+
+export interface SongVideoPassage {
+  id: string;
+  label: string;
+  anchors: SongVideoAnchor[];
+}
+
+export interface SongVideoAlignment {
+  video_id: string;
+  recording_confirmed: boolean;
+  passages: SongVideoPassage[];
+}
