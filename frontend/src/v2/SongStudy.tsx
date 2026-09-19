@@ -15,7 +15,7 @@ import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
 import { beatDuration } from './practiceTiming';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
-import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
+import type { SongSearchResult, TabBeat, TabMeasure, TrackSummary } from '../types';
 import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
@@ -516,41 +516,54 @@ export function SongStudySearch({ state, onStateChange, ensureSession, onSearch,
 
       {searched && !searching && !searchError && results.length === 0 && <p role="status">No songs found. Try another song or artist.</p>}
       <div className="space-y-2">
-        {results.map((song) => (
-          <div
-            key={song.song_id}
-            data-testid="song-study-result"
-            className="px-4 py-3 rounded-lg border"
-            style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
-          >
-            <div className="text-sm">
-              <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{song.title}</span>
-              <span style={{ color: 'var(--text-muted)' }}> — {song.artist}</span>
+        {results.map((song) => {
+          const guitarTracks: TrackSummary[] = [];
+          const otherTracks: TrackSummary[] = [];
+          for (const track of song.tracks) {
+            const isGuitar = !track.is_vocal && /\bguitar\b/i.test(track.instrument) && !/\bbass\b/i.test(track.instrument);
+            (isGuitar ? guitarTracks : otherTracks).push(track);
+          }
+          const renderTrack = (track: TrackSummary) => {
+            const key = `${song.song_id}:${track.index}`;
+            return (
+                <button
+                  key={track.index}
+                  type="button"
+                  data-testid="song-study-track-option"
+                  disabled={creatingKey !== null}
+                  onClick={() => handleSelectTrack(song.song_id, track.index)}
+                  className="px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {creatingKey === key ? 'Loading...' : track.name || track.instrument}
+                </button>
+              );
+            };
+            return (
+            <div
+              key={song.song_id}
+              data-testid="song-study-result"
+              className="px-4 py-3 rounded-lg border"
+              style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
+            >
+              <div className="text-sm">
+                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{song.title}</span>
+                <span style={{ color: 'var(--text-muted)' }}> — {song.artist}</span>
+              </div>
+              {guitarTracks.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{guitarTracks.map(renderTrack)}</div>}
+              {otherTracks.length > 0 && (
+                <details className="mt-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  <summary className="cursor-pointer py-2">Other tracks ({otherTracks.length})</summary>
+                  <div className="flex flex-wrap gap-1.5 mt-1">{otherTracks.map(renderTrack)}</div>
+                </details>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {song.tracks.map((track) => {
-                const key = `${song.song_id}:${track.index}`;
-                return (
-                  <button
-                    key={track.index}
-                    type="button"
-                    data-testid="song-study-track-option"
-                    disabled={creatingKey !== null}
-                    onClick={() => handleSelectTrack(song.song_id, track.index)}
-                    className="px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
-                    style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      borderColor: 'var(--border-primary)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {creatingKey === key ? 'Loading...' : track.name || track.instrument}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
