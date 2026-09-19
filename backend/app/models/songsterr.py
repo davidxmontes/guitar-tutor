@@ -49,6 +49,7 @@ class SongsterrRevisionResponse(BaseModel):
     popular_track: int = Field(default=0, alias="popularTrack")
     image: str | None = None
     source: str | None = None
+    videos: list[dict] = Field(default_factory=list)
 
 
 class SongsterrChordsResponse(BaseModel):

@@ -137,16 +137,21 @@ def search_songs_sync(query: str) -> list[SongsterrRecord]:
         return [SongsterrRecord.model_validate(r) for r in records_payload]
 
 
+def _latest_available_revision_id(revisions: list[dict], song_id: int) -> int:
+    # History is newest first, including rejected and pending submissions that
+    # do not correspond to the tracks returned by search.
+    for revision in revisions:
+        if not any(revision.get(flag, False) for flag in ("isBlocked", "isDeleted", "isOnModeration")):
+            return revision["revisionId"]
+    raise ValueError(f"No available revisions found for song {song_id}")
+
+
 async def get_song_revision(song_id: int) -> SongsterrRevisionResponse:
     """Get the latest revision for a song."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         rev_resp = await client.get(f"{SONGSTERR_API}/meta/{song_id}/revisions")
         rev_resp.raise_for_status()
-        revisions = rev_resp.json()
-        if not revisions:
-            raise ValueError(f"No revisions found for song {song_id}")
-
-        revision_id = revisions[0]["revisionId"]
+        revision_id = _latest_available_revision_id(rev_resp.json(), song_id)
         resp = await client.get(f"{SONGSTERR_API}/revision/{revision_id}")
         resp.raise_for_status()
         return SongsterrRevisionResponse.model_validate(resp.json())
@@ -157,11 +162,7 @@ def get_song_revision_sync(song_id: int) -> SongsterrRevisionResponse:
     with httpx.Client(timeout=15.0) as client:
         rev_resp = client.get(f"{SONGSTERR_API}/meta/{song_id}/revisions")
         rev_resp.raise_for_status()
-        revisions = rev_resp.json()
-        if not revisions:
-            raise ValueError(f"No revisions found for song {song_id}")
-
-        revision_id = revisions[0]["revisionId"]
+        revision_id = _latest_available_revision_id(rev_resp.json(), song_id)
         resp = client.get(f"{SONGSTERR_API}/revision/{revision_id}")
         resp.raise_for_status()
         return SongsterrRevisionResponse.model_validate(resp.json())
