@@ -44,6 +44,8 @@ function App() {
     setActiveVoicings,
     toggleVoicing,
     fetchChord,
+    setSelectedChordRoot,
+    setSelectedChordQuality,
     clearChord,
     resetChord,
     setChordData,
@@ -265,8 +267,10 @@ function App() {
 
   // Handle direct chord select (chord mode)
   const handleDirectChordSelect = useCallback(async (root: string, quality: string) => {
+    setSelectedChordRoot(root);
+    setSelectedChordQuality(quality);
     await fetchChord(root, quality);
-  }, [fetchChord]);
+  }, [fetchChord, setSelectedChordRoot, setSelectedChordQuality]);
 
   // Handle click on any scale note (opens popup)
   // Note: We use apiClient directly here to avoid updating the global chordData store

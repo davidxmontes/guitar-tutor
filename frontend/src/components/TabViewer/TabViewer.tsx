@@ -88,9 +88,9 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
   const measureRows = useMemo(() => {
     const measures = tabData.measures ?? [];
     if (!focusFretboardMode) {
-      return chunkMeasures(measures, Math.max(1, measuresPerRow)).map((rowMeasures, rowIndex) => ({
+      return chunkMeasures(measures, focusWindowSize).map((rowMeasures, rowIndex) => ({
         measures: rowMeasures,
-        startMeasureIndex: rowIndex * Math.max(1, measuresPerRow),
+        startMeasureIndex: rowIndex * focusWindowSize,
       }));
     }
 
@@ -102,10 +102,12 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
         startMeasureIndex: start,
       },
     ];
-  }, [focusFretboardMode, measuresPerRow, playheadMeasureIndex, tabData.measures]);
+  }, [focusFretboardMode, focusWindowSize, playheadMeasureIndex, tabData.measures]);
   const bpm = tabData.automations?.tempo?.[0]?.bpm;
   const effectiveBpm = typeof bpm === 'number' && bpm > 0 ? bpm : 120;
   const measureCount = tabData.measures?.length ?? 0;
+  // Tutor actions can also move the playhead to the end.
+  if (isPlaying && playheadMeasureIndex >= measureCount - 1) setIsPlaying(false);
   const beatSequence = useMemo(() => {
     const sequence: Array<{ measureIndex: number; beatIndex: number; beat: TabBeat }> = [];
     for (let measureIndex = 0; measureIndex < measureCount; measureIndex += 1) {
@@ -215,20 +217,15 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
   const togglePlayback = useCallback(() => {
     if (measureCount === 0) return;
     setSelectedBeatId(null);
-    setIsPlaying((current) => {
-      if (current) return false;
-      if (playheadMeasureIndex >= measureCount - 1) {
-        setPlayheadMeasureIndex(0);
-      }
-      return true;
-    });
-  }, [measureCount, playheadMeasureIndex]);
+    if (!isPlaying && playheadMeasureIndex >= measureCount - 1) {
+      setPlayheadMeasureIndex(0);
+    }
+    setIsPlaying(!isPlaying && measureCount > 1);
+  }, [isPlaying, measureCount, playheadMeasureIndex, setPlayheadMeasureIndex, setSelectedBeatId]);
 
   useEffect(() => {
     setPlayheadMeasureIndex(0);
     setSelectedBeatId(null);
-    setIsPlaying(false);
-    setFocusFretboardMode(true);
   }, [setPlayheadMeasureIndex, setSelectedBeatId, tabData.measures]);
 
   useEffect(() => {
@@ -250,16 +247,14 @@ export function TabViewer({ tabData, measuresPerRow = 4, tuningNotes }: TabViewe
 
   useEffect(() => {
     if (!isPlaying || measureCount === 0) return;
-    if (playheadMeasureIndex >= measureCount - 1) {
-      setIsPlaying(false);
-      return;
-    }
 
     const beatsInMeasure = getBeatsPerMeasure(tabData.measures[playheadMeasureIndex]);
     const measureMs = Math.max(1, beatsInMeasure) * (60 / effectiveBpm) * 1000;
     const timer = window.setTimeout(() => {
-      setPlayheadMeasureIndex(Math.min(measureCount - 1, playheadMeasureIndex + 1));
+      const nextMeasureIndex = Math.min(measureCount - 1, playheadMeasureIndex + 1);
+      setPlayheadMeasureIndex(nextMeasureIndex);
       setSelectedBeatId(null);
+      if (nextMeasureIndex === measureCount - 1) setIsPlaying(false);
     }, measureMs);
 
     return () => window.clearTimeout(timer);

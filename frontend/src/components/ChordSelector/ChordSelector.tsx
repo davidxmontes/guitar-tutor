@@ -1,5 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
-
 const ROOTS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 type BaseQualityValue = 'major' | 'minor' | 'diminished' | 'augmented' | 'sus2' | 'sus4';
@@ -96,31 +94,14 @@ interface ChordSelectorProps {
 }
 
 export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMode = false }: ChordSelectorProps) {
-  const initialSelection = getSelectionForQuality(selectedQuality);
-
-  const [root, setRoot] = useState<string>(selectedRoot || 'C');
-  const [baseQuality, setBaseQuality] = useState<BaseQualityValue>(initialSelection.base);
-  const [extension, setExtension] = useState<ExtensionValue>(initialSelection.extension);
-
-  const extensionOptions = useMemo(
-    () => BASE_QUALITY_OPTIONS.find((b) => b.value === baseQuality)?.extensions ?? [],
-    [baseQuality]
-  );
+  const root = selectedRoot || 'C';
+  const { base: baseQuality, extension } = getSelectionForQuality(selectedQuality);
+  const extensionOptions = BASE_QUALITY_OPTIONS.find((b) => b.value === baseQuality)?.extensions ?? [];
 
   const selectedExtensionOption = extensionOptions.find((opt) => opt.value === extension) ?? extensionOptions[0];
   const selectedQualityValue = selectedExtensionOption?.quality ?? 'major';
 
-  useEffect(() => {
-    if (selectedRoot) setRoot(selectedRoot);
-    if (selectedQuality) {
-      const selection = getSelectionForQuality(selectedQuality);
-      setBaseQuality(selection.base);
-      setExtension(selection.extension);
-    }
-  }, [selectedRoot, selectedQuality]);
-
   const handleRootChange = (newRoot: string) => {
-    setRoot(newRoot);
     onSelect(newRoot, selectedQualityValue);
   };
 
@@ -132,8 +113,6 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
 
     const nextQuality = options.find((opt) => opt.value === nextExtension)?.quality ?? 'major';
 
-    setBaseQuality(newBase);
-    setExtension(nextExtension);
     onSelect(root, nextQuality);
   };
 
@@ -141,7 +120,6 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
     const nextQuality = extensionOptions.find((opt) => opt.value === newExtension)?.quality;
     if (!nextQuality) return;
 
-    setExtension(newExtension);
     onSelect(root, nextQuality);
   };
 
@@ -153,6 +131,7 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
       <div className="flex flex-col gap-1">
         <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Root</label>
         <select
+          aria-label="Chord root"
           value={root}
           onChange={(e) => handleRootChange(e.target.value)}
           className="px-3 md:px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer touch-target"
@@ -173,6 +152,7 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
       <div className="flex flex-col gap-1">
         <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Quality</label>
         <select
+          aria-label="Chord quality"
           value={baseQuality}
           onChange={(e) => handleBaseQualityChange(e.target.value as BaseQualityValue)}
           className="px-3 md:px-4 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer touch-target"
@@ -193,6 +173,7 @@ export function ChordSelector({ selectedRoot, selectedQuality, onSelect, darkMod
       <div className="flex flex-col gap-1">
         <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Extension</label>
         <select
+          aria-label="Chord extension"
           value={extension}
           onChange={(e) => handleExtensionChange(e.target.value as ExtensionValue)}
           disabled={extensionOptions.length <= 1}
