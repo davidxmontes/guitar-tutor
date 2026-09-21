@@ -88,7 +88,7 @@ export function usePractice(durations: readonly number[], initialTempo = 80, gui
     setAudioMode: (mode: string) => { setGuideEnabled(mode !== 'metronome'); setMetronome(mode !== 'guide'); },
     setCountIn: (value: number) => { reset(); setCountIn(value); },
     setTempo: (value: number) => {
-      if (!Number.isFinite(value) || value < 30 || value > 240) return;
+      if (!Number.isInteger(value) || value < 1 || value > 240) return;
       clock.current = { ...clock.current, beats: nowBeats(), at: performance.now() };
       setTempo(value);
     },

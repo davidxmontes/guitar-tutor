@@ -427,3 +427,23 @@ Existing tab notation remains unchanged.
 Verification: 26 affected SongVideo/SongStudy browser tests passed, including
 technique cues during paused selection, video playback, upcoming beats, rests,
 and the 320px layout. Frontend lint and production build passed.
+
+### Synthesized practice tempo and sections
+
+Practice tempo entry accepts a draft number and applies it on Enter or blur,
+so clearing/replacing a value no longer gets blocked by intermediate digits.
+The shared practice controls and clock accept 1–240 BPM; invalid values retain
+the prior tempo. Changing tempo keeps the current musical position.
+Song overview section headings select their complete inclusive measure range,
+while individual measure and Shift-click range gestures remain available. The
+practice selection summary describes the range that will actually play.
+
+Synthesized pluck buffers are capped at a 10-second tail to avoid allocating
+minutes of audio for each note at very low tempos. Longer electric sustain is
+truncated; the musical step duration and practice clock are unchanged.
+
+Verification: all 90 frontend browser tests and 23 unit tests passed, including
+editable tempo recovery, native arrow keys, tempo changes during playback,
+section traversal, and bounded guide-buffer allocation. Lint and both default
+and local-auth-bypass production builds passed; the 320px selection summary was
+visually reviewed.

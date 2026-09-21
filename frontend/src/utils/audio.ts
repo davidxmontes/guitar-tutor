@@ -100,7 +100,9 @@ function createKarplusString(
 
   // Delay line length = one period at this frequency
   const N = Math.round(sampleRate / frequency)
-  const totalSamples = Math.round(sampleRate * duration)
+  // ponytail: cap synthesized pluck tails at 10s; musical step timing remains unchanged.
+  // Use streaming synthesis if longer sustained guide tones are needed.
+  const totalSamples = Math.round(sampleRate * Math.min(duration, 10))
 
   // Seed delay line with white noise
   const delayLine = new Float32Array(N)

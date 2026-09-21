@@ -307,8 +307,8 @@ function SongStudyFretboard({
 }
 
 // --- Overview: section-grouped, compressed measure map. Sticky vertical
-// rail (see SongStudyWorkspace) — click a section header to jump to its
-// first measure, click a measure tile to jump there, shift-click to pick a
+// rail (see SongStudyWorkspace) — click a section header to select its
+// full range, click a measure tile to jump there, shift-click to pick a
 // range. Only the section containing the focused measure expands its
 // measure grid; everything else collapses to just its header so the whole
 // song's sections fit in the sidebar without dominating it. ---
@@ -363,8 +363,8 @@ function MeasureOverviewStrip({
         >
           <button
             type="button"
-            onClick={() => handleClick(section.startIndex, false)}
-            title={`Jump to ${section.label}`}
+            onClick={() => { setRangeAnchor(section.startIndex); onRangeSelect(section.startIndex, section.endIndex); }}
+            title={`Select ${section.label}: measures ${section.startIndex + 1}–${section.endIndex + 1}`}
             style={{
               display: 'block',
               width: '100%',
@@ -942,7 +942,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
       <div className="flex flex-wrap items-start gap-2">
       <SaveToLibrary artifact={songStudy} onSaved={async () => { onSongStudyChange(await apiClient.getSongStudy(songStudy.id)); }} />
       {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={songDrill(payload, selection, focus)} />}
-      {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
+      {playbackSource === 'practice' && <><span data-testid="practice-selected-span">Selection: {videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} (whole measure)` : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1} (whole measure)` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`}</span><PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" /></>}
       </div>
       <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
     <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
@@ -1073,7 +1073,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
                   focusMeasureIndex={displayMeasureIndex}
                   selection={selection}
                   onJump={(index) => selectRange(index, index, true)}
-                  onRangeSelect={selectRange}
+                  onRangeSelect={(start, end) => selectRange(start, end, true)}
                   enrichedRanges={payload.enrichment?.ranges ?? []}
                 />
               </div>
