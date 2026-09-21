@@ -292,3 +292,7 @@
 .learning-session-row { display: flex; align-items: center; gap: 8px; }
 .learning-session-row > button:first-child { flex: 1; min-width: 0; }
 .learning-recent-list .session-delete { display: grid; place-items: center; flex: 0 0 32px; width: 32px; min-height: 32px; padding: 4px; border: 0; box-shadow: none; background: transparent; }
+
+.song-study-tutor { margin: 12px 0; min-width: 0; }
+.song-study-tutor > summary { width: fit-content; cursor: pointer; padding: 8px 0; font-weight: 600; }
+.song-study-tutor .tutor-panel { position: static; max-width: 760px; }

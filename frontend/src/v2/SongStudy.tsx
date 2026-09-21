@@ -1,3 +1,4 @@
+import { SongStudyTutor } from './SongStudyTutor';
 import { SongVideo } from './SongVideo';
 import type { VideoPosition } from './songVideoTiming';
 import { SaveToLibrary } from './MyStuff';
@@ -16,7 +17,7 @@ import { PracticeControls } from './PracticeControls';
 import { beatDuration } from './practiceTiming';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import type { SongSearchResult, TabBeat, TabMeasure, TabNote, TrackSummary } from '../types';
-import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact } from '../types/v2';
+import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
 const MemoMeasureGroup = memo(MeasureGroup);
@@ -599,9 +600,10 @@ export function SongStudySearch({ state, onStateChange, ensureSession, onSearch,
 
 // --- Workspace: overview + focused detail window, full-tab toggle, fretboard sync ---
 
-export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
+export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }: {
   songStudy: SongStudyArtifact;
   onSongStudyChange: (artifact: SongStudyArtifact) => void;
+  ensureTutor: () => Promise<V2Branch>;
 }) {
   const payload = songStudy.payload;
   const measures = useMemo(() => payload.tab_data.measures ?? [], [payload.tab_data.measures]);
@@ -944,6 +946,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange }: {
       {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={songDrill(payload, selection, focus)} />}
       {playbackSource === 'practice' && <><span data-testid="practice-selected-span">Selection: {videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} (whole measure)` : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1} (whole measure)` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`}</span><PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" /></>}
       </div>
+      <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} />
       <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
     <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
       <div className="song-study-score flex w-full flex-col gap-4 min-w-0">

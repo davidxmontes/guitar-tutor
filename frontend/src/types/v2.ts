@@ -236,7 +236,10 @@ export interface TutorResponse {
   status: 'completed';
 }
 
+export interface SongTutorContext { artifact_id: string; selection: SongSelection }
+
 export interface TutorTurnRequest {
+  song_context?: SongTutorContext;
   request_id?: string;
   session_id: string;
   branch_id: string;
@@ -254,6 +257,7 @@ export interface TutorMessage {
   role: TutorMessageRole;
   content: {
     text?: string;
+    song_context?: SongTutorContext & { title: string; track: { name: string } };
     comparison_groups?: BranchFocusGroup[];
     candidates?: TutorResponse['candidates'];
     presentation?: Composition;
@@ -292,6 +296,7 @@ export type SongSelection = { [key: string]: unknown } & (
 export interface SongFocus { measureIndex: number; windowSize: number }
 
 export interface TutorJob {
+  song_context?: SongTutorContext | null;
   id: string;
   message: string;
   status: 'running' | 'completed' | 'failed';

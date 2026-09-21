@@ -39,6 +39,7 @@ export function V2App() {
 }
 
 function SignedInV2App() {
+  const { userId } = useAppAuth();
   const [page, setPage] = useState<'explore' | 'sessions' | 'library' | 'workspace'>('explore');
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
@@ -134,6 +135,24 @@ function SignedInV2App() {
     setActiveBranchId(branchId);
     setSessions(previous => [session, ...(previous ?? [])]);
     return { sessionId: session.id, branchId };
+  };
+
+  const ensureSongTutor = async (song: SongStudyArtifact) => {
+    const key = `guitar-song-tutor:${userId}:${song.id}`;
+    let cached: { sessionId?: string; branchId?: string } | null = null;
+    try { cached = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { /* Ignore an invalid local association. */ }
+    if (cached?.sessionId && cached.branchId) {
+      // Only account-owned sessions returned by the server can restore a chat.
+      const owned = await apiClient.listV2Sessions();
+      const branch = owned.find(session => session.id === cached.sessionId)?.branches.find(branch => branch.id === cached.branchId && !branch.closed);
+      if (branch) return branch;
+    }
+    const hadSession = Boolean(activeSession && activeBranchId);
+    const { sessionId, branchId } = await ensureSongSession();
+    const title = `${song.payload.title} · ${song.payload.track.name}`;
+    const branch = hadSession ? await apiClient.createV2Branch(sessionId, { title }) : await apiClient.updateV2Branch(sessionId, branchId, { title });
+    try { localStorage.setItem(key, JSON.stringify({ sessionId, branchId: branch.id })); } catch { /* Chat still works for this visit. */ }
+    return branch;
   };
 
   const showSong = (artifact: SongStudyArtifact) => {
@@ -282,7 +301,7 @@ function SignedInV2App() {
     {error && <p role="alert">{error}</p>}
     {loadingSong && <p role="status">Opening your song…</p>}
     {artifactView === 'search' ? <SongStudySearch state={songSearch} onStateChange={setSongSearch} ensureSession={ensureSongSession} onSearch={query => writeSongLocation('search', page, query, true)} onCreated={showSong} />
-      : artifactView?.kind === 'song_study' ? <SongStudyWorkspace key={artifactView.id} songStudy={artifactView} onSongStudyChange={updated => setArtifactView(current => current && current !== 'search' && current.id === updated.id ? updated : current)} />
+      : artifactView?.kind === 'song_study' ? <SongStudyWorkspace key={artifactView.id} songStudy={artifactView} ensureTutor={() => ensureSongTutor(artifactView)} onSongStudyChange={updated => setArtifactView(current => current && current !== 'search' && current.id === updated.id ? updated : current)} />
       : artifactView?.kind === 'exercise' ? <ExerciseWorkspace key={artifactView.id} artifact={artifactView} /> : null}
   </main>);
 
