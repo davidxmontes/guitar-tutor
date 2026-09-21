@@ -447,3 +447,39 @@ editable tempo recovery, native arrow keys, tempo changes during playback,
 section traversal, and bounded guide-buffer allocation. Lint and both default
 and local-auth-bypass production builds passed; the 320px selection summary was
 visually reviewed.
+
+### Song Study Tutor
+
+“Ask about selection” opens the existing Tutor on demand. Questions carry the
+learner’s selected beat or inclusive measure range, not the moving playback
+highlight. The server checks song ownership and resolves the passage from the
+stored score, including tuning, capo, raw techniques, and matching chord shapes.
+Answers are explanatory: no score edits, workspace tools, or generated teaching
+views. Existing Tutor providers, preferences, jobs, and persisted history are reused.
+
+Each song gets a dedicated conversation branch. Its association is cached per
+account and song in this browser and validated against account-owned sessions on
+reopen. Conversation messages live in the existing backend store; clearing browser
+storage or using another device does not automatically rediscover that association.
+The local memory-store server still requires a snapshot to survive a restart.
+
+Requests are bounded to 8 measures, 128 beats, and 24 KB of musical context. Larger
+selections receive an actionable error. Pending questions and saved answers retain
+their original selection; playback and new selections can continue independently.
+A failed question can retry its original passage or explicitly use the new selection.
+Imported technique data is preserved, including bend points, without inventing
+fingering, bend units, or details from audio the Tutor has not heard.
+
+Verification: 434 backend tests, 93 browser journeys, and 23 frontend unit tests
+passed. Lint and default/local-auth-bypass builds passed. Desktop dark-mode and
+320px light-mode chat were visually reviewed. The actual local app preserved a
+failed question and its original passage across refresh; success-path browser
+tests use the existing scripted model. Live model answers were not verified: the
+local API has deliberately blank provider keys, and a development configuration
+location has been requested. No production credentials were used.
+
+Local frontend ports 5310 and 5287 now use API 8312 with the current snapshot
+(9 sessions, 19 artifacts before chat verification). Original API 8311 remains
+alive for its original in-memory state and historical revisions. Only current
+artifact payloads are carried by the local snapshot; this is not a durable-store
+migration. No push, merge, deployment, or hosted-service change was performed.

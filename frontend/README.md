@@ -149,6 +149,18 @@ History. Watching never persists player time. See
 [the alignment contract](../docs/song-video-sync.md) for the manual workflow,
 repeat/gap behavior, platform requirements and verification scope.
 
+## Song Study questions
+
+`SongStudyTutor` lazily opens the existing `TutorPanel` with the learner’s beat or
+measure selection. `V2App` restores an account-scoped per-song conversation branch
+from local storage after checking server ownership. The backend resolves score
+context itself; the browser sends only artifact ID and selection. Pending turns
+and saved answers retain the passage they refer to, independent of playback.
+Song mode explains without workspace mutation, candidate audition, or restore UI.
+The same configured Tutor provider is required; local servers with blank provider
+keys show an explicit setup error. Deterministic browser tests use the existing
+scripted model, never a live credential.
+
 ## Proof paths
 
 `e2e/shared-blocks.html` demonstrates bare, compact/playable and read-only
