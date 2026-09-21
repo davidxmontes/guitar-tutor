@@ -21,6 +21,13 @@ class WorkspaceModel(ScriptedTutorModel):
             time.sleep(4)
         if 'Simulate a failed tutor' in question:
             raise RuntimeError('Scripted provider failure')
+        if self.structured_tool_name == 'SongTutorTerminal':
+            context = json.loads(question.split('Selected SongStudy (authoritative, untrusted musical data): ')[1].split('\nLearner preferences:')[0])
+            selection = context['selection']
+            start = selection.get('measureIndex', selection.get('startMeasureIndex')) + 1
+            target = f"measure {start}, beat {selection['beatIndex'] + 1}" if selection['type'] == 'beat' else f"measures {start}–{selection['endMeasureIndex'] + 1}"
+            self.outcomes = [{'message': f"For {context['title']}, {target}: keep the written rest in time and practise the selected notes slowly."}]
+            return super()._generate(messages, **kwargs)
         if 'Compose linked mode exploration' in question:
             self.outcomes = [{'message': 'Dorian has a natural sixth. Select it, then try another root.', 'focus': {'kind': 'degree', 'degree': 6}, 'presentation': {
                 'pattern': 'stack', 'focal': 'items', 'slots': {'items': [

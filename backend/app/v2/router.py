@@ -42,7 +42,8 @@ from app.v2.song_video import SongVideoAlignment, validate_video_alignment
 from app.v2.song_video_discovery import VideoSuggestions, suggest_song_videos
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
 from app.v2.tutor.contract import LearningPreferences, TutorResponse
-from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
+from app.v2.tutor.song_context import SongTutorContext, resolve_song_context
+from app.v2.tutor.providers import TutorCapabilityError, TutorConfigurationError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_provenance, saved_work_tools
 from app.v2.tutor.branch_comparison import branch_tools
@@ -365,6 +366,15 @@ class TutorTurnRequest(BaseModel):
     branch_id: str
     message: str = Field(min_length=1, max_length=12000)
     learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
+    song_context: SongTutorContext | None = None
+
+
+def owned_song_context(store: V2Store, context: SongTutorContext, user_id: str) -> dict:
+    artifact, _ = _owned_song_study(store, context.artifact_id, user_id)
+    try:
+        return resolve_song_context(artifact, context.selection)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.post("/tutor/turns", response_model=TutorResponse)
@@ -387,12 +397,14 @@ def create_tutor_turn(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
 
     history = store.list_tutor_messages(branch.tutor_thread_id, user_id)
+    song_context = owned_song_context(store, data.song_context, user_id) if data.song_context else None
 
     try:
         response = run_tutor_turn(
             branch=branch,
             history=history,
-            lookup_tools=saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id) + workspace_tools(branch),
+            lookup_tools=[] if song_context else saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id) + workspace_tools(branch),
+            song_context=song_context,
             siblings=[{"id": b.id, "title": b.title, "active_workspace": b.active_workspace}
                       for b in session.branches if not b.closed and b.id != branch.id],
             user_message=data.message,
@@ -423,6 +435,8 @@ def create_tutor_turn(
         'candidates': response.candidates.model_dump() if response.candidates else None,
         'presentation': response.presentation.model_dump(),
     }
+    if song_context:
+        content['song_context'] = song_context
     try:
         updated = store.commit_workspace_turn(branch, user_id, response.musical_state, data.message, content)
     except RevisionConflictError as exc:
@@ -434,6 +448,7 @@ def create_tutor_turn(
 class TutorJob(BaseModel):
     id: str
     message: str
+    song_context: SongTutorContext | None = None
     status: Literal["running", "completed", "failed"] = "running"
     result: TutorResponse | None = None
     error: str | None = None
@@ -469,16 +484,18 @@ async def start_tutor_job(
     model_factory: ModelFactory = Depends(get_tutor_model_factory),
 ):
     await run_in_threadpool(owned_tutor_branch, store, data.session_id, data.branch_id, user_id)
+    if data.song_context:
+        await run_in_threadpool(owned_song_context, store, data.song_context, user_id)
     jobs = tutor_jobs(request)
     key = (user_id, data.session_id, data.branch_id)
     previous = jobs.get(key)
     if previous and (previous[0].status == "running" or previous[0].id == data.request_id):
-        if previous[0].message != data.message:
+        if previous[0].message != data.message or previous[0].song_context != data.song_context:
             raise HTTPException(status_code=409, detail="A Tutor question is already in progress.")
         return previous[0]
     if len(jobs) >= 1000 and key not in jobs:
         raise HTTPException(status_code=429, detail="The Tutor is busy. Please try again shortly.")
-    job = TutorJob(id=data.request_id or str(uuid4()), message=data.message)
+    job = TutorJob(id=data.request_id or str(uuid4()), message=data.message, song_context=data.song_context)
     jobs[key] = (job, monotonic())
 
     async def finish():
@@ -490,7 +507,9 @@ async def start_tutor_job(
             while cause.__cause__ is not None:
                 cause = cause.__cause__
             logging.getLogger(__name__).warning("Tutor job %r failed: %s: %.2000s", job.id, type(cause).__name__, cause)
-            if isinstance(exc, HTTPException) and exc.status_code == 409:
+            if isinstance(cause, TutorConfigurationError):
+                job.error = "Tutor is not configured on this server. Add an API key for the selected Tutor provider, then try again."
+            elif isinstance(exc, HTTPException) and exc.status_code == 409:
                 job.error = "The music changed while the Tutor was working. Please ask again."
             elif isinstance(exc, HTTPException) and exc.status_code == 422:
                 job.error = "The Tutor returned a suggestion this view could not apply. Your question is kept; please try again."

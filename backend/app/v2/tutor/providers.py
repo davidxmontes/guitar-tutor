@@ -76,6 +76,10 @@ class TutorCapabilityError(Exception):
     """
 
 
+class TutorConfigurationError(TutorCapabilityError):
+    """A selected provider cannot start without its local credentials."""
+
+
 def build_tutor_model(
     provider: str,
     model: str,
@@ -92,7 +96,7 @@ def build_tutor_model(
 
     if provider == "openai":
         if not openai_api_key:
-            raise TutorCapabilityError("OPENAI_API_KEY is not configured for the V2 tutor")
+            raise TutorConfigurationError("OPENAI_API_KEY is not configured for the V2 tutor")
         return ChatOpenAI(
             model=model,
             api_key=openai_api_key,
@@ -101,12 +105,12 @@ def build_tutor_model(
 
     if provider == "anthropic":
         if not anthropic_api_key:
-            raise TutorCapabilityError("ANTHROPIC_API_KEY is not configured for the V2 tutor")
+            raise TutorConfigurationError("ANTHROPIC_API_KEY is not configured for the V2 tutor")
         return ChatAnthropic(model=model, api_key=anthropic_api_key)
 
     if provider == "openrouter":
         if not openrouter_api_key:
-            raise TutorCapabilityError("OPENROUTER_API_KEY is not configured for the V2 tutor")
+            raise TutorConfigurationError("OPENROUTER_API_KEY is not configured for the V2 tutor")
         kwargs: dict[str, Any] = {}
         if model == "meta/muse-spark-1.3-contributor":
             # Meta's OpenRouter endpoint requires streaming for tool calls
