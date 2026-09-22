@@ -104,3 +104,61 @@ def test_extract_first_playable_beat_index_returns_zero_for_all_rests():
     }
 
     assert _extract_first_playable_beat_index(tab_data, 0) == 0
+
+
+
+def test_revision_lookup_skips_rejected_and_unpublished_edits(monkeypatch):
+    import asyncio
+    import httpx
+    from app.services import songsterr
+
+    # Rejected one-track edit precedes the accepted arrangement shown by search.
+    revisions = [
+        {"revisionId": 8361295, "tracksCount": 1, "isBlocked": True},
+        {"revisionId": 8336755, "isDeleted": True},
+        {"revisionId": 8235342, "isOnModeration": True},
+        {"revisionId": 8047059, "tracksCount": 14, "isBlocked": False},
+    ]
+    urls = []
+    def respond(request):
+        urls.append(request.url.path)
+        if request.url.path.endswith('/revisions'):
+            return httpx.Response(200, json=revisions)
+        assert request.url.path == '/api/revision/8047059'
+        return httpx.Response(200, json={
+            "songId": 2, "revisionId": 8047059, "artist": "Oasis", "title": "Wonderwall",
+            "tracks": [{"instrumentId": 25, "instrument": "Acoustic Guitar"}] * 14,
+            "videos": [{"videoId": "qNHcVevz7wo", "status": "done", "feature": "alternative"}],
+        })
+    sync_client, async_client = httpx.Client, httpx.AsyncClient
+    transport = httpx.MockTransport(respond)
+    monkeypatch.setattr(httpx, 'Client', lambda **kw: sync_client(transport=transport, **kw))
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: async_client(transport=transport, **kw))
+    for result in (songsterr.get_song_revision_sync(2), asyncio.run(songsterr.get_song_revision(2))):
+        assert result.revision_id == 8047059
+        assert len(result.tracks) == 14
+        assert result.videos[0]['videoId'] == 'qNHcVevz7wo'
+    assert urls == ['/api/meta/2/revisions', '/api/revision/8047059'] * 2
+
+
+def test_revision_selection_does_not_fall_back_to_rejected_edits():
+    import pytest
+    from app.services.songsterr import _latest_available_revision_id
+
+    for revisions in ([], [{"revisionId": 1, "isBlocked": True}]):
+        with pytest.raises(ValueError, match='No available revisions'):
+            _latest_available_revision_id(revisions, 2)
+    assert _latest_available_revision_id([{"revisionId": 3}], 2) == 3
+
+
+
+def test_optional_video_metadata_cannot_break_revision_import():
+    from app.models.songsterr import SongsterrRevisionResponse
+
+    video = {"videoId": "qNHcVevz7wo", "status": "done"}
+    revision = {"songId": 2, "revisionId": 8047059, "artist": "Oasis", "title": "Wonderwall",
+                "tracks": [{"instrumentId": 25, "instrument": "Acoustic Guitar"}]}
+    for raw, expected in (([None, video, 2, "bad"], [video]), (None, []), ({}, []), ("bad", [])):
+        result = SongsterrRevisionResponse.model_validate({**revision, "videos": raw})
+        assert len(result.tracks) == 1
+        assert result.videos == expected

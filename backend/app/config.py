@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     v2_tutor_provider: str = "openai"  # openai | anthropic | openrouter
     v2_tutor_model: Optional[str] = None
     anthropic_api_key: Optional[str] = None
+    tavily_api_key: Optional[str] = None
 
     # Clerk
     clerk_issuer_url: Optional[str] = None  # e.g. https://your-app.clerk.accounts.dev

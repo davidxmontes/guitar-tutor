@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiClient } from '../api/client';
-import type { ExerciseStep, LearningPreferences, TutorMessage, V2Branch } from '../types/v2';
+import type { ExerciseStep, LearningPreferences, TutorMessage, V2Branch, SongTutorContext } from '../types/v2';
 import type { VoicingValue } from '../types/music';
 import { playChord, playTimedChords } from '../utils/audio';
 
@@ -15,20 +15,31 @@ function readPreferences(): LearningPreferences {
   } catch { return { level: 'beginner', style: 'balanced', minutes: 5 }; }
 }
 
-export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
+function selectionLabel(context: SongTutorContext): string {
+  const selection = context.selection;
+  return selection.type === 'beat' ? `Selected passage: M${selection.measureIndex + 1} · beat ${selection.beatIndex + 1}`
+    : `Selected passage: M${selection.startMeasureIndex + 1}–${selection.endMeasureIndex + 1}`;
+}
+
+export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songContext }: {
   branch: V2Branch; context: string; busy: boolean; onBusy: (value: boolean) => void;
   onRefresh: (updated: V2Branch) => Promise<void>;
+  songContext?: SongTutorContext;
 }) {
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const draftKey = `guitar-tutor-draft:${branch.tutor_thread_id}`;
   const [question, setQuestion] = useState(() => { try { return sessionStorage.getItem(draftKey) ?? ''; } catch { return ''; } });
+  const [webSearch, setWebSearch] = useState(false);
   const [preferences, setPreferences] = useState(readPreferences);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState('');
+  const [failedSelection, setFailedSelection] = useState<SongTutorContext | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<SongTutorContext | null>(null);
   const [watch, setWatch] = useState(0);
   const submissionError = useRef<string | null>(null);
+  const submissionDetail = useRef<string | null>(null);
   const current = useRef({ branch, onBusy, onRefresh });
   useEffect(() => { current.current = { branch, onBusy, onRefresh }; });
   const [notice, setNotice] = useState('');
@@ -37,7 +48,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
   const stop = useRef<(() => void) | null>(null);
   const conversation = useRef<HTMLDivElement>(null);
   function updateQuestion(value: string) {
-    setQuestion(value);
+    setQuestion(value); setFailedSelection(null);
     try { if (value) sessionStorage.setItem(draftKey, value); else sessionStorage.removeItem(draftKey); } catch { /* Keep the in-memory draft. */ }
   }
   useEffect(() => () => stop.current?.(), []);
@@ -49,17 +60,20 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
         const job = await apiClient.latestTutorJob(branch.session_id, branch.id);
         if (!live) return;
         const accepted = job?.status === 'running' || job?.id === submissionError.current;
-        setError(submissionError.current && submissionError.current !== job?.id ? 'Your question is still here. Please try again.' : '');
-        submissionError.current = null;
+        setError(submissionError.current && submissionError.current !== job?.id ? submissionDetail.current ?? 'Your question is still here. Please try again.' : '');
+        submissionError.current = null; submissionDetail.current = null;
         const running = job?.status === 'running';
         setSending(running);
         if (running) current.current.onBusy(true);
         setPendingQuestion(running ? job.message : '');
+        setPendingSelection(running ? job.song_context ?? null : null);
         if (running) {
           setError('');
         } else if (job?.status === 'failed') {
           setError(job.error ?? 'The Tutor could not finish this turn. Please try again.');
           setQuestion(value => value || job.message);
+          setFailedSelection(job.song_context ?? null);
+          setWebSearch(job.web_search ?? false);
         } else if (job?.result?.branch) {
           // Read today's branch, not the possibly older snapshot returned by the job.
           const session = await apiClient.getV2Session(branch.session_id);
@@ -100,13 +114,15 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
   }
   async function ask() {
     if (busy || loading || !question.trim()) return;
-    onBusy(true); setSending(true); setError(''); setNotice(''); stop.current?.();
+    const requestContext = failedSelection ?? songContext;
+    onBusy(true); setSending(true); setPendingSelection(requestContext ?? null); setError(''); setNotice(''); stop.current?.();
     const requestId = crypto.randomUUID();
     try {
-      const job = await apiClient.startTutorJob({ request_id: requestId, session_id: branch.session_id, branch_id: branch.id, message: question, learning_preferences: preferences });
+      const job = await apiClient.startTutorJob({ request_id: requestId, session_id: branch.session_id, branch_id: branch.id, message: question, learning_preferences: preferences, web_search: Boolean(requestContext && webSearch), ...(requestContext ? { song_context: requestContext } : {}) });
       setPendingQuestion(job.message);
       updateQuestion('');
-    } catch {
+    } catch (error) {
+      if (requestContext) { setFailedSelection(requestContext); submissionDetail.current = error instanceof Error ? error.message : 'Could not send this song question. Please try again.'; }
       // An interrupted acknowledgement can still mean the server accepted it.
       // Reconnect before enabling another submission.
       submissionError.current = requestId;
@@ -139,13 +155,13 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
     } catch { setError('Could not apply this suggestion. Refresh the session and try again.'); }
     finally { onBusy(false); }
   }
-  const prompts = branch.active_workspace === 'harmony'
+  const prompts = songContext ? ['Explain this passage', 'How should I practise this?', 'Explain the techniques', `Give me a ${preferences.minutes}-minute drill`] : branch.active_workspace === 'harmony'
     ? ['Explain this', 'Show me an easier shape', 'Compare two useful views', `Give me a ${preferences.minutes}-minute drill`]
     : ['Why do these chords work?', 'Suggest a smoother transition', 'Show the voice leading', `Give me a ${preferences.minutes}-minute drill`];
   return <aside id="workspace-tutor" className="tutor-panel" aria-label="Your Tutor">
     <header className="tutor-heading"><span className="tutor-mark" aria-hidden="true">✦</span><div><h2>Your Tutor</h2><p>Understand it. Hear it. Make it yours.</p></div></header>
     <p className="tutor-context"><span>Working with</span><strong>{context}</strong></p>
-    <a className="learning-return-link" href="#workspace-music">Back to the music ↑</a>
+    {!songContext && <a className="learning-return-link" href="#workspace-music">Back to the music ↑</a>}
     <details className="tutor-preferences"><summary>How I teach · {preferences.level}</summary>
       <div className="learning-fields">
         <label>Your level<select value={preferences.level} onChange={event => updatePreferences({ level: event.target.value as LearningPreferences['level'] })}><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option></select></label>
@@ -158,12 +174,15 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
       {!loading && !sending && messages.length === 0 && <div className="tutor-welcome"><h3>Start with one small question.</h3><p>Select a note, shape, or chord. I can explain it, compare alternatives, or turn it into something to practise.</p></div>}
       {messages.filter(message => message.role !== 'tool').map(message => <article key={message.id} className={`tutor-message tutor-message--${message.role}`}>
         <span className="tutor-speaker">{message.role === 'user' ? 'You' : 'Tutor'}</span>
+        {songContext && message.content.song_context && <small>{message.content.song_context.title} · {message.content.song_context.track.name} · {selectionLabel(message.content.song_context)}</small>}
+        {songContext && message.content.song_context?.web_search_error && <p className="learning-error">{message.content.song_context.web_search_error}</p>}
+        {songContext && message.content.song_context?.web_sources && <details><summary>Online sources ({message.content.song_context.web_sources.length})</summary><ul>{message.content.song_context.web_sources.map((source, index) => <li key={`${source.url}:${index}`}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul>{message.content.song_context.web_sources.length === 0 && <p>No online sources found.</p>}</details>}
         <div className="chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content.text ?? ''}</ReactMarkdown></div>
-        {message.role === 'assistant' && message.content.presentation && message.id !== branch.live_presentation_turn_id && <button className="learning-text-button" disabled={busy} onClick={() => void restore(message.id)}>Show this teaching view</button>}
+        {!songContext && message.role === 'assistant' && message.content.presentation && message.id !== branch.live_presentation_turn_id && <button className="learning-text-button" disabled={busy} onClick={() => void restore(message.id)}>Show this teaching view</button>}
       </article>)}
-      {sending && <><article className="tutor-message tutor-message--user"><span className="tutor-speaker">You</span><p>{pendingQuestion || question}</p></article><p className="tutor-thinking" role="status">{pendingQuestion ? 'Working on your answer. You can leave and return to this session.' : 'Sending your question…'}</p></>}
+      {sending && <><article className="tutor-message tutor-message--user"><span className="tutor-speaker">You</span><p>{pendingQuestion || question}</p>{pendingSelection && <small>{selectionLabel(pendingSelection)}</small>}</article><p className="tutor-thinking" role="status">{pendingQuestion ? 'Working on your answer. You can leave and return to this session.' : 'Sending your question…'}</p></>}
     </div>
-    {visible.length > 0 && <section className="tutor-candidates" aria-label="Candidates"><h3>Try an alternative</h3><p>Hear it first. Keep the one you like.</p>{visible.map(candidate => <div key={String(candidate.id)} role="group" aria-label={`Candidate: ${candidate.label}`}>
+    {!songContext && visible.length > 0 && <section className="tutor-candidates" aria-label="Candidates"><h3>Try an alternative</h3><p>Hear it first. Keep the one you like.</p>{visible.map(candidate => <div key={String(candidate.id)} role="group" aria-label={`Candidate: ${candidate.label}`}>
       <h4>{String(candidate.label)}</h4>
       {Array.isArray(candidate.preview) && <p>{(candidate.preview as ExerciseStep[]).map(step => step.label).join(' → ')}</p>}
       <div className="music-controls"><button className="music-button" disabled={busy} onClick={() => {
@@ -175,11 +194,13 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh }: {
       {candidates?.candidate_kind === 'progression-idea' && <button className="music-button" disabled={busy} onClick={() => void keep(candidate, true)}>Develop</button>}
       <button className="learning-text-button" disabled={busy} onClick={() => { stop.current?.(); setDismissed(previous => [...previous, `${liveTurn!.id}:${candidate.id}`]); }}>Dismiss</button></div>
     </div>)}</section>}
-    {undo && <div className="tutor-undo"><button className="music-button" disabled={busy || branch.updated_at !== undo.revision} onClick={() => void restore(undo.id, true)}>Undo musical change</button><p>{branch.updated_at === undo.revision ? 'Returns to the music before your last question.' : 'You edited the music after this turn. Undo is disabled to protect those edits.'}</p></div>}
+    {!songContext && undo && <div className="tutor-undo"><button className="music-button" disabled={busy || branch.updated_at !== undo.revision} onClick={() => void restore(undo.id, true)}>Undo musical change</button><p>{branch.updated_at === undo.revision ? 'Returns to the music before your last question.' : 'You edited the music after this turn. Undo is disabled to protect those edits.'}</p></div>}
     {notice && <p className="learning-notice" role="status">{notice}</p>}
     {error && <p className="learning-error" role="alert">{error}</p>}
+    {songContext && failedSelection && <p className="tutor-context">Retry uses {selectionLabel(failedSelection)}. <button type="button" className="learning-text-button" onClick={() => setFailedSelection(null)}>Use current selection instead</button></p>}
     <form className="tutor-compose" onSubmit={event => { event.preventDefault(); void ask(); }}>
       <div className="tutor-prompts">{prompts.map(prompt => <button key={prompt} type="button" disabled={busy} onClick={() => { updateQuestion(prompt); document.getElementById(`question-${branch.id}`)?.focus(); }}>{prompt}</button>)}</div>
+      {songContext && <label><input type="checkbox" checked={webSearch} disabled={busy} onChange={event => setWebSearch(event.target.checked)} /> Search online <small>· Allow Tutor to search when useful</small></label>}
       <label htmlFor={`question-${branch.id}`}>Ask the Tutor</label>
       <textarea id={`question-${branch.id}`} placeholder="What would you like to understand or try?" rows={3} maxLength={12000} value={question} disabled={sending} onChange={event => updateQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }} />
       <div className="tutor-send"><small>Enter to send · Shift + Enter for a new line</small><button className="music-button learning-primary" disabled={busy || loading || !question.trim()}>Ask</button></div>

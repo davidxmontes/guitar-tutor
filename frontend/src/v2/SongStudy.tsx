@@ -1,7 +1,11 @@
+import type { CSSProperties } from 'react';
+import { SongStudyTutor } from './SongStudyTutor';
+import { SongVideo } from './SongVideo';
+import type { VideoPosition } from './songVideoTiming';
 import { SaveToLibrary } from './MyStuff';
 import { ExerciseComposer } from './ExerciseComposer';
 import { songDrill } from './exerciseMaterial';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
@@ -13,10 +17,11 @@ import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
 import { beatDuration } from './practiceTiming';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
-import type { SongSearchResult, TabBeat, TabMeasure } from '../types';
-import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact } from '../types/v2';
+import type { SongSearchResult, TabBeat, TabMeasure, TabNote, TrackSummary } from '../types';
+import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, V2Branch } from '../types/v2';
 
 const DEFAULT_WINDOW_SIZE = 4;
+const MemoMeasureGroup = memo(MeasureGroup);
 // Supporting element, not a primary block (mock #overview callout 3: "large
 // enough to teach the current relationship, no larger by default") — 12
 // frets covers virtually every beat's shape by default. SongStudyFretboard
@@ -48,6 +53,25 @@ function toFretNotes(beat?: TabBeat): FretNote[] {
     notes.push({ string: stringNumber, fret: note.fret });
   }
   return notes;
+}
+
+const NOTE_TECHNIQUES: Array<[keyof TabNote, string]> = [
+  ['slide', 'slide'], ['bend', 'bend'], ['hp', 'hammer-on / pull-off'],
+  ['vibrato', 'vibrato'], ['harmonic', 'harmonic'], ['ghost', 'ghost note'],
+  ['staccato', 'staccato'], ['accentuated', 'accent'],
+];
+
+function beatTechniques(beat?: TabBeat): string[] {
+  if (!beat || beat.rest) return [];
+  const notes = (beat.notes ?? []).filter(note => !note.rest && Number.isInteger(note.string) && note.string >= 0 && (note.dead || Number.isFinite(note.fret)));
+  if (!notes.length) return [];
+  const labels = notes.flatMap(note => {
+    const techniques = note.dead ? ['muted note'] : NOTE_TECHNIQUES.filter(([key]) => note[key]).map(([, label]) => label);
+    return techniques.length ? [`String ${note.string + 1}${note.dead ? '' : `, fret ${note.fret}`}: ${techniques.join(', ')}`] : [];
+  });
+  if (beat.palmMute) labels.push('Palm mute');
+  if (beat.letRing) labels.push('Let ring');
+  return labels;
 }
 
 function parseBeatId(beatId: string): { measureIndex: number; beatIndex: number } | null {
@@ -140,6 +164,8 @@ function SongStudyFretboard({
   tuningNotes,
   activeNotes,
   upcomingNotes,
+  activeTechniques,
+  upcomingTechniques,
   // Fills the middle panel's width by default instead of a small fixed cap —
   // pass a smaller value (e.g. the rail layout's 760) only to compare sizes.
   maxWidth = '100%',
@@ -148,6 +174,8 @@ function SongStudyFretboard({
   tuningNotes: string[];
   activeNotes: FretNote[];
   upcomingNotes: FretNote[];
+  activeTechniques: string[];
+  upcomingTechniques: string[];
   // Layout-comparison toggle (rail variant) passes a smaller pixel value to
   // see whether less width is worth it (kept as a size comparison knob).
   maxWidth?: number | string;
@@ -167,7 +195,7 @@ function SongStudyFretboard({
     <div
       data-testid="song-study-fretboard"
       role="img"
-      aria-label={`Fretboard. Active: ${activeNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}. Upcoming: ${upcomingNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}.`}
+      aria-label={`Fretboard. Active: ${activeNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}. Upcoming: ${upcomingNotes.map(n => `string ${n.string} fret ${n.fret}`).join(", ") || "rest"}.${activeTechniques.length ? ` Active techniques: ${activeTechniques.join("; ")}.` : ""}${upcomingTechniques.length ? ` Upcoming techniques: ${upcomingTechniques.join("; ")}.` : ""}`}
       style={{
         background: 'var(--neck-bg)',
         border: '1px solid var(--border-primary)',
@@ -267,6 +295,11 @@ function SongStudyFretboard({
           </div>
         ))}
       </div>
+      {([['Active', activeTechniques], ['Upcoming', upcomingTechniques]] as const).map(([role, techniques]) => techniques.length > 0 && (
+        <div key={role} data-testid={`fretboard-${role.toLowerCase()}-techniques`} style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
+          <strong>{role === 'Active' ? '●' : '○'} {role}: </strong>{techniques.join(' · ')}
+        </div>
+      ))}
       <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 9, color: 'var(--text-secondary)' }}>
         <span>● active beat</span>
         <span>○ upcoming beat</span>
@@ -276,8 +309,8 @@ function SongStudyFretboard({
 }
 
 // --- Overview: section-grouped, compressed measure map. Sticky vertical
-// rail (see SongStudyWorkspace) — click a section header to jump to its
-// first measure, click a measure tile to jump there, shift-click to pick a
+// rail (see SongStudyWorkspace) — click a section header to select its
+// full range, click a measure tile to jump there, shift-click to pick a
 // range. Only the section containing the focused measure expands its
 // measure grid; everything else collapses to just its header so the whole
 // song's sections fit in the sidebar without dominating it. ---
@@ -332,8 +365,8 @@ function MeasureOverviewStrip({
         >
           <button
             type="button"
-            onClick={() => handleClick(section.startIndex, false)}
-            title={`Jump to ${section.label}`}
+            onClick={() => { setRangeAnchor(section.startIndex); onRangeSelect(section.startIndex, section.endIndex); }}
+            title={`Select ${section.label}: measures ${section.startIndex + 1}–${section.endIndex + 1}`}
             style={{
               display: 'block',
               width: '100%',
@@ -344,7 +377,7 @@ function MeasureOverviewStrip({
               letterSpacing: '0.04em',
               padding: '4px 6px',
               border: 0,
-              backgroundColor: isCurrentSection ? 'var(--accent-50, var(--bg-secondary))' : 'var(--bg-secondary)',
+              backgroundColor: isCurrentSection ? 'rgba(16,185,129,0.12)' : 'var(--bg-secondary)',
               borderBottom: collapsed ? 0 : '1px solid var(--border-primary)',
               color: 'var(--text-secondary)',
               cursor: 'pointer',
@@ -354,7 +387,7 @@ function MeasureOverviewStrip({
           </button>
           {!collapsed && (
           <div
-            role="list"
+            role="group"
             aria-label={section.label}
             style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 20px)', gap: 2, padding: 4 }}
           >
@@ -370,7 +403,7 @@ function MeasureOverviewStrip({
                   <button
                     key={idx}
                     type="button"
-                    role="listitem"
+                    aria-label={`Select measure ${idx + 1}`}
                     data-testid="song-study-overview-measure"
                     data-measure-index={idx}
                     onClick={(e) => handleClick(idx, e.shiftKey)}
@@ -412,18 +445,23 @@ function MeasureOverviewStrip({
 
 // --- Search: find a song, pick a track, open (or create) its SongStudy ---
 
-export function SongStudySearch({
-  sessionId,
-  branchId,
-  onCreated,
-}: {
-  sessionId: string;
-  branchId: string;
+export interface SongSearchState {
+  query: string;
+  results: SongSearchResult[];
+  searched: boolean;
+  resultsQuery?: string;
+}
+
+export function SongStudySearch({ state, onStateChange, ensureSession, onSearch, onCreated }: {
+  state: SongSearchState;
+  onStateChange: React.Dispatch<React.SetStateAction<SongSearchState>>;
+  ensureSession: () => Promise<{ sessionId: string; branchId: string }>;
+  onSearch: (query: string) => void;
   onCreated: (artifact: SongStudyArtifact) => void;
 }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SongSearchResult[]>([]);
-  const [searched, setSearched] = useState(false);
+  const { query, results, searched } = state;
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
@@ -432,17 +470,18 @@ export function SongStudySearch({
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searching || creatingKey || query.trim().length < 2) return;
-    setResults([]);
-    setSearched(true);
+    const submitted = query.trim();
+    onStateChange(previous => ({ ...previous, results: [], searched: true, resultsQuery: submitted }));
+    onSearch(submitted);
     setSearching(true);
     setSearchError(null);
     try {
-      const data = await apiClient.searchSongs(query.trim());
-      setResults(data.results);
+      const data = await apiClient.searchSongs(submitted);
+      if (mounted.current) onStateChange(previous => ({ ...previous, results: data.results, resultsQuery: submitted }));
     } catch (err) {
-      setSearchError(String(err));
+      if (mounted.current) setSearchError(String(err));
     } finally {
-      setSearching(false);
+      if (mounted.current) setSearching(false);
     }
   };
 
@@ -451,17 +490,19 @@ export function SongStudySearch({
     setCreatingKey(key);
     setCreateError(null);
     try {
+      const { sessionId, branchId } = await ensureSession();
+      if (!mounted.current) return;
       const artifact = await apiClient.createSongStudy({
         session_id: sessionId,
         branch_id: branchId,
         song_id: songId,
         track_index: trackIndex,
       });
-      onCreated(artifact);
+      if (mounted.current) onCreated(artifact);
     } catch (err) {
-      setCreateError(String(err));
+      if (mounted.current) setCreateError(String(err));
     } finally {
-      setCreatingKey(null);
+      if (mounted.current) setCreatingKey(null);
     }
   };
 
@@ -471,7 +512,7 @@ export function SongStudySearch({
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => onStateChange(previous => ({ ...previous, query: e.target.value, results: [], searched: false, resultsQuery: undefined }))}
           aria-label="Search songs"
           placeholder="Search for a song or artist..."
           data-testid="song-study-search-input"
@@ -505,41 +546,54 @@ export function SongStudySearch({
 
       {searched && !searching && !searchError && results.length === 0 && <p role="status">No songs found. Try another song or artist.</p>}
       <div className="space-y-2">
-        {results.map((song) => (
-          <div
-            key={song.song_id}
-            data-testid="song-study-result"
-            className="px-4 py-3 rounded-lg border"
-            style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
-          >
-            <div className="text-sm">
-              <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{song.title}</span>
-              <span style={{ color: 'var(--text-muted)' }}> — {song.artist}</span>
+        {results.map((song) => {
+          const guitarTracks: TrackSummary[] = [];
+          const otherTracks: TrackSummary[] = [];
+          for (const track of song.tracks) {
+            const isGuitar = !track.is_vocal && !/\b(vocals?|voice)\b/i.test(track.name) && /\bguitar\b/i.test(track.instrument) && !/\bbass\b/i.test(track.instrument);
+            (isGuitar ? guitarTracks : otherTracks).push(track);
+          }
+          const renderTrack = (track: TrackSummary) => {
+            const key = `${song.song_id}:${track.index}`;
+            return (
+                <button
+                  key={track.index}
+                  type="button"
+                  data-testid="song-study-track-option"
+                  disabled={creatingKey !== null}
+                  onClick={() => handleSelectTrack(song.song_id, track.index)}
+                  className="px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {creatingKey === key ? 'Loading...' : track.name || track.instrument}
+                </button>
+              );
+            };
+            return (
+            <div
+              key={song.song_id}
+              data-testid="song-study-result"
+              className="px-4 py-3 rounded-lg border"
+              style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
+            >
+              <div className="text-sm">
+                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{song.title}</span>
+                <span style={{ color: 'var(--text-muted)' }}> — {song.artist}</span>
+              </div>
+              {guitarTracks.length > 0 && <div className="flex flex-wrap gap-1.5 mt-2">{guitarTracks.map(renderTrack)}</div>}
+              {otherTracks.length > 0 && (
+                <details className="mt-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  <summary className="cursor-pointer py-2">Other tracks ({otherTracks.length})</summary>
+                  <div className="flex flex-wrap gap-1.5 mt-1">{otherTracks.map(renderTrack)}</div>
+                </details>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {song.tracks.map((track) => {
-                const key = `${song.song_id}:${track.index}`;
-                return (
-                  <button
-                    key={track.index}
-                    type="button"
-                    data-testid="song-study-track-option"
-                    disabled={creatingKey !== null}
-                    onClick={() => handleSelectTrack(song.song_id, track.index)}
-                    className="px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
-                    style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      borderColor: 'var(--border-primary)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {creatingKey === key ? 'Loading...' : track.name || track.instrument}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -547,10 +601,10 @@ export function SongStudySearch({
 
 // --- Workspace: overview + focused detail window, full-tab toggle, fretboard sync ---
 
-export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange }: {
+export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }: {
   songStudy: SongStudyArtifact;
-  onSearchAgain: () => void;
   onSongStudyChange: (artifact: SongStudyArtifact) => void;
+  ensureTutor: () => Promise<V2Branch>;
 }) {
   const payload = songStudy.payload;
   const measures = useMemo(() => payload.tab_data.measures ?? [], [payload.tab_data.measures]);
@@ -560,7 +614,18 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
     { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE },
   );
   const [selection, setSelection] = useState<SongSelection | null>(null);
+  const [tutorWidth, setTutorWidth] = useState(360);
+  // New selection objects represent learner gestures, including reselecting a beat.
+  // Keep the fallback stable so playback highlights cannot trigger a seek.
+  const videoSelection = useMemo<SongSelection>(() => selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }, [selection, focus.measureIndex]);
   const [showFullTab, setShowFullTab] = useState(false);
+  const [playbackSource, setPlaybackSource] = useState<'practice' | 'video'>('video');
+  const [followVideo, setFollowVideo] = useState(true);
+  const [videoPlayhead, setVideoPlayhead] = useState<VideoPosition | null>(null);
+  const receiveVideoPosition = useCallback((position: VideoPosition | null, resumeFollowing = false) => {
+    if (position || resumeFollowing) setFollowVideo(true);
+    setVideoPlayhead(previous => previous?.passageId === position?.passageId && previous?.measureIndex === position?.measureIndex && previous?.beatIndex === position?.beatIndex ? previous : position);
+  }, []);
   // Shape strip's per-card diagrams default off — the active shape's
   // diagram surfaces next to the fretboard instead (see activeShapeEvent).
   const [diagramsMinimized, setDiagramsMinimized] = useState(true);
@@ -596,6 +661,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   const jumpToMeasure = useCallback(
     (measureIndex: number) => {
       if (practice.active) return;
+      setFollowVideo(false);
       const clamped = Math.max(0, Math.min(measureCount - 1, measureIndex));
       const next: SongFocus = { measureIndex: clamped, windowSize: focus.windowSize };
       setFocus(next);
@@ -606,6 +672,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   const selectRange = useCallback(
     (start: number, end: number, reveal = false) => {
       if (practice.active) return;
+      setFollowVideo(false);
       const next: SongSelection = { type: 'range', startMeasureIndex: start, endMeasureIndex: end };
       setSelection(next);
       const nextFocus = { ...focus, measureIndex: start };
@@ -619,6 +686,8 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
       if (practice.active) return;
       const parsed = parseBeatId(beatId);
       if (!parsed) return;
+      setFollowVideo(false);
+      setFocus(current => parsed.measureIndex >= current.measureIndex && parsed.measureIndex < current.measureIndex + current.windowSize ? current : { ...current, measureIndex: parsed.measureIndex });
       const next: SongSelection = { type: 'beat', ...parsed };
       setSelection(next);
     },
@@ -628,6 +697,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   const selectShape = useCallback(
     (source: SongShapeSource) => {
       if (practice.active) return;
+      setFollowVideo(false);
       const nextSelection: SongSelection = {
         type: 'beat',
         measureIndex: source.measure_index,
@@ -651,9 +721,10 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
     );
   }, [selection, beatSequence, focus.measureIndex]);
 
-  const activeBeatIndex = practice.active ? practiceBeats[Math.max(0, practice.position.index)]?.sequenceIndex ?? -1 : selectedBeatIndex;
-  const nextBeatIndex = practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex + 1;
-  const displayMeasureIndex = practice.active && activeBeatIndex >= 0 ? beatSequence[activeBeatIndex].measureIndex : focus.measureIndex;
+  const videoBeatIndex = videoPlayhead ? beatSequence.findIndex(beat => beat.measureIndex === videoPlayhead.measureIndex && beat.beatIndex === videoPlayhead.beatIndex) : -1;
+  const activeBeatIndex = playbackSource === 'video' && followVideo ? videoBeatIndex : practice.active ? practiceBeats[Math.max(0, practice.position.index)]?.sequenceIndex ?? -1 : selectedBeatIndex;
+  const nextBeatIndex = practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex < 0 ? -1 : activeBeatIndex + 1;
+  const displayMeasureIndex = (practice.active || playbackSource === 'video' && followVideo) && activeBeatIndex >= 0 ? beatSequence[activeBeatIndex].measureIndex : focus.measureIndex;
 
   const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
 
@@ -670,13 +741,14 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   const moveBeatSelection = useCallback(
     (direction: -1 | 1) => {
       if (beatSequence.length === 0) return;
-      const nextIndex = Math.max(0, Math.min(beatSequence.length - 1, activeBeatIndex + direction));
-      if (nextIndex === activeBeatIndex) return;
+      const sourceIndex = playbackSource === 'video' ? selectedBeatIndex : activeBeatIndex;
+      const nextIndex = Math.max(0, Math.min(beatSequence.length - 1, sourceIndex + direction));
+      if (nextIndex === sourceIndex) return;
       const next = beatSequence[nextIndex];
       selectBeat(`${next.measureIndex}:${next.beatIndex}`);
       ensureMeasureVisible(next.measureIndex);
     },
-    [beatSequence, activeBeatIndex, selectBeat, ensureMeasureVisible],
+    [beatSequence, activeBeatIndex, selectedBeatIndex, playbackSource, selectBeat, ensureMeasureVisible],
   );
 
   const moveMeasureSelection = useCallback(
@@ -766,17 +838,18 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   const activeBeat = activeBeatIndex >= 0 ? beatSequence[activeBeatIndex] : null;
 
   const trackTuningMidi = payload.track.tuning ?? payload.tab_data.tuning ?? null;
-  const tuningNotes = trackTuningMidi ? trackTuningMidi.map((midi) => midiToNoteName(midi)) : null;
+  const tuningNotes = useMemo(() => trackTuningMidi ? trackTuningMidi.map((midi) => midiToNoteName(midi)) : null, [trackTuningMidi]);
+  const onTabBeatClick = useCallback((_beat: TabBeat, beatId: string) => selectBeat(beatId), [selectBeat]);
 
   const selectedBeatId = practice.active && activeBeat ? `${activeBeat.measureIndex}:${activeBeat.beatIndex}` : selection?.type === 'beat' ? `${selection.measureIndex}:${selection.beatIndex}` : null;
   const detailMeasures = measures.slice(displayMeasureIndex, displayMeasureIndex + focus.windowSize);
   const detailEndIndex = Math.min(displayMeasureIndex + focus.windowSize, measureCount) - 1;
 
-  const fullTabRows = useMemo(() => buildFullTabRows(overviewSections), [overviewSections]);
+  const fullTabRows = useMemo(() => buildFullTabRows(overviewSections).map(row => ({ ...row, measures: measures.slice(row.startIndex, row.endIndex + 1) })), [overviewSections, measures]);
 
   const shapeEvents = useMemo(() => {
-    const start = selection?.type === 'range' ? selection.startMeasureIndex : focus.measureIndex;
-    const end = selection?.type === 'range'
+    const start = playbackSource === 'video' ? displayMeasureIndex : selection?.type === 'range' ? selection.startMeasureIndex : focus.measureIndex;
+    const end = playbackSource === 'video' ? Math.min(displayMeasureIndex + focus.windowSize, measureCount) - 1 : selection?.type === 'range'
       ? selection.endMeasureIndex
       : Math.min(focus.measureIndex + focus.windowSize, measureCount) - 1;
     return (payload.shape_events ?? [])
@@ -785,7 +858,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
         sources: event.sources.filter((source) => source.measure_index >= start && source.measure_index <= end),
       }))
       .filter((event) => event.sources.length > 0);
-  }, [payload.shape_events, selection, focus.measureIndex, focus.windowSize, measureCount]);
+  }, [payload.shape_events, selection, focus.measureIndex, focus.windowSize, measureCount, playbackSource, displayMeasureIndex]);
 
   // The shape strip defaults to compact cards (no per-card diagram); this is
   // the one diagram shown instead, next to the fretboard, for whichever
@@ -825,14 +898,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
     return (
       <div data-testid="song-study-workspace" className="space-y-3">
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No tab measures found for this track.</p>
-        <button
-          type="button"
-          onClick={onSearchAgain}
-          className="px-3 py-2 rounded-lg border text-xs font-medium transition-colors hover:bg-[var(--bg-hover)]"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-        >
-          Search another song
-        </button>
+
       </div>
     );
   }
@@ -846,8 +912,8 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
   };
 
   return (
-    <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)' }}>
-    <div className="flex w-full flex-col gap-4 flex-1 min-w-0">
+    <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)', '--song-tutor-width': `${tutorWidth}px` } as CSSProperties}>
+    <div className="song-study-content flex w-full flex-col gap-4 flex-1 min-w-0">
       <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -859,16 +925,7 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
             </p>
           </div>
           <div className="flex gap-2 flex-wrap" style={{ display: practice.focused ? 'none' : undefined }}>
-            <button
-              type="button"
-              data-testid="song-study-search-again"
-              disabled={practice.active}
-              onClick={onSearchAgain}
-              className={headerButtonClass}
-              style={headerButtonStyle}
-            >
-              Search another song
-            </button>
+
             <button
               type="button"
               data-testid="song-study-toggle-full-tab"
@@ -883,11 +940,18 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
         </div>
       </div>
 
+      <label className="text-sm flex flex-wrap items-center gap-2">Playback source<select aria-label="Playback source" className="music-button" value={playbackSource} onChange={event => {
+        practice.exit(); setVideoPlayhead(null); setPlaybackSource(event.target.value as 'practice' | 'video');
+      }}><option value="practice">Synthesized practice</option><option value="video">YouTube recording</option></select></label>
       <div className="flex flex-wrap items-start gap-2">
       <SaveToLibrary artifact={songStudy} onSaved={async () => { onSongStudyChange(await apiClient.getSongStudy(songStudy.id)); }} />
       {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={songDrill(payload, selection, focus)} />}
-      <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />
+      {playbackSource === 'practice' && <><span data-testid="practice-selected-span">Selection: {videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} (whole measure)` : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1} (whole measure)` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`}</span><PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" /></>}
       </div>
+      <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} width={tutorWidth} onWidthChange={setTutorWidth} />
+      <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
+    <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+      <div className="song-study-score flex w-full flex-col gap-4 min-w-0">
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
       {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
       {!showFullTab || practice.active ? (() => {
@@ -941,9 +1005,11 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
               measures={detailMeasures}
               startMeasureIndex={displayMeasureIndex}
               selectedBeatId={selectedBeatId}
+              playheadBeatId={playbackSource === 'video' && videoPlayhead ? `${videoPlayhead.measureIndex}:${videoPlayhead.beatIndex}` : null}
+              followHorizontally={playbackSource === 'video'}
               activeMeasureIndex={displayMeasureIndex}
               selectedMeasureIndices={selectedMeasureIndices}
-              onBeatClick={(_beat, beatId) => selectBeat(beatId)}
+              onBeatClick={onTabBeatClick}
               tuningNotes={tuningNotes ?? undefined}
             />
           </div>
@@ -976,6 +1042,8 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
                   tuningNotes={tuningNotes}
                   activeNotes={activeNotes}
                   upcomingNotes={upcomingNotes}
+                  activeTechniques={beatTechniques(beatSequence[activeBeatIndex]?.beat)}
+                  upcomingTechniques={beatTechniques(activeBeatIndex >= 0 ? beatSequence[nextBeatIndex]?.beat : undefined)}
                 />
               ) : (
                 <p role="status">No tuning data for this track — showing tab only.</p>
@@ -1009,8 +1077,8 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
                   sections={overviewSections}
                   focusMeasureIndex={displayMeasureIndex}
                   selection={selection}
-                  onJump={jumpToMeasure}
-                  onRangeSelect={selectRange}
+                  onJump={(index) => selectRange(index, index, true)}
+                  onRangeSelect={(start, end) => selectRange(start, end, true)}
                   enrichedRanges={payload.enrichment?.ranges ?? []}
                 />
               </div>
@@ -1043,13 +1111,15 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
                     {row.sectionLabel} · measures {row.startIndex + 1}–{row.endIndex + 1}
                   </span>
                 </div>
-                <MeasureGroup
-                  measures={measures.slice(row.startIndex, row.endIndex + 1)}
+                <MemoMeasureGroup
+                  measures={row.measures}
                   startMeasureIndex={row.startIndex}
-                  selectedBeatId={selectedBeatId}
-                  activeMeasureIndex={displayMeasureIndex}
+                  selectedBeatId={selection?.type === 'beat' && selection.measureIndex >= row.startIndex && selection.measureIndex <= row.endIndex ? selectedBeatId : null}
+                  playheadBeatId={playbackSource === 'video' && videoPlayhead && videoPlayhead.measureIndex >= row.startIndex && videoPlayhead.measureIndex <= row.endIndex ? `${videoPlayhead.measureIndex}:${videoPlayhead.beatIndex}` : null}
+                  followHorizontally={playbackSource === 'video'}
+                  activeMeasureIndex={displayMeasureIndex >= row.startIndex && displayMeasureIndex <= row.endIndex ? displayMeasureIndex : undefined}
                   selectedMeasureIndices={selectedMeasureIndices}
-                  onBeatClick={(_beat, beatId) => selectBeat(beatId)}
+                  onBeatClick={onTabBeatClick}
                   tuningNotes={tuningNotes ?? undefined}
                   compact
                 />
@@ -1086,6 +1156,8 @@ export function SongStudyWorkspace({ songStudy, onSearchAgain, onSongStudyChange
 
       <div hidden={practice.focused}><SongLearningMap key={songStudy.id} song={songStudy} selection={selection} measureIndex={focus.measureIndex}
         disabled={practice.active} onSelect={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} /></div>
+      </div>
+      </div>
 
     </div>
     </div>

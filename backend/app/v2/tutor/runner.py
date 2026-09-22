@@ -21,6 +21,7 @@ from langchain_core.tools import BaseTool
 
 from app.v2.models import Branch, TutorMessage
 from app.v2.tutor.contract import LearningPreferences, TutorResponse, TutorTerminal, TutorUsage
+from app.v2.tutor.song_context import SongTutorTerminal
 from app.v2.tutor.prompt import reconstruct_history, stable_system_message, volatile_turn_message
 from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model, structured_response_format, usage_from_ai_message
 from app.v2.turns import live_composition, musical_snapshot
@@ -126,6 +127,7 @@ def run_tutor_turn(
     lookup_tools: Optional[list[BaseTool]] = None,
     siblings: Optional[list[dict[str, Any]]] = None,
     learning_preferences: LearningPreferences | None = None,
+    song_context: dict | None = None,
 ) -> TutorResponse:
     cache_key = branch.tutor_thread_id
 
@@ -138,54 +140,61 @@ def run_tutor_turn(
         openrouter_api_key=openrouter_api_key,
     )
 
-    request_messages = [stable_system_message(provider)]
+    request_messages = [stable_system_message(provider, song=song_context is not None)]
     request_messages.extend(reconstruct_history(history))
-    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings, learning_preferences=learning_preferences))
+    request_messages.append(volatile_turn_message(branch=branch, user_message=user_message, siblings=siblings, learning_preferences=learning_preferences, song_context=song_context))
 
+    terminal_schema = SongTutorTerminal if song_context is not None else TutorTerminal
     agent = create_agent(
         model=chat_model,
-        tools=[*(lookup_tools or []), *component_skill_tools(branch.active_workspace)],
-        response_format=structured_response_format(TutorTerminal, provider, model),
+        tools=list(lookup_tools or []) if song_context is not None else [*(lookup_tools or []), *component_skill_tools(branch.active_workspace)],
+        response_format=structured_response_format(terminal_schema, provider, model),
     )
 
     started = time.monotonic()
     try:
         final_state: dict[str, Any] = agent.invoke({"messages": request_messages}, config={"recursion_limit": 16})
         terminal: TutorTerminal = final_state['structured_response']
-        for attempt in range(2):
-            try:
-                updated = resolve_turn_music(branch, terminal)
-                break
-            except (ValueError, ValidationError) as exc:
-                if attempt:
-                    raise TutorCapabilityError('Tutor musical change is invalid') from exc
-                details = str(exc) if not isinstance(exc, ValidationError) else str(exc.errors(include_input=False, include_url=False))
-                feedback = (
-                    f'The musical result is invalid in {branch.active_workspace}: {details}. '
-                    'Correct the specific validation error. Keep the answer useful even if no musical edit is possible: '
-                    'use mutation=null, candidates=null and focus=null, and explain the suggestion in message. '
-                    'Do not claim unapplied changes. Never include derived positions in mutations.'
-                )
-                final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content=feedback)]}, config={'recursion_limit': 16})
-                terminal = final_state['structured_response']
-        presentation = live_composition(branch, history)
-        presentation_applied = False
-        if terminal.presentation is not None:
-            try:
-                presentation = validate_composition(updated.active_workspace, terminal.presentation)
-                presentation_applied = True
-            except ValidationError:
-                # Retry only presentation: retain the already validated music,
-                # candidates and message, regardless of what the retry changes.
+        if song_context is not None:
+            terminal = TutorTerminal(message=terminal.message)
+            updated = branch
+            presentation = live_composition(branch, history)
+            presentation_applied = False
+        else:
+            for attempt in range(2):
                 try:
-                    retry = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content='The presentation is invalid. Return a corrected presentation within the workspace capabilities; retain the musical result.')]}, config={'recursion_limit': 16})
-                    final_state = retry
-                    presentation = validate_composition(updated.active_workspace, retry['structured_response'].presentation or {})
+                    updated = resolve_turn_music(branch, terminal)
+                    break
+                except (ValueError, ValidationError) as exc:
+                    if attempt:
+                        raise TutorCapabilityError('Tutor musical change is invalid') from exc
+                    details = str(exc) if not isinstance(exc, ValidationError) else str(exc.errors(include_input=False, include_url=False))
+                    feedback = (
+                        f'The musical result is invalid in {branch.active_workspace}: {details}. '
+                        'Correct the specific validation error. Keep the answer useful even if no musical edit is possible: '
+                        'use mutation=null, candidates=null and focus=null, and explain the suggestion in message. '
+                        'Do not claim unapplied changes. Never include derived positions in mutations.'
+                    )
+                    final_state = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content=feedback)]}, config={'recursion_limit': 16})
+                    terminal = final_state['structured_response']
+            presentation = live_composition(branch, history)
+            presentation_applied = False
+            if terminal.presentation is not None:
+                try:
+                    presentation = validate_composition(updated.active_workspace, terminal.presentation)
                     presentation_applied = True
-                except Exception:
-                    # Presentation is best effort after music has validated.
-                    # Even a provider failure on this retry preserves that work.
-                    pass
+                except ValidationError:
+                    # Retry only presentation: retain the already validated music,
+                    # candidates and message, regardless of what the retry changes.
+                    try:
+                        retry = agent.invoke({'messages': final_state['messages'] + [HumanMessage(content='The presentation is invalid. Return a corrected presentation within the workspace capabilities; retain the musical result.')]}, config={'recursion_limit': 16})
+                        final_state = retry
+                        presentation = validate_composition(updated.active_workspace, retry['structured_response'].presentation or {})
+                        presentation_applied = True
+                    except Exception:
+                        # Presentation is best effort after music has validated.
+                        # Even a provider failure on this retry preserves that work.
+                        pass
     except NotImplementedError as exc:
         raise TutorCapabilityError(
             f"{provider}/{model} cannot satisfy required tutor capabilities (tool calling): {exc}"
@@ -213,7 +222,7 @@ def run_tutor_turn(
         1
         for message in ai_messages
         for call in (message.tool_calls or [])
-        if call.get("name") != TutorTerminal.__name__
+        if call.get("name") != terminal_schema.__name__
     )
 
     return TutorResponse(

@@ -1,6 +1,6 @@
 """Pydantic models for Songsterr API responses and our song endpoints."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # --- Songsterr API response models (parsed from external API) ---
@@ -49,6 +49,13 @@ class SongsterrRevisionResponse(BaseModel):
     popular_track: int = Field(default=0, alias="popularTrack")
     image: str | None = None
     source: str | None = None
+    videos: list[dict] = Field(default_factory=list)
+
+    @field_validator("videos", mode="before")
+    @classmethod
+    def usable_video_entries(cls, value):
+        # Optional discovery metadata must not make a playable score unimportable.
+        return [entry for entry in value if isinstance(entry, dict)] if isinstance(value, list) else []
 
 
 class SongsterrChordsResponse(BaseModel):

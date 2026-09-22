@@ -36,6 +36,7 @@ rendering component.
 | `VoicingExplorer` / `TriadExplorer` | Harmony controls around the shared diagram, selection, pinning and audition. Their filters describe different musical concepts and stay separate. |
 | `ProgressionEditor` / `ProgressionPractice` | Selected-step editing and the ordered progression strip/transport. The idea owns durations and assigned voicings; playback does not overwrite Focus. |
 | `SongShapeStrip` | Selection by source measure/beat, with optional physical diagrams. Source provenance differs from a chosen Harmony voicing, so the strip stays separate. |
+| `MeasureGroup` | Shared tab rendering. Learner selection and the optional video playhead are separate; video follow scrolls inside the tab, leaving the embedded player visible. |
 
 The diagram and fretboard styles are imported by their component modules. Theme
 variables come from `index.css` and `v2/Theme.css`; set the document's `data-app`
@@ -107,6 +108,58 @@ Those contracts differ from V2's exact physical shape and note layers; sharing
 those wrappers would require adapters and change existing visuals. They remain
 separate. TabViewer, SongStudy physical diagrams and audio utilities already
 share the applicable lower-level behavior.
+
+## Song video playback
+
+`types/songVideo.ts` owns saved recording, occurrence and anchor values.
+`v2/songVideoTiming.ts` maps preserved beat durations to bounded video intervals;
+it never extrapolates or infers repeats. `YouTubePlayer` owns the supported
+iframe, readiness, commands and actual-time updates. `SongVideo` owns the local
+calibration draft and selection playback, publishing only changed musical
+positions to SongStudy. Keep synthesized practice on its existing clock.
+
+SongStudy opens with YouTube playback selected and requests ephemeral recording
+suggestions from its owned endpoint. The backend reuses Songsterr's linked videos
+and YouTube oEmbed title/channel metadata. The first available suggestion loads
+once, paused and unconfirmed, through the existing draft and Undo path. The
+learner can choose another suggestion or use the secondary URL form. Automatic
+selection never replaces saved alignment or overrides edits, removal, Undo,
+a typed URL, or an explicit playback-source choice. Failed discovery shows the
+API error and offers Retry. For supported scores, initial timing comes from the
+exact Songsterr revision/video or a labeled score-tempo estimate beginning at
+0:00. The learner can adjust the recording start. This enables selection
+playback without falsely checking arrangement confirmation; saving remains
+deliberate. Playback continues beyond a selection unless Loop is enabled, and
+selecting another aligned measure while playing seeks there. Paused selection
+does not start playback; unmapped or ambiguous positions pause rather than guess.
+The player reports
+video length; a conservative written-score estimate provides a comparison,
+not a synchronization model. Unsupported tempo or repeat order yields an
+explained unavailable estimate.
+
+The Speed control uses the embedded player's supported rates and actual rate-change
+feedback; video time remains the clock. Explicit paused tab selection previews its
+notes on the fretboard, while playback and native seeking resume video follow.
+Guitar search choices stay visible; other instruments are collapsed by default.
+Song URLs reopen the owned artifact on refresh, and breadcrumbs preserve the
+search query and cached results for Back/Forward navigation.
+
+Saving uses the existing SongStudy artifact, ownership/revision checks and
+History. Watching never persists player time. See
+[the alignment contract](../docs/song-video-sync.md) for the manual workflow,
+repeat/gap behavior, platform requirements and verification scope.
+
+## Song Study questions
+
+`SongStudyTutor` lazily opens the existing `TutorPanel` with the learner’s beat or
+measure selection. `V2App` restores an account-scoped per-song conversation branch
+from local storage after checking server ownership. The backend resolves score
+context itself; the browser sends only artifact ID and selection. Pending turns
+and saved answers retain the passage they refer to, independent of playback.
+Song mode explains without workspace mutation, candidate audition, or restore UI.
+The same configured Tutor provider is required; local servers with blank provider
+keys show an explicit setup error. Deterministic browser tests use the existing
+scripted model, never a live credential.
 
 ## Proof paths
 

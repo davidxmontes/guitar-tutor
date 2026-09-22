@@ -292,3 +292,41 @@
 .learning-session-row { display: flex; align-items: center; gap: 8px; }
 .learning-session-row > button:first-child { flex: 1; min-width: 0; }
 .learning-recent-list .session-delete { display: grid; place-items: center; flex: 0 0 32px; width: 32px; min-height: 32px; padding: 4px; border: 0; box-shadow: none; background: transparent; }
+
+/* Non-modal so the learner can change the passage while chatting. */
+.song-study-tutor { min-width: 0; }
+.song-study-content { padding-bottom: 80px; }
+.song-tutor-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 40; box-shadow: var(--surface-shadow); }
+.song-tutor-sidebar { position: fixed; right: 16px; top: 16px; bottom: 16px; width: min(var(--song-tutor-width, 360px), 45vw); z-index: 40; display: flex; flex-direction: column; border: 1px solid var(--control-border); border-radius: 18px; background: var(--card-bg); box-shadow: var(--surface-shadow); overflow: hidden; }
+.song-tutor-sidebar[hidden], .song-tutor-launcher[hidden] { display: none; }
+.song-tutor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border-primary); }
+.song-tutor-toolbar strong { min-width: 0; font-size: 14px; }
+.song-tutor-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.song-study-tutor .tutor-panel { position: static; border: 0; border-radius: 0; box-shadow: none; }
+.song-study-tutor .tutor-heading { display: none; }
+@media (min-width: 1200px) {
+  .song-study-content:has(.song-study-tutor.is-open) { padding-right: calc(min(var(--song-tutor-width, 360px), 45vw) + 20px); }
+}
+@media (max-width: 1199px) {
+  .song-tutor-sidebar { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: var(--song-tutor-height, 70dvh); max-height: 95dvh; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .song-tutor-launcher { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+@media (min-width: 1200px) and (max-width: 1600px) {
+  .song-study-content:has(.song-study-tutor.is-open) .song-video-layout { display: flex; flex-direction: column; }
+  .song-study-content:has(.song-study-tutor.is-open) .song-video { position: static; max-width: 480px; }
+}
+.song-study-content :is(button, input, select, textarea, summary) { scroll-margin-bottom: 90px; }
+
+/* Wide hit areas support touch without adding permanent editor controls. */
+.song-tutor-resizer { position: absolute; z-index: 2; touch-action: none; user-select: none; }
+.song-tutor-resizer--width { left: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; }
+.song-tutor-resizer--width::after { content: ''; position: absolute; left: 3px; top: 45%; height: 40px; width: 3px; border-radius: 3px; background: var(--text-muted); }
+.song-tutor-resizer:focus-visible { outline: 2px solid var(--learning-green); outline-offset: -2px; }
+.song-tutor-resizer:hover::after, .song-tutor-resizer:focus-visible::after { background: var(--learning-green); }
+.song-tutor-resizer--height { display: none; }
+@media (max-width: 1199px) {
+  .song-tutor-sidebar { padding-top: 16px; }
+  .song-tutor-resizer--width { display: none; }
+  .song-tutor-resizer--height { display: block; top: 0; left: 0; right: 0; height: 20px; cursor: ns-resize; }
+  .song-tutor-resizer--height::after { content: ''; position: absolute; top: 7px; left: calc(50% - 20px); width: 40px; height: 4px; border-radius: 4px; background: var(--text-muted); }
+}

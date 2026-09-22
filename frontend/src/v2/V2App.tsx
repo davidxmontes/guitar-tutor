@@ -7,7 +7,7 @@ import { useAppAuth } from '../lib/authBypass';
 import { BranchNavigation } from './BranchNavigation';
 import { HarmonyWorkspace } from './HarmonyWorkspace';
 import { ProgressionWorkspace } from './ProgressionWorkspace';
-import { SongStudySearch, SongStudyWorkspace } from './SongStudy';
+import { SongStudySearch, SongStudyWorkspace, type SongSearchState } from './SongStudy';
 import { MyStuff } from './MyStuff';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
 import type { ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
@@ -39,16 +39,62 @@ export function V2App() {
 }
 
 function SignedInV2App() {
+  const { userId } = useAppAuth();
   const [page, setPage] = useState<'explore' | 'sessions' | 'library' | 'workspace'>('explore');
   const [sessions, setSessions] = useState<V2Session[] | null>(null);
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [artifactView, setArtifactView] = useState<SongStudyArtifact | ExerciseArtifact | 'search' | null>(null);
+  const [songTarget, setSongTarget] = useState(() => new URL(window.location.href).searchParams.get('song'));
+  const [songSearch, setSongSearch] = useState<SongSearchState>(() => ({ query: new URL(window.location.href).searchParams.get('songQuery') ?? '', results: [], searched: false }));
+  const [loadingSong, setLoadingSong] = useState(false);
+  const songRequest = useRef(0);
   const [search, setSearch] = useState('');
   const [entryView, setEntryView] = useState<HarmonyView>('tutor');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const writeSongLocation = useCallback((target: string | null, destination?: typeof page, query?: string, replace = false) => {
+    songRequest.current++;
+    setLoadingSong(false);
+    setSongTarget(target);
+    const url = new URL(window.location.href);
+    if (target) url.searchParams.set('song', target); else url.searchParams.delete('song');
+    if (query !== undefined) {
+      if (query) url.searchParams.set('songQuery', query); else url.searchParams.delete('songQuery');
+    }
+    window.history[replace ? 'replaceState' : 'pushState']({ ...window.history.state, songReturnPage: destination ?? 'explore' }, '', url);
+  }, []);
+
+  useEffect(() => {
+    const requests = songRequest;
+    const restoreSongLocation = (initial = false) => {
+      const request = ++songRequest.current;
+      const url = new URL(window.location.href);
+      const target = url.searchParams.get('song');
+      const query = url.searchParams.get('songQuery') ?? '';
+      setSongTarget(target); setError(null); setArtifactView(target === 'search' ? 'search' : null);
+      setSongSearch(previous => previous.resultsQuery === query ? { ...previous, query } : { query, results: [], searched: false });
+      setLoadingSong(Boolean(target && target !== 'search'));
+      if (!target) {
+        setPage(initial ? 'explore' : window.history.state?.songReturnPage ?? 'explore');
+      } else if (target !== 'search') {
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(target)) {
+          setLoadingSong(false); setError('This song link is invalid. Return to song search.'); return;
+        }
+        void apiClient.getSongStudy(target).then(artifact => {
+          if (songRequest.current === request) setArtifactView(artifact);
+        }).catch(() => {
+          if (songRequest.current === request) setError('This song is no longer available. Return to song search or open a saved song from My Stuff.');
+        }).finally(() => { if (songRequest.current === request) setLoadingSong(false); });
+      }
+    };
+    restoreSongLocation(true);
+    const onPopState = () => restoreSongLocation();
+    window.addEventListener('popstate', onPopState);
+    return () => { requests.current++; window.removeEventListener('popstate', onPopState); };
+  }, []);
 
   const sessionsRequest = useRef(0);
   const loadSessions = useCallback(async () => {
@@ -68,26 +114,66 @@ function SignedInV2App() {
 
   const openSession = useCallback((session: V2Session, view: HarmonyView = 'tutor') => {
     sessionsRequest.current++;
+    writeSongLocation(null, 'workspace');
     setPage('workspace');
     setEntryView(view);
     setArtifactView(null);
     setActiveSession(session);
     setActiveBranchId(session.branches.find((branch) => !branch.closed)?.id ?? null);
-  }, []);
+  }, [writeSongLocation]);
 
-  const studySong = async () => {
-    try {
-      if (!activeSession || !activeBranchId) {
-        const session = await apiClient.createV2Session();
-        openSession(session);
-        setSessions(previous => [session, ...(previous ?? [])]);
-      }
-      setArtifactView('search');
-    } catch (err) { setError(String(err)); }
+  const studySong = () => {
+    writeSongLocation('search', page, songSearch.query);
+    setArtifactView('search'); setError(null);
+  };
+
+  const ensureSongSession = async () => {
+    if (activeSession && activeBranchId) return { sessionId: activeSession.id, branchId: activeBranchId };
+    const session = await apiClient.createV2Session();
+    setActiveSession(session);
+    const branchId = session.branches.find(branch => !branch.closed)!.id;
+    setActiveBranchId(branchId);
+    setSessions(previous => [session, ...(previous ?? [])]);
+    return { sessionId: session.id, branchId };
+  };
+
+  const ensureSongTutor = async (song: SongStudyArtifact) => {
+    const key = `guitar-song-tutor:${userId}:${song.id}`;
+    let cached: { sessionId?: string; branchId?: string } | null = null;
+    try { cached = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { /* Ignore an invalid local association. */ }
+    if (cached?.sessionId && cached.branchId) {
+      // Only account-owned sessions returned by the server can restore a chat.
+      const owned = await apiClient.listV2Sessions();
+      const branch = owned.find(session => session.id === cached.sessionId)?.branches.find(branch => branch.id === cached.branchId && !branch.closed);
+      if (branch) return branch;
+    }
+    const hadSession = Boolean(activeSession && activeBranchId);
+    const { sessionId, branchId } = await ensureSongSession();
+    const title = `${song.payload.title} · ${song.payload.track.name}`;
+    const branch = hadSession ? await apiClient.createV2Branch(sessionId, { title }) : await apiClient.updateV2Branch(sessionId, branchId, { title });
+    try { localStorage.setItem(key, JSON.stringify({ sessionId, branchId: branch.id })); } catch { /* Chat still works for this visit. */ }
+    return branch;
+  };
+
+  const showSong = (artifact: SongStudyArtifact) => {
+    writeSongLocation(artifact.id, page, songSearch.query);
+    setArtifactView(artifact); setError(null);
+  };
+
+  const leaveSong = (destination: typeof page) => {
+    writeSongLocation(null, destination);
+    setArtifactView(null); setPage(destination); setError(null);
   };
 
   const openSaved = async (item: LibraryItem) => {
-    if (item.kind === 'song_study') setArtifactView(await apiClient.getSongStudy(item.id));
+    if (item.kind === 'song_study') {
+      writeSongLocation(item.id, page, songSearch.query);
+      const request = songRequest.current;
+      setArtifactView(null); setLoadingSong(true); setError(null);
+      try { const song = await apiClient.getSongStudy(item.id); if (request === songRequest.current) setArtifactView(song); }
+      catch { if (request === songRequest.current) setError('This song is no longer available. Return to song search.'); }
+      finally { if (request === songRequest.current) setLoadingSong(false); }
+    }
     else if (item.kind === 'exercise') setArtifactView(await apiClient.getExercise(item.id));
     else {
       const session = await apiClient.openLibraryArtifact(item.id);
@@ -196,20 +282,27 @@ function SignedInV2App() {
     }
   };
 
-  const shell = (content: ReactNode) => <AppShell active={artifactView ? 'song' : page} hasWorkspace={Boolean(activeSession)} onNavigate={destination => {
+  const shell = (content: ReactNode) => <AppShell active={artifactView || songTarget ? 'song' : page} hasWorkspace={Boolean(activeSession)} onNavigate={destination => {
     if (destination === 'song') { void studySong(); return; }
-    setArtifactView(null); setPage(destination); setError(null);
+    leaveSong(destination);
     if (destination === 'explore' || destination === 'sessions') void loadSessions();
   }}>{content}</AppShell>;
 
-  if (artifactView) return shell(<main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
+  if (artifactView || songTarget) return shell(<main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
     <div className="music-controls mb-4"><h1 className="learning-brand">Study & practice</h1>{sessionStarter}
-      <button className="music-button" onClick={() => { setArtifactView(null); setPage(activeSession ? 'workspace' : 'explore'); }}>{activeSession ? 'Back to workspace' : 'Explore'}</button>
+      {activeSession && <button className="music-button" onClick={() => leaveSong('workspace')}>Back to workspace</button>}
+      {!activeSession && artifactView && artifactView !== 'search' && artifactView.kind === 'exercise' && <button className="music-button" onClick={() => leaveSong('explore')}>Explore</button>}
     </div>
+    {(songTarget || artifactView === 'search' || artifactView?.kind === 'song_study') && <nav aria-label="Song navigation" className="song-breadcrumbs">
+      <button className="learning-text-button" onClick={() => leaveSong('explore')}>Explore</button><span aria-hidden="true">›</span>
+      {artifactView === 'search' ? <span aria-current="page">Song search</span> : <button className="learning-text-button" onClick={studySong}>Song search</button>}
+      {artifactView && artifactView !== 'search' && artifactView.kind === 'song_study' && <><span aria-hidden="true">›</span><span className="song-breadcrumb-current" aria-current="page" title={artifactView.payload.title}>{artifactView.payload.title}</span></>}
+    </nav>}
     {error && <p role="alert">{error}</p>}
-    {artifactView === 'search' ? activeSession && activeBranchId && <SongStudySearch sessionId={activeSession.id} branchId={activeBranchId} onCreated={setArtifactView} />
-      : artifactView.kind === 'song_study' ? <SongStudyWorkspace key={artifactView.id} songStudy={artifactView} onSongStudyChange={setArtifactView} onSearchAgain={studySong} />
-      : <ExerciseWorkspace key={artifactView.id} artifact={artifactView} />}
+    {loadingSong && <p role="status">Opening your song…</p>}
+    {artifactView === 'search' ? <SongStudySearch state={songSearch} onStateChange={setSongSearch} ensureSession={ensureSongSession} onSearch={query => writeSongLocation('search', page, query, true)} onCreated={showSong} />
+      : artifactView?.kind === 'song_study' ? <SongStudyWorkspace key={artifactView.id} songStudy={artifactView} ensureTutor={() => ensureSongTutor(artifactView)} onSongStudyChange={updated => setArtifactView(current => current && current !== 'search' && current.id === updated.id ? updated : current)} />
+      : artifactView?.kind === 'exercise' ? <ExerciseWorkspace key={artifactView.id} artifact={artifactView} /> : null}
   </main>);
 
   if (activeSession && page === 'workspace') {

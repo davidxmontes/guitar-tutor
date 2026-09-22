@@ -20,6 +20,7 @@ test('song tab, learning map, enrichment, copied exercise and library survive re
   await page.getByRole('button', { name: 'Search', exact: true }).click()
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click()
   await expect(page.getByTestId('song-study-title')).toContainText('Study Fixture')
+  await page.getByLabel('Playback source').selectOption('practice')
   await expect(page.getByRole('heading', { name: 'Measures 1–4', exact: true })).toBeVisible()
   await expect(page.getByTestId('fretboard-active-note').filter({ hasText: 'D' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Save to My Stuff', exact: true }).click()
@@ -40,6 +41,7 @@ test('song tab, learning map, enrichment, copied exercise and library survive re
   await page.getByRole('button', { name: 'Show full tab', exact: true }).click()
   await expect(page.getByTestId('song-study-full-tab')).toBeVisible()
   await page.getByRole('button', { name: 'Show overview + focus', exact: true }).click()
+  await page.getByLabel('Playback source').selectOption('practice')
   await page.getByRole('button', { name: 'Practice selection', exact: true }).click()
   await page.getByLabel('Count in').selectOption('0')
   await page.getByLabel('Practice audio').selectOption('guide')
@@ -53,13 +55,13 @@ test('song tab, learning map, enrichment, copied exercise and library survive re
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
   await page.screenshot({ path: 'test-results/song-study-mobile.png', fullPage: true })
   await page.reload()
-  await page.getByRole('button', { name: 'Open Practice Band - Study Fixture', exact: true }).click()
   await expect(page.getByTestId('song-study-title')).toContainText('Study Fixture')
+  await page.getByLabel('Playback source').selectOption('practice')
   await page.getByText('Learning map · selection M1–1', { exact: true }).click()
   await expect(page.getByRole('button', { name: 'Saved range: Opening drill · M1–1', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Remove enhancement', exact: true }).click()
   await expect(page.getByTestId('song-study-enrichment-range')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Explore', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Song navigation' }).getByRole('button', { name: 'Explore', exact: true }).click()
   await page.getByRole('button', { name: 'Open Song rhythm drill', exact: true }).click()
   await expect(page.getByTestId('exercise-workspace')).toContainText('Song rhythm drill')
   await page.getByRole('button', { name: 'Practice exercise', exact: true }).click()
@@ -94,3 +96,72 @@ test('practice timing follows rests, fractional beats, count-in and loop boundar
   expect(practicePosition([1, 0.5, 1], 6.5, 4, true)).toMatchObject({ index: 0, finished: false })
   expect(practicePosition([1, 0.5, 1], 6.5, 4, false)).toMatchObject({ index: 2, finished: true })
 })
+
+test('practice accepts typed slow tempos and plays a whole selected section', async ({ page }) => {
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Study a song', exact: true }).click();
+  await page.getByLabel('Search songs').fill('fixture');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
+  await page.getByLabel('Playback source').selectOption('practice');
+  await page.getByRole('button', { name: 'Intro', exact: true }).click();
+  await expect(page.getByTestId('practice-selected-span')).toHaveText('Selection: M1–4');
+  await page.getByRole('button', { name: 'Practice selection', exact: true }).click();
+  const tempo = page.getByLabel('Practice tempo');
+  await tempo.fill('');
+  await expect(tempo).toHaveValue('');
+  await tempo.pressSequentially('12');
+  await tempo.press('Enter');
+  await expect(tempo).toHaveValue('12');
+  await tempo.fill('1');
+  await tempo.press('Tab');
+  await expect(tempo).toHaveValue('1');
+  for (const invalid of ['0', '', '1.5', '241']) {
+    await tempo.fill(invalid);
+    await tempo.press('Enter');
+    await expect(tempo).toHaveValue('1');
+    await expect(page.getByRole('alert')).toContainText('previous tempo was restored');
+  }
+  await tempo.focus();
+  await tempo.press('ArrowUp');
+  await tempo.press('Enter');
+  await expect(tempo).toHaveValue('2');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await tempo.fill('60');
+  await tempo.press('Enter');
+  await page.getByLabel('Count in').selectOption('0');
+  await page.getByLabel('Practice audio').selectOption('metronome');
+  await page.clock.install();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(1100);
+  await expect(page.getByTestId('song-study-fretboard')).toHaveAttribute('aria-label', /Active: rest\./);
+  await tempo.fill('12');
+  await tempo.press('Enter');
+  await expect(page.getByTestId('practice-status')).toHaveText('Playing');
+  await page.clock.runFor(1000);
+  await expect(page.getByTestId('song-study-fretboard')).toHaveAttribute('aria-label', /Active: rest\./);
+  await page.clock.runFor(1500);
+  await expect(page.getByTestId('song-study-fretboard')).toHaveAttribute('aria-label', /Active: string 6 fret 1/);
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  await page.getByRole('button', { name: 'Verse', exact: true }).click();
+  await expect(page.getByTestId('practice-selected-span')).toHaveText('Selection: M5–8');
+  await expect(page.getByRole('heading', { name: 'Measures 5–8', exact: true })).toBeVisible();
+});
+
+test('very slow guide notes bound synthesized pluck buffers', async ({ page }) => {
+  await page.goto('/v2');
+  const seconds = await page.evaluate(async () => {
+    const allocations: number[] = [];
+    const original = AudioContext.prototype.createBuffer;
+    AudioContext.prototype.createBuffer = function(channels, length, rate) {
+      allocations.push(length / rate);
+      return original.call(this, channels, length, rate);
+    };
+    try {
+      const { playChord } = await import('/src/utils/audio.ts');
+      playChord([{ string: 6, fret: 0 }], 0, 240)();
+      return allocations;
+    } finally { AudioContext.prototype.createBuffer = original; }
+  });
+  expect(seconds).toEqual([10]);
+});

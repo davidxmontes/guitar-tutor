@@ -7,6 +7,8 @@ interface MeasureGroupProps {
   measures: TabMeasure[];
   startMeasureIndex: number;
   selectedBeatId: string | null;
+  playheadBeatId?: string | null;
+  followHorizontally?: boolean;
   activeMeasureIndex?: number;
   selectedMeasureIndices?: Set<number>;
   compact?: boolean;
@@ -92,6 +94,8 @@ export function MeasureGroup({
   measures,
   startMeasureIndex,
   selectedBeatId,
+  playheadBeatId,
+  followHorizontally = false,
   activeMeasureIndex,
   selectedMeasureIndices,
   compact = false,
@@ -121,12 +125,17 @@ export function MeasureGroup({
   // the user staring at the old measures until they scrolled manually.
   // Follow the selection into view instead.
   useEffect(() => {
-    if (!selectedBeatId) return;
+    const targetId = playheadBeatId ?? selectedBeatId;
+    if (!targetId) return;
     const container = scrollRef.current;
     if (!container) return;
-    const target = container.querySelector<HTMLElement>(`[data-beat-id="${selectedBeatId}"]`);
-    target?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [selectedBeatId]);
+    const target = container.querySelector<HTMLElement>(`[data-beat-id="${targetId}"] button`);
+    if (target && followHorizontally) {
+      const bounds = container.getBoundingClientRect();
+      const beat = target.getBoundingClientRect();
+      container.scrollTo({ left: container.scrollLeft + (beat.left + beat.right - bounds.left - bounds.right) / 2, behavior: 'smooth' });
+    } else target?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedBeatId, playheadBeatId, followHorizontally]);
 
   return (
     // overflow-x-auto lives on the SAME element as the border/background —
@@ -315,19 +324,22 @@ export function MeasureGroup({
                       const xPercent = ((beatIdx + 0.5) / beatColumns) * 100;
                       const notesByString = mapNotesByString(beat.notes ?? [], tabStrings.length);
                       const isSelected = beatId === selectedBeatId;
+                      const isPlayhead = beatId === playheadBeatId;
 
                       return (
-                        <div key={beatId} data-beat-id={beatId}>
+                        <div key={beatId} data-beat-id={beatId} data-video-playhead={isPlayhead || undefined}>
                           <button
                             type="button"
                             aria-label={`Select beat ${beatIdx + 1} of measure ${measureIndex + 1}`}
                             aria-pressed={isSelected}
+                            aria-current={isPlayhead ? 'step' : undefined}
                             onClick={() => onBeatClick(beat, beatId)}
                             className="absolute -top-5 -bottom-3 z-10 -translate-x-1/2 rounded-sm transition-colors"
                             style={{
                               left: `${xPercent}%`,
                               width: beatHitWidth,
                               backgroundColor: isSelected ? 'rgba(16,185,129,0.12)' : 'transparent',
+                              boxShadow: isPlayhead ? 'inset 0 -4px var(--accent-500)' : undefined,
                               border: isSelected
                                 ? '1px solid rgba(16,185,129,0.35)'
                                 : '1px solid transparent',

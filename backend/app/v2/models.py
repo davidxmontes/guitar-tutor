@@ -12,6 +12,7 @@ from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 from app.v2.harmony_state import HarmonyExploration
+from app.v2.song_video import SongVideoAlignment
 
 ArtifactKind = Literal["song_study", "progression", "exercise"]
 
@@ -148,6 +149,7 @@ class SongStudyPayload(BaseModel):
     chordpro: Optional[str] = None
     enrichment: Optional[SongEnrichment] = None
     saved_ranges: list[SongSavedRange] = Field(default_factory=list, max_length=100)
+    video_alignment: Optional[SongVideoAlignment] = None
 
 
 class ProgressionVoicingPosition(BaseModel):
