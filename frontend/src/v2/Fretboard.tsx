@@ -53,6 +53,7 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
   const y = (string: number) => 36 + (string - 1) * gap;
   const bottom = editor ? 268 : 218;
   const height = editor ? 294 : 244;
+  const orderedLayers = editor ? visibleLayers : [...visibleLayers].sort((a, b) => Number(!!a.focal) - Number(!!b.focal));
   return (
     <div ref={neck} className="music-neck-scroll" tabIndex={editor ? undefined : 0} aria-label="Scrollable fretboard">
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role={onSelect || editor ? 'group' : 'img'} aria-label={onSelect || editor ? label : `${label}. ${visibleLayers.flatMap(layer => layer.positions.map(note => describeNote(note, layer))).join('; ')}`}>
@@ -64,7 +65,7 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
           <line x1={x(first + index) + (width - 48) / count / 2} x2={x(first + index) + (width - 48) / count / 2} y1="24" y2={bottom} stroke="currentColor" opacity=".2" />
           <text x={x(first + index)} y={height - 6} textAnchor="middle">{first + index}</text>
         </g>)}
-        {[...visibleLayers].sort((a, b) => Number(!!a.focal) - Number(!!b.focal)).map(layer => <g key={layer.id}>
+        {orderedLayers.map(layer => <g key={layer.id}>
           {layer.positions.map(note => (
             <g key={`${note.string}.${note.fret}`} role={onSelect && !editor ? 'button' : undefined} tabIndex={onSelect && !editor ? 0 : undefined}
               data-layer={layer.id} pointerEvents={editor ? 'none' : undefined}

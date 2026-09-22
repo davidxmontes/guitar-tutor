@@ -1,10 +1,11 @@
 """Harmony derivation and value operations. No Artifact, Save, or model call."""
 from itertools import product
 from pydantic import ValidationError
-from app.music.chords import CHORD_INTERVALS, index_to_note
+from app.music.chords import index_to_note
 from app.music.scales import SCALE_INTERVALS, SCALE_DEGREE_NAMES, get_diatonic_chords
 from app.services.chord_service import get_chord
 from app.v2.concepts import CIRCLE_KEYS
+from app.v2.chord_discovery import chord_notes, resolve_shape
 from app.v2.harmony_state import ChordRef, HarmonyExploration, PinnedVoicing, TonalCenter, VoicingValue
 from app.v2.workspace import NoteGroup, pitch_class, resolve_note_group, spelled_notes
 from app.v2.workspace_caged import chord_caged_regions
@@ -15,11 +16,6 @@ def note_positions(notes: list[dict], tuning: list[int]) -> list[dict]:
     return [{'string': string, 'fret': fret, 'midi': midi + fret, **by_pitch[(midi + fret) % 12]}
             for string, midi in enumerate(tuning, 1) for fret in range(20)
             if (midi + fret) % 12 in by_pitch]
-
-
-def chord_notes(chord: ChordRef) -> list[dict]:
-    formula = CHORD_INTERVALS[chord.quality]
-    return spelled_notes(chord.root, formula['intervals'], formula['names'])
 
 
 def function_in_key(chord: ChordRef, center: TonalCenter | None) -> str | None:
@@ -113,13 +109,13 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
         voicings = chord_voicings(item, exploration.tuning)
         scratch.append({**item.model_dump(), 'voicing': voicings[0] if voicings else None})
     function = function_in_key(chord, center) if chord else None
-    from app.v2.chord_discovery import resolve_shape
+    voicings = chord_voicings(chord, exploration.tuning) if chord else []
+    triads = triad_shapes(notes, exploration.tuning)
     return {'function': function, 'degrees': degrees, 'palette': palette, 'circle': circle,
-            'discovery': resolve_shape(exploration) if focus.kind == 'shape' else None,
+            'discovery': resolve_shape(exploration, voicings + triads + regions) if focus.kind == 'shape' else None,
             'scale_positions': note_positions(degrees, exploration.tuning),
             'chord_positions': note_positions(notes, exploration.tuning), 'chord_notes': notes,
-            'voicing_positions': physical, 'caged_regions': regions, 'triads': triad_shapes(notes, exploration.tuning),
-            'voicings': chord_voicings(chord, exploration.tuning) if chord else [],
+            'voicing_positions': physical, 'caged_regions': regions, 'triads': triads, 'voicings': voicings,
             'scratch': scratch, 'note_groups': [resolve_note_group(group, exploration.tuning) for group in exploration.kept_note_groups]}
 
 

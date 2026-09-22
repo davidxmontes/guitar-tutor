@@ -30,6 +30,10 @@
 .chord-explorer .music-note[data-layer="removed"] text { text-decoration: line-through; }
 .learning-workspace:has(.chord-explorer) .learning-workspace-layout { grid-template-columns: minmax(0, 1fr); }
 .learning-workspace:has(.chord-explorer) .tutor-panel { max-width: none; }
+.learning-workspace:has(.chord-explorer) > .learning-workspace-header { padding: 0 12px; margin: 8px 0; gap: 0 16px; }
+.chord-explorer-intro .learning-eyebrow { display: none; }
+.chord-explorer-intro { margin: 0 0 10px; }
+.chord-explorer h2 { margin-top: 0; font-size: 24px; }
 @media (max-width: 800px) {
   .chord-explorer-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .chord-explorer-results { border-left: 0; border-top: 1px solid var(--border-primary); padding: 18px 0 0; }

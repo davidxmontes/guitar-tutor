@@ -1,6 +1,8 @@
 # Plan: Chord Explorer
 
-Status: approved by the user for implementation. Chord Explorer is being built on feature/chord-explorer from main-v2 e287327.
+Status: implemented and verified on feature/chord-explorer from main-v2 e287327. Draft PR preparation; no merge or deployment.
+
+Tracking: [spec #130](https://github.com/davidxmontes/guitar-tutor/issues/130), [implementation #131](https://github.com/davidxmontes/guitar-tutor/issues/131). Native sub-issue linking was blocked by automatic approval review as an unapproved hosted-service metadata change; no retry or workaround was attempted.
 
 Grounded in `main-v2` merge `e287327` (PR #129), inspected through the equivalent feature tree at `09f9268`. Implementation should branch from the latest `main-v2`, preserving existing working copies and local servers.
 
@@ -108,5 +110,8 @@ Implementation proposals above (precise ranking, omission ceiling, state extensi
 ## Progress
 
 - Core shape editing, deterministic discovery, concrete suggestions, preview/apply/Undo, pin/scratch reuse and workspace refresh restoration implemented.
-- First verified slice: 452 backend tests, lint, TypeScript/build and three new browser journeys passed.
-- Remaining: edge-case checks, whole-app browser regression, final review and draft PR.
+- Final gate: 455 backend tests (two existing dependency warnings), 23 frontend unit tests, lint and production builds passed. Whole-app browser suite: 99 passed; final focused browser suite after hardening: 15 passed, including six Chord Explorer journeys.
+- Verified musical ambiguity/rootless shapes, enharmonic key changes, tuning, ownership, snapshots, stale client revisions, delayed/failed saves, navigation during queued writes, refresh, preview/apply/Undo, pin/scratch, keyboard navigation and 320px dark layout. Real local app also exercised in the in-app browser.
+- Inline review removed duplicate formula resolution and circular imports, reused existing voicing derivation, corrected preview layer order and restricted refresh changes to the Explorer. An initial regression restoring unrelated workspaces was fixed before the passing whole-app browser run.
+- No new dependencies, hosted changes or live model calls. Local preview uses memory storage: refresh/reopen works while the local API runs; restarting that disposable API clears its sessions. Production persistence continues through the existing owned Branch store.
+- Remaining: publish draft PR; merge and deployment require separate authorization.

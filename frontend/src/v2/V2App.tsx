@@ -59,6 +59,7 @@ function SignedInV2App() {
   const writeSongLocation = useCallback((target: string | null, destination?: typeof page, query?: string, replace = false) => {
     songRequest.current++;
     setLoadingSong(false);
+    setLoadingWorkspace(false);
     setSongTarget(target);
     const url = new URL(window.location.href);
     url.searchParams.delete('session'); url.searchParams.delete('branch');
@@ -83,6 +84,9 @@ function SignedInV2App() {
       if (!target) {
         const sessionId = url.searchParams.get('session');
         if (sessionId) {
+          if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) {
+            setPage('explore'); setError('This session link is invalid. Open a session from your saved sessions.'); return;
+          }
           setLoadingWorkspace(true);
           void apiClient.getV2Session(sessionId).then(session => {
             if (request !== songRequest.current) return;
@@ -115,7 +119,12 @@ function SignedInV2App() {
   useEffect(() => {
     if (page !== 'workspace' || !activeSession || !activeBranchId || songTarget || loadingWorkspace) return;
     const url = new URL(window.location.href);
-    url.searchParams.set('session', activeSession.id); url.searchParams.set('branch', activeBranchId);
+    const branch = activeSession.branches.find(b => b.id === activeBranchId);
+    if (branch?.active_workspace === 'harmony' && branch.harmony_exploration?.focus.kind === 'shape') {
+      url.searchParams.set('session', activeSession.id); url.searchParams.set('branch', activeBranchId);
+    } else {
+      url.searchParams.delete('session'); url.searchParams.delete('branch');
+    }
     window.history.replaceState(window.history.state, '', url);
   }, [page, activeSession, activeBranchId, songTarget, loadingWorkspace]);
 

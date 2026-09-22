@@ -37,16 +37,19 @@ export function ChordExplorer({ surface, disabled, onSurface, onPending, onKeep 
     if (saving.current) return;
     saving.current = true; setError('');
     try {
-      while (pending.current && alive.current) {
+      // Finish already-requested writes when leaving; never update an unmounted
+      // view. Ownership and the revision token still guard every queued write.
+      while (pending.current) {
         const focus = pending.current;
         pending.current = null;
         const branch = server.current.branch;
         try {
           const next = await apiClient.editHarmony(branch.session_id, branch.id, { focus, expected_updated_at: branch.updated_at });
-          if (!alive.current) return;
           server.current = next;
-          onSurface(next);
-          if (!pending.current) { setData(next.resolved.discovery!); setDirty(false); }
+          if (alive.current) {
+            onSurface(next);
+            if (!pending.current) { setData(next.resolved.discovery!); setDirty(false); }
+          }
         } catch (err) {
           if (!alive.current) return;
           pending.current ??= focus;
@@ -154,7 +157,7 @@ export function ChordExplorer({ surface, disabled, onSurface, onPending, onKeep 
         {!data.matches.length && <p>{draft.positions.length === 1 ? 'Add another note to explore possible chords.' : 'No exact match in the supported chord types. Your notes are still available to hear and explore.'}</p>}
         {incomplete.length > 0 && <details className="chord-partial-matches" open={!exact.length}><summary>{exact.length ? 'Other interpretations · missing tones' : 'These shapes are incomplete or ambiguous'}</summary>{(allMatches ? incomplete : incomplete.slice(0, 4)).map(result)}{incomplete.length > 4 && <button className="learning-text-button" onClick={() => setAllMatches(!allMatches)}>{allMatches ? 'Show fewer' : `Show all ${incomplete.length} possibilities`}</button>}</details>}
         {!chosen && data.matches.length > 0 && <p className="learning-hint">Choose an interpretation to explore its intervals and suggestions.</p>}
-        {chosen && <><div className="learning-note-chips">{chosen.notes.map(n => <span key={n.degree} className={n.degree === '1' ? 'is-root' : ''}><strong>{n.note}</strong><small>{n.degree}{chosen.missing.some(m => m.pitch_class === n.pitch_class) ? ' · missing' : ''}</small></span>)}</div>
+        {chosen && <><p className="chord-inversion">{chosen.inversion}{chosen.inversion === chosen.label ? ' · root in bass' : ' · inversion'}</p><div className="learning-note-chips">{chosen.notes.map(n => <span key={n.degree} className={n.degree === '1' ? 'is-root' : ''}><strong>{n.note}</strong><small>{n.degree}{chosen.missing.some(m => m.pitch_class === n.pitch_class) ? ' · missing' : ''}</small></span>)}</div>
           <div className="music-controls chord-keep"><button className="music-button" disabled={disabled || dirty} onClick={() => void onKeep({ pin: { chord: chosen.chord, voicing: { positions: draft.positions, tuning } } })}>Pin shape</button><button className="music-button" disabled={disabled || dirty} onClick={() => void onKeep({ add_scratch: chosen.chord })}>Add chord to scratch</button></div>
           {suggestions('Complete this chord', data.completions)}{suggestions('Change its sound', data.alterations)}{suggestions('Other voicings', data.voicings)}
           {!!chosen.missing.length && !data.completions.length && <p className="learning-hint">No simple completion on the unused strings. Try another voicing or free a string.</p>}

@@ -133,7 +133,7 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
     <div className="learning-workspace-layout"><div className="learning-workspace-main" id="workspace-music" tabIndex={-1}>
     {error && <p role="alert">{error}</p>}
     <p role="status">{compare.error}</p>
-    {view === 'discover' && focus.kind === 'shape' && data.discovery ? <ChordExplorer key={`${branch.id}:${JSON.stringify(state.tuning)}:${explorerVersion}`} surface={surface} disabled={editing} onPending={setShapePending}
+    {view === 'discover' && focus.kind === 'shape' && data.discovery ? <ChordExplorer key={`${branch.id}:${JSON.stringify([state.tuning, state.tonal_center])}:${explorerVersion}`} surface={surface} disabled={editing} onPending={setShapePending}
       onSurface={value => { setSurface(value); onChange(value.branch); if (value.branch.harmony_exploration?.focus.kind !== 'shape') setView('tutor'); }} onKeep={edit} /> : compare.selection.length >= 2 ? <ComparisonView peers={compare.selection} onClear={compare.clear} renderPeer={(peer, config, nudge) => <>
       <h3>{peer.label}</h3>{peer.kind === 'voicing' && <PhysicalChordDiagram positions={peer.positions as ResolvedNote[]} tuning={(peer.tuning as number[]) ?? state.tuning} label={peer.label} />}{peer.subject != null && <button className="music-button" disabled={busy} onClick={() => void explore(peer.subject as Record<string, unknown>)}>Explore →</button>}<Fretboard context="harmony" layers={[{ id: peer.id, label: peer.label, focal: true, positions: peer.positions as ResolvedNote[] }]} config={config} onNudge={nudge} />
     </>} /> : <CompositionView composition={composition} liveTurnId={`${branch.id}:${view}:${surface.branch.live_presentation_turn_id ?? 'starter'}`}

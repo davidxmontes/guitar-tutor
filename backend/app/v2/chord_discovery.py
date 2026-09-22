@@ -11,13 +11,13 @@ def chord_label(chord: ChordRef) -> str:
     return chord.root + _get_quality_suffix(chord.quality)
 
 
-def tones(chord: ChordRef) -> list[dict]:
+def chord_notes(chord: ChordRef) -> list[dict]:
     formula = CHORD_INTERVALS[chord.quality]
     return spelled_notes(chord.root, formula['intervals'], formula['names'])
 
 
 def resolved_positions(positions: list[dict], tuning: list[int], chord: ChordRef | None = None) -> list[dict]:
-    by_pitch = {n['pitch_class']: n for n in tones(chord)} if chord else {}
+    by_pitch = {n['pitch_class']: n for n in chord_notes(chord)} if chord else {}
     return [p | {'midi': tuning[p['string'] - 1] + p['fret']} |
             by_pitch.get((tuning[p['string'] - 1] + p['fret']) % 12,
                          chromatic_note(tuning[p['string'] - 1] + p['fret'])) for p in positions]
@@ -34,7 +34,7 @@ def shape_distance(candidate: list[dict], original: list[dict]) -> tuple:
 
 
 def proposed_shapes(original: list[dict], tuning: list[int], chord: ChordRef, *, replace: bool) -> list[list[dict]]:
-    target = {n['pitch_class'] for n in tones(chord)}
+    target = {n['pitch_class'] for n in chord_notes(chord)}
     kept = [p for p in original if (tuning[p['string'] - 1] + p['fret']) % 12 in target]
     bases = [kept]
     # ponytail: consider at most one extra string replacement; catalog shapes
@@ -83,8 +83,7 @@ def suggestion(original: list[dict], positions: list[dict], tuning: list[int], c
             'inversion': name if bass['pitch_class'] == pitch_class(chord.root) else f"{name}/{bass['note']}"}
 
 
-def resolve_shape(state: HarmonyExploration) -> dict:
-    from app.v2.harmony import chord_voicings, triad_shapes
+def resolve_shape(state: HarmonyExploration, known_shapes: list[dict]) -> dict:
     focus = state.focus
     positions = [p.model_dump() for p in focus.positions]
     physical = resolved_positions(positions, state.tuning, focus.interpretation)
@@ -97,17 +96,21 @@ def resolve_shape(state: HarmonyExploration) -> dict:
         for note in spelled_notes(center.root, SCALE_INTERVALS[center.scale], SCALE_DEGREE_NAMES[center.scale]):
             roots[note['pitch_class']] = note['note']
             scale_pitches.add(note['pitch_class'])
+    if focus.interpretation:
+        roots[pitch_class(focus.interpretation.root)] = focus.interpretation.root
     matches = []
     if len(selected) >= 2:
         for root in roots.values():
             for quality in CHORD_INTERVALS:
                 chord = ChordRef(root=root, quality=quality)
-                notes = tones(chord)
+                notes = chord_notes(chord)
                 pitches = {n['pitch_class'] for n in notes}
                 if not selected <= pitches or len(pitches - selected) > 2:
                     continue
                 missing = [n for n in notes if n['pitch_class'] not in selected]
+                bass_name = next(n['note'] for n in notes if n['pitch_class'] == bass['pitch_class'])
                 matches.append({'chord': chord.model_dump(), 'label': chord_label(chord), 'notes': notes,
+                                'inversion': chord_label(chord) if pitch_class(root) == bass['pitch_class'] else f'{chord_label(chord)}/{bass_name}',
                                 'missing': missing, 'in_key': bool(scale_pitches) and pitches <= scale_pitches})
         matches.sort(key=lambda m: (len(m['missing']), not m['in_key'],
                                    pitch_class(m['chord']['root']) != bass['pitch_class'], m['label']))
@@ -116,20 +119,21 @@ def resolve_shape(state: HarmonyExploration) -> dict:
     if chosen:
         completions = [suggestion(positions, p, state.tuning, chosen)
                        for p in proposed_shapes(positions, state.tuning, chosen, replace=False)]
-        chosen_pitches = {n['pitch_class'] for n in tones(chosen)}
+        chosen_pitches = {n['pitch_class'] for n in chord_notes(chosen)}
         for quality in CHORD_INTERVALS:
             other = ChordRef(root=chosen.root, quality=quality)
-            other_pitches = {n['pitch_class'] for n in tones(other)}
+            other_pitches = {n['pitch_class'] for n in chord_notes(other)}
             if other == chosen or len(other_pitches ^ chosen_pitches) > 2:
                 continue
             options = proposed_shapes(positions, state.tuning, other, replace=True)
             if options:
                 alterations.append(suggestion(positions, options[0], state.tuning, other))
         alterations.sort(key=lambda s: shape_distance(s['positions'], positions))
-        known = chord_voicings(chosen, state.tuning) + triad_shapes(tones(chosen), state.tuning)
         unique = {}
-        for option in known:
+        for option in known_shapes:
             points = [{'string': p['string'], 'fret': p['fret']} for p in option['positions']]
+            if any(not 0 <= p['fret'] <= 24 or not 0 <= state.tuning[p['string'] - 1] + p['fret'] <= 127 for p in points):
+                continue
             if {(state.tuning[p['string'] - 1] + p['fret']) % 12 for p in points} != chosen_pitches:
                 continue
             if sorted(points, key=lambda p: p['string']) == sorted(positions, key=lambda p: p['string']):

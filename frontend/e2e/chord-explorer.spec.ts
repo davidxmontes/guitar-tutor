@@ -19,6 +19,12 @@ test('draw, interpret, preview, apply and undo a shape without model calls', asy
   const c = page.getByRole('button', { name: 'C All chord tones present', exact: true });
   await c.click(); await saved(page);
   await expect(c).toHaveAttribute('aria-pressed', 'true');
+  await page.getByText('Tuning & optional key', { exact: true }).click();
+  await page.getByLabel('Root', { exact: true }).selectOption('C');
+  await expect(page.getByRole('button', { name: 'C All chord tones present In your key', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Root', { exact: true }).selectOption('F#');
+  await expect(c).toHaveAttribute('aria-pressed', 'true');
+  await page.getByText('Tuning & optional key', { exact: true }).click();
   // Suggestions are musically ranked; choose the Cmaj7 result regardless of its bass/position rank.
   await page.locator('.chord-suggestions').filter({ has: page.locator('summary', { hasText: /^Change its sound/ }) }).getByText('More options', { exact: true }).click();
   const seventh = page.locator('.chord-suggestions').filter({ has: page.locator('summary', { hasText: /^Change its sound/ }) }).getByRole('button').filter({ hasText: /^Cmaj7/ }).first();
@@ -75,4 +81,44 @@ test('keyboard editing and mobile dark layout keep the neck and results accessib
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await expect(page.getByLabel('Build your chord shape').locator('[tabindex="0"]')).toHaveCount(1);
   await page.screenshot({ path: '/tmp/chord-explorer-mobile.png', fullPage: true });
+});
+
+test('leaving during rapid edits finishes the latest shape without navigating back', async ({ page }) => {
+  await open(page);
+  const url = page.url();
+  await page.route('**/branches/*/harmony', async route => {
+    if (route.request().method() === 'PATCH') await new Promise(resolve => setTimeout(resolve, 250));
+    await route.continue();
+  });
+  await note(page, 1, 0).click(); await note(page, 2, 1).click(); await note(page, 3, 0).click();
+  await page.getByRole('button', { name: 'Explore', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /What would you like/ })).toBeVisible();
+  const params = new URL(url).searchParams;
+  const api = `/api/v2/sessions/${params.get('session')}/branches/${params.get('branch')}/harmony`;
+  await expect.poll(async () => (await (await page.request.get(api)).json()).branch.harmony_exploration.focus.positions.length).toBe(3);
+  await expect(page.getByRole('heading', { name: /What would you like/ })).toBeVisible();
+  await page.goto(url);
+  await expect(page.getByRole('button', { name: 'C All chord tones present', exact: true })).toBeVisible();
+});
+
+test('a stale write keeps the local draft until explicitly reloaded', async ({ page }) => {
+  await open(page); await cMajor(page);
+  const params = new URL(page.url()).searchParams;
+  const api = `/api/v2/sessions/${params.get('session')}/branches/${params.get('branch')}/harmony`;
+  await page.request.patch(api, { data: { focus: { kind: 'shape', positions: [], interpretation: null } } });
+  await note(page, 5, 3).click();
+  await expect(page.getByRole('alert')).toContainText('changed elsewhere');
+  await expect(note(page, 5, 3)).toHaveAttribute('aria-pressed', 'true');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Reload saved shape' }).click();
+  await expect(page.getByRole('heading', { name: 'Start with a few notes' })).toBeVisible();
+  await expect(note(page, 5, 3)).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('malformed session links cannot change the API path', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', request => { if (request.url().includes('/api/v2/sessions/')) requests.push(request.url()); });
+  await page.goto('/v2?session=..%2Fother');
+  await expect(page.getByRole('alert')).toContainText('session link is invalid');
+  expect(requests).toEqual([]);
 });

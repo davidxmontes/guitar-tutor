@@ -91,3 +91,50 @@ def test_tutor_can_read_shape_but_cannot_invent_a_physical_focus():
     assert context['resolved']['discovery']['positions'][0]['note'] == 'E'
     with pytest.raises(ValueError, match='learner'):
         resolve_turn_music(branch, TutorTerminal(message='Changed', focus=shape([]).focus.model_dump()))
+
+
+def test_rootless_spelling_compound_intervals_and_symmetric_ambiguity():
+    rootless = shape([{'string': 1, 'fret': 5}, {'string': 2, 'fret': 3}, {'string': 3, 'fret': 4}, {'string': 4, 'fret': 3}])
+    g9 = next(m for m in discovery(rootless)['matches'] if m['label'] == 'G9')
+    assert [(n['note'], n['degree']) for n in g9['missing']] == [('G', '1')]
+    sharp = shape([{'string': 1, 'fret': 1}, {'string': 2, 'fret': 2}, {'string': 3, 'fret': 1}],
+                  tonal_center={'root': 'F#', 'scale': 'major'})
+    match = next(m for m in discovery(sharp)['matches'] if not m['missing'])
+    assert [n['note'] for n in match['notes']] == ['C#', 'E#', 'G#']
+    assert match['inversion'] == 'C#/G#'
+    symmetric = shape([{'string': 1, 'fret': 2}, {'string': 2, 'fret': 1}, {'string': 3, 'fret': 2}, {'string': 4, 'fret': 1}])
+    assert len([m for m in discovery(symmetric)['matches'] if not m['missing']]) == 4
+
+
+def test_key_context_preserves_shape_and_tuning_uses_lowest_pitch_not_string_number():
+    from app.v2.harmony import change_subject
+    state = shape(interpretation={'root': 'C', 'quality': 'major'})
+    changed = change_subject(state, {'root': 'F#', 'scale': 'major'})
+    assert changed.focus == state.focus
+    assert any(m['label'] == 'C' and not m['missing'] for m in discovery(changed)['matches'])
+    sharp = shape([{'string': 1, 'fret': 1}, {'string': 2, 'fret': 2}, {'string': 3, 'fret': 1}],
+                  interpretation={'root': 'C#', 'quality': 'major'})
+    flat_key = change_subject(sharp, {'root': 'Db', 'scale': 'major'})
+    assert flat_key.focus == sharp.focus
+    assert any(m['chord'] == sharp.focus.interpretation.model_dump() for m in discovery(flat_key)['matches'])
+    unusual = shape(C_SHAPE, tuning=[40, 59, 55, 50, 45, 64])
+    assert discovery(unusual)['bass']['string'] == 1
+    with pytest.raises(ValidationError):
+        shape([{'string': 1, 'fret': 24}], tuning=[120, 59, 55, 50, 45, 40])
+
+
+def test_shape_is_owned_and_snapshots_roundtrip_without_new_artifacts():
+    from app.dependencies.auth import get_current_user
+    from app.v2.turns import musical_snapshot
+    from app.v2.models import Branch
+    store = InMemoryV2Store()
+    client = _app(store, lambda **kw: pytest.fail('No model'))
+    session = client.post('/api/v2/sessions').json()
+    branch = session['branches'][0]
+    url = f"/api/v2/sessions/{session['id']}/branches/{branch['id']}/harmony"
+    branch = client.patch(url, json={'focus': shape().focus.model_dump()}).json()['branch']
+    restored = Branch.model_validate(branch | musical_snapshot(Branch.model_validate(branch)))
+    assert restored.harmony_exploration.focus == shape().focus
+    client.app.dependency_overrides[get_current_user] = lambda: 'other-user'
+    assert client.get(url).status_code == 404
+    assert client.patch(url, json={'focus': shape([]).focus.model_dump()}).status_code == 404
