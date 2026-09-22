@@ -552,3 +552,17 @@ and request deduplication. Local ports 5310/5287 use API 8316; 12 sessions,
 The repo now contains a Tavily key. One live basic search for a public Wonderwall
 lesson returned five results. The agent loop was verified with scripted model
 calls; no new live-model request was made for this integration.
+
+### Chat sizing
+
+“Resize chat” in the Tutor header exposes native, keyboard/touch-accessible
+sliders: desktop width (320–640px, additionally capped at 45% of the viewport)
+and small-screen height (35–95% of the viewport). Desktop score space follows
+the chosen width. Reset restores the defaults. Sizes survive closing/reopening
+within the current song; no extra stored preferences or resize library is used.
+Drafts and conversation state remain mounted while sizing changes.
+
+Verification: all six SongStudy Tutor browser journeys, lint, and the local-auth
+production build pass. Expanded desktop and mobile screenshots were reviewed;
+tests cover keyboard resizing, score separation, close/reopen, draft retention,
+viewport containment, and reset. Changes are available through local HMR.

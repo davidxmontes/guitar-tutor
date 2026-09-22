@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { SongStudyTutor } from './SongStudyTutor';
 import { SongVideo } from './SongVideo';
 import type { VideoPosition } from './songVideoTiming';
@@ -613,6 +614,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
     { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE },
   );
   const [selection, setSelection] = useState<SongSelection | null>(null);
+  const [tutorWidth, setTutorWidth] = useState(360);
   // New selection objects represent learner gestures, including reselecting a beat.
   // Keep the fallback stable so playback highlights cannot trigger a seek.
   const videoSelection = useMemo<SongSelection>(() => selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }, [selection, focus.measureIndex]);
@@ -910,7 +912,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   };
 
   return (
-    <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)' }}>
+    <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)', '--song-tutor-width': `${tutorWidth}px` } as CSSProperties}>
     <div className="song-study-content flex w-full flex-col gap-4 flex-1 min-w-0">
       <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -946,7 +948,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
       {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={songDrill(payload, selection, focus)} />}
       {playbackSource === 'practice' && <><span data-testid="practice-selected-span">Selection: {videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} (whole measure)` : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1} (whole measure)` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`}</span><PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" /></>}
       </div>
-      <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} />
+      <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} width={tutorWidth} onWidthChange={setTutorWidth} />
       <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
     <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
       <div className="song-study-score flex w-full flex-col gap-4 min-w-0">

@@ -149,3 +149,29 @@ test('online access is optional for the agent and saved sources render as links'
   await page.getByText('Online sources (1)', { exact: true }).click();
   await expect(page.getByRole('link', { name: 'Alternative transcription' })).toHaveAttribute('href', 'https://example.com/tab');
 });
+
+test('chat resize controls adjust desktop score space and mobile height without losing a draft', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openSong(page);
+  await page.getByRole('button', { name: 'Ask about selection', exact: true }).click();
+  await page.getByLabel('Ask the Tutor', { exact: true }).fill('Keep this while resizing');
+  await page.getByText('Resize chat', { exact: true }).click();
+  await page.getByRole('slider', { name: 'Chat width' }).press('End');
+  const sidebar = page.getByRole('region', { name: 'Song Tutor', exact: true });
+  await expect(sidebar).toHaveCSS('width', '640px');
+  const score = await page.locator('.song-study-score').boundingBox();
+  const panel = await sidebar.boundingBox();
+  expect(score!.x + score!.width).toBeLessThanOrEqual(panel!.x);
+  await page.screenshot({ path: '/tmp/song-chat-resized-desktop.png' });
+  await page.getByRole('button', { name: 'Close Tutor' }).click();
+  await page.getByRole('button', { name: 'Ask about selection', exact: true }).click();
+  await expect(sidebar).toHaveCSS('width', '640px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('slider', { name: 'Chat height' }).press('End');
+  expect((await sidebar.boundingBox())!.height).toBeGreaterThan(800);
+  await expect(page.getByLabel('Ask the Tutor', { exact: true })).toHaveValue('Keep this while resizing');
+  await page.screenshot({ path: '/tmp/song-chat-resized-mobile.png' });
+  await page.getByRole('button', { name: 'Reset size' }).click();
+  expect((await sidebar.boundingBox())!.height).toBeLessThan(600);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
