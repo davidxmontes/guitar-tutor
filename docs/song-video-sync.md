@@ -555,14 +555,14 @@ calls; no new live-model request was made for this integration.
 
 ### Chat sizing
 
-“Resize chat” in the Tutor header exposes native, keyboard/touch-accessible
-sliders: desktop width (320–640px, additionally capped at 45% of the viewport)
-and small-screen height (35–95% of the viewport). Desktop score space follows
-the chosen width. Reset restores the defaults. Sizes survive closing/reopening
-within the current song; no extra stored preferences or resize library is used.
-Drafts and conversation state remain mounted while sizing changes.
+Drag the desktop Tutor’s left edge to change its width, or drag the small-screen
+sheet’s top grip to change height. The focusable resize separators also accept
+arrow keys, Home, and End; double-click resets the size. Pointer capture keeps
+dragging active outside the handle; cancellation releases it. No slider/editor
+or resize dependency is used. Desktop score space follows the chosen width.
+Width remains 320–640px (at most 45% of the viewport), and sheet height 35–95%.
+Sizes and drafts survive closing/reopening within the current song.
 
-Verification: all six SongStudy Tutor browser journeys, lint, and the local-auth
-production build pass. Expanded desktop and mobile screenshots were reviewed;
-tests cover keyboard resizing, score separation, close/reopen, draft retention,
-viewport containment, and reset. Changes are available through local HMR.
+Verification: six chat browser journeys passed, followed by the expanded resize
+check covering both desktop and mobile pointer drags, keyboard adjustment, and
+double-click reset. Lint/build pass; desktop/mobile screenshots reviewed.

@@ -317,12 +317,16 @@
 }
 .song-study-content :is(button, input, select, textarea, summary) { scroll-margin-bottom: 90px; }
 
-.song-tutor-size { padding: 6px 12px; border-bottom: 1px solid var(--border-primary); flex-shrink: 0; }
-.song-tutor-size summary { cursor: pointer; font-size: 12px; padding: 4px 0; }
-.song-tutor-size label { display: flex; align-items: center; gap: 12px; font-size: 12px; }
-.song-tutor-size input { flex: 1; min-width: 0; min-height: 32px; }
-.song-tutor-size .song-tutor-height { display: none; }
+/* Wide hit areas support touch without adding permanent editor controls. */
+.song-tutor-resizer { position: absolute; z-index: 2; touch-action: none; user-select: none; }
+.song-tutor-resizer--width { left: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; }
+.song-tutor-resizer--width::after { content: ''; position: absolute; left: 3px; top: 45%; height: 40px; width: 3px; border-radius: 3px; background: var(--text-muted); }
+.song-tutor-resizer:focus-visible { outline: 2px solid var(--learning-green); outline-offset: -2px; }
+.song-tutor-resizer:hover::after, .song-tutor-resizer:focus-visible::after { background: var(--learning-green); }
+.song-tutor-resizer--height { display: none; }
 @media (max-width: 1199px) {
-  .song-tutor-size .song-tutor-width { display: none; }
-  .song-tutor-size .song-tutor-height { display: flex; }
+  .song-tutor-sidebar { padding-top: 16px; }
+  .song-tutor-resizer--width { display: none; }
+  .song-tutor-resizer--height { display: block; top: 0; left: 0; right: 0; height: 20px; cursor: ns-resize; }
+  .song-tutor-resizer--height::after { content: ''; position: absolute; top: 7px; left: calc(50% - 20px); width: 40px; height: 4px; border-radius: 4px; background: var(--text-muted); }
 }
