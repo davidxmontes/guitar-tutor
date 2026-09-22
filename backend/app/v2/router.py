@@ -732,6 +732,7 @@ from app.services.scale_service import VALID_ROOTS
 
 
 class HarmonyEdit(StrictModel):
+    expected_updated_at: str | None = None
     tonal_center: TonalCenter | None = None
     tuning: Tuning | None = None
     focus: HarmonyFocus | None = None
@@ -797,6 +798,8 @@ def read_harmony_surface(session_id: str, branch_id: str, user_id: str = Depends
 @router.patch('/sessions/{session_id}/branches/{branch_id}/harmony')
 def edit_harmony_surface(session_id: str, branch_id: str, edit: HarmonyEdit, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     branch = owned_branch(store, session_id, branch_id, user_id)
+    if edit.expected_updated_at is not None and edit.expected_updated_at != branch.updated_at:
+        raise HTTPException(409, 'Harmony changed elsewhere. Reload before applying your shape.')
     state = branch.harmony_exploration
     if state is None:
         raise HTTPException(status_code=422, detail='No Harmony Exploration')

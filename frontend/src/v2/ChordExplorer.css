@@ -1,0 +1,43 @@
+.chord-explorer { min-width: 0; }
+.chord-context summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-size: 13px; }
+.chord-context > .music-controls { padding: 0 0 12px; }
+.chord-explorer-intro { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 6px 0 20px; }
+.chord-explorer h2 { font-size: clamp(22px, 3vw, 30px); letter-spacing: -.035em; margin: 5px 0 8px; }
+.chord-explorer h3 { margin: 0 0 8px; font-size: 18px; }
+.chord-explorer p { font-size: 14px; line-height: 1.6; margin: 8px 0; }
+.chord-save-status { font-size: 12px; white-space: nowrap; color: var(--text-secondary); }
+.chord-explorer-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 24px; align-items: start; }
+.chord-explorer-instrument, .chord-explorer-results { min-width: 0; }
+.chord-explorer-instrument > .music-controls { margin-bottom: 14px; }
+.chord-explorer-results { border-left: 1px solid var(--border-primary); padding-left: 22px; }
+.chord-string-notes { display: flex; justify-content: space-around; gap: 8px; margin: 15px 0; }
+.chord-string-notes > span { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.chord-string-notes strong { font-size: 20px; }
+.chord-string-notes small { font-size: 11px; color: var(--text-secondary); }
+.chord-match, .chord-suggestion { width: 100%; display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-primary); cursor: pointer; min-height: 44px; }
+.chord-match strong { font-size: 23px; font-weight: 650; letter-spacing: -.02em; }
+.chord-match span, .chord-suggestion span, .chord-match small { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.chord-match:hover, .chord-suggestion:hover, .chord-match[aria-pressed="true"], .chord-suggestion[aria-pressed="true"] { background: var(--learning-wash); border-color: var(--border-primary); }
+.chord-explorer button:focus-visible, .chord-explorer summary:focus-visible { outline: 2px solid var(--accent-700); outline-offset: 2px; }
+.chord-partial-matches, .chord-suggestions { margin-top: 16px; border-top: 1px solid var(--border-primary); padding-top: 8px; }
+.chord-explorer summary { cursor: pointer; padding: 8px 0; min-height: 44px; font-size: 13px; font-weight: 600; }
+.chord-suggestions summary > span { font-weight: 400; color: var(--text-secondary); padding-left: 4px; }
+.chord-keep { margin: 14px 0; }
+.chord-preview { margin-top: 20px; border: 1px solid var(--border-primary); border-radius: 12px; padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr) 100px; gap: 10px 18px; background: var(--learning-wash); }
+.chord-preview .music-controls { grid-column: 1 / -1; }
+.chord-explorer .music-note[data-layer="suggestion"] circle { fill: var(--card-bg); stroke: var(--accent-700); stroke-width: 2; stroke-dasharray: 3 2; }
+.chord-explorer .music-note[data-layer="removed"] circle { fill: var(--card-bg); stroke-dasharray: 2 2; opacity: .85; }
+.chord-explorer .music-note[data-layer="removed"] text { text-decoration: line-through; }
+.learning-workspace:has(.chord-explorer) .learning-workspace-layout { grid-template-columns: minmax(0, 1fr); }
+.learning-workspace:has(.chord-explorer) .tutor-panel { max-width: none; }
+.learning-workspace:has(.chord-explorer) > .learning-workspace-header { padding: 0 12px; margin: 8px 0; gap: 0 16px; }
+.chord-explorer-intro .learning-eyebrow { display: none; }
+.chord-explorer-intro { margin: 0 0 10px; }
+.chord-explorer h2 { margin-top: 0; font-size: 24px; }
+@media (max-width: 800px) {
+  .chord-explorer-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .chord-explorer-results { border-left: 0; border-top: 1px solid var(--border-primary); padding: 18px 0 0; }
+  .chord-preview { padding: 12px; grid-template-columns: minmax(0, 1fr) 80px; }
+  .chord-string-notes { gap: 3px; }
+  .chord-string-notes small { font-size: 10px; }
+}

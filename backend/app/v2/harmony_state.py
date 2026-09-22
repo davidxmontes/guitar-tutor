@@ -75,7 +75,19 @@ class VoicingFocus(StrictModel):
     voicing: VoicingValue
 
 
-HarmonyFocus = Annotated[ScaleFocus | DegreeFocus | ChordFocus | VoicingFocus, Field(discriminator='kind')]
+class ShapeFocus(StrictModel):
+    kind: Literal['shape'] = 'shape'
+    positions: list[PhysicalRef] = Field(default_factory=list, max_length=6)
+    interpretation: ChordRef | None = None
+
+    @model_validator(mode='after')
+    def unique_strings(self):
+        if len({p.string for p in self.positions}) != len(self.positions):
+            raise ValueError('A shape has at most one position per string')
+        return self
+
+
+HarmonyFocus = Annotated[ScaleFocus | DegreeFocus | ChordFocus | VoicingFocus | ShapeFocus, Field(discriminator='kind')]
 
 
 class ConceptSeed(StrictModel):
@@ -114,4 +126,15 @@ class HarmonyExploration(StrictModel):
                 raise ValueError('Duplicate workspace ID')
         if self.focus.kind == 'voicing' and self.focus.voicing.tuning != self.tuning:
             raise ValueError('Focused voicing must match exploration tuning')
+        if self.focus.kind == 'shape':
+            pitches = {self.tuning[p.string - 1] + p.fret for p in self.focus.positions}
+            if any(midi > 127 for midi in pitches):
+                raise ValueError('Shape pitch exceeds MIDI range')
+            if self.focus.interpretation:
+                from app.v2.workspace import pitch_class
+                chord = self.focus.interpretation
+                tones = {(pitch_class(chord.root) + n) % 12 for n in CHORD_INTERVALS[chord.quality]['intervals']}
+                selected = {midi % 12 for midi in pitches}
+                if len(selected) < 2 or not selected <= tones or len(tones - selected) > 2:
+                    raise ValueError('Interpretation must fit the selected notes')
         return self
