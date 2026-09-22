@@ -293,6 +293,26 @@
 .learning-session-row > button:first-child { flex: 1; min-width: 0; }
 .learning-recent-list .session-delete { display: grid; place-items: center; flex: 0 0 32px; width: 32px; min-height: 32px; padding: 4px; border: 0; box-shadow: none; background: transparent; }
 
-.song-study-tutor { margin: 12px 0; min-width: 0; }
-.song-study-tutor > summary { width: fit-content; cursor: pointer; padding: 8px 0; font-weight: 600; }
-.song-study-tutor .tutor-panel { position: static; max-width: 760px; }
+/* Non-modal so the learner can change the passage while chatting. */
+.song-study-tutor { min-width: 0; }
+.song-study-content { padding-bottom: 80px; }
+.song-tutor-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 40; box-shadow: var(--surface-shadow); }
+.song-tutor-sidebar { position: fixed; right: 16px; top: 16px; bottom: 16px; width: 360px; z-index: 40; display: flex; flex-direction: column; border: 1px solid var(--control-border); border-radius: 18px; background: var(--card-bg); box-shadow: var(--surface-shadow); overflow: hidden; }
+.song-tutor-sidebar[hidden], .song-tutor-launcher[hidden] { display: none; }
+.song-tutor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border-primary); }
+.song-tutor-toolbar strong { min-width: 0; font-size: 14px; }
+.song-tutor-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.song-study-tutor .tutor-panel { position: static; border: 0; border-radius: 0; box-shadow: none; }
+.song-study-tutor .tutor-heading { display: none; }
+@media (min-width: 1200px) {
+  .song-study-content:has(.song-study-tutor.is-open) { padding-right: 380px; }
+}
+@media (max-width: 1199px) {
+  .song-tutor-sidebar { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 70dvh; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .song-tutor-launcher { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+@media (min-width: 1200px) and (max-width: 1600px) {
+  .song-study-content:has(.song-study-tutor.is-open) .song-video-layout { display: flex; flex-direction: column; }
+  .song-study-content:has(.song-study-tutor.is-open) .song-video { position: static; max-width: 480px; }
+}
+.song-study-content :is(button, input, select, textarea, summary) { scroll-margin-bottom: 90px; }

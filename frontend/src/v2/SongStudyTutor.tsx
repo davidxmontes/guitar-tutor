@@ -6,6 +6,10 @@ export function SongStudyTutor({ song, selection, ensureBranch }: {
   song: SongStudyArtifact; selection: SongSelection; ensureBranch: () => Promise<V2Branch>;
 }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const close = () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus()); };
+  useEffect(() => { if (open) closeButton.current?.focus(); }, [open]);
   const [branch, setBranch] = useState<V2Branch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -25,10 +29,15 @@ export function SongStudyTutor({ song, selection, ensureBranch }: {
   }, [open, branch, attempt]);
   const span = selection.type === 'beat' ? `M${selection.measureIndex + 1} · beat ${selection.beatIndex + 1}`
     : `M${selection.startMeasureIndex + 1}–${selection.endMeasureIndex + 1}`;
-  return <details className="song-study-tutor" onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>Ask about selection</summary>
-    {open && (branch ? <TutorPanel key={branch.id} branch={branch} context={`${song.payload.title} · ${song.payload.track.name} · ${span}`} songContext={{ artifact_id: song.id, selection }} busy={busy} onBusy={setBusy} onRefresh={async updated => setBranch(updated)} />
+  return <div className={`song-study-tutor${open ? ' is-open' : ''}`}>
+    <button ref={trigger} type="button" className="music-button song-tutor-launcher" aria-expanded={open} aria-controls="song-tutor-sidebar" onClick={() => setOpen(true)} hidden={open}>Ask about selection</button>
+    <section id="song-tutor-sidebar" className="song-tutor-sidebar" aria-label="Song Tutor" hidden={!open} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}>
+      <header className="song-tutor-toolbar"><strong>Song Tutor · {span}</strong><button ref={closeButton} type="button" className="music-button" aria-label="Close Tutor" onClick={close}>Close</button></header>
+      <div className="song-tutor-body">
+    {branch ? <TutorPanel key={branch.id} branch={branch} context={`${song.payload.title} · ${song.payload.track.name} · ${span}`} songContext={{ artifact_id: song.id, selection }} busy={busy} onBusy={setBusy} onRefresh={async updated => setBranch(updated)} />
       : error ? <p role="alert">{error} <button type="button" className="music-button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>Retry</button></p>
-        : <p role="status">Opening your song conversation…</p>)}
-  </details>;
+        : <p role="status">Opening your song conversation…</p>}
+      </div>
+    </section>
+  </div>;
 }

@@ -483,3 +483,24 @@ Local frontend ports 5310 and 5287 now use API 8312 with the current snapshot
 alive for its original in-memory state and historical revisions. Only current
 artifact payloads are carried by the local snapshot; this is not a durable-store
 migration. No push, merge, deployment, or hosted-service change was performed.
+
+### Tutor sidebar layout
+
+Song Study exposes a fixed “Ask about selection” button, so chat is accessible
+while scrolling the score. At desktop widths (1200px and above), opening Tutor
+reserves space beside the score for a fixed sidebar. Narrower screens use a
+bottom sheet capped at 70% of the viewport, with a persistent close control.
+Both are non-modal: score selection remains available. Escape closes the panel
+and restores focus to the launcher; drafts and running questions survive closing.
+The existing Tutor remains mounted after its first opening, without another
+conversation or playback state. Intermediate desktop widths stack video above
+the score while chat is open to avoid squeezing three columns together.
+
+Layout verification: the full 94-journey run exposed three mobile pointer
+overlap failures (91 passed). Bottom space and native scroll margins now keep
+controls clear of the launcher. All 10 SongStudy/Tutor journeys and all 22 video
+journeys passed on recheck, including each failure. Lint and both build modes
+passed. Desktop/mobile, light/dark screenshots and the live local app were
+reviewed; keyboard focus restoration and draft retention are covered. Inline
+standards and simplification review kept the change within the existing Tutor
+wrapper and CSS, without a drawer dependency or duplicate chat state.

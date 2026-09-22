@@ -54,7 +54,9 @@ test('song Tutor handles unavailable provider and retries without a fabricated a
   await expect(page.getByRole('alert')).toContainText('configure an AI provider');
   await expect(page.getByLabel('Ask the Tutor')).toHaveValue('Explain the techniques');
   await expect(page.locator('.tutor-message--assistant')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close Tutor', exact: true }).click();
   await page.getByRole('button', { name: 'Select beat 2 of measure 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask about selection', exact: true }).click();
   const retry = page.waitForRequest(request => request.url().endsWith('/tutor/jobs') && request.method() === 'POST');
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   expect((await retry).postDataJSON().song_context.selection).toEqual({ type: 'range', startMeasureIndex: 0, endMeasureIndex: 0 });
@@ -82,4 +84,40 @@ test('song Tutor reconnects a pending answer after leaving and keeps its submitt
   await expect(page.locator('.tutor-message--assistant')).toBeVisible({ timeout: 15000 });
   await expect(page.locator('.tutor-message--assistant')).toContainText('Selected passage: M2–2');
   await expect(page.locator('.tutor-message--user')).toHaveCount(1);
+});
+
+
+test('Tutor stays beside the score on desktop and becomes a dismissible mobile sheet', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openSong(page);
+  const launcher = page.getByRole('button', { name: 'Ask about selection', exact: true });
+  await launcher.click();
+  const sidebar = page.getByRole('region', { name: 'Song Tutor', exact: true });
+  await expect(page.getByRole('button', { name: 'Close Tutor' })).toBeFocused();
+  await expect(page.getByLabel('Ask the Tutor')).toBeVisible();
+  const score = await page.locator('.song-study-score').boundingBox();
+  const panel = await sidebar.boundingBox();
+  expect(score!.x + score!.width).toBeLessThanOrEqual(panel!.x);
+  await page.getByLabel('Ask the Tutor').fill('Keep my draft');
+  await page.getByLabel('Ask the Tutor').press('Escape');
+  await expect(launcher).toBeFocused();
+  await expect(sidebar).toBeHidden();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(launcher).toBeInViewport();
+  await launcher.click();
+  await expect(page.getByLabel('Ask the Tutor')).toHaveValue('Keep my draft');
+  await page.screenshot({ path: '/tmp/song-tutor-sidebar-desktop.png' });
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+  await page.getByLabel('Playback source').selectOption('video');
+  const video = await page.locator('.song-video').boundingBox();
+  expect(video!.x + video!.width).toBeLessThanOrEqual(panel!.x);
+  await page.screenshot({ path: '/tmp/song-tutor-sidebar-dark.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sheet = await sidebar.boundingBox();
+  expect(sheet!.y).toBeGreaterThanOrEqual(844 * .29);
+  expect(sheet!.x).toBe(0);
+  expect(sheet!.width).toBe(390);
+  await page.screenshot({ path: '/tmp/song-tutor-sidebar-mobile.png' });
+  await page.getByRole('button', { name: 'Close Tutor' }).click();
+  await expect(launcher).toBeFocused();
 });
