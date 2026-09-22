@@ -1,4 +1,4 @@
-import type { ResolvedNote, NoteLayer, VoicingValue } from '../types/music';
+import type { ResolvedNote, NoteLayer, VoicingValue, PhysicalPosition } from '../types/music';
 import { MusicIcon } from './MusicIcon';
 import { useMusicalInteraction } from './musicalInteraction';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,7 +22,7 @@ export function Hear({ voicing, label = 'Hear' }: { voicing: VoicingValue; label
 }
 
 /** The neck alone: controlled musical data, optional note interaction, no toolbar or playback state. */
-export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], labels = 'notes', playing, onSelect }: {
+export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], labels = 'notes', playing, onSelect, editor }: {
   label: string;
   layers: NoteLayer[];
   tuning?: number[];
@@ -30,11 +30,15 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
   labels?: 'notes' | 'degrees';
   playing?: ResolvedNote | null;
   onSelect?: (note: ResolvedNote, layer: NoteLayer) => void;
+  editor?: { grid: ResolvedNote[]; selected: PhysicalPosition[]; onToggle: (note: ResolvedNote) => void; disabled?: boolean };
 }) {
   const [first, last] = fretWindow;
   const visibleLayers = layers.map(layer => ({ ...layer, positions: layer.positions.filter(note => note.fret >= first && note.fret <= last) }));
   const describeNote = (note: ResolvedNote, layer: NoteLayer) => `${note.note}, degree ${note.degree ?? 'unknown'}, string ${note.string}, fret ${note.fret}, ${layer.label}${layer.focal ? ', main focus' : ', context'}`;
   const neck = useRef<HTMLDivElement>(null);
+  const [cursor, setCursor] = useState({ string: 1, fret: first });
+  const cursorFret = Math.max(first, Math.min(last, cursor.fret));
+  const cells = useRef(new Map<string, SVGGElement>());
   const [availableWidth, setAvailableWidth] = useState(0);
   useEffect(() => {
     if (!neck.current) return;
@@ -45,21 +49,25 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
   const count = last - first + 1;
   const width = Math.max(360, count * 44 + 40, availableWidth);
   const x = (fret: number) => 40 + (fret - first + .5) * ((width - 48) / count);
-  const y = (string: number) => 36 + (string - 1) * 34;
+  const gap = editor ? 44 : 34;
+  const y = (string: number) => 36 + (string - 1) * gap;
+  const bottom = editor ? 268 : 218;
+  const height = editor ? 294 : 244;
   return (
-    <div ref={neck} className="music-neck-scroll" tabIndex={0} aria-label="Scrollable fretboard">
-      <svg width={width} height="244" viewBox={`0 0 ${width} 244`} role={onSelect ? 'group' : 'img'} aria-label={onSelect ? label : `${label}. ${visibleLayers.flatMap(layer => layer.positions.map(note => describeNote(note, layer))).join('; ')}`}>
+    <div ref={neck} className="music-neck-scroll" tabIndex={editor ? undefined : 0} aria-label="Scrollable fretboard">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role={onSelect || editor ? 'group' : 'img'} aria-label={onSelect || editor ? label : `${label}. ${visibleLayers.flatMap(layer => layer.positions.map(note => describeNote(note, layer))).join('; ')}`}>
         {Array.from({ length: 6 }, (_, index) => <g key={index} aria-hidden="true">
           <text x="8" y={y(index + 1) + 4}>{tuning ? midiToNoteName(tuning[index]) : index + 1}</text>
           <line x1="32" x2={width - 8} y1={y(index + 1)} y2={y(index + 1)} stroke="currentColor" strokeWidth={.7 + index * .2} />
         </g>)}
         {Array.from({ length: count }, (_, index) => <g key={index} aria-hidden="true">
-          <line x1={x(first + index) + (width - 48) / count / 2} x2={x(first + index) + (width - 48) / count / 2} y1="24" y2="218" stroke="currentColor" opacity=".2" />
-          <text x={x(first + index)} y="238" textAnchor="middle">{first + index}</text>
+          <line x1={x(first + index) + (width - 48) / count / 2} x2={x(first + index) + (width - 48) / count / 2} y1="24" y2={bottom} stroke="currentColor" opacity=".2" />
+          <text x={x(first + index)} y={height - 6} textAnchor="middle">{first + index}</text>
         </g>)}
         {[...visibleLayers].sort((a, b) => Number(!!a.focal) - Number(!!b.focal)).map(layer => <g key={layer.id}>
           {layer.positions.map(note => (
-            <g key={`${note.string}.${note.fret}`} role={onSelect ? 'button' : undefined} tabIndex={onSelect ? 0 : undefined}
+            <g key={`${note.string}.${note.fret}`} role={onSelect && !editor ? 'button' : undefined} tabIndex={onSelect && !editor ? 0 : undefined}
+              data-layer={layer.id} pointerEvents={editor ? 'none' : undefined}
               className={`music-note ${layer.focal ? 'music-note--focal' : ''} ${note.degree === '1' ? 'music-note--root' : ''} ${playing?.string === note.string && playing?.fret === note.fret ? 'music-note--playing' : ''}`}
               aria-label={describeNote(note, layer)}
               onClick={onSelect ? () => onSelect(note, layer) : undefined}
@@ -69,6 +77,27 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
             </g>
           ))}
         </g>)}
+        {editor && editor.grid.filter(n => n.fret >= first && n.fret <= last).map(note => {
+          const selected = editor.selected.some(p => p.string === note.string && p.fret === note.fret);
+          return <g key={`${note.string}.${note.fret}`} ref={node => { const key = `${note.string}.${note.fret}`; if (node) cells.current.set(key, node); else cells.current.delete(key); }}
+            className="music-fret-hit" role="button" aria-pressed={selected} aria-disabled={editor.disabled}
+            aria-label={`String ${note.string}, fret ${note.fret}, ${note.note}`}
+            tabIndex={note.string === cursor.string && note.fret === cursorFret ? 0 : -1}
+            onFocus={() => setCursor(note)} onClick={() => { if (!editor.disabled) editor.onToggle(note); }}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!editor.disabled) editor.onToggle(note); return; }
+              let { string, fret } = note;
+              if (event.key === 'ArrowLeft') fret--; else if (event.key === 'ArrowRight') fret++;
+              else if (event.key === 'ArrowUp') string--; else if (event.key === 'ArrowDown') string++;
+              else if (event.key === 'Home') fret = first; else if (event.key === 'End') fret = last; else return;
+              event.preventDefault();
+              const cell = cells.current.get(`${Math.max(1, Math.min(6, string))}.${Math.max(first, Math.min(last, fret))}`);
+              cell?.focus(); cell?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }}>
+            <rect x={x(note.fret) - (width - 48) / count / 2} y={y(note.string) - 22} width={(width - 48) / count} height="44" rx="6" />
+            {!selected && <text x={x(note.fret)} y={y(note.string) + 4} textAnchor="middle" aria-hidden="true">{note.note}</text>}
+          </g>;
+        })}
       </svg>
     </div>
   );

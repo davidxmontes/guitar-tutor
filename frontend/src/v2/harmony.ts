@@ -1,9 +1,14 @@
 import type { Composition, V2Branch } from '../types/v2';
-import type { ResolvedNote, NoteLayer, VoicingValue, ChordRef } from '../types/music';
+import type { ResolvedNote, NoteLayer, VoicingValue, ChordRef, PhysicalPosition } from '../types/music';
 
-export type HarmonyView = 'tutor' | 'fretboard' | 'shapes' | 'triads' | 'caged' | 'circle' | 'scratch';
-export const harmonyViews: [HarmonyView, string][] = [['tutor', "Tutor’s view"], ['fretboard', 'Fretboard'], ['shapes', 'Chord shapes'], ['triads', 'Triads'], ['caged', 'CAGED'], ['circle', 'Circle of fifths'], ['scratch', 'Scratch sequence']];
+export type HarmonyView = 'tutor' | 'discover' | 'fretboard' | 'shapes' | 'triads' | 'caged' | 'circle' | 'scratch';
+export const harmonyViews: [HarmonyView, string][] = [['tutor', "Tutor’s view"], ['discover', 'Chord Explorer'], ['fretboard', 'Fretboard'], ['shapes', 'Chord shapes'], ['triads', 'Triads'], ['caged', 'CAGED'], ['circle', 'Circle of fifths'], ['scratch', 'Scratch sequence']];
+type ChordTone = { note: string; degree: string; pitch_class: number };
+export type ChordMatch = { chord: ChordRef; label: string; notes: ChordTone[]; missing: ChordTone[]; in_key: boolean };
+export type ShapeSuggestion = { chord: ChordRef; label: string; positions: PhysicalPosition[]; notes: ResolvedNote[]; changes: string[]; bass: ResolvedNote; inversion: string };
+export type ChordDiscovery = { positions: ResolvedNote[]; grid: ResolvedNote[]; bass: ResolvedNote | null; interval: string | null; matches: ChordMatch[]; completions: ShapeSuggestion[]; alterations: ShapeSuggestion[]; voicings: ShapeSuggestion[] };
 export type HarmonyResolved = {
+  discovery: ChordDiscovery | null;
   function: string | null;
   palette: (ChordRef & { numeral: string; display: string })[];
   degrees: { note: string; degree: string; pitch_class: number }[];
@@ -21,7 +26,7 @@ export type HarmonyResolved = {
 export type HarmonySurface = { branch: V2Branch; resolved: HarmonyResolved; composition: Composition;
   catalog: { roots: string[]; scales: Record<string, string>; circle_keys: string[]; qualities: string[] } };
 
-export const harmonyModule = (kind: unknown) => kind === 'chord' || kind === 'voicing' ? 'chord' : 'scale';
+export const harmonyModule = (kind: unknown) => kind === 'chord' || kind === 'voicing' || kind === 'shape' ? 'chord' : 'scale';
 export const physicalVoicing = (value: VoicingValue): VoicingValue => ({
   positions: value.positions.map(({ string, fret }) => ({ string, fret })), tuning: [...value.tuning],
 });

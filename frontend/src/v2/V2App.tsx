@@ -48,6 +48,7 @@ function SignedInV2App() {
   const [songTarget, setSongTarget] = useState(() => new URL(window.location.href).searchParams.get('song'));
   const [songSearch, setSongSearch] = useState<SongSearchState>(() => ({ query: new URL(window.location.href).searchParams.get('songQuery') ?? '', results: [], searched: false }));
   const [loadingSong, setLoadingSong] = useState(false);
+  const [loadingWorkspace, setLoadingWorkspace] = useState(false);
   const songRequest = useRef(0);
   const [search, setSearch] = useState('');
   const [entryView, setEntryView] = useState<HarmonyView>('tutor');
@@ -60,6 +61,7 @@ function SignedInV2App() {
     setLoadingSong(false);
     setSongTarget(target);
     const url = new URL(window.location.href);
+    url.searchParams.delete('session'); url.searchParams.delete('branch');
     if (target) url.searchParams.set('song', target); else url.searchParams.delete('song');
     if (query !== undefined) {
       if (query) url.searchParams.set('songQuery', query); else url.searchParams.delete('songQuery');
@@ -77,7 +79,21 @@ function SignedInV2App() {
       setSongTarget(target); setError(null); setArtifactView(target === 'search' ? 'search' : null);
       setSongSearch(previous => previous.resultsQuery === query ? { ...previous, query } : { query, results: [], searched: false });
       setLoadingSong(Boolean(target && target !== 'search'));
+      setLoadingWorkspace(false);
       if (!target) {
+        const sessionId = url.searchParams.get('session');
+        if (sessionId) {
+          setLoadingWorkspace(true);
+          void apiClient.getV2Session(sessionId).then(session => {
+            if (request !== songRequest.current) return;
+            const branch = session.branches.find(b => b.id === url.searchParams.get('branch') && !b.closed) ?? session.branches.find(b => !b.closed);
+            setActiveSession(session); setActiveBranchId(branch?.id ?? null);
+            setEntryView(branch?.harmony_exploration?.focus.kind === 'shape' ? 'discover' : 'tutor');
+            setPage('workspace');
+          }).catch(() => { if (request === songRequest.current) { setPage('explore'); setError('This session is unavailable. Open an existing session or start a new exploration.'); } })
+            .finally(() => { if (request === songRequest.current) setLoadingWorkspace(false); });
+          return;
+        }
         setPage(initial ? 'explore' : window.history.state?.songReturnPage ?? 'explore');
       } else if (target !== 'search') {
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(target)) {
@@ -95,6 +111,13 @@ function SignedInV2App() {
     window.addEventListener('popstate', onPopState);
     return () => { requests.current++; window.removeEventListener('popstate', onPopState); };
   }, []);
+
+  useEffect(() => {
+    if (page !== 'workspace' || !activeSession || !activeBranchId || songTarget || loadingWorkspace) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', activeSession.id); url.searchParams.set('branch', activeBranchId);
+    window.history.replaceState(window.history.state, '', url);
+  }, [page, activeSession, activeBranchId, songTarget, loadingWorkspace]);
 
   const sessionsRequest = useRef(0);
   const loadSessions = useCallback(async () => {
@@ -201,7 +224,12 @@ function SignedInV2App() {
     setOpening(true); setError(null);
     try {
       const chord = ['triads', 'shapes', 'caged'].includes(view);
-      const session = await apiClient.openHarmony('C', 'major', chord);
+      const session = view === 'discover' ? await apiClient.createV2Session() : await apiClient.openHarmony('C', 'major', chord);
+      if (view === 'discover') {
+        const branch = session.branches[0];
+        const result = await apiClient.editHarmony(session.id, branch.id, { focus: { kind: 'shape', positions: [], interpretation: null } });
+        session.branches[0] = result.branch;
+      }
       openSession(session, view); setSessions(previous => [session, ...(previous ?? [])]);
     } catch (err) { setError(String(err)); } finally { setOpening(false); }
   };
@@ -305,6 +333,7 @@ function SignedInV2App() {
       : artifactView?.kind === 'exercise' ? <ExerciseWorkspace key={artifactView.id} artifact={artifactView} /> : null}
   </main>);
 
+  if (loadingWorkspace) return shell(<main className="v2-app learning-app"><p role="status">Opening your workspace…</p></main>);
   if (activeSession && page === 'workspace') {
     const branch = activeSession.branches.find((candidate) => candidate.id === activeBranchId && !candidate.closed) ?? null;
     return shell(
@@ -348,7 +377,7 @@ function SignedInV2App() {
         <button disabled={opening} onClick={() => void startActivity('shapes')}><span className="learning-activity-number">03 / CHORD SHAPES</span><strong>Find your next shape</strong><p>See playable voicings, compare their sound, and connect CAGED shapes.</p><span className="learning-activity-action">Explore shapes →</span></button>
         <button disabled={opening} aria-label="Build a four-chord progression" onClick={() => void handleStart('progression')}><span className="learning-activity-number">04 / PROGRESSIONS</span><strong>Make the chords connect</strong><p>Hear an idea, change a chord, and practise the transitions.</p><span className="learning-activity-action">Build a progression →</span></button>
       </section>
-      <div className="learning-home-tools"><button className="music-button" disabled={opening} onClick={() => void startActivity('circle')}>Explore the circle of fifths</button><button className="music-button" disabled={opening} onClick={() => void startActivity('caged')}>Connect the CAGED shapes</button><button className="learning-text-button" type="button" data-testid="v2-start-session" disabled={opening} onClick={() => void handleStart('harmony')}>Start a blank Harmony session</button></div>
+      <div className="learning-home-tools"><button className="music-button" disabled={opening} onClick={() => void startActivity('discover')}>Find a chord on the fretboard</button><button className="music-button" disabled={opening} onClick={() => void startActivity('circle')}>Explore the circle of fifths</button><button className="music-button" disabled={opening} onClick={() => void startActivity('caged')}>Connect the CAGED shapes</button><button className="learning-text-button" type="button" data-testid="v2-start-session" disabled={opening} onClick={() => void handleStart('harmony')}>Start a blank Harmony session</button></div>
       {opening && <p role="status">Opening your music…</p>}
       <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="learning-search">
         <div><label htmlFor="explore-scale">Explore a scale, key or chord</label><p>Have something in mind? Try C major, A minor pentatonic, or Dm7.</p></div>
