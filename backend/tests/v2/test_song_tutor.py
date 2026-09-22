@@ -102,7 +102,7 @@ def test_bad_selection_is_rejected_before_provider(selection):
 
 
 def test_foreign_song_and_oversized_context_are_rejected_without_model_calls():
-    store, model = InMemoryV2Store(), SongModel()
+    store, model = InMemoryV2Store(), SongModel(outcomes=[{'message': 'Practise the whole section.'}])
     foreign, owned = song(store, 'other'), song(store)
     with _app(store, _scripted_factory(model)) as client:
         sid, bid = _open_session_and_branch(client)
@@ -111,13 +111,14 @@ def test_foreign_song_and_oversized_context_are_rejected_without_model_calls():
         payload['tab_data']['measures'] *= 5
         owned = store.update_artifact(owned.id, 'user_1', payload, owned.updated_at)
         response = client.post('/api/v2/tutor/jobs', json=request(sid, bid, owned, {'type': 'range', 'startMeasureIndex': 0, 'endMeasureIndex': 8}))
-        assert response.status_code == 422 and '8 measures' in response.text
+        assert response.status_code == 202
+        assert finished(client, request(sid, bid, owned))['status'] == 'completed'
         payload = deepcopy(owned.payload)
         payload['tab_data']['measures'][0]['voices'][0]['beats'][0]['notes'][0]['annotation'] = 'x' * 24000
         owned = store.update_artifact(owned.id, 'user_1', payload, owned.updated_at)
         response = client.post('/api/v2/tutor/jobs', json=request(sid, bid, owned))
         assert response.status_code == 422 and '24 KB' in response.text
-        assert model.calls == []
+        assert len(model.calls) == 1
 
 
 def test_song_jobs_echo_context_and_do_not_deduplicate_different_selections(monkeypatch):
@@ -175,7 +176,7 @@ def test_malformed_tempo_is_a_readable_validation_error(automations):
 def test_read_only_schema_rejects_model_mutation_and_large_beat_ranges():
     store = InMemoryV2Store()
     artifact = song(store)
-    model = SongModel(outcomes=[{'message': 'Changed it.', 'mutation': {'kind': 'set_scale', 'scale': 'dorian'}}, {'message': 'Try this slowly.'}])
+    model = SongModel(outcomes=[{'message': 'Changed it.', 'mutation': {'kind': 'set_scale', 'scale': 'dorian'}}, {'message': 'Try this slowly.'}, {'message': 'Practise the entire measure.'}])
     with _app(store, _scripted_factory(model)) as client:
         sid, bid = _open_session_and_branch(client)
         before = musical_snapshot(store.get_session(sid, 'user_1').branches[0])
@@ -186,7 +187,8 @@ def test_read_only_schema_rejects_model_mutation_and_large_beat_ranges():
         payload['tab_data']['measures'][0]['voices'][0]['beats'] *= 65
         artifact = store.update_artifact(artifact.id, 'user_1', payload, artifact.updated_at)
         response = client.post('/api/v2/tutor/jobs', json=request(sid, bid, artifact, {'type': 'range', 'startMeasureIndex': 0, 'endMeasureIndex': 0}))
-        assert response.status_code == 422 and '128 beats' in response.text
+        assert response.status_code == 202
+        assert finished(client, request(sid, bid, artifact))['status'] == 'completed'
 
 
 def test_tempo_context_keeps_active_change_and_selected_measures_only():

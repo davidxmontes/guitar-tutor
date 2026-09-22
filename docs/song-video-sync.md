@@ -463,8 +463,8 @@ reopen. Conversation messages live in the existing backend store; clearing brows
 storage or using another device does not automatically rediscover that association.
 The local memory-store server still requires a snapshot to survive a restart.
 
-Requests are bounded to 8 measures, 128 beats, and 24 KB of musical context. Larger
-selections receive an actionable error. Pending questions and saved answers retain
+Requests have no fixed measure or beat count limit. A 24 KB musical-context
+budget remains; selections exceeding that size receive an actionable error. Pending questions and saved answers retain
 their original selection; playback and new selections can continue independently.
 A failed question can retry its original passage or explicitly use the new selection.
 Imported technique data is preserved, including bend points, without inventing
@@ -504,3 +504,9 @@ passed. Desktop/mobile, light/dark screenshots and the live local app were
 reviewed; keyboard focus restoration and draft retention are covered. Inline
 standards and simplification review kept the change within the existing Tutor
 wrapper and CSS, without a drawer dependency or duplicate chat state.
+
+The fixed measure/beat cutoffs were removed at the learner’s request. Regression
+checks now accept a 9-measure passage and a 130-beat measure while retaining
+ownership, index validation, and the actual 24 KB context-size guard. All 434
+backend tests pass. Local frontends 5310/5287 now use API 8313, carrying forward
+12 sessions and 20 available artifacts; API 8312 remains alive as a fallback.

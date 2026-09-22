@@ -45,8 +45,6 @@ def resolve_song_context(artifact: Artifact, selection: SongBeatSelection | Song
     end = start if is_beat else selection.endMeasureIndex
     if end >= len(measures):
         raise ValueError('The selected measure is outside this song')
-    if end - start + 1 > 8:
-        raise ValueError('Select at most 8 measures for a Tutor question')
     selected, positions = [], set()
     signature = None
     try:
@@ -59,8 +57,6 @@ def resolve_song_context(artifact: Artifact, selection: SongBeatSelection | Song
             if is_beat and selection.beatIndex >= len(beats):
                 raise ValueError('The selected beat is outside this measure')
             indices = [selection.beatIndex] if is_beat else range(len(beats))
-            if len(positions) + len(indices) > 128:
-                raise ValueError("Select at most 128 beats for a Tutor question")
             chosen = [{'beat_index': beat, 'raw': beats[beat]} for beat in indices]
             positions.update((index, beat) for beat in indices)
             selected.append({'measure_index': index, 'header': measure.get('header'),
