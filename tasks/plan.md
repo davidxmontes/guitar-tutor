@@ -1,6 +1,6 @@
 # Plan: Chord Explorer
 
-Status: implemented and verified on feature/chord-explorer from main-v2 e287327. Draft PR preparation; no merge or deployment.
+Status: implemented and verified on feature/chord-explorer from main-v2 e287327. [Draft PR #132](https://github.com/davidxmontes/guitar-tutor/pull/132); no merge or deployment.
 
 Tracking: [spec #130](https://github.com/davidxmontes/guitar-tutor/issues/130), [implementation #131](https://github.com/davidxmontes/guitar-tutor/issues/131). Native sub-issue linking was blocked by automatic approval review as an unapproved hosted-service metadata change; no retry or workaround was attempted.
 
@@ -114,4 +114,4 @@ Implementation proposals above (precise ranking, omission ceiling, state extensi
 - Verified musical ambiguity/rootless shapes, enharmonic key changes, tuning, ownership, snapshots, stale client revisions, delayed/failed saves, navigation during queued writes, refresh, preview/apply/Undo, pin/scratch, keyboard navigation and 320px dark layout. Real local app also exercised in the in-app browser.
 - Inline review removed duplicate formula resolution and circular imports, reused existing voicing derivation, corrected preview layer order and restricted refresh changes to the Explorer. An initial regression restoring unrelated workspaces was fixed before the passing whole-app browser run.
 - No new dependencies, hosted changes or live model calls. Local preview uses memory storage: refresh/reopen works while the local API runs; restarting that disposable API clears its sessions. Production persistence continues through the existing owned Branch store.
-- Remaining: publish draft PR; merge and deployment require separate authorization.
+- Draft PR #132 targets main-v2. Local frontend runs at http://localhost:5312/v2 with API on 8318. Merge and deployment require separate authorization.
