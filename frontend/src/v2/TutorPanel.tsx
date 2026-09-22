@@ -29,6 +29,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const draftKey = `guitar-tutor-draft:${branch.tutor_thread_id}`;
   const [question, setQuestion] = useState(() => { try { return sessionStorage.getItem(draftKey) ?? ''; } catch { return ''; } });
+  const [webSearch, setWebSearch] = useState(false);
   const [preferences, setPreferences] = useState(readPreferences);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -72,6 +73,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
           setError(job.error ?? 'The Tutor could not finish this turn. Please try again.');
           setQuestion(value => value || job.message);
           setFailedSelection(job.song_context ?? null);
+          setWebSearch(job.web_search ?? false);
         } else if (job?.result?.branch) {
           // Read today's branch, not the possibly older snapshot returned by the job.
           const session = await apiClient.getV2Session(branch.session_id);
@@ -116,7 +118,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
     onBusy(true); setSending(true); setPendingSelection(requestContext ?? null); setError(''); setNotice(''); stop.current?.();
     const requestId = crypto.randomUUID();
     try {
-      const job = await apiClient.startTutorJob({ request_id: requestId, session_id: branch.session_id, branch_id: branch.id, message: question, learning_preferences: preferences, ...(requestContext ? { song_context: requestContext } : {}) });
+      const job = await apiClient.startTutorJob({ request_id: requestId, session_id: branch.session_id, branch_id: branch.id, message: question, learning_preferences: preferences, web_search: Boolean(requestContext && webSearch), ...(requestContext ? { song_context: requestContext } : {}) });
       setPendingQuestion(job.message);
       updateQuestion('');
     } catch (error) {
@@ -173,6 +175,8 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
       {messages.filter(message => message.role !== 'tool').map(message => <article key={message.id} className={`tutor-message tutor-message--${message.role}`}>
         <span className="tutor-speaker">{message.role === 'user' ? 'You' : 'Tutor'}</span>
         {songContext && message.content.song_context && <small>{message.content.song_context.title} · {message.content.song_context.track.name} · {selectionLabel(message.content.song_context)}</small>}
+        {songContext && message.content.song_context?.web_search_error && <p className="learning-error">{message.content.song_context.web_search_error}</p>}
+        {songContext && message.content.song_context?.web_sources && <details><summary>Online sources ({message.content.song_context.web_sources.length})</summary><ul>{message.content.song_context.web_sources.map((source, index) => <li key={`${source.url}:${index}`}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul>{message.content.song_context.web_sources.length === 0 && <p>No online sources found.</p>}</details>}
         <div className="chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content.text ?? ''}</ReactMarkdown></div>
         {!songContext && message.role === 'assistant' && message.content.presentation && message.id !== branch.live_presentation_turn_id && <button className="learning-text-button" disabled={busy} onClick={() => void restore(message.id)}>Show this teaching view</button>}
       </article>)}
@@ -196,6 +200,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
     {songContext && failedSelection && <p className="tutor-context">Retry uses {selectionLabel(failedSelection)}. <button type="button" className="learning-text-button" onClick={() => setFailedSelection(null)}>Use current selection instead</button></p>}
     <form className="tutor-compose" onSubmit={event => { event.preventDefault(); void ask(); }}>
       <div className="tutor-prompts">{prompts.map(prompt => <button key={prompt} type="button" disabled={busy} onClick={() => { updateQuestion(prompt); document.getElementById(`question-${branch.id}`)?.focus(); }}>{prompt}</button>)}</div>
+      {songContext && <label><input type="checkbox" checked={webSearch} disabled={busy} onChange={event => setWebSearch(event.target.checked)} /> Search online <small>· Allow Tutor to search when useful</small></label>}
       <label htmlFor={`question-${branch.id}`}>Ask the Tutor</label>
       <textarea id={`question-${branch.id}`} placeholder="What would you like to understand or try?" rows={3} maxLength={12000} value={question} disabled={sending} onChange={event => updateQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }} />
       <div className="tutor-send"><small>Enter to send · Shift + Enter for a new line</small><button className="music-button learning-primary" disabled={busy || loading || !question.trim()}>Ask</button></div>

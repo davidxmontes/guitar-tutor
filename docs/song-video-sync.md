@@ -520,3 +520,35 @@ shape definitions from 2,284 to 205 across those artifacts. All 435 backend test
 pass, including a context over the former limit and lossless shape grouping.
 Local ports 5310/5287 now use API 8315 with repo AI settings and the preserved
 12 sessions/20 artifacts. No live model request was needed for these checks.
+
+### Optional agent-controlled Tavily search
+
+Set server-only `TAVILY_API_KEY` in `backend/.env` and restart the API. The local
+worktree launcher reads the original repository’s root/backend env files, including
+this key. “Search online” grants the SongStudy agent access to `search_online`;
+it does not force a lookup. The existing LangChain `create_agent` loop decides
+whether to search, chooses queries, and can refine them based on tool results.
+No separate graph, automatic pre-search, or search SDK was added.
+
+The request-scoped tool uses Tavily basic search (up to five results per call),
+with up to three calls per answer to bound spend. The provider receives the
+agent’s query, not an automatic upload of the score or conversation. Read-only
+tool guidance covers source trust, citations, differing arrangements, and the
+limits of excerpts: a discovered tab title is not evidence of its actual notes.
+Failures are returned to the agent and shown with the saved answer; it can
+still explain the score. Actual retrieved source links are saved with the turn
+and displayed separately from model-authored citations. No lookup means no
+source list. Music mutation and workspace tools remain unavailable in song mode.
+
+Reference: https://docs.tavily.com/documentation/api-reference/endpoint/search
+
+Verification: all 444 backend tests, five SongStudy Tutor browser journeys, lint,
+and the local-auth build pass. Deterministic agent tests cover choosing not to
+search, an actual tool call feeding a subsequent answer, query refinement,
+missing credentials, provider errors/timeouts, source persistence, ownership,
+and request deduplication. Local ports 5310/5287 use API 8316; 12 sessions,
+20 artifacts, and 10 existing conversation messages were retained.
+
+The repo now contains a Tavily key. One live basic search for a public Wonderwall
+lesson returned five results. The agent loop was verified with scripted model
+calls; no new live-model request was made for this integration.

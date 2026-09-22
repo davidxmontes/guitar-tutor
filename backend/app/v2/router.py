@@ -42,6 +42,7 @@ from app.v2.song_video import SongVideoAlignment, validate_video_alignment
 from app.v2.song_video_discovery import VideoSuggestions, suggest_song_videos
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
 from app.v2.tutor.contract import LearningPreferences, TutorResponse
+from app.v2.tutor.web_search import song_search_tools
 from app.v2.tutor.song_context import SongTutorContext, resolve_song_context
 from app.v2.tutor.providers import TutorCapabilityError, TutorConfigurationError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
@@ -367,6 +368,7 @@ class TutorTurnRequest(BaseModel):
     message: str = Field(min_length=1, max_length=12000)
     learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
     song_context: SongTutorContext | None = None
+    web_search: bool = False
 
 
 def owned_song_context(store: V2Store, context: SongTutorContext, user_id: str) -> dict:
@@ -399,11 +401,18 @@ def create_tutor_turn(
     history = store.list_tutor_messages(branch.tutor_thread_id, user_id)
     song_context = owned_song_context(store, data.song_context, user_id) if data.song_context else None
 
+    song_tools = []
+    if data.web_search:
+        if song_context is None:
+            raise HTTPException(422, 'Online search is available for Song Study questions.')
+        song_context['search_enabled'] = True
+        song_tools = song_search_tools(settings.tavily_api_key, song_context)
+
     try:
         response = run_tutor_turn(
             branch=branch,
             history=history,
-            lookup_tools=[] if song_context else saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id) + workspace_tools(branch),
+            lookup_tools=song_tools if song_context else saved_work_tools(store, user_id) + branch_tools(store, user_id, session.id) + workspace_tools(branch),
             song_context=song_context,
             siblings=[{"id": b.id, "title": b.title, "active_workspace": b.active_workspace}
                       for b in session.branches if not b.closed and b.id != branch.id],
@@ -449,6 +458,7 @@ class TutorJob(BaseModel):
     id: str
     message: str
     song_context: SongTutorContext | None = None
+    web_search: bool = False
     status: Literal["running", "completed", "failed"] = "running"
     result: TutorResponse | None = None
     error: str | None = None
@@ -490,12 +500,12 @@ async def start_tutor_job(
     key = (user_id, data.session_id, data.branch_id)
     previous = jobs.get(key)
     if previous and (previous[0].status == "running" or previous[0].id == data.request_id):
-        if previous[0].message != data.message or previous[0].song_context != data.song_context:
+        if previous[0].message != data.message or previous[0].song_context != data.song_context or previous[0].web_search != data.web_search:
             raise HTTPException(status_code=409, detail="A Tutor question is already in progress.")
         return previous[0]
     if len(jobs) >= 1000 and key not in jobs:
         raise HTTPException(status_code=429, detail="The Tutor is busy. Please try again shortly.")
-    job = TutorJob(id=data.request_id or str(uuid4()), message=data.message, song_context=data.song_context)
+    job = TutorJob(id=data.request_id or str(uuid4()), message=data.message, song_context=data.song_context, web_search=data.web_search)
     jobs[key] = (job, monotonic())
 
     async def finish():

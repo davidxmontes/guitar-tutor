@@ -147,7 +147,7 @@ def run_tutor_turn(
     terminal_schema = SongTutorTerminal if song_context is not None else TutorTerminal
     agent = create_agent(
         model=chat_model,
-        tools=[] if song_context is not None else [*(lookup_tools or []), *component_skill_tools(branch.active_workspace)],
+        tools=list(lookup_tools or []) if song_context is not None else [*(lookup_tools or []), *component_skill_tools(branch.active_workspace)],
         response_format=structured_response_format(terminal_schema, provider, model),
     )
 

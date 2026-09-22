@@ -121,3 +121,31 @@ test('Tutor stays beside the score on desktop and becomes a dismissible mobile s
   await page.getByRole('button', { name: 'Close Tutor' }).click();
   await expect(launcher).toBeFocused();
 });
+
+test('online access is optional for the agent and saved sources render as links', async ({ page }) => {
+  await openSong(page);
+  await page.getByRole('button', { name: 'Ask about selection', exact: true }).click();
+  await page.getByLabel('Search online', { exact: false }).check();
+  await page.getByLabel('Ask the Tutor', { exact: true }).fill('Check alternative tabs');
+  await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeEnabled();
+  const sent = page.waitForRequest(request => request.url().endsWith('/tutor/jobs') && request.method() === 'POST');
+  await page.getByRole('button', { name: 'Ask', exact: true }).click();
+  expect((await sent).postDataJSON().web_search).toBe(true);
+  await expect(page.locator('.tutor-message--assistant')).toHaveCount(1);
+  await expect(page.getByText('Online sources (0)', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Search online', { exact: false })).toBeChecked();
+  await page.getByLabel('Ask the Tutor', { exact: true }).fill('Compare the passage');
+  await page.getByLabel('Search online', { exact: false }).uncheck();
+  // Keep the existing scripted model; inject only the saved search-result boundary.
+  await page.route('**/tutor/threads/*/messages', async route => {
+    const response = await route.fetch();
+    const messages = await response.json();
+    for (const message of messages.slice(-1)) if (message.content.song_context) {
+      message.content.song_context.web_sources = [{ title: 'Alternative transcription', url: 'https://example.com/tab', content: 'Excerpt' }];
+    }
+    await route.fulfill({ response, json: messages });
+  });
+  await page.getByRole('button', { name: 'Ask', exact: true }).click();
+  await page.getByText('Online sources (1)', { exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Alternative transcription' })).toHaveAttribute('href', 'https://example.com/tab');
+});
