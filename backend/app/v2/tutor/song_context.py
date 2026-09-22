@@ -1,4 +1,4 @@
-"""Owned, bounded SongStudy selections for explanation-only Tutor turns."""
+"""Owned SongStudy selections for explanation-only Tutor turns."""
 import json
 from math import isfinite
 from typing import Annotated, Literal
@@ -76,19 +76,21 @@ def resolve_song_context(artifact: Artifact, selection: SongBeatSelection | Song
     preceding = [change for change in tempo if change['measure'] < start]
     tempo = ([max(preceding, key=lambda change: (change['measure'], change['position']))] if preceding else []) + [
         change for change in tempo if start <= change['measure'] <= end]
-    shapes = []
+    shapes_by_value = {}
     for event in payload.shape_events:
         sources = [source.model_dump() for source in event.sources if (source.measure_index, source.beat_index) in positions]
         if sources:
-            shapes.append(event.model_dump() | {'sources': sources})
+            shape = event.model_dump(exclude={'sources'})
+            key = json.dumps(shape, sort_keys=True)
+            if key not in shapes_by_value:
+                shapes_by_value[key] = shape | {'sources': []}
+            shapes_by_value[key]['sources'].extend(sources)
     context = {
         'artifact_id': artifact.id, 'artifact_revision': artifact.updated_at, 'song_id': payload.song_id,
         'title': payload.title, 'artist': payload.artist, 'track': payload.track.model_dump(),
         'selection': selection.model_dump(), 'tuning': payload.track.tuning if payload.track.tuning is not None else payload.tab_data.get('tuning'),
-        'capo': payload.tab_data.get('capo'), 'measures': selected, 'shapes': shapes,
+        'capo': payload.tab_data.get('capo'), 'measures': selected, 'shapes': list(shapes_by_value.values()),
         'tempo': tempo,
         'notation': 'Measure and beat indices and raw note strings are zero-based. Raw strings run highest to lowest; tuning is MIDI. Shape strings are one-based. Durations are fractions of a whole note. Raw technique fields are preserved; do not invent missing data or assume capo has already been applied.',
     }
-    if len(json.dumps(context, ensure_ascii=False).encode('utf-8')) > 24000:
-        raise ValueError('This selection exceeds the 24 KB Tutor context limit; select fewer beats or measures')
     return context

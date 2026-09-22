@@ -463,8 +463,9 @@ reopen. Conversation messages live in the existing backend store; clearing brows
 storage or using another device does not automatically rediscover that association.
 The local memory-store server still requires a snapshot to survive a restart.
 
-Requests have no fixed measure or beat count limit. A 24 KB musical-context
-budget remains; selections exceeding that size receive an actionable error. Pending questions and saved answers retain
+Requests have no fixed measure, beat, or serialized-byte cutoff. Identical
+chord shapes share a definition with all selected occurrences retained. Actual
+provider context-window limits still apply; musical data is never silently truncated. Pending questions and saved answers retain
 their original selection; playback and new selections can continue independently.
 A failed question can retry its original passage or explicitly use the new selection.
 Imported technique data is preserved, including bend points, without inventing
@@ -510,3 +511,12 @@ checks now accept a 9-measure passage and a 130-beat measure while retaining
 ownership, index validation, and the actual 24 KB context-size guard. All 434
 backend tests pass. Local frontends 5310/5287 now use API 8313, carrying forward
 12 sessions and 20 available artifacts; API 8312 remains alive as a fallback.
+
+The remaining 24 KB cap was removed after it blocked a normal selection. Exact
+shape definitions are grouped while preserving every source position; raw beats,
+techniques, meter, tempo, and tuning remain intact. Context preparation succeeds
+for all 20 current local song artifacts (up to 135 measures), reducing repeated
+shape definitions from 2,284 to 205 across those artifacts. All 435 backend tests
+pass, including a context over the former limit and lossless shape grouping.
+Local ports 5310/5287 now use API 8315 with repo AI settings and the preserved
+12 sessions/20 artifacts. No live model request was needed for these checks.

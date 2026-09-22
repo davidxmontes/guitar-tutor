@@ -101,8 +101,8 @@ def test_bad_selection_is_rejected_before_provider(selection):
         assert client.get('/api/v2/tutor/jobs', params={'session_id': sid, 'branch_id': bid}).json() is None
 
 
-def test_foreign_song_and_oversized_context_are_rejected_without_model_calls():
-    store, model = InMemoryV2Store(), SongModel(outcomes=[{'message': 'Practise the whole section.'}])
+def test_foreign_song_is_rejected_and_large_owned_context_is_accepted():
+    store, model = InMemoryV2Store(), SongModel(outcomes=[{'message': 'Practise the whole section.'}, {'message': 'Explain the full passage.'}])
     foreign, owned = song(store, 'other'), song(store)
     with _app(store, _scripted_factory(model)) as client:
         sid, bid = _open_session_and_branch(client)
@@ -117,8 +117,10 @@ def test_foreign_song_and_oversized_context_are_rejected_without_model_calls():
         payload['tab_data']['measures'][0]['voices'][0]['beats'][0]['notes'][0]['annotation'] = 'x' * 24000
         owned = store.update_artifact(owned.id, 'user_1', payload, owned.updated_at)
         response = client.post('/api/v2/tutor/jobs', json=request(sid, bid, owned))
-        assert response.status_code == 422 and '24 KB' in response.text
-        assert len(model.calls) == 1
+        assert response.status_code == 202
+        assert finished(client, request(sid, bid, owned))['status'] == 'completed'
+        assert len(model.calls) == 2
+        assert 'x' * 24000 in model.calls[-1][-1].content
 
 
 def test_song_jobs_echo_context_and_do_not_deduplicate_different_selections(monkeypatch):
@@ -201,3 +203,16 @@ def test_tempo_context_keeps_active_change_and_selected_measures_only():
     ]
     context = resolve_song_context(artifact, SongRangeSelection(type='range', startMeasureIndex=1, endMeasureIndex=1))
     assert [change['bpm'] for change in context['tempo']] == [92, 100]
+
+
+def test_identical_shapes_share_one_definition_without_losing_occurrences():
+    from app.v2.tutor.song_context import resolve_song_context, SongRangeSelection
+    artifact = song(InMemoryV2Store())
+    duplicate = deepcopy(artifact.payload['shape_events'][0])
+    duplicate['sources'] = [{'measure_index': 0, 'beat_index': 1}]
+    artifact.payload['shape_events'].append(duplicate)
+    context = resolve_song_context(artifact, SongRangeSelection(type='range', startMeasureIndex=0, endMeasureIndex=0))
+    assert len(context['shapes']) == 1
+    assert context['shapes'][0]['sources'] == [
+        {'measure_index': 0, 'beat_index': 0}, {'measure_index': 0, 'beat_index': 1}]
+    assert context['measures'][0]['beats'][1]['raw']['notes'][0]['bend'] == {'type': 'bend', 'value': 2}
