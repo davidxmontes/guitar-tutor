@@ -48,6 +48,10 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     }).catch(cause => { if (!cancelled) setSuggestionError(cause instanceof Error ? cause.message : 'Please try again.'); });
     return () => { cancelled = true; };
   }, [active, discover, song.id, suggestionAttempt]);
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
   const [url, setUrl] = useState('');
   const [occurrence, setOccurrence] = useState('');
   const [anchorIndex, setAnchorIndex] = useState('');
@@ -118,6 +122,24 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     pausedForTutor.current = playingState.current === 'playing' || playingState.current === 'buffering';
     player.current?.pause();
   }, [active, pauseWhenCovered]);
+
+  function closeRecording() {
+    player.current?.pause();
+    setOpen(false);
+    requestAnimationFrame(() => trigger.current?.focus());
+  }
+
+  useEffect(() => {
+    if (!active || !open || pauseWhenCovered) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeRecording();
+    };
+    document.addEventListener('keydown', dismiss, true);
+    return () => document.removeEventListener('keydown', dismiss, true);
+  }, [active, open, pauseWhenCovered]);
 
   function clearPlayback() {
     player.current?.pause();
@@ -272,13 +294,33 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   function openCalibration() {
     if (!calibration.current) return;
     player.current?.pause();
+    setExpanded(true);
     calibration.current.open = true;
-    calibration.current.querySelector<HTMLElement>('summary')?.focus();
+    requestAnimationFrame(() => calibration.current?.querySelector<HTMLElement>('summary')?.focus());
   }
 
   if (!active) return null;
-  return <section ref={panel} className="song-video" aria-label="Recording" data-playing={state === 'playing' || state === 'buffering'}>
-    <header className="song-video-heading"><h2>Recording</h2><span>{state === 'playing' ? 'Playing' : state === 'buffering' ? 'Buffering' : 'Ready'}</span></header>
+  return <>
+    <button ref={trigger} type="button" className="music-button song-video-launcher" aria-label="Open recording"
+      aria-haspopup="dialog" aria-controls="song-recording" aria-expanded={open && !pauseWhenCovered}
+      disabled={pauseWhenCovered} onClick={() => {
+        if (open) { closeRecording(); return; }
+        setOpen(true);
+        requestAnimationFrame(() => closeButton.current?.focus());
+      }}>Recording <span aria-hidden="true">↗</span></button>
+    <section ref={panel} id="song-recording" className="song-video" role="dialog" aria-label="Recording"
+      hidden={!open || pauseWhenCovered} data-expanded={expanded} data-has-recording={Boolean(draft)}>
+    <header className="song-video-heading"><div><h2>Recording</h2><span>{state === 'playing' ? 'Playing' : state === 'buffering' ? 'Buffering' : 'Paused'}</span></div>
+      <div className="song-video-actions">
+        <button type="button" className="learning-text-button" aria-label={expanded ? 'Compact recording' : 'Expand recording'}
+          aria-expanded={expanded} onClick={() => {
+            setExpanded(value => !value);
+            if (expanded) requestAnimationFrame(() => panel.current?.querySelector('.song-video-body')?.scrollTo(0, 0));
+          }}>{expanded ? 'Compact' : 'Expand'}</button>
+        <button ref={closeButton} type="button" className="learning-text-button" aria-label="Close recording" onClick={closeRecording}>Close</button>
+      </div>
+    </header>
+    <div className="song-video-body">
     <div className="song-video-primary" data-has-recording={Boolean(draft)}>
     {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
       setReady(value);
@@ -312,6 +354,21 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
           <label>Speed<select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
             {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
           </select></label></div>
+        <details className="song-video-range"><summary>Choose measures</summary>
+          <p>Select a beat while playing to jump. Loop repeats the selection.</p>
+          <form key={selectionLabel} className="song-video-actions" onSubmit={event => {
+            event.preventDefault();
+            const values = new FormData(event.currentTarget);
+            const start = Number(values.get('start')); const end = Number(values.get('end'));
+            if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > measureCount || start > end) { setError(`Choose measures from 1 to ${measureCount}, with the end at or after the start.`); return; }
+            onSelectRange(start - 1, end - 1); setError(null);
+            event.currentTarget.closest('details')!.open = false;
+          }}>
+            <label>From measure<input name="start" aria-label="From measure" type="number" min="1" max={measureCount} step="1" defaultValue={selectedStart + 1} required /></label>
+            <label>Through measure<input name="end" aria-label="Through measure" type="number" min="1" max={measureCount} step="1" defaultValue={selectedEnd + 1} required /></label>
+            <button type="submit" className="music-button">Apply range</button>
+          </form>
+        </details>
         {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
         {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
       </>}
@@ -328,21 +385,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
           </form>
           <p>Moves all timing points together. Undo edit restores the previous timing.</p>
         </details>}
-        <details><summary>Choose measures</summary>
-          <p>Select a beat while playing to jump. Loop repeats the selection.</p>
-          <form key={selectionLabel} className="song-video-actions" onSubmit={event => {
-            event.preventDefault();
-            const values = new FormData(event.currentTarget);
-            const start = Number(values.get('start')); const end = Number(values.get('end'));
-            if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > measureCount || start > end) { setError(`Choose measures from 1 to ${measureCount}, with the end at or after the start.`); return; }
-            onSelectRange(start - 1, end - 1); setError(null);
-            event.currentTarget.closest('details')!.open = false;
-          }}>
-            <label>From measure<input name="start" aria-label="From measure" type="number" min="1" max={measureCount} step="1" defaultValue={selectedStart + 1} required /></label>
-            <label>Through measure<input name="end" aria-label="Through measure" type="number" min="1" max={measureCount} step="1" defaultValue={selectedEnd + 1} required /></label>
-            <button type="submit" className="music-button">Apply range</button>
-          </form>
-        </details>
+
       </>}
       <details ref={calibration} className="song-video-calibration-details" open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
         <summary>{draft ? 'Calibrate recording' : 'Attach a YouTube recording'}{dirty ? ' · unsaved' : ''}</summary>
@@ -383,5 +426,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
     </div>
-  </section>;
+    </div>
+  </section>
+  </>;
 }

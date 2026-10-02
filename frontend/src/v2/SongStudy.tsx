@@ -875,10 +875,10 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
               practice.exit(); setVideoPlayhead(null); setPlaybackSource(event.target.value as 'practice' | 'video');
             }}><option value="practice">Guitar guide</option><option value="video">Recording</option></select></label>
             {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
+            <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
+              selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
+              onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
           </div>
-          <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
-            selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
-            onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
           <div className="song-study-mobile-view" role="group" aria-label="Song view">
             <button type="button" className="music-button" aria-pressed={mobileView === 'score'} onClick={() => setMobileView('score')}>Score</button>
             <button type="button" className="music-button" aria-pressed={mobileView === 'fretboard'} onClick={() => { setShowFullTab(false); setMobileView('fretboard'); }}>Fretboard</button>

@@ -52,6 +52,11 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await installYouTubeFake(page);
   await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
   await openSong(page);
+  const launcher = page.getByRole('button', { name: 'Open recording', exact: true });
+  const popup = page.getByRole('dialog', { name: 'Recording', exact: true });
+  await expect(launcher).toHaveAttribute('aria-expanded', 'false');
+  await expect(popup).toBeHidden();
+  await launcher.click();
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('M7lc1UVf-VE');
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
@@ -87,6 +92,7 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeInViewport();
   expect((await page.getByLabel('Tutor conversation').boundingBox())!.height).toBeGreaterThanOrEqual(320);
   expect((await player.boundingBox())!.height).toBeGreaterThanOrEqual(200);
+  await page.getByRole('button', { name: 'Expand recording', exact: true }).click();
   const transport = page.getByLabel('Video speed');
   await transport.scrollIntoViewIfNeeded();
   await expect(transport).toBeInViewport();
@@ -96,8 +102,24 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await page.getByRole('button', { name: 'Save video setup', exact: true }).scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save video setup', exact: true })).toBeInViewport();
   await expect(page.locator('.song-video-calibration')).toHaveCSS('overflow-y', 'visible');
+  await page.getByLabel('Occurrence name').fill('My rehearsal');
   expect(await page.evaluate(() => ({ count: window.youtubeFake.players.length, destroyed: window.youtubeFake.active.destroyed })))
     .toEqual({ count: 1, destroyed: false });
+  await page.getByRole('button', { name: 'Compact recording', exact: true }).click();
+  await page.evaluate(() => { window.youtubeFake.active.time = 13; window.youtubeFake.active.emitState(1); });
+  await page.getByRole('button', { name: 'Close recording', exact: true }).click();
+  await expect(popup).toBeHidden();
+  await expect(launcher).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.youtubeFake.active.state)).toBe(2);
+  await launcher.click();
+  expect(await page.evaluate(() => ({ count: window.youtubeFake.players.length, time: window.youtubeFake.active.time })))
+    .toEqual({ count: 1, time: 13 });
+  await page.getByRole('button', { name: 'Expand recording', exact: true }).click();
+  await expect(page.getByLabel('Occurrence name')).toHaveValue('My rehearsal');
+  await page.keyboard.press('Escape');
+  await expect(popup).toBeHidden();
+  await expect(launcher).toBeFocused();
+  await expect(page.getByRole('region', { name: 'Tutor', exact: true })).toBeVisible();
 });
 
 test('Harmony and songs share Tutor layout preferences while leaving music a broad stage', async ({ page }) => {

@@ -26,10 +26,11 @@ keep their own musical context and use the same `TutorPanel` inside that frame.
 Desktop reserves a bounded companion column; at 1200px and below Tutor is a
 sheet. Conversation children remain mounted when closed.
 
-SongStudy puts recording playback beside its controls above the music, and gives
-Tutor the full companion column. Recording setup expands into the page instead
-of a bounded inner scroller. The recording stays in view during playback;
-opening calibration pauses it and releases the sticky position for editing.
+SongStudy opens recording playback from a compact launcher beside the playback
+selector. The non-modal popup has compact and expanded sizes; Expand reveals
+recording setup in one scroll area with a persistent header. Tutor keeps the full
+companion column. Closing the recording pauses it and returns focus, preserving
+its player, position and alignment draft. Mobile Tutor temporarily hides it.
 Measures and the neck have separate broad rows. Phone navigation
 shows four measures per page and supports selecting the endpoints of a range.
 `Keep passage` uses the existing saved-ranges endpoint; it creates neither an

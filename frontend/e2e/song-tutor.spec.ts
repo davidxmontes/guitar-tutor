@@ -116,6 +116,7 @@ test('Tutor stays beside the score on desktop and becomes a dismissible mobile s
   await page.screenshot({ path: '/tmp/song-tutor-sidebar-desktop.png' });
   await page.getByRole('button', { name: 'Switch to dark mode' }).click();
   await page.getByLabel('Playback source').selectOption('video');
+  await page.getByRole('button', { name: 'Open recording', exact: true }).click();
   const video = await page.locator('.song-video').boundingBox();
   const dockBesideVideo = await sidebar.boundingBox();
   expect(video!.x + video!.width).toBeLessThanOrEqual(dockBesideVideo!.x);
