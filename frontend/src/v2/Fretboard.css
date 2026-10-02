@@ -19,3 +19,8 @@
 .music-note--root text { fill: var(--root-text, #fff); font-weight: 700; }
 .music-note[role="button"]:hover circle { stroke: var(--accent-700); stroke-width: 3px; }
 .music-note:focus-visible circle, .music-note--playing circle { stroke: var(--text-primary); stroke-width: 4px; }
+.music-fret-hit { cursor: pointer; outline: none; }
+.music-fret-hit rect { fill: transparent; stroke: transparent; }
+.music-fret-hit text { opacity: 0; fill: var(--text-primary); font-size: 11px; pointer-events: none; }
+.music-fret-hit:hover rect, .music-fret-hit:focus-visible rect { fill: var(--learning-wash, #d8e9e530); stroke: var(--accent-700); stroke-width: 2; }
+.music-fret-hit:hover text, .music-fret-hit:focus-visible text { opacity: 1; }

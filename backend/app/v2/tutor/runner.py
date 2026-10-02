@@ -79,6 +79,8 @@ def resolve_turn_music(branch: Branch, terminal: TutorTerminal) -> Branch:
         focus = terminal.focus.model_dump() if hasattr(terminal.focus, 'model_dump') else terminal.focus
         if updated.active_workspace == 'harmony':
             target = TypeAdapter(HarmonyFocus).validate_python(focus)
+            if target.kind == 'shape' and target != updated.harmony_exploration.focus:
+                raise ValueError('A custom shape is edited by the learner, not the Tutor')
             if target.kind == 'voicing':
                 from app.v2.harmony import resolve_harmony
                 state = updated.harmony_exploration.model_copy(update={'focus': TypeAdapter(HarmonyFocus).validate_python({'kind': 'chord', 'chord': target.chord})})

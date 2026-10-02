@@ -21,11 +21,13 @@ export type ArtifactKind = 'song_study' | 'progression' | 'exercise';
 export type WorkspaceKind = 'harmony' | 'progression';
 
 // Persisted state mirrors backend/app/v2/{harmony,progression}_state.py.
+export type ShapeFocus = { kind: 'shape'; positions: PhysicalPosition[]; interpretation: ChordRef | null };
 export type HarmonyFocus =
   | { kind: 'scale' }
   | { kind: 'degree'; degree: number }
   | { kind: 'chord'; chord: ChordRef }
-  | { kind: 'voicing'; chord: ChordRef; voicing: VoicingValue };
+  | { kind: 'voicing'; chord: ChordRef; voicing: VoicingValue }
+  | ShapeFocus;
 export type ScratchChord = ChordRef & { id: string };
 export type PinnedVoicing = { chord: ChordRef; voicing: VoicingValue };
 export type Provenance =

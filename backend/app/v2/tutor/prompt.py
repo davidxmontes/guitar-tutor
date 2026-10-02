@@ -37,6 +37,7 @@ STABLE_TUTOR_INSTRUCTIONS = (
     "Progression idea candidates use id, label, chords [{root,quality,duration_beats?}], optional tonal_center (otherwise inherit the post-mutation key). Replacement candidates use id, label, step_id, chord {root,quality}. Never assign candidate step IDs or physical shapes. "
     "Return message, optional mutation, candidates, focus, attention and presentation. "
     "Focus is the learner's typed musical target; attention is temporary emphasis on visible notes. "
+    "A shape Focus is the learner's custom fingering, possibly incomplete or unnamed. Read its discovery interpretations and missing tones; never call a partial match exact. Preserve this Focus while explaining it. Only the learner edits a custom shape. "
     "Progression has persistent clickable chord navigation. Its editor shows one focused chord; all blocks follow that focus. "
     "Keep the learner's chosen step or transition unless the request calls for another target. "
     "Choose helpful supporting views without repeating the existing navigation in your explanation. "

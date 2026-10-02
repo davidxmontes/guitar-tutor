@@ -1,10 +1,11 @@
 """Harmony derivation and value operations. No Artifact, Save, or model call."""
 from itertools import product
 from pydantic import ValidationError
-from app.music.chords import CHORD_INTERVALS, index_to_note
+from app.music.chords import index_to_note
 from app.music.scales import SCALE_INTERVALS, SCALE_DEGREE_NAMES, get_diatonic_chords
 from app.services.chord_service import get_chord
 from app.v2.concepts import CIRCLE_KEYS
+from app.v2.chord_discovery import chord_notes, resolve_shape
 from app.v2.harmony_state import ChordRef, HarmonyExploration, PinnedVoicing, TonalCenter, VoicingValue
 from app.v2.workspace import NoteGroup, pitch_class, resolve_note_group, spelled_notes
 from app.v2.workspace_caged import chord_caged_regions
@@ -15,11 +16,6 @@ def note_positions(notes: list[dict], tuning: list[int]) -> list[dict]:
     return [{'string': string, 'fret': fret, 'midi': midi + fret, **by_pitch[(midi + fret) % 12]}
             for string, midi in enumerate(tuning, 1) for fret in range(20)
             if (midi + fret) % 12 in by_pitch]
-
-
-def chord_notes(chord: ChordRef) -> list[dict]:
-    formula = CHORD_INTERVALS[chord.quality]
-    return spelled_notes(chord.root, formula['intervals'], formula['names'])
 
 
 def function_in_key(chord: ChordRef, center: TonalCenter | None) -> str | None:
@@ -95,14 +91,14 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
         circle = {'home': center.root, 'home_key': CIRCLE_KEYS[home], 'keys': CIRCLE_KEYS.copy(),
                   'neighbours': [CIRCLE_KEYS[(home - 1) % 12], CIRCLE_KEYS[(home + 1) % 12]]}
     focus = exploration.focus
-    chord = focus.chord if focus.kind in ('chord', 'voicing') else None
+    chord = focus.chord if focus.kind in ('chord', 'voicing') else focus.interpretation if focus.kind == 'shape' else None
     if focus.kind == 'degree' and center and focus.degree <= len(palette):
         chord = ChordRef(root=palette[focus.degree - 1]['root'], quality=palette[focus.degree - 1]['quality'])
     notes = chord_notes(chord) if chord else []
     by_pitch = {note['pitch_class']: note for note in notes}
     physical = []
-    if focus.kind == 'voicing':
-        for position in focus.voicing.positions:
+    if focus.kind in ('voicing', 'shape'):
+        for position in (focus.positions if focus.kind == 'shape' else focus.voicing.positions):
             midi = exploration.tuning[position.string - 1] + position.fret
             physical.append({**position.model_dump(), 'midi': midi,
                              **by_pitch.get(midi % 12, {'pitch_class': midi % 12, 'note': index_to_note(midi)})})
@@ -113,23 +109,27 @@ def resolve_harmony(exploration: HarmonyExploration) -> dict:
         voicings = chord_voicings(item, exploration.tuning)
         scratch.append({**item.model_dump(), 'voicing': voicings[0] if voicings else None})
     function = function_in_key(chord, center) if chord else None
+    voicings = chord_voicings(chord, exploration.tuning) if chord else []
+    triads = triad_shapes(notes, exploration.tuning)
     return {'function': function, 'degrees': degrees, 'palette': palette, 'circle': circle,
+            'discovery': resolve_shape(exploration, voicings + triads + regions) if focus.kind == 'shape' else None,
             'scale_positions': note_positions(degrees, exploration.tuning),
             'chord_positions': note_positions(notes, exploration.tuning), 'chord_notes': notes,
-            'voicing_positions': physical, 'caged_regions': regions, 'triads': triad_shapes(notes, exploration.tuning),
-            'voicings': chord_voicings(chord, exploration.tuning) if chord else [],
+            'voicing_positions': physical, 'caged_regions': regions, 'triads': triads, 'voicings': voicings,
             'scratch': scratch, 'note_groups': [resolve_note_group(group, exploration.tuning) for group in exploration.kept_note_groups]}
 
 
 def change_subject(state: HarmonyExploration, center: TonalCenter | dict | None) -> HarmonyExploration:
     return HarmonyExploration.model_validate(state.model_dump() | {
-        'tonal_center': center, 'focus': {'kind': 'scale'}})
+        'tonal_center': center, 'focus': state.focus if state.focus.kind == 'shape' else {'kind': 'scale'}})
 
 
 def change_tuning(state: HarmonyExploration, tuning: list[int]) -> HarmonyExploration:
     focus = state.focus.model_dump()
     if state.focus.kind == 'voicing' and state.focus.voicing.tuning != tuning:
         focus = {'kind': 'chord', 'chord': state.focus.chord.model_dump()}
+    if state.focus.kind == 'shape' and state.tuning != tuning:
+        focus['interpretation'] = None
     return HarmonyExploration.model_validate(state.model_dump() | {'tuning': tuning, 'focus': focus})
 
 

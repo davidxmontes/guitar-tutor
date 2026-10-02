@@ -161,6 +161,29 @@ The same configured Tutor provider is required; local servers with blank provide
 keys show an explicit setup error. Deterministic browser tests use the existing
 scripted model, never a live credential.
 
+## Chord Explorer
+
+Explore → **Find a chord on the fretboard** opens an empty Harmony shape.
+Choose one fret per string; unselected strings are muted. Choose an interpretation
+to see its intervals, missing tones, completions, nearby changes and other voicings.
+Preview and Hear leave the input alone; Apply is reversible with Undo. Pin stores
+the exact fingering, while Add chord to scratch stores the harmonic chord only.
+
+`ShapeFocus` persists physical positions and an optional chosen interpretation.
+`chord_discovery.py` derives pitches, bass and interpretations from the existing
+formula/catalog data. Exact matches include every chord tone; partial matches
+have at least two distinct tones and at most two missing tones. Suggestions are
+bounded nearby edits and existing voicings, not an exhaustive fingering search or
+a guarantee of comfortable fingering. Key context changes ranking and spelling;
+it never removes a valid selected interpretation.
+
+`ChordExplorer` owns the local draft, coalesced revision-checked saves, transient
+preview/Undo and audition cleanup. Failed saves retain the draft with Retry and
+explicit Reload. Session/branch URLs reopen the saved shape on refresh.
+`FretboardDiagram.editor` is controlled input only: it accepts a resolved grid,
+selected positions and `onToggle`; it owns no theory or persistence. Tutor can
+read the shape and its interpretations but cannot invent custom fingerings.
+
 ## Proof paths
 
 `e2e/shared-blocks.html` demonstrates bare, compact/playable and read-only
