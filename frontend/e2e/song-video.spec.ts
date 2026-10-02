@@ -195,7 +195,9 @@ test('unsupported links and player errors recover without losing calibrated work
 test('mobile dark calibration keeps a visible native player and usable score', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await openSong(page); await alignFirstMeasure(page);
-  expect((await page.locator('.song-video').boundingBox())!.height).toBeLessThan(630);
+  await expect(page.locator('.song-video-calibration')).toHaveCSS('overflow-y', 'visible');
+  await page.getByRole('button', { name: 'Save video setup', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Save video setup', exact: true })).toBeInViewport();
   await page.screenshot({ path: '/tmp/song-video-mobile-expanded.png', fullPage: false });
   await page.getByText('Calibrate recording', { exact: false }).click();
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
@@ -442,6 +444,7 @@ test('paused lead-note selection drives the fretboard while video following stil
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
   await alignFirstMeasure(page);
+  await page.getByText('Calibrate recording', { exact: false }).click();
   await nativeTime(page, 14, 1);
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await nativeTime(page, 14, 2);
@@ -453,6 +456,8 @@ test('paused lead-note selection drives the fretboard while video following stil
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
   await expect(neck).toHaveAttribute('aria-label', /Active: string 5 fret 3\./);
+  // Starting native playback requires reaching the visible recording above the score.
+  await page.locator('iframe[title="YouTube video player"]').scrollIntoViewIfNeeded();
   await nativeTime(page, 14.25, 1);
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await page.getByRole('button', { name: 'Select measure 3', exact: true }).click();

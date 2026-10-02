@@ -2,6 +2,8 @@
 
 The learner approved **A: Study desk** and its measure-navigation/kept-passage refinements for [issue #134](https://github.com/davidxmontes/guitar-tutor/issues/134). The implementation uses that shared frame and retains existing focus practice. **B: Bottom conversation** remains a comparison only. The original observations and alternatives below record the design decision; the HTML is a prototype, not the application.
 
+**Recording/Tutor refinement:** feedback on the implemented stack showed that video squeezed both settings and conversation. SongStudy now reserves the companion column for Tutor and puts the recording above the score, with playback controls beside the player on desktop and below it on phones. Timing, measure selection and calibration expand below playback into normal page space. There is no small settings scroller. The recording stays visible while playing; expanded calibration pauses playback and releases the sticky position. This supersedes the video-above-Tutor placement in the original prototype below.
+
 ## What the current screens reveal
 
 - Harmony at 1440px starts both music and Tutor around **y392**. At 1024px, Tutor starts around **y1439**, after the musical surface. Asking a question therefore requires a different navigation pattern at different widths.

@@ -1,27 +1,32 @@
-.song-video { position: sticky; top: 8px; z-index: 25; min-width: 0; width: 100%; background: var(--card-bg); border: 1px solid var(--border-primary); border-radius: 10px; overflow: hidden; }
-.song-video-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border-primary); }
+.song-video { position: relative; z-index: 25; min-width: 0; width: 100%; background: var(--card-bg); border: 1px solid var(--border-primary); border-radius: 10px; }
+.song-video[data-playing='true'] { position: sticky; top: 72px; }
+.song-video:has(.song-video-calibration-details[open]) { position: relative; top: auto; }
+.song-video-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--border-primary); }
 .song-video-heading h2 { margin: 0; font-size: 14px; }
 .song-video-heading span { color: var(--text-secondary); font-size: 11px; }
-.song-video-tools { padding: 10px; font-size: 12px; display: grid; gap: 8px; }
-.song-video-tools p { color: var(--text-secondary); margin: 0; }
-.song-video-tools summary { cursor: pointer; font-weight: 650; padding: 4px 0; }
-.song-video-tools label { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.song-video-tools input:not([type=checkbox]), .song-video-tools select { min-width: 0; width: 100%; border: 1px solid var(--border-primary); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); padding: 6px; }
-.song-video-calibration { display: grid; gap: 10px; margin-top: 8px; max-height: 45vh; overflow-y: auto; padding-right: 4px; }
+.song-video-primary { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr); align-items: start; gap: 16px; padding: 12px; }
+.song-video-primary[data-has-recording='false'] { display: none; }
+.song-video-primary > .youtube-player { max-width: 480px; margin-inline: auto; }
+.song-video-tools { min-width: 0; font-size: 12px; display: grid; align-content: start; gap: 8px; }
+.song-video :is(.song-video-tools, .song-video-setup) p { color: var(--text-secondary); margin: 0; }
+.song-video summary { min-height: 44px; align-content: center; cursor: pointer; font-weight: 650; padding: 8px 0; }
+.song-video label { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.song-video input:not([type=checkbox]), .song-video select { min-width: 0; width: 100%; border: 1px solid var(--border-primary); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); padding: 6px; }
+.song-video .song-video-transport select { width: auto; }
+.song-video-calibration { display: grid; gap: 10px; margin-top: 8px; }
 .song-video-calibration form { display: grid; gap: 6px; }
 .song-video-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .song-video-status { min-height: 18px; }
-@media (min-width: 1201px) {
-  .song-video { display: flex; flex-direction: column; }
-  .song-video-heading, .song-video .youtube-player { flex: 0 0 auto; }
-  .song-video-tools { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-}
-@media (max-width: 1200px) {
-  .song-video .youtube-player { max-width: 480px; margin-inline: auto; }
-  .song-video-tools { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
-  .song-video-calibration { max-height: none; overflow-y: visible; }
-}
-
+.song-video-setup { display: flex; flex-wrap: wrap; align-items: start; column-gap: 20px; padding: 0 12px 12px; border-top: 1px solid var(--border-primary); font-size: 12px; }
+.song-video-setup > details[open] { flex-basis: 100%; }
+.song-video-setup > p { flex-basis: 100%; }
+.song-video-setup details > p { margin-block: 8px; }
+.song-video-setup .song-video-actions { margin-block: 8px; }
 .song-video-suggestions { display: grid; gap: 8px; }
-.song-video-suggestions ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; max-height: 24vh; overflow-y: auto; }
+.song-video-suggestions ul { display: grid; gap: 8px; list-style: none; padding: 0; margin: 0; }
 .song-video-suggestions button { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+@media (max-width: 640px) {
+  .song-video[data-playing='true'] { top: 112px; }
+  .song-video-primary { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 8px; }
+  .song-video-setup { padding-inline: 8px; column-gap: 16px; }
+}

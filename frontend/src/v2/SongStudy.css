@@ -51,26 +51,14 @@
 .song-custom-passage input { min-height: 36px; border: 1px solid var(--border-primary); border-radius: 6px; background: var(--bg-input); color: var(--text-primary); padding: 6px 8px; }
 
 @media (min-width: 1201px) {
-  .song-study-companion { position: sticky; top: 72px; height: calc(100dvh - 84px); }
-  .song-study-companion:has(> .song-video + .tutor-dock:not([hidden])) {
-    grid-template-rows: minmax(280px, min(42dvh, 400px)) minmax(0, 1fr);
-  }
-  .song-study-companion > .song-video { position: static; height: min(42dvh, 400px); }
+  .song-study-companion { position: sticky; top: 72px; height: calc(100dvh - 84px); grid-template-rows: minmax(0, 1fr); }
   .song-study-companion > .tutor-dock { height: 100%; max-height: 100%; }
-}
-
-@media (min-width: 1201px) and (max-height: 760px) {
-  .song-study-companion:has(> .song-video + .tutor-dock:not([hidden])) { grid-template-rows: 280px minmax(0, 1fr); }
-  .song-study-companion > .song-video { height: 280px; }
-  .song-study-companion .youtube-player { max-width: 360px; margin-inline: auto; }
-  .song-study-companion > .tutor-dock { min-height: 0; }
 }
 
 @media (max-width: 1200px) {
   .song-study-desk { display: flex; flex-direction: column; }
   .song-study-stage { order: 1; width: 100%; }
   .song-study-companion { display: contents; }
-  .song-study-companion > .song-video { order: 0; align-self: center; top: 70px; width: min(100%, 520px); margin-inline: auto; }
 }
 
 @media (max-width: 640px) {
@@ -78,7 +66,6 @@
   .song-study-heading h1 { font-size: 16px; }
   .song-study-heading p { max-width: 32ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .song-study-header-actions { flex-basis: 100%; justify-content: flex-end; }
-  .song-study-companion > .song-video { top: 112px; }
   .song-study-desk { gap: 10px; padding-top: 10px; }
   .song-study-mobile-view { display: flex; gap: 6px; }
   .song-study-mobile-view .music-button { flex: 1; min-height: 44px; }

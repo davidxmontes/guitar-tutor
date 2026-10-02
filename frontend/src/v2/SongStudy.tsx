@@ -868,7 +868,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
         </div>
       </header>
 
-      <div className="song-study-desk" data-companion={!practice.focused && (playbackSource === 'video' || tutorOpen)}>
+      <div className="song-study-desk" data-companion={!practice.focused && tutorOpen}>
         <section className="song-study-stage" data-mobile-view={mobileView} aria-label="Song music">
           <div className="song-study-practice-bar">
             <label>Playback <select aria-label="Playback source" className="music-button" value={playbackSource} onChange={event => {
@@ -876,6 +876,9 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
             }}><option value="practice">Guitar guide</option><option value="video">Recording</option></select></label>
             {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
           </div>
+          <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
+            selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
+            onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
           <div className="song-study-mobile-view" role="group" aria-label="Song view">
             <button type="button" className="music-button" aria-pressed={mobileView === 'score'} onClick={() => setMobileView('score')}>Score</button>
             <button type="button" className="music-button" aria-pressed={mobileView === 'fretboard'} onClick={() => { setShowFullTab(false); setMobileView('fretboard'); }}>Fretboard</button>
@@ -1072,10 +1075,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
       /></div>
           </div>
         </section>
-        <aside className="song-study-companion" hidden={practice.focused || (playbackSource !== 'video' && !tutorOpen)}>
-          <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
-            selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
-            onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+        <aside className="song-study-companion" hidden={practice.focused || !tutorOpen}>
           <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} dock={tutorDock} />
         </aside>
       </div>

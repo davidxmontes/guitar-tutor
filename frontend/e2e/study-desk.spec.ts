@@ -80,13 +80,24 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await expect(page.locator('.tutor-message--assistant')).toBeInViewport();
   const recording = await page.locator('.song-video').boundingBox();
   const conversation = await page.getByRole('region', { name: 'Tutor', exact: true }).boundingBox();
-  expect(recording!.y + recording!.height).toBeLessThanOrEqual(conversation!.y);
+  expect(recording!.x + recording!.width).toBeLessThanOrEqual(conversation!.x);
   await expect(page.getByLabel('Ask the Tutor')).toBeInViewport();
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Ask', exact: true }).scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeInViewport();
-  expect((await page.getByLabel('Tutor conversation').boundingBox())!.height).toBeGreaterThanOrEqual(64);
+  expect((await page.getByLabel('Tutor conversation').boundingBox())!.height).toBeGreaterThanOrEqual(320);
   expect((await player.boundingBox())!.height).toBeGreaterThanOrEqual(200);
+  const transport = page.getByLabel('Video speed');
+  await transport.scrollIntoViewIfNeeded();
+  await expect(transport).toBeInViewport();
+  const video = await player.boundingBox();
+  expect((await transport.boundingBox())!.x).toBeGreaterThan(video!.x + video!.width);
+  await page.getByText('Calibrate recording', { exact: false }).click();
+  await page.getByRole('button', { name: 'Save video setup', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Save video setup', exact: true })).toBeInViewport();
+  await expect(page.locator('.song-video-calibration')).toHaveCSS('overflow-y', 'visible');
+  expect(await page.evaluate(() => ({ count: window.youtubeFake.players.length, destroyed: window.youtubeFake.active.destroyed })))
+    .toEqual({ count: 1, destroyed: false });
 });
 
 test('Harmony and songs share Tutor layout preferences while leaving music a broad stage', async ({ page }) => {

@@ -277,8 +277,9 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   }
 
   if (!active) return null;
-  return <section ref={panel} className="song-video" aria-label="Recording">
+  return <section ref={panel} className="song-video" aria-label="Recording" data-playing={state === 'playing' || state === 'buffering'}>
     <header className="song-video-heading"><h2>Recording</h2><span>{state === 'playing' ? 'Playing' : state === 'buffering' ? 'Buffering' : 'Ready'}</span></header>
+    <div className="song-video-primary" data-has-recording={Boolean(draft)}>
     {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
       setReady(value);
       if (!value) { setDuration(null); setPlaybackRate({ rate: 1, available: [1] }); }
@@ -296,16 +297,6 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         onClick={() => { pausedForTutor.current = false; player.current?.play(); }}>Resume recording</button>}
       {draft && <>
         {draft.timing_source && <p>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : 'Songsterr timing'}</p>}
-        {Number.isFinite(firstTime) && <details><summary>Adjust recording start</summary>
-          {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
-          {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
-          <form className="song-video-actions" onSubmit={event => { event.preventDefault(); shiftStart(); }}>
-            <label>First aligned beat{firstAnchor ? ` (M${firstAnchor.measure_index + 1}, beat ${firstAnchor.beat_index + 1})` : ''} at (seconds)<input aria-label="First aligned beat at (seconds)" type="number" min="0" max="86400" step="0.1" value={startTime || String(firstTime)} onChange={event => setStartTime(event.target.value)} /></label>
-            <button type="submit" className="music-button" disabled={!startTime || busy}>Apply start time</button>
-          </form>
-          <p>Moves all timing points together. Undo edit restores the previous timing.</p>
-        </details>}
-        {!Number.isFinite(firstTime) && durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
         <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!timingEnabled ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
           const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1);
           return position ? `Video: M${position.measureIndex + 1}, beat ${position.beatIndex + 1} · ${draft.passages.find(p => p.id === position.passageId)?.label}` : 'Unaligned video section';
@@ -316,7 +307,29 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         <div className="song-video-actions"><span data-testid="video-selected-span">Selection: {selectionLabel}</span>
           {selection.type === 'beat' && <button type="button" className="music-button" onClick={() => onSelectRange(selectedStart, selectedStart)}>Whole measure</button>}
         </div>
+        <div className="song-video-actions song-video-transport"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
+          <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label>
+          <label>Speed<select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
+            {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
+          </select></label></div>
+        {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
+        {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
+      </>}
+    </div>
+    </div>
+    <div className="song-video-setup">
+      {draft && <>
+        {Number.isFinite(firstTime) && <details><summary>Adjust recording start</summary>
+          {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
+          {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
+          <form className="song-video-actions" onSubmit={event => { event.preventDefault(); shiftStart(); }}>
+            <label>First aligned beat{firstAnchor ? ` (M${firstAnchor.measure_index + 1}, beat ${firstAnchor.beat_index + 1})` : ''} at (seconds)<input aria-label="First aligned beat at (seconds)" type="number" min="0" max="86400" step="0.1" value={startTime || String(firstTime)} onChange={event => setStartTime(event.target.value)} /></label>
+            <button type="submit" className="music-button" disabled={!startTime || busy}>Apply start time</button>
+          </form>
+          <p>Moves all timing points together. Undo edit restores the previous timing.</p>
+        </details>}
         <details><summary>Choose measures</summary>
+          <p>Select a beat while playing to jump. Loop repeats the selection.</p>
           <form key={selectionLabel} className="song-video-actions" onSubmit={event => {
             event.preventDefault();
             const values = new FormData(event.currentTarget);
@@ -330,18 +343,11 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
             <button type="submit" className="music-button">Apply range</button>
           </form>
         </details>
-        <div className="song-video-actions"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
-          <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label>
-          <label>Speed<select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
-            {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
-          </select></label></div>
-        {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
-        <p>Select a beat while playing to jump. Loop repeats the selection.</p>
-        {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
       </>}
-      <details ref={calibration} open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
+      <details ref={calibration} className="song-video-calibration-details" open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
         <summary>{draft ? 'Calibrate recording' : 'Attach a YouTube recording'}{dirty ? ' · unsaved' : ''}</summary>
         <fieldset disabled={busy} className="song-video-calibration">
+          {!Number.isFinite(firstTime) && durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
           {!draft && recordingChoices}
           {draft && <>
             <label><input type="checkbox" checked={draft.recording_confirmed} onChange={event => change({ ...draft, recording_confirmed: event.target.checked })} /> I checked that this recording matches the score arrangement.</label>

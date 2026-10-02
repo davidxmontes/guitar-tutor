@@ -26,7 +26,11 @@ keep their own musical context and use the same `TutorPanel` inside that frame.
 Desktop reserves a bounded companion column; at 1200px and below Tutor is a
 sheet. Conversation children remain mounted when closed.
 
-SongStudy gives measures and the neck separate broad rows. Phone navigation
+SongStudy puts recording playback beside its controls above the music, and gives
+Tutor the full companion column. Recording setup expands into the page instead
+of a bounded inner scroller. The recording stays in view during playback;
+opening calibration pauses it and releases the sticky position for editing.
+Measures and the neck have separate broad rows. Phone navigation
 shows four measures per page and supports selecting the endpoints of a range.
 `Keep passage` uses the existing saved-ranges endpoint; it creates neither an
 Exercise nor completion data. Named ranges remain available, and intentional
