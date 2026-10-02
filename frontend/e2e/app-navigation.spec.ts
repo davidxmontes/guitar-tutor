@@ -11,12 +11,16 @@ test('sidebar preserves the current session across destinations and collapses on
   await expect(page.getByRole('heading', { name: 'My Stuff', level: 1 })).toBeVisible();
   await nav.getByRole('button', { name: 'Current workspace', exact: true }).click();
   await expect(page.getByTestId('v2-active-session')).toHaveText(session!);
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-collapsed', 'true');
+  await page.getByRole('button', { name: 'Expand navigation' }).click();
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-collapsed', 'false');
   await page.getByRole('button', { name: 'Collapse navigation' }).click();
   await expect(page.locator('.app-shell')).toHaveAttribute('data-collapsed', 'true');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Sessions', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Expand navigation' }).click();
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-collapsed', 'true');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

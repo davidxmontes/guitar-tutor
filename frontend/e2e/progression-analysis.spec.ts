@@ -29,6 +29,7 @@ test('function, real voice motion, replacement and Exercise from an idea', async
   await page.getByRole('button', { name: 'Replace chord', exact: true }).click();
   await page.getByRole('combobox', { name: 'Replacement root', exact: true }).selectOption('D');
   await page.getByRole('button', { name: 'Done replacing' }).click();
+  await page.getByText('More practice tools', { exact: true }).click();
   await page.getByRole('button', { name: 'Create exercise', exact: true }).click();
   await page.getByLabel('Exercise title').fill('Landing drill');
   await page.getByLabel('Practice goal').fill('Land each chord cleanly');

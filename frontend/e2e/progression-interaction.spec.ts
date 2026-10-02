@@ -11,7 +11,7 @@ test('the chord sequence connects the fretboard, editor and Tutor without scroll
   await expect(editor.getByLabel('Step 3', { exact: true })).toBeVisible();
   await expect(editor.getByRole('listitem')).toHaveCount(1);
   await expect(page.getByLabel('Fretboard layers')).toContainText('A minor');
-  await expect(page.getByLabel('Your Tutor')).toContainText('Four-chord progression · A minor');
+  await expect(page.getByRole('region', { name: 'Tutor', exact: true })).toContainText('Four-chord progression · A minor');
   const fretboard = page.getByLabel('progression fretboard', { exact: true });
   await expect(editor.getByLabel('Chord root')).not.toBeVisible();
   await page.screenshot({ path: 'test-results/compact-editor-check.png', fullPage: true });
@@ -40,6 +40,7 @@ test('the chord sequence connects the fretboard, editor and Tutor without scroll
   await expect(sequence.getByRole('button', { name: /^Chord / })).toHaveCount(3);
   await expect(editor.getByLabel('Chord root')).toHaveValue('C');
   await page.setViewportSize({ width: 320, height: 900 });
+  await page.getByRole('button', { name: 'Close Tutor', exact: true }).click();
   await page.getByRole('button', { name: 'Next →', exact: true }).click();
   await expect(page.getByLabel('Fretboard layers')).toContainText('G major');
   await page.getByRole('button', { name: 'Next →', exact: true }).click();

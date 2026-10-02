@@ -38,6 +38,7 @@ test('unsaved song refresh, cached search breadcrumb and history keep song ident
 
 test('saved song reopens by URL and breadcrumb clears different-query results', async ({ page }) => {
   const id = await openSong(page);
+  await page.getByText('Song actions', { exact: true }).click();
   await page.getByRole('button', { name: 'Save to My Stuff', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Saved to My Stuff', exact: true })).toBeVisible();
   await page.getByRole('navigation', { name: 'Song navigation' }).getByRole('button', { name: 'Explore', exact: true }).click();

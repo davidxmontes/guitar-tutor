@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { SongSelection, SongStudyArtifact } from '../types/v2';
 import type { SongVideoAlignment, SongVideoAnchor, SongVideoSuggestions } from '../types/songVideo';
@@ -14,9 +14,10 @@ const timeLabel = (seconds: number) => {
 };
 const anchorLabel = (anchor: SongVideoAnchor) => `M${anchor.measure_index + 1}, beat ${anchor.beat_index + 1} ${anchor.edge} · ${timeLabel(anchor.video_seconds)}`;
 
-export function SongVideo({ song, active, selection, onSelectRange, onChange, onPosition }: {
+export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectRange, onChange, onPosition }: {
   song: SongStudyArtifact;
   active: boolean;
+  pauseWhenCovered: boolean;
   selection: SongSelection;
   onSelectRange(start: number, end: number): void;
   onChange(song: SongStudyArtifact): void;
@@ -71,6 +72,7 @@ export function SongVideo({ song, active, selection, onSelectRange, onChange, on
   const playingRange = useRef<(VideoRange & { loop: boolean; seeking: boolean }) | null>(null);
   const lastPosition = useRef('');
   const previousSample = useRef<{ time: number; at: number } | null>(null);
+  const pausedForTutor = useRef(false);
   const timeline = useMemo(() => buildScoreTimeline(song.payload.tab_data.measures ?? []), [song.payload.tab_data.measures]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline.current);
   const passage = draft?.passages.find(p => p.id === occurrence) ?? (draft?.passages.length === 1 ? draft.passages[0] : null);
@@ -110,6 +112,12 @@ export function SongVideo({ song, active, selection, onSelectRange, onChange, on
     window.addEventListener('blur', nativeControls);
     return () => window.removeEventListener('blur', nativeControls);
   }, [active]);
+
+  useLayoutEffect(() => {
+    if (!active || !pauseWhenCovered) return;
+    pausedForTutor.current = playingState.current === 'playing' || playingState.current === 'buffering';
+    player.current?.pause();
+  }, [active, pauseWhenCovered]);
 
   function clearPlayback() {
     player.current?.pause();
@@ -269,7 +277,8 @@ export function SongVideo({ song, active, selection, onSelectRange, onChange, on
   }
 
   if (!active) return null;
-  return <section ref={panel} className="song-video" aria-label="Song video">
+  return <section ref={panel} className="song-video" aria-label="Recording">
+    <header className="song-video-heading"><h2>Recording</h2><span>{state === 'playing' ? 'Playing' : state === 'buffering' ? 'Buffering' : 'Ready'}</span></header>
     {draft && <YouTubePlayer ref={player} videoId={draft.video_id} onReadyChange={value => {
       setReady(value);
       if (!value) { setDuration(null); setPlaybackRate({ rate: 1, available: [1] }); }
@@ -283,6 +292,8 @@ export function SongVideo({ song, active, selection, onSelectRange, onChange, on
         }
       }} />}
     <div className="song-video-tools">
+      {!pauseWhenCovered && pausedForTutor.current && <button type="button" className="music-button" data-testid="song-video-resume"
+        onClick={() => { pausedForTutor.current = false; player.current?.play(); }}>Resume recording</button>}
       {draft && <>
         {draft.timing_source && <p>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : 'Songsterr timing'}</p>}
         {Number.isFinite(firstTime) && <details><summary>Adjust recording start</summary>

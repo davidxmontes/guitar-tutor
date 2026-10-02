@@ -19,7 +19,7 @@ function NavIcon({ name }: { name: keyof typeof paths }) {
 export function AppShell({ active, hasWorkspace, onNavigate, children }: {
   active: Destination; hasWorkspace: boolean; onNavigate: (page: Destination) => void; children: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const [collapsed, setCollapsed] = useState(true);
   return <div className="v2-app app-shell" data-collapsed={collapsed}>
     <a className="shell-skip" href="#app-content">Skip to content</a>
     <aside className="app-sidebar" aria-label="Main navigation">
@@ -27,7 +27,7 @@ export function AppShell({ active, hasWorkspace, onNavigate, children }: {
         <button className="sidebar-toggle" title={collapsed ? 'Expand navigation' : 'Collapse navigation'} aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'} aria-expanded={!collapsed} aria-controls="sidebar-navigation" onClick={() => setCollapsed(value => !value)}><NavIcon name="collapse" /></button>
       </div>
       <nav id="sidebar-navigation" className="sidebar-navigation">
-        {([['explore', 'Explore'], ['sessions', 'Sessions'], ['library', 'My Stuff'], ['song', 'Study a song'], ...(hasWorkspace ? [['workspace', 'Current workspace']] : [])] as [Destination, string][]).map(([page, label]) => <button key={page} title={label} aria-label={label} aria-current={active === page ? 'page' : undefined} onClick={() => onNavigate(page)}><NavIcon name={page} /><span className="sidebar-label">{label}</span></button>)}
+        {([['explore', 'Explore'], ['sessions', 'Sessions'], ['library', 'My Stuff'], ['song', 'Study a song'], ...(hasWorkspace ? [['workspace', 'Current workspace']] : [])] as [Destination, string][]).map(([page, label]) => <button key={page} title={label} aria-label={label} aria-current={active === page ? 'page' : undefined} onClick={() => { onNavigate(page); if (window.matchMedia('(max-width: 700px)').matches) setCollapsed(true); }}><NavIcon name={page} /><span className="sidebar-label">{label}</span></button>)}
       </nav>
       <div className="sidebar-bottom"><ThemeToggle />{!AUTH_DEV_BYPASS && <div className="sidebar-account"><UserButton /><span className="sidebar-label">Your account</span></div>}<a href="/classic" title="Classic fallback"><NavIcon name="workspace" /><span className="sidebar-label">Classic fallback</span></a></div>
     </aside>

@@ -21,8 +21,8 @@ function selectionLabel(context: SongTutorContext): string {
     : `Selected passage: M${selection.startMeasureIndex + 1}–${selection.endMeasureIndex + 1}`;
 }
 
-export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songContext }: {
-  branch: V2Branch; context: string; busy: boolean; onBusy: (value: boolean) => void;
+export function TutorPanel({ branch, busy, onBusy, onRefresh, songContext }: {
+  branch: V2Branch; busy: boolean; onBusy: (value: boolean) => void;
   onRefresh: (updated: V2Branch) => Promise<void>;
   songContext?: SongTutorContext;
 }) {
@@ -30,6 +30,7 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
   const draftKey = `guitar-tutor-draft:${branch.tutor_thread_id}`;
   const [question, setQuestion] = useState(() => { try { return sessionStorage.getItem(draftKey) ?? ''; } catch { return ''; } });
   const [webSearch, setWebSearch] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
   const [preferences, setPreferences] = useState(readPreferences);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -158,9 +159,8 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
   const prompts = songContext ? ['Explain this passage', 'How should I practise this?', 'Explain the techniques', `Give me a ${preferences.minutes}-minute drill`] : branch.active_workspace === 'harmony'
     ? ['Explain this', 'Show me an easier shape', 'Compare two useful views', `Give me a ${preferences.minutes}-minute drill`]
     : ['Why do these chords work?', 'Suggest a smoother transition', 'Show the voice leading', `Give me a ${preferences.minutes}-minute drill`];
-  return <aside id="workspace-tutor" className="tutor-panel" aria-label="Your Tutor">
-    <header className="tutor-heading"><span className="tutor-mark" aria-hidden="true">✦</span><div><h2>Your Tutor</h2><p>Understand it. Hear it. Make it yours.</p></div></header>
-    <p className="tutor-context"><span>Working with</span><strong>{context}</strong></p>
+  return <div className="tutor-panel">
+    <div className="tutor-scroll" aria-label="Tutor conversation" ref={conversation} tabIndex={0}>
     {!songContext && <a className="learning-return-link" href="#workspace-music">Back to the music ↑</a>}
     <details className="tutor-preferences"><summary>How I teach · {preferences.level}</summary>
       <div className="learning-fields">
@@ -169,7 +169,10 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
         <label>Practice time<select value={preferences.minutes} onChange={event => updatePreferences({ minutes: Number(event.target.value) as LearningPreferences['minutes'] })}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option></select></label>
       </div>
     </details>
-    <div className="tutor-conversation" aria-label="Tutor conversation" ref={conversation} tabIndex={0}>
+    <details className="tutor-suggestions" open={suggestionsOpen} onToggle={event => setSuggestionsOpen(event.currentTarget.open)}><summary>Suggested questions</summary>
+      <div className="tutor-prompts">{prompts.map(prompt => <button key={prompt} type="button" disabled={busy} onClick={() => { updateQuestion(prompt); document.getElementById(`question-${branch.id}`)?.focus(); }}>{prompt}</button>)}</div>
+    </details>
+    <div className="tutor-conversation">
       {loading && !sending && <p role="status">Loading your conversation…</p>}
       {!loading && !sending && messages.length === 0 && <div className="tutor-welcome"><h3>Start with one small question.</h3><p>Select a note, shape, or chord. I can explain it, compare alternatives, or turn it into something to practise.</p></div>}
       {messages.filter(message => message.role !== 'tool').map(message => <article key={message.id} className={`tutor-message tutor-message--${message.role}`}>
@@ -197,13 +200,15 @@ export function TutorPanel({ branch, context, busy, onBusy, onRefresh, songConte
     {!songContext && undo && <div className="tutor-undo"><button className="music-button" disabled={busy || branch.updated_at !== undo.revision} onClick={() => void restore(undo.id, true)}>Undo musical change</button><p>{branch.updated_at === undo.revision ? 'Returns to the music before your last question.' : 'You edited the music after this turn. Undo is disabled to protect those edits.'}</p></div>}
     {notice && <p className="learning-notice" role="status">{notice}</p>}
     {error && <p className="learning-error" role="alert">{error}</p>}
-    {songContext && failedSelection && <p className="tutor-context">Retry uses {selectionLabel(failedSelection)}. <button type="button" className="learning-text-button" onClick={() => setFailedSelection(null)}>Use current selection instead</button></p>}
+    {songContext && failedSelection && <p className="learning-notice">Retry uses {selectionLabel(failedSelection)}. <button type="button" className="learning-text-button" onClick={() => setFailedSelection(null)}>Use current selection instead</button></p>}
+    </div>
     <form className="tutor-compose" onSubmit={event => { event.preventDefault(); void ask(); }}>
-      <div className="tutor-prompts">{prompts.map(prompt => <button key={prompt} type="button" disabled={busy} onClick={() => { updateQuestion(prompt); document.getElementById(`question-${branch.id}`)?.focus(); }}>{prompt}</button>)}</div>
-      {songContext && <label><input type="checkbox" checked={webSearch} disabled={busy} onChange={event => setWebSearch(event.target.checked)} /> Search online <small>· Allow Tutor to search when useful</small></label>}
       <label htmlFor={`question-${branch.id}`}>Ask the Tutor</label>
-      <textarea id={`question-${branch.id}`} placeholder="What would you like to understand or try?" rows={3} maxLength={12000} value={question} disabled={sending} onChange={event => updateQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }} />
-      <div className="tutor-send"><small>Enter to send · Shift + Enter for a new line</small><button className="music-button learning-primary" disabled={busy || loading || !question.trim()}>Ask</button></div>
+      <textarea id={`question-${branch.id}`} placeholder="What would you like to understand or try?" rows={2} maxLength={12000} value={question} disabled={sending} onChange={event => updateQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(); } }} />
+      <div className="tutor-send">{songContext
+        ? <label className="tutor-online-search" title="Allow Tutor to search online when useful"><input type="checkbox" checked={webSearch} disabled={busy} onChange={event => setWebSearch(event.target.checked)} /> Search online</label>
+        : <small>Enter to send · Shift + Enter for a new line</small>}
+        <button className="music-button learning-primary" title="Enter to send · Shift + Enter for a new line" disabled={busy || loading || !question.trim()}>Ask</button></div>
     </form>
-  </aside>;
+  </div>;
 }

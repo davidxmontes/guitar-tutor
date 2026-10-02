@@ -574,10 +574,12 @@ for (const width of [1280, 320]) {
     await expect(neck).toHaveAttribute('aria-label', /Active techniques: String 5, fret 3: slide, bend, hammer-on \/ pull-off/);
     await expect(page.locator('[data-fret="99"]')).toHaveCount(0);
     if (width === 320) {
+      await page.getByRole('button', { name: 'Fretboard', exact: true }).click();
       await neck.scrollIntoViewIfNeeded();
       await page.screenshot({ path: '/tmp/song-video-techniques-mobile.png' });
       const bounds = await active.boundingBox();
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+      await page.getByRole('button', { name: 'Score', exact: true }).click();
     }
     await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
     await alignFirstMeasure(page);

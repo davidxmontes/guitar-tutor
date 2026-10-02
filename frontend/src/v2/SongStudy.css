@@ -1,0 +1,95 @@
+.song-study-workspace { min-width: 0; background: var(--bg-primary); color: var(--text-primary); }
+.song-study-header { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0 12px; border-bottom: 1px solid var(--border-primary); background: var(--bg-primary); }
+.song-study-heading { flex: 1; min-width: 180px; }
+.song-study-heading h1 { margin: 0; font-size: 18px; line-height: 1.25; }
+.song-study-heading h1 span { color: var(--text-secondary); font-weight: 500; }
+.song-study-heading p { margin: 2px 0 0; color: var(--text-secondary); font-size: 12px; }
+.song-study-header-actions, .song-study-practice-bar, .song-study-selection-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.song-study-actions { position: relative; }
+.song-study-actions > summary { list-style: none; }
+.song-study-actions > summary::-webkit-details-marker { display: none; }
+.song-study-actions > div { position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: min(320px, 90vw); display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border-primary); border-radius: 10px; background: var(--card-bg); box-shadow: var(--surface-shadow); }
+.song-study-actions details > summary { cursor: pointer; font-size: 12px; font-weight: 650; }
+
+.song-study-desk { display: grid; grid-template-columns: minmax(600px, 1fr) min(var(--tutor-width, 340px), max(320px, calc(100% - 616px))); gap: 16px; align-items: start; padding-top: 14px; }
+.song-study-desk[data-companion='false'] { grid-template-columns: minmax(0, 1fr); }
+.song-study-stage, .song-study-companion, .song-study-score, .song-study-music-rows, .song-study-score-view, .song-study-fretboard-view { min-width: 0; max-width: 100%; }
+.song-study-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+.song-study-companion { display: grid; gap: 12px; align-content: start; }
+.song-study-practice-bar { min-height: 36px; }
+.song-study-practice-bar label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.song-study-mobile-view { display: none; }
+.song-study-music-rows, .song-study-fretboard-view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.song-study-score-view, .song-study-fretboard-view { padding: 12px; border: 1px solid var(--border-primary); border-radius: 10px; background: var(--card-bg); }
+.song-study-fretboard-row > div:first-child { width: 100%; min-width: 0; }
+.song-shapes-details > summary { min-height: 36px; align-content: center; cursor: pointer; color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.song-shapes-details[open] { display: grid; gap: 10px; }
+
+.song-measure-map { display: grid; gap: 8px; }
+.song-section-jumps { display: flex; gap: 4px; min-width: 0; overflow-x: auto; border-bottom: 1px solid var(--border-primary); }
+.song-section-jumps button { flex: 0 0 auto; min-height: 36px; padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); text-align: left; }
+.song-section-jumps button[aria-pressed='true'] { border-color: var(--accent-500); color: var(--text-primary); }
+.song-section-jumps small { display: block; color: var(--text-muted); font-size: 9px; }
+.song-measure-navigation { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.song-measure-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(36px, 1fr)); gap: 4px; flex: 1; min-width: 0; }
+.song-measure-grid button { position: relative; min-width: 36px; min-height: 36px; padding: 4px; border: 1px solid var(--border-primary); border-radius: 5px; background: var(--card-bg); color: var(--text-secondary); font-size: 12px; }
+.song-measure-grid button[aria-pressed='true'] { border-color: var(--accent-500); background: var(--bg-hover); color: var(--text-primary); }
+.song-measure-grid button[aria-current='location'] { box-shadow: inset 0 -3px var(--accent-500); }
+.song-measure-page { display: none; width: 44px; min-height: 44px; border: 1px solid var(--border-primary); border-radius: 5px; background: var(--card-bg); }
+.song-measure-kept { position: absolute; top: 3px; right: 4px; width: 5px; height: 8px; background: var(--accent-500); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); }
+.song-measure-enriched { position: absolute; right: 4px; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); }
+.song-kept-passages { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.song-study-selection-actions { color: var(--text-secondary); font-size: 12px; }
+.song-kept-passages summary, .song-study-secondary > summary { min-height: 36px; align-content: center; cursor: pointer; color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.song-kept-list { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin: 8px 0 0; padding: 0; list-style: none; }
+.song-kept-list li { display: flex; gap: 3px; }
+.song-kept-passages > details[open] { flex-basis: 100%; }
+.song-study-secondary > p, .song-study-map-ranges p { margin: 6px 0; color: var(--text-secondary); font-size: 12px; }
+.song-study-map-ranges { display: flex; flex-wrap: wrap; gap: 8px; }
+.song-custom-passage { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.song-custom-passage label { display: grid; gap: 4px; color: var(--text-secondary); font-size: 12px; }
+.song-custom-passage input { min-height: 36px; border: 1px solid var(--border-primary); border-radius: 6px; background: var(--bg-input); color: var(--text-primary); padding: 6px 8px; }
+
+@media (min-width: 1201px) {
+  .song-study-companion { position: sticky; top: 72px; height: calc(100dvh - 84px); }
+  .song-study-companion:has(> .song-video + .tutor-dock:not([hidden])) {
+    grid-template-rows: minmax(280px, min(42dvh, 400px)) minmax(0, 1fr);
+  }
+  .song-study-companion > .song-video { position: static; height: min(42dvh, 400px); }
+  .song-study-companion > .tutor-dock { height: 100%; max-height: 100%; }
+}
+
+@media (min-width: 1201px) and (max-height: 760px) {
+  .song-study-companion:has(> .song-video + .tutor-dock:not([hidden])) { grid-template-rows: 280px minmax(0, 1fr); }
+  .song-study-companion > .song-video { height: 280px; }
+  .song-study-companion .youtube-player { max-width: 360px; margin-inline: auto; }
+  .song-study-companion > .tutor-dock { min-height: 0; }
+}
+
+@media (max-width: 1200px) {
+  .song-study-desk { display: flex; flex-direction: column; }
+  .song-study-stage { order: 1; width: 100%; }
+  .song-study-companion { display: contents; }
+  .song-study-companion > .song-video { order: 0; align-self: center; top: 70px; width: min(100%, 520px); margin-inline: auto; }
+}
+
+@media (max-width: 640px) {
+  .song-study-header { align-items: flex-start; padding: 8px 0; }
+  .song-study-heading h1 { font-size: 16px; }
+  .song-study-heading p { max-width: 32ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-study-header-actions { flex-basis: 100%; justify-content: flex-end; }
+  .song-study-companion > .song-video { top: 112px; }
+  .song-study-desk { gap: 10px; padding-top: 10px; }
+  .song-study-mobile-view { display: flex; gap: 6px; }
+  .song-study-mobile-view .music-button { flex: 1; min-height: 44px; }
+  .song-study-mobile-view .music-button[aria-pressed='true'] { border-color: var(--accent-500); background: var(--bg-hover); }
+  .song-study-stage[data-mobile-view='score'] .song-study-fretboard-view { display: none; }
+  .song-study-stage[data-mobile-view='fretboard'] .song-study-score-view { display: none; }
+  .song-study-score-view, .song-study-fretboard-view { padding: 9px; }
+  .song-section-jumps button { min-height: 44px; }
+  .song-measure-page { display: block; }
+  .song-measure-grid { grid-template-columns: repeat(4, minmax(44px, 1fr)); }
+  .song-measure-grid button { min-height: 44px; }
+  .song-kept-passages { align-items: stretch; }
+  .song-study-selection-actions { width: 100%; }
+}
