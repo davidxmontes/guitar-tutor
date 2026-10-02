@@ -1,3 +1,4 @@
+import { supportPrototypeVariant, PrototypeRecording, PrototypeCompanion, PrototypeSwitcher } from './StudySupportPrototype';
 import type { CSSProperties } from 'react';
 import { SongStudyTutor } from './SongStudyTutor';
 import { SongVideo } from './SongVideo';
@@ -823,6 +824,10 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
     setShowFullTab(false);
   }, [selection, jumpToMeasure]);
 
+  const prototypeVariant = supportPrototypeVariant();
+  const prototypeContext = videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} · beat ${videoSelection.beatIndex + 1}`
+    : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1}` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`;
+
   if (measureCount === 0) {
     return (
       <div data-testid="song-study-workspace" className="space-y-3">
@@ -841,7 +846,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   };
 
   return (
-    <div data-testid="song-study-workspace" className="song-study-workspace" data-practice-focused={practice.focused}
+    <div data-testid="song-study-workspace" className="song-study-workspace" data-practice-focused={practice.focused} data-support-prototype={prototypeVariant}
       style={{ '--tutor-width': `${tutorWidth}px` } as CSSProperties}>
       <header className="song-study-header">
         <div className="song-study-heading">
@@ -875,9 +880,9 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
               practice.exit(); setVideoPlayhead(null); setPlaybackSource(event.target.value as 'practice' | 'video');
             }}><option value="practice">Guitar guide</option><option value="video">Recording</option></select></label>
             {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
-            <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
+            {prototypeVariant ? <PrototypeRecording variant={prototypeVariant} context={prototypeContext} covered={tutorOpen && tutorCompact} /> : <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
               selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
-              onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+              onChange={onSongStudyChange} onPosition={receiveVideoPosition} />}
           </div>
           <div className="song-study-mobile-view" role="group" aria-label="Song view">
             <button type="button" className="music-button" aria-pressed={mobileView === 'score'} onClick={() => setMobileView('score')}>Score</button>
@@ -1076,9 +1081,10 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
           </div>
         </section>
         <aside className="song-study-companion" hidden={practice.focused || !tutorOpen}>
-          <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} dock={tutorDock} />
+          {prototypeVariant ? <PrototypeCompanion variant={prototypeVariant} context={prototypeContext} onClose={() => setTutorOpen(false)} /> : <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} dock={tutorDock} />}
         </aside>
       </div>
+      {prototypeVariant && <PrototypeSwitcher variant={prototypeVariant} />}
     </div>
   );
 }
