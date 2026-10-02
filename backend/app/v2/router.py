@@ -10,11 +10,9 @@ is ticket P1). The full Tutor per-turn contract is ticket T3.
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev user).
 """
 
-import asyncio
-import logging
-from time import monotonic
+from functools import partial
 from uuid import uuid4
-from typing import Any, Optional, Literal
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -41,10 +39,11 @@ from app.v2.song_shapes import project_song_shapes
 from app.v2.song_video import SongVideoAlignment, validate_video_alignment
 from app.v2.song_video_discovery import VideoSuggestions, suggest_song_videos
 from app.v2.store import NotFoundError, RevisionConflictError, V2Store, get_v2_store
-from app.v2.tutor.contract import LearningPreferences, TutorResponse
+from app.v2.tutor.contract import TutorResponse
+from app.v2.tutor.jobs import TutorJob, TutorJobs, TutorTurnRequest
 from app.v2.tutor.web_search import song_search_tools
 from app.v2.tutor.song_context import SongTutorContext, resolve_song_context
-from app.v2.tutor.providers import TutorCapabilityError, TutorConfigurationError, build_tutor_model
+from app.v2.tutor.providers import TutorCapabilityError, build_tutor_model
 from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_provenance, saved_work_tools
 from app.v2.tutor.branch_comparison import branch_tools
@@ -361,16 +360,6 @@ def get_tutor_model_factory() -> ModelFactory:
     return build_tutor_model
 
 
-class TutorTurnRequest(BaseModel):
-    request_id: str | None = Field(default=None, min_length=1, max_length=100)
-    session_id: str
-    branch_id: str
-    message: str = Field(min_length=1, max_length=12000)
-    learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
-    song_context: SongTutorContext | None = None
-    web_search: bool = False
-
-
 def owned_song_context(store: V2Store, context: SongTutorContext, user_id: str) -> dict:
     artifact, _ = _owned_song_study(store, context.artifact_id, user_id)
     try:
@@ -454,28 +443,10 @@ def create_tutor_turn(
     return response
 
 
-class TutorJob(BaseModel):
-    id: str
-    message: str
-    song_context: SongTutorContext | None = None
-    web_search: bool = False
-    status: Literal["running", "completed", "failed"] = "running"
-    result: TutorResponse | None = None
-    error: str | None = None
-
-
-def tutor_jobs(request: Request) -> dict:
-    # ponytail: one Render process, like the current memory session store.
-    # Use a durable queue/store before adding workers or surviving server restarts.
-    # Registry reads and writes stay on the event loop; only the work runs in threads.
+def tutor_jobs(request: Request) -> TutorJobs:
     if not hasattr(request.app.state, "tutor_jobs"):
-        request.app.state.tutor_jobs = {}
-        request.app.state.tutor_tasks = set()
-    jobs = request.app.state.tutor_jobs
-    for key, (job, created) in list(jobs.items()):
-        if job.status != "running" and monotonic() - created > 86400:
-            del jobs[key]
-    return jobs
+        request.app.state.tutor_jobs = TutorJobs()
+    return request.app.state.tutor_jobs
 
 
 def owned_tutor_branch(store: V2Store, session_id: str, branch_id: str, user_id: str):
@@ -496,43 +467,7 @@ async def start_tutor_job(
     await run_in_threadpool(owned_tutor_branch, store, data.session_id, data.branch_id, user_id)
     if data.song_context:
         await run_in_threadpool(owned_song_context, store, data.song_context, user_id)
-    jobs = tutor_jobs(request)
-    key = (user_id, data.session_id, data.branch_id)
-    previous = jobs.get(key)
-    if previous and (previous[0].status == "running" or previous[0].id == data.request_id):
-        if previous[0].message != data.message or previous[0].song_context != data.song_context or previous[0].web_search != data.web_search:
-            raise HTTPException(status_code=409, detail="A Tutor question is already in progress.")
-        return previous[0]
-    if len(jobs) >= 1000 and key not in jobs:
-        raise HTTPException(status_code=429, detail="The Tutor is busy. Please try again shortly.")
-    job = TutorJob(id=data.request_id or str(uuid4()), message=data.message, song_context=data.song_context, web_search=data.web_search)
-    jobs[key] = (job, monotonic())
-
-    async def finish():
-        try:
-            job.result = await run_in_threadpool(create_tutor_turn, data, user_id, store, settings, model_factory)
-            job.status = "completed"
-        except Exception as exc:
-            cause = exc
-            while cause.__cause__ is not None:
-                cause = cause.__cause__
-            logging.getLogger(__name__).warning("Tutor job %r failed: %s: %.2000s", job.id, type(cause).__name__, cause)
-            if isinstance(cause, TutorConfigurationError):
-                job.error = "Tutor is not configured on this server. Add an API key for the selected Tutor provider, then try again."
-            elif isinstance(exc, HTTPException) and exc.status_code == 409:
-                job.error = "The music changed while the Tutor was working. Please ask again."
-            elif isinstance(exc, HTTPException) and exc.status_code == 422:
-                job.error = "The Tutor returned a suggestion this view could not apply. Your question is kept; please try again."
-            elif getattr(cause, 'status_code', None) == 429:
-                job.error = "The Tutor provider is busy. Your question is kept; please try again shortly."
-            else:
-                job.error = "The Tutor could not finish this turn. Please try again."
-            job.status = "failed"
-
-    task = asyncio.create_task(finish())
-    request.app.state.tutor_tasks.add(task)
-    task.add_done_callback(request.app.state.tutor_tasks.discard)
-    return job
+    return tutor_jobs(request).start(user_id, data, partial(create_tutor_turn, data, user_id, store, settings, model_factory))
 
 
 @router.get("/tutor/jobs", response_model=TutorJob | None)
@@ -541,8 +476,7 @@ async def latest_tutor_job(
     user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store),
 ):
     await run_in_threadpool(owned_tutor_branch, store, session_id, branch_id, user_id)
-    entry = tutor_jobs(request).get((user_id, session_id, branch_id))
-    return entry[0] if entry else None
+    return tutor_jobs(request).latest(user_id, session_id, branch_id)
 
 
 class TurnRestoreRequest(BaseModel):

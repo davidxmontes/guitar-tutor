@@ -4,7 +4,7 @@ import { SongVideo } from './SongVideo';
 import type { VideoPosition } from './songVideoTiming';
 import { SaveToLibrary } from './MyStuff';
 import { ExerciseComposer } from './ExerciseComposer';
-import { songDrill } from './exerciseMaterial';
+import { songPracticeMaterial } from './exerciseMaterial';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
@@ -15,7 +15,6 @@ import { SongShapeStrip } from './SongShapeStrip';
 import { SongLearningMap } from './SongLearningMap';
 import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
-import { beatDuration } from './practiceTiming';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
 import type { SongSearchResult, TabBeat, TabMeasure, TabNote, TrackSummary } from '../types';
 import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, V2Branch } from '../types/v2';
@@ -629,31 +628,9 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   // Shape strip's per-card diagrams default off — the active shape's
   // diagram surfaces next to the fretboard instead (see activeShapeEvent).
   const [diagramsMinimized, setDiagramsMinimized] = useState(true);
-  // Flat measure/beat sequence — used to derive "active beat" (selected, or
-  // else the first playable beat in the focused measure) and "upcoming beat"
-  // (whatever plays next), so the fretboard always shows something relevant
-  // without a separate piece of highlight state to keep in sync.
-  const beatSequence = useMemo(() => {
-    const seq: Array<{ measureIndex: number; beatIndex: number; beat: TabBeat }> = [];
-    measures.forEach((measure, measureIndex) => {
-      getBeatsFromMeasure(measure).forEach((beat, beatIndex) => {
-        seq.push({ measureIndex, beatIndex, beat });
-      });
-    });
-    return seq;
-  }, [measures]);
-
-  const practiceBeats = useMemo(() => {
-    const start = selection?.type === 'range' ? selection.startMeasureIndex : selection?.type === 'beat' ? selection.measureIndex : focus.measureIndex;
-    const end = selection?.type === 'range' ? selection.endMeasureIndex : start;
-    return beatSequence.map((entry, sequenceIndex) => ({ ...entry, sequenceIndex }))
-      .filter(entry => entry.measureIndex >= start && entry.measureIndex <= end);
-  }, [beatSequence, selection, focus.measureIndex]);
-  const practiceDurations = useMemo(() => {
-    const durations = practiceBeats.map(entry => beatDuration(entry.beat));
-    return durations.every((duration): duration is number => duration !== null) ? durations : [];
-  }, [practiceBeats]);
-  const guideSteps = useMemo(() => songDrill(payload, selection, focus), [payload, selection, focus]);
+  const { sequence: beatSequence, selectedBeats: practiceBeats, durations: practiceDurations, steps: guideSteps } = useMemo(
+    () => songPracticeMaterial(payload, selection, focus), [payload, selection, focus],
+  );
   const practice = usePractice(practiceDurations, 80, guideSteps);
 
   // Selection is local; saved ranges live on the artifact. The parent keys by artifact ID.
@@ -945,7 +922,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
       }}><option value="practice">Synthesized practice</option><option value="video">YouTube recording</option></select></label>
       <div className="flex flex-wrap items-start gap-2">
       <SaveToLibrary artifact={songStudy} onSaved={async () => { onSongStudyChange(await apiClient.getSongStudy(songStudy.id)); }} />
-      {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={songDrill(payload, selection, focus)} />}
+      {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={guideSteps} />}
       {playbackSource === 'practice' && <><span data-testid="practice-selected-span">Selection: {videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} (whole measure)` : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1} (whole measure)` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`}</span><PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" /></>}
       </div>
       <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} width={tutorWidth} onWidthChange={setTutorWidth} />

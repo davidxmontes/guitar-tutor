@@ -96,8 +96,10 @@ schema/RPCs, not a hosted database.
 | `frontend/src/types/music.ts`, `src/types/v2.ts` | Shared musical values and persisted V2 workspace contracts |
 | `frontend/src/main.tsx`, `src/stores/useThemeStore.ts` | App entry selection and shared theme preference |
 | `frontend/src/utils/tab.ts` | Shared playable-voice selection for tab rendering and practice |
+| `frontend/src/v2/exerciseMaterial.ts` | SongStudy passage selection, practice timing, and validated guide/exercise steps |
 | `frontend/src/api/client.ts` | HTTP and Classic streaming transport |
 | `backend/app/v2/` | V2 models, theory resolution, mutations, Tutor contracts and stores |
+| `backend/app/v2/tutor/jobs.py` | Tutor job deduplication, execution, expiry, capacity, and failure recovery |
 | `backend/app/music/`, `app/services/` | Shared deterministic music and Songsterr services |
 | `backend/app/agent/`, `app/routers/agent.py` | Classic LangGraph agent and checkpoint routes |
 | `backend/app/dependencies/auth.py` | Clerk token verification and local bypass |
