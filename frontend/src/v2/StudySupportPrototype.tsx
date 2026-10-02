@@ -1,21 +1,16 @@
-// THROWAWAY: compare a single-size floating player (A) with a shared support rail (B).
+// THROWAWAY: compare a movable, resizable player (A) with a shared support rail (B).
 // Existing SongStudy route/data; ?variant=A|B. All support-panel actions are local demos.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
 import { TutorConversationPrototype } from './TutorConversationPrototype';
 import './StudySupportPrototype.css';
 
-export function supportPrototypeVariant() {
-  if (!import.meta.env.DEV) return null;
-  const variant = new URLSearchParams(window.location.search).get('variant');
-  return variant === 'A' || variant === 'B' ? variant : null;
-}
-
-function RecordingContents({ context, onClose, embedded = false }: { context: string; onClose?: () => void; embedded?: boolean }) {
+function RecordingContents({ context, onClose, embedded = false, moveHandle }: { context: string; onClose?: () => void; embedded?: boolean; moveHandle?: ReactNode }) {
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(true);
   const [setup, setSetup] = useState(false);
   return <section className="support-proto-recording" aria-label="Recording preview">
-    <header className="support-proto-player-header"><strong>{setup ? 'Recording setup' : embedded ? 'Studio take' : 'Recording'}</strong>
+    <header className="support-proto-player-header">{moveHandle ?? <strong>{setup ? 'Recording setup' : embedded ? 'Studio take' : 'Recording'}</strong>}
       <div>{setup ? <button type="button" onClick={() => setSetup(false)}>Back to player</button> :
         <details className="support-proto-menu"><summary aria-label="Recording options">•••</summary><div>
           <button type="button" onClick={event => { event.currentTarget.closest('details')!.open = false; setPlaying(false); setSetup(true); }}>Sync with the score</button>
@@ -44,11 +39,82 @@ function RecordingContents({ context, onClose, embedded = false }: { context: st
   </section>;
 }
 
+type PlayerBounds = { left: number; top: number; width: number; height: number };
+
+function fitPlayer(bounds: PlayerBounds): PlayerBounds {
+  const width = Math.max(Math.min(296, window.innerWidth - 24), Math.min(bounds.width, window.innerWidth - 24));
+  // Leave room for the prototype switcher; a short landscape screen scrolls the player body.
+  const height = Math.max(Math.min(350, window.innerHeight - 94), Math.min(bounds.height, window.innerHeight - 94));
+  return { width, height, left: Math.max(12, Math.min(bounds.left, window.innerWidth - width - 12)), top: Math.max(12, Math.min(bounds.top, window.innerHeight - height - 82)) };
+}
+
 export function PrototypeRecording({ variant, context, covered }: { variant: 'A' | 'B'; context: string; covered: boolean }) {
   const [open, setOpen] = useState(true);
+  const [bounds, setBounds] = useState<PlayerBounds | null>(null);
+  const player = useRef<HTMLDivElement>(null);
+  const gesture = useRef<{ x: number; y: number; bounds: PlayerBounds; resize: boolean } | null>(null);
+
+  useEffect(() => {
+    const fit = () => setBounds(current => current && fitPlayer(current));
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
+
+  function start(event: PointerEvent<HTMLButtonElement>, resize: boolean) {
+    if (event.button !== 0 || !player.current) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gesture.current = { x: event.clientX, y: event.clientY, bounds: player.current.getBoundingClientRect(), resize };
+  }
+
+  function move(event: PointerEvent<HTMLButtonElement>) {
+    const from = gesture.current;
+    if (!from) return;
+    const dx = event.clientX - from.x;
+    const dy = event.clientY - from.y;
+    const { left, top, width, height } = from.bounds;
+    setBounds(fitPlayer(from.resize
+      ? { left, top, width: Math.min(width + dx, window.innerWidth - left - 12), height: Math.min(height + dy, window.innerHeight - top - 82) }
+      : { left: left + dx, top: top + dy, width, height }));
+  }
+
+  function keyAdjust(event: KeyboardEvent<HTMLButtonElement>, resize: boolean) {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home'].includes(event.key) || !player.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Home') { setBounds(null); return; }
+    const step = event.shiftKey ? 48 : 16;
+    const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
+    const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
+    const { left, top, width, height } = player.current.getBoundingClientRect();
+    setBounds(fitPlayer(resize
+      ? { left, top, width: Math.min(width + dx, window.innerWidth - left - 12), height: Math.min(height + dy, window.innerHeight - top - 82) }
+      : { left: left + dx, top: top + dy, width, height }));
+  }
+
+  const handleEvents = (resize: boolean) => ({
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => start(event, resize),
+    onPointerMove: move,
+    onPointerUp: () => { gesture.current = null; },
+    onPointerCancel: () => { gesture.current = null; },
+    onLostPointerCapture: () => { gesture.current = null; },
+    onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => keyAdjust(event, resize),
+    onDoubleClick: () => setBounds(null),
+  });
+
   if (variant === 'B') return null;
   return <><button type="button" className="music-button" aria-expanded={open} onClick={() => setOpen(!open)}>Video {open ? 'on' : 'off'}</button>
-    {open && !covered && <div className="support-proto-floating"><RecordingContents context={context} onClose={() => setOpen(false)} /></div>}
+    {open && !covered && <div ref={player} className="support-proto-floating" style={bounds ? { ...bounds, bottom: 'auto', right: 'auto' } : undefined}>
+      <RecordingContents context={context} onClose={() => setOpen(false)} moveHandle={
+        <button type="button" className="support-proto-move" aria-label="Move recording" title="Drag to move · arrow keys to adjust · Home or double-click to reset" {...handleEvents(false)}>
+          <span aria-hidden="true">⠿</span><strong>Recording</strong>
+        </button>
+      } />
+      <button type="button" className="support-proto-resize" aria-label="Resize recording" title="Drag to resize · arrow keys to adjust · Home or double-click to reset" {...handleEvents(true)}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 13 3M8 13l5-5" /></svg>
+      </button>
+    </div>}
   </>;
 }
 
@@ -65,7 +131,7 @@ export function PrototypeCompanion({ variant, context, onClose }: { variant: 'A'
 export function PrototypeSwitcher({ variant }: { variant: 'A' | 'B' }) {
   function switchVariant() { const url = new URL(window.location.href); url.searchParams.set('variant', variant === 'A' ? 'B' : 'A'); window.location.href = url.href; }
   useEffect(() => {
-    const key = (event: KeyboardEvent) => { if (['ArrowLeft', 'ArrowRight'].includes(event.key) && !(event.target as HTMLElement).closest('input,textarea,select,[contenteditable]')) { event.preventDefault(); switchVariant(); } };
+    const key = (event: globalThis.KeyboardEvent) => { if (['ArrowLeft', 'ArrowRight'].includes(event.key) && !(event.target as HTMLElement).closest('input,textarea,select,[contenteditable]')) { event.preventDefault(); switchVariant(); } };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   });
   return <div className="support-proto-switcher"><button type="button" aria-label="Previous layout" onClick={switchVariant}>←</button><div><small>DESIGN STUDY · LOCAL DEMO</small><strong>{variant === 'A' ? 'A · Floating player + Tutor' : 'B · One panel with tabs'}</strong></div><button type="button" aria-label="Next layout" onClick={switchVariant}>→</button></div>;

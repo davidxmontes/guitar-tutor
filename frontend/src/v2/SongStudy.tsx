@@ -1,4 +1,4 @@
-import { supportPrototypeVariant, PrototypeRecording, PrototypeCompanion, PrototypeSwitcher } from './StudySupportPrototype';
+import { PrototypeRecording, PrototypeCompanion, PrototypeSwitcher } from './StudySupportPrototype';
 import type { CSSProperties } from 'react';
 import { SongStudyTutor } from './SongStudyTutor';
 import { SongVideo } from './SongVideo';
@@ -25,6 +25,11 @@ import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongS
 import './SongStudy.css';
 
 const DEFAULT_WINDOW_SIZE = 4;
+function supportPrototypeVariant() {
+  if (!import.meta.env.DEV) return null;
+  const variant = new URLSearchParams(window.location.search).get('variant');
+  return variant === 'A' || variant === 'B' ? variant : null;
+}
 const MemoMeasureGroup = memo(MeasureGroup);
 // Supporting element, not a primary block (mock #overview callout 3: "large
 // enough to teach the current relationship, no larger by default") — 12

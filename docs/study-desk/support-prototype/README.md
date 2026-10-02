@@ -4,9 +4,10 @@ Question: how can recording playback and Tutor feel intentional without player s
 
 This prototype uses the existing SongStudy route, real surrounding workspace and local demonstration controls. Its recording artwork and answers are illustrative; it does not play YouTube or send Tutor requests. The production implementation remains on `feature/issue-134-study-desk`.
 
-## A: one player window, conversation beside the music — recommended
+## A: movable player window, conversation beside the music — selected
 
-- The player has one size and one hierarchy: recording, native video controls, passage playback, loop and speed. Close returns its space to the music.
+- The player has one hierarchy: recording, native video controls, passage playback, loop and speed. Drag its title bar to move it; drag the lower-right grip to resize it. Close returns its space to the music.
+- Both grips support touch and keyboard arrows (Shift for larger steps). Home or double-click restores the default placement and size. Bounds stay inside the viewport, with a readable minimum video area; short landscape screens scroll the player body. Placement survives closing/reopening during the current visit only.
 - Recording options contain changing the source and score synchronization. Timing is a separate paused setup task; it does not expand a form under the video.
 - Tutor starts with a short invitation and two starter questions. Once a conversation starts, the history owns the space.
 - Teaching preferences live under Settings in the header. All four suggested prompts are available beside the composer, where the learner is deciding what to ask. Selecting a prompt fills the draft rather than sending it.
@@ -27,4 +28,6 @@ Run the frontend dev server against the existing development backend and open a 
 
 Current task preview: `http://localhost:5192/v2?variant=A` (Study a song → search `fixture` → Drop D guitar when using the scripted local backend).
 
-Browser-inspected at 1440px desktop and 390/320px phone widths, including Settings, Suggestions, timing setup, and a sample conversation. This is design validation, not production behavior verification. Decision pending user feedback; A is the recommendation.
+With the local prototype and scripted backend running, check movement and resizing from `frontend` with `node scripts/check-support-player.mjs`.
+
+Browser-inspected at 1440px desktop and 390/320px phone widths, including Settings, Suggestions, timing setup, and a sample conversation. This is design validation, not production behavior verification. The user selected A, requesting movement and resizing to keep it clear of the music. This iteration adds those interactions to the prototype before folding the design into production.
