@@ -111,7 +111,7 @@ export function ProgressionWorkspace({ branch, onChange }: { branch: V2Branch; o
     }} />}
     {idea && <details className="learning-details"><summary>More practice tools</summary><ExerciseComposer key={idea.id} branch={surface.branch} idea={idea} /></details>}
     {answer && <p className="learning-notice" role="status">{answer}</p>}
-    </div><TutorDock dock={tutorDock} context={tutorContext}><TutorPanel branch={surface.branch} busy={busy} onBusy={value => { if (value) practice.exit(); setBusy(value); }} onRefresh={refresh} /></TutorDock>
+    </div><TutorDock dock={tutorDock}>{preferences => <TutorPanel branch={surface.branch} context={tutorContext} preferences={preferences} busy={busy} onBusy={value => { if (value) practice.exit(); setBusy(value); }} onRefresh={refresh} />}</TutorDock>
     </div>
   </section></MusicalInteraction>;
 }

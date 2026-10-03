@@ -1,10 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react';
+import type { LearningPreferences } from '../types/v2';
 import type { TutorDockState } from './useTutorDock';
 import './TutorDock.css';
 
 const DEFAULT_HEIGHT = 70;
 const HEIGHT_STORAGE_KEY = 'guitar-tutor-dock-height';
+
+function readPreferences(): LearningPreferences {
+  try {
+    const value = JSON.parse(localStorage.getItem('guitar-learning-preferences') ?? '{}');
+    return { level: value.level === 'intermediate' ? 'intermediate' : 'beginner',
+      style: ['balanced', 'explain', 'practice'].includes(value.style) ? value.style : 'balanced',
+      minutes: [5, 10, 20].includes(value.minutes) ? value.minutes : 5 };
+  } catch { return { level: 'beginner', style: 'balanced', minutes: 5 }; }
+}
 
 function initialHeight() {
   try {
@@ -14,20 +24,50 @@ function initialHeight() {
   return DEFAULT_HEIGHT;
 }
 
-export function TutorDock({ dock, context, children }: {
+export function TutorDock({ dock, children }: {
   dock: TutorDockState;
-  context: string;
-  children: ReactNode;
+  children: (preferences: LearningPreferences) => ReactNode;
 }) {
   const [height, setHeight] = useState(initialHeight);
+  const [preferences, setPreferences] = useState(readPreferences);
   const dockElement = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const previousOpen = useRef(dock.open);
   const drag = useRef<{ x: number; y: number; width: number; height: number; compact: boolean } | null>(null);
+  const settingsId = `tutor-settings-${useId().replaceAll(':', '')}`;
 
   useEffect(() => {
     if (dock.open && !previousOpen.current) requestAnimationFrame(() => closeButton.current?.focus());
     previousOpen.current = dock.open;
+  }, [dock.open]);
+
+  useEffect(() => {
+    if (!dock.open) return;
+    const element = dockElement.current;
+    if (!element) return;
+    let frame = 0;
+    const updateAvailableHeight = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (window.innerWidth <= 1200) {
+          element.style.removeProperty('--tutor-available-height');
+          return;
+        }
+        const top = Math.max(16, element.getBoundingClientRect().top);
+        element.style.setProperty('--tutor-available-height', `${Math.max(240, window.innerHeight - top - 16)}px`);
+      });
+    };
+    const observer = new ResizeObserver(updateAvailableHeight);
+    if (element.parentElement) observer.observe(element.parentElement);
+    window.addEventListener('resize', updateAvailableHeight);
+    window.addEventListener('scroll', updateAvailableHeight, { passive: true });
+    updateAvailableHeight();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('resize', updateAvailableHeight);
+      window.removeEventListener('scroll', updateAvailableHeight);
+    };
   }, [dock.open]);
 
   function close() {
@@ -35,10 +75,17 @@ export function TutorDock({ dock, context, children }: {
     requestAnimationFrame(() => dock.triggerRef.current?.focus());
   }
 
+  function updatePreferences(value: Partial<LearningPreferences>) {
+    const next = { ...preferences, ...value };
+    setPreferences(next);
+    try { localStorage.setItem('guitar-learning-preferences', JSON.stringify(next)); } catch { /* Still usable without browser storage. */ }
+  }
+
   useEffect(() => {
     if (!dock.open) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (dockElement.current?.querySelector('[popover]:popover-open')) return;
         event.stopPropagation();
         close();
       }
@@ -91,9 +138,17 @@ export function TutorDock({ dock, context, children }: {
       onLostPointerCapture={() => { drag.current = null; }} onKeyDown={event => keyResize(event, compact)}
       onDoubleClick={() => { dock.setWidth(340); resizeHeight(DEFAULT_HEIGHT); }} />)}
     <header className="tutor-dock__header"><h2>Tutor</h2>
-      <button ref={closeButton} type="button" className="learning-text-button" aria-label="Close Tutor" onClick={close}>Close</button>
+      <div className="tutor-dock__header-actions">
+        <button type="button" className="tutor-dock__quiet tutor-dock__settings-trigger" popoverTarget={settingsId} aria-haspopup="dialog">Settings</button>
+        <button ref={closeButton} type="button" className="tutor-dock__quiet" aria-label="Close Tutor" onClick={close}>Close</button>
+      </div>
+      <div id={settingsId} className="tutor-dock__popover tutor-dock__settings" popover="auto" role="dialog" aria-label="Teaching preferences">
+        <div className="tutor-dock__popover-heading"><strong>Teaching preferences</strong><small>Saved for next time</small></div>
+        <label>Your level<select value={preferences.level} onChange={event => updatePreferences({ level: event.target.value as LearningPreferences['level'] })}><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option></select></label>
+        <label>Teaching style<select value={preferences.style} onChange={event => updatePreferences({ style: event.target.value as LearningPreferences['style'] })}><option value="balanced">Show and explain</option><option value="explain">Explain the why</option><option value="practice">Get me playing</option></select></label>
+        <label>Practice time<select value={preferences.minutes} onChange={event => updatePreferences({ minutes: Number(event.target.value) as LearningPreferences['minutes'] })}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option></select></label>
+      </div>
     </header>
-    <p className="tutor-dock__context"><span>Working with</span><strong>{context}</strong></p>
-    <div className="tutor-dock__body">{children}</div>
+    <div className="tutor-dock__body">{children(preferences)}</div>
   </section>;
 }

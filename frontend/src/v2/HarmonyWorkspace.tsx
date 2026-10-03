@@ -179,7 +179,7 @@ export function HarmonyWorkspace({ branch, onChange, initialView = 'tutor' }: { 
       return <div key={index} className="music-controls"><strong>{pin.chord.root} {pin.chord.quality}</strong><PhysicalChordDiagram positions={pin.voicing.positions} tuning={pin.voicing.tuning} label={`${pin.chord.root} ${pin.chord.quality} pinned`} onSelect={() => void edit({ focus: { kind: 'voicing', chord: pin.chord, voicing: pin.voicing } })} disabled={busy} /><Hear voicing={pin.voicing} /><button className="music-button" disabled={busy} onClick={() => void edit({ unpin: pin })}>Unpin</button></div>;
     })}</section>}
     {answer && <p className="learning-notice" role="status">{answer}</p>}
-    </div><TutorDock dock={tutorDock} context={focusLabel}><TutorPanel branch={surface.branch} busy={busy} onBusy={setBusy} onRefresh={refresh} /></TutorDock>
+    </div><TutorDock dock={tutorDock}>{preferences => <TutorPanel branch={surface.branch} context={focusLabel} preferences={preferences} busy={busy} onBusy={setBusy} onRefresh={refresh} />}</TutorDock>
     </div>
   </section></MusicalInteraction>;
 }

@@ -71,10 +71,23 @@ test('a learner can explore scales, triads and CAGED without asking the Tutor', 
 });
 
 test('learner controls reach the Tutor; history, recovery and undo preserve the conversation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/v2');
   await page.getByRole('button', { name: 'Learn the fretboard', exact: true }).click();
   await expect(page.getByLabel('Root', { exact: true })).toHaveValue('C');
-  await page.getByText('How I teach · beginner').click();
+  await expect(page.getByLabel('Ask the Tutor')).toBeInViewport();
+  await expect.poll(async () => { const box = await page.getByRole('region', { name: 'Tutor', exact: true }).boundingBox(); return Math.ceil(box!.y + box!.height); }).toBeLessThanOrEqual(900);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.getByLabel('Ask the Tutor')).toBeInViewport();
+  await expect.poll(async () => { const box = await page.getByRole('region', { name: 'Tutor', exact: true }).boundingBox(); return Math.ceil(box!.y + box!.height); }).toBeLessThanOrEqual(720);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const compactPreferences = page.getByRole('dialog', { name: 'Teaching preferences' });
+  await expect.poll(async () => { const box = await compactPreferences.boundingBox(); return Math.ceil(box!.y + box!.height); }).toBeLessThanOrEqual(720);
+  await expect(page.getByLabel('Practice time')).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Teaching preferences' })).toBeVisible();
   await page.getByLabel('Your level').selectOption('intermediate');
   await page.getByLabel('Teaching style').selectOption('practice');
   await page.getByLabel('Practice time').selectOption('10');
@@ -95,7 +108,7 @@ test('learner controls reach the Tutor; history, recovery and undo preserve the 
   await page.getByTestId('v2-continue-session').first().click();
   await expect(page.getByLabel('Tutor conversation')).toContainText('Changed to E minor.');
   await expect(page.getByLabel('Ask the Tutor')).toHaveValue('Keep this unsent question');
-  await page.getByText('How I teach · intermediate').click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('Your level')).toHaveValue('intermediate');
   await page.route('**/tutor/jobs', route => route.fulfill({ status: 502, body: JSON.stringify({ detail: 'Provider unavailable' }) }));
   await page.getByLabel('Ask the Tutor').fill('Help me find the root');

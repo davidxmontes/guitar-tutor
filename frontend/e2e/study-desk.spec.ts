@@ -47,7 +47,7 @@ test('mobile measure selection keeps, revisits and removes a passage without cre
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
-test('recording survives musical view switches and pauses before the mobile Tutor covers it', async ({ page }) => {
+test('recording moves, resizes and survives musical view switches while pausing before mobile Tutor covers it', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installYouTubeFake(page);
   await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
@@ -62,6 +62,7 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
   const player = page.locator('iframe[title="YouTube video player"]');
   await expect(player).toBeVisible();
+  await page.getByRole('button', { name: '← Back', exact: true }).click();
   await page.evaluate(() => { window.youtubeFake.active.time = 12; window.youtubeFake.active.emitState(1); });
   await page.getByRole('button', { name: 'Fretboard', exact: true }).click();
   await expect(page.getByTestId('song-study-fretboard')).toBeVisible();
@@ -80,32 +81,29 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await expect(player).toBeInViewport();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole('button', { name: 'Tutor', exact: true }).click();
-  await page.getByLabel('Ask the Tutor').fill('Explain this passage');
-  await page.getByRole('button', { name: 'Ask', exact: true }).click();
-  await expect(page.locator('.tutor-message--assistant')).toBeInViewport();
-  const recording = await page.locator('.song-video').boundingBox();
-  const conversation = await page.getByRole('region', { name: 'Tutor', exact: true }).boundingBox();
-  expect(recording!.x + recording!.width).toBeLessThanOrEqual(conversation!.x);
-  await expect(page.getByLabel('Ask the Tutor')).toBeInViewport();
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.getByRole('button', { name: 'Ask', exact: true }).scrollIntoViewIfNeeded();
-  await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeInViewport();
-  expect((await page.getByLabel('Tutor conversation').boundingBox())!.height).toBeGreaterThanOrEqual(320);
   expect((await player.boundingBox())!.height).toBeGreaterThanOrEqual(200);
-  await page.getByRole('button', { name: 'Expand recording', exact: true }).click();
-  const transport = page.getByLabel('Video speed');
-  await transport.scrollIntoViewIfNeeded();
-  await expect(transport).toBeInViewport();
-  const video = await player.boundingBox();
-  expect((await transport.boundingBox())!.x).toBeGreaterThan(video!.x + video!.width);
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  const move = page.getByRole('button', { name: 'Move recording', exact: true });
+  const resize = page.getByRole('button', { name: 'Resize recording', exact: true });
+  await move.press('Home');
+  await move.press('Shift+ArrowLeft');
+  await move.press('Shift+ArrowUp');
+  const moved = await popup.boundingBox();
+  await resize.press('ArrowRight');
+  await resize.press('Shift+ArrowDown');
+  const resized = await popup.boundingBox();
+  expect(resized!.width).toBeCloseTo(moved!.width + 16, 0);
+  expect(resized!.height).toBeCloseTo(moved!.height + 48, 0);
+  expect((await player.boundingBox())!.height).toBeGreaterThanOrEqual(200);
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeInViewport();
+  await page.getByLabel('Recording options', { exact: true }).click();
+  await page.getByRole('button', { name: 'Sync with score', exact: true }).click();
   await page.getByRole('button', { name: 'Save video setup', exact: true }).scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save video setup', exact: true })).toBeInViewport();
-  await expect(page.locator('.song-video-calibration')).toHaveCSS('overflow-y', 'visible');
   await page.getByLabel('Occurrence name').fill('My rehearsal');
   expect(await page.evaluate(() => ({ count: window.youtubeFake.players.length, destroyed: window.youtubeFake.active.destroyed })))
     .toEqual({ count: 1, destroyed: false });
-  await page.getByRole('button', { name: 'Compact recording', exact: true }).click();
+  await page.getByRole('button', { name: '← Back', exact: true }).click();
   await page.evaluate(() => { window.youtubeFake.active.time = 13; window.youtubeFake.active.emitState(1); });
   await page.getByRole('button', { name: 'Close recording', exact: true }).click();
   await expect(popup).toBeHidden();
@@ -114,8 +112,12 @@ test('recording survives musical view switches and pauses before the mobile Tuto
   await launcher.click();
   expect(await page.evaluate(() => ({ count: window.youtubeFake.players.length, time: window.youtubeFake.active.time })))
     .toEqual({ count: 1, time: 13 });
-  await page.getByRole('button', { name: 'Expand recording', exact: true }).click();
+  const reopened = await popup.boundingBox();
+  expect(reopened).toEqual(resized);
+  await page.getByLabel('Recording options', { exact: true }).click();
+  await page.getByRole('button', { name: 'Sync with score', exact: true }).click();
   await expect(page.getByLabel('Occurrence name')).toHaveValue('My rehearsal');
+  await page.getByRole('button', { name: '← Back', exact: true }).click();
   await page.keyboard.press('Escape');
   await expect(popup).toBeHidden();
   await expect(launcher).toBeFocused();

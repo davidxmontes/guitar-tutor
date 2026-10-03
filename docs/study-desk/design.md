@@ -2,7 +2,13 @@
 
 The learner approved **A: Study desk** and its measure-navigation/kept-passage refinements for [issue #134](https://github.com/davidxmontes/guitar-tutor/issues/134). The implementation uses that shared frame and retains existing focus practice. **B: Bottom conversation** remains a comparison only. The original observations and alternatives below record the design decision; the HTML is a prototype, not the application.
 
-**Recording/Tutor refinement:** SongStudy reserves the companion column for Tutor. A compact Recording button beside the playback selector opens a non-modal floating player; Expand reveals timing, measure selection and calibration in the same panel. Desktop keeps the popup within the music stage, and phones use a bottom sheet with compact and expanded sizes. One scroll area keeps settings reachable, with Close and Expand/Compact always visible. Closing pauses playback and returns focus to the launcher without resetting the player, its position or the alignment draft. Opening mobile Tutor temporarily hides and pauses the recording. This supersedes the video-above-Tutor placement in the original prototype below.
+**Accepted recording/Tutor refinement:** The learner selected the later **A: Floating player + Tutor** comparison and approved moving and resizing its player. A Recording button opens one non-modal window with a draggable title bar and a lower-right resize grip. Video sits above passage playback, loop and speed; occasional source/timing work lives behind Recording options. There are no Compact/Expand modes. Pointer, touch and keyboard manipulation keeps the window inside the screen; placement and size survive closing and reopening during the visit. Closing pauses before hiding, returns focus to the launcher, and preserves the player, time and alignment draft. Mobile Tutor temporarily pauses and covers the player. Calibration must retain a usable paused video for marking timing boundaries.
+
+Tutor fills the available desktop height so the question box is visible when the workspace opens, and gains room as the page scrolls. Its header contains Settings and Close; teaching preferences open separately, the empty conversation shows two starter questions, and Suggestions beside the composer inserts a draft. Current working context sits by that composer. History, pending jobs, sources, candidate actions and Undo retain their existing behavior. This supersedes the recording-above-Tutor placement and the Compact/Expand experiment.
+
+The accepted comparison and its runnable interaction check are captured on the throwaway branch [`prototype/issue-134-player-tutor`](https://github.com/davidxmontes/guitar-tutor/tree/prototype/issue-134-player-tutor/docs/study-desk/support-prototype), commit `ae784e2`. It uses illustrative recording/chat content; the production implementation uses the real existing player and Tutor.
+
+Current implementation captures use scripted song, video and Tutor providers: [SongStudy desktop](implementation/song-desktop.png), [recording on mobile](implementation/recording-mobile.png), [Tutor on mobile](implementation/tutor-mobile.png), and [Harmony desktop](implementation/harmony-desktop.png). They demonstrate layout and interaction, not live-provider verification.
 
 ## What the current screens reveal
 
@@ -64,7 +70,7 @@ Frequency is inferred from the learning workflow, not measured usage.
 - Collapse splits according to the space their musical representations need. Preserve note spacing and usable touch targets.
 - Selecting music updates linked representations without changing layout or losing the selection.
 - Standardize Tutor name, contextual selection, launcher, close/Escape behavior, resize affordance, focus return, conversation and draft preservation, and anchored composer. Retain song-specific sources and Harmony-specific Candidates/restore controls.
-- Remember the learner’s Tutor choice. Start with dock visibility and size; arbitrary panel dragging is unnecessary for these problems.
+- Remember the learner’s Tutor choice. Keep its existing dock visibility and size; allow the recording window to move and resize without introducing a general panel-layout system.
 
 **Limits:** observations reflect current code and inspected sample/provider states. Validate expanded controls, long conversations, recording playback, and narrow screens before completing implementation.
 

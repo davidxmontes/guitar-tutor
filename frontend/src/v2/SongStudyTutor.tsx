@@ -35,8 +35,7 @@ export function SongStudyTutor({ song, selection, ensureBranch, dock }: {
     : `M${selection.startMeasureIndex + 1}–${selection.endMeasureIndex + 1}`;
   const context = `${song.payload.title} · ${song.payload.track.name} · ${span}`;
 
-  return <TutorDock dock={dock} context={context}>
-    {branch ? <TutorPanel key={branch.id} branch={branch} songContext={{ artifact_id: song.id, selection }}
+  return <TutorDock dock={dock}>{preferences => branch ? <TutorPanel key={branch.id} branch={branch} context={context} preferences={preferences} songContext={{ artifact_id: song.id, selection }}
       busy={busy} onBusy={setBusy} onRefresh={async updated => setBranch(updated)} />
       : error ? <p className="learning-error" role="alert">{error} <button type="button" className="music-button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>Retry</button></p>
         : <p className="tutor-dock__status" role="status">Opening your song conversation…</p>}

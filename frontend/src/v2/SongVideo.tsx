@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { apiClient } from '../api/client';
 import type { SongSelection, SongStudyArtifact } from '../types/v2';
 import type { SongVideoAlignment, SongVideoAnchor, SongVideoSuggestions } from '../types/songVideo';
@@ -13,6 +14,27 @@ const timeLabel = (seconds: number) => {
   return `${Math.floor(tenths / 600)}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
 };
 const anchorLabel = (anchor: SongVideoAnchor) => `M${anchor.measure_index + 1}, beat ${anchor.beat_index + 1} ${anchor.edge} · ${timeLabel(anchor.video_seconds)}`;
+
+type PlayerBounds = { left: number; top: number; width: number; height: number };
+type RecordingView = 'player' | 'sync' | 'change';
+const PLAYER_EDGE = 12;
+const PLAYER_MIN_WIDTH = 296;
+const PLAYER_MIN_HEIGHT = 350;
+
+function fitPlayer(bounds: PlayerBounds): PlayerBounds {
+  const availableWidth = Math.max(0, window.innerWidth - PLAYER_EDGE * 2);
+  const availableHeight = Math.max(0, window.innerHeight - PLAYER_EDGE * 2);
+  const minimumWidth = Math.min(PLAYER_MIN_WIDTH, availableWidth);
+  const minimumHeight = Math.min(PLAYER_MIN_HEIGHT, availableHeight);
+  const width = Math.max(minimumWidth, Math.min(bounds.width, availableWidth));
+  const height = Math.max(minimumHeight, Math.min(bounds.height, availableHeight));
+  return {
+    width,
+    height,
+    left: Math.max(PLAYER_EDGE, Math.min(bounds.left, window.innerWidth - width - PLAYER_EDGE)),
+    top: Math.max(PLAYER_EDGE, Math.min(bounds.top, window.innerHeight - height - PLAYER_EDGE)),
+  };
+}
 
 export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectRange, onChange, onPosition }: {
   song: SongStudyArtifact;
@@ -31,14 +53,14 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   const [suggestions, setSuggestions] = useState<SongVideoSuggestions | null>(null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [suggestionAttempt, setSuggestionAttempt] = useState(0);
-  const [changingRecording, setChangingRecording] = useState(false);
+  const [view, setView] = useState<RecordingView>(initial ? 'player' : 'change');
   const [duration, setDuration] = useState<number | null>(null);
   const autoSelect = useRef(!initial);
   const receiveSuggestions = useEffectEvent((result: SongVideoSuggestions) => {
     setSuggestions(result); setSuggestionError(null);
     if (autoSelect.current && result.candidates.length > 0) attachId(result.candidates[0].video_id, result.candidates[0].timing);
   });
-  const discover = active && (!draft || changingRecording);
+  const discover = active && (!draft || view === 'change');
   useEffect(() => {
     if (!active) autoSelect.current = false;
     if (!discover) return;
@@ -49,9 +71,11 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     return () => { cancelled = true; };
   }, [active, discover, song.id, suggestionAttempt]);
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [bounds, setBounds] = useState<PlayerBounds | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const backButton = useRef<HTMLButtonElement>(null);
+  const gesture = useRef<{ x: number; y: number; bounds: PlayerBounds; resize: boolean } | null>(null);
   const [url, setUrl] = useState('');
   const [occurrence, setOccurrence] = useState('');
   const [anchorIndex, setAnchorIndex] = useState('');
@@ -69,7 +93,6 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   const firstTime = firstAnchor?.video_seconds ?? Infinity;
   const player = useRef<YouTubeControls>(null);
   const panel = useRef<HTMLElement>(null);
-  const calibration = useRef<HTMLDetailsElement>(null);
   const live = useRef(true);
   const reportedTime = useRef<number | null>(null);
   const playingState = useRef<YouTubeState>('loading');
@@ -109,6 +132,12 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   }, []);
 
   useEffect(() => {
+    const fit = () => setBounds(current => current && fitPlayer(current));
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
+
+  useEffect(() => {
     if (!active) return;
     const nativeControls = () => {
       if (document.activeElement === panel.current?.querySelector('iframe')) playingRange.current = null;
@@ -123,16 +152,61 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     player.current?.pause();
   }, [active, pauseWhenCovered]);
 
+  useLayoutEffect(() => {
+    panel.current?.querySelector('.song-video-body')?.scrollTo(0, 0);
+  }, [view]);
+
   function closeRecording() {
     player.current?.pause();
     setOpen(false);
     requestAnimationFrame(() => trigger.current?.focus());
   }
 
+  function startGesture(event: ReactPointerEvent<HTMLButtonElement>, resize: boolean) {
+    if (event.button !== 0 || !panel.current) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gesture.current = { x: event.clientX, y: event.clientY, bounds: panel.current.getBoundingClientRect(), resize };
+  }
+  function moveGesture(event: ReactPointerEvent<HTMLButtonElement>) {
+    const from = gesture.current;
+    if (!from) return;
+    const dx = event.clientX - from.x;
+    const dy = event.clientY - from.y;
+    const { left, top, width, height } = from.bounds;
+    setBounds(fitPlayer(from.resize
+      ? { left, top, width: Math.min(width + dx, window.innerWidth - left - PLAYER_EDGE), height: Math.min(height + dy, window.innerHeight - top - PLAYER_EDGE) }
+      : { left: left + dx, top: top + dy, width, height }));
+  }
+  function keyAdjust(event: ReactKeyboardEvent<HTMLButtonElement>, resize: boolean) {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home'].includes(event.key) || !panel.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Home') { setBounds(null); return; }
+    const step = event.shiftKey ? 48 : 16;
+    const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
+    const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
+    const { left, top, width, height } = panel.current.getBoundingClientRect();
+    setBounds(fitPlayer(resize
+      ? { left, top, width: Math.min(width + dx, window.innerWidth - left - PLAYER_EDGE), height: Math.min(height + dy, window.innerHeight - top - PLAYER_EDGE) }
+      : { left: left + dx, top: top + dy, width, height }));
+  }
+  const handleEvents = (resize: boolean) => ({
+    onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => startGesture(event, resize),
+    onPointerMove: moveGesture,
+    onPointerUp: () => { gesture.current = null; },
+    onPointerCancel: () => { gesture.current = null; },
+    onLostPointerCapture: () => { gesture.current = null; },
+    onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => keyAdjust(event, resize),
+    onDoubleClick: () => setBounds(null),
+  });
+
   useEffect(() => {
     if (!active || !open || pauseWhenCovered) return;
     const dismiss = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (document.querySelector(':popover-open')) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       closeRecording();
@@ -170,6 +244,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     setUrl('');
     setSeconds(null);
     setDuration(null);
+    setView(validTiming ? 'player' : 'sync');
   }
   function editAnchor(edge: 'start' | 'end', replace = false) {
     if (!draft || !passage || !points) { setError('Select a score beat or range and choose an occurrence first.'); return; }
@@ -220,7 +295,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   }
   function playSelection() {
     if (!ready || !range || !timingEnabled) return;
-    panel.current?.querySelector('iframe')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    panel.current?.querySelector('.song-video-body')?.scrollTo(0, 0);
     playingRange.current = { ...range, loop: loop && range.end !== null, seeking: true };
     player.current?.seek(range.start);
     player.current?.play();
@@ -250,10 +325,26 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       baseline.current = saved.payload.video_alignment ?? null;
       revision.current = saved.updated_at;
       setDraft(baseline.current); setHistory([]); setOccurrence(''); setAnchorIndex(''); setNotice('Loaded the saved setup.');
+      if (!baseline.current) setView('change');
       onChange(saved);
     } catch { if (live.current) setError('Could not reload. Your draft is kept; try again.'); }
     finally { if (live.current) setBusy(false); }
   }
+  function undo() {
+    const previous = history.at(-1) ?? null;
+    clearPlayback();
+    setDraft(previous);
+    setHistory(entries => entries.slice(0, -1));
+    setError(null);
+    setAnchorIndex('');
+    if (!previous) setView('change');
+  }
+
+  const editActions = <div className="song-video-actions">
+    <button type="button" className="music-button" disabled={!history.length} onClick={undo}>Undo edit</button>
+    <button type="button" className="music-button" disabled={!dirty} onClick={save}>{busy ? 'Saving…' : 'Save video setup'}</button>
+    <button type="button" className="music-button" onClick={discard}>Discard and reload</button>
+  </div>;
 
   const recordingInput = <details><summary>Paste a YouTube link instead</summary><form onSubmit={event => { event.preventDefault(); attach(); }}>
             <p>Use a finished recording, not an ongoing livestream.</p>
@@ -292,11 +383,9 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     change({ ...draft, passages }); setStartTime('');
   }
   function openCalibration() {
-    if (!calibration.current) return;
     player.current?.pause();
-    setExpanded(true);
-    calibration.current.open = true;
-    requestAnimationFrame(() => calibration.current?.querySelector<HTMLElement>('summary')?.focus());
+    setView('sync');
+    requestAnimationFrame(() => backButton.current?.focus());
   }
 
   if (!active) return null;
@@ -309,14 +398,21 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         requestAnimationFrame(() => closeButton.current?.focus());
       }}>Recording <span aria-hidden="true">↗</span></button>
     <section ref={panel} id="song-recording" className="song-video" role="dialog" aria-label="Recording"
-      hidden={!open || pauseWhenCovered} data-expanded={expanded} data-has-recording={Boolean(draft)}>
-    <header className="song-video-heading"><div><h2>Recording</h2><span>{state === 'playing' ? 'Playing' : state === 'buffering' ? 'Buffering' : 'Paused'}</span></div>
+      hidden={!open || pauseWhenCovered} data-view={view} data-has-recording={Boolean(draft)}
+      style={bounds ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height, right: 'auto', bottom: 'auto' } : undefined}>
+    <header className="song-video-heading">
+      <div className="song-video-heading-main">
+      {view !== 'player' && draft && <button ref={backButton} type="button" className="song-video-back" onClick={() => setView('player')}>← Back</button>}
+      <button type="button" className="song-video-move" aria-label="Move recording"
+        title="Drag to move · arrow keys to adjust · Home or double-click to reset" {...handleEvents(false)}>
+        <span aria-hidden="true">⠿</span><strong>{view === 'sync' ? 'Sync with score' : view === 'change' ? 'Change recording' : 'Recording'}</strong><small>{state === 'playing' ? 'Playing' : state === 'buffering' ? 'Buffering' : 'Paused'}</small>
+      </button>
+      </div>
       <div className="song-video-actions">
-        <button type="button" className="learning-text-button" aria-label={expanded ? 'Compact recording' : 'Expand recording'}
-          aria-expanded={expanded} onClick={() => {
-            setExpanded(value => !value);
-            if (expanded) requestAnimationFrame(() => panel.current?.querySelector('.song-video-body')?.scrollTo(0, 0));
-          }}>{expanded ? 'Compact' : 'Expand'}</button>
+        {view === 'player' && <details className="song-video-menu"><summary aria-label="Recording options">•••</summary><div>
+          <button type="button" onClick={event => { event.currentTarget.closest('details')!.open = false; openCalibration(); }}>Sync with score</button>
+          <button type="button" onClick={event => { event.currentTarget.closest('details')!.open = false; player.current?.pause(); setView('change'); }}>Change recording</button>
+        </div></details>}
         <button ref={closeButton} type="button" className="learning-text-button" aria-label="Close recording" onClick={closeRecording}>Close</button>
       </div>
     </header>
@@ -334,11 +430,16 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
           onPosition(timingEnabled && draft && time != null ? videoPosition(timeline, draft.passages, time) : null, true);
         }
       }} />}
-    <div className="song-video-tools">
+    {view === 'player' && <div className="song-video-tools">
       {!pauseWhenCovered && pausedForTutor.current && <button type="button" className="music-button" data-testid="song-video-resume"
         onClick={() => { pausedForTutor.current = false; player.current?.play(); }}>Resume recording</button>}
       {draft && <>
-        {draft.timing_source && <p>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : 'Songsterr timing'}</p>}
+        <div className="song-video-actions song-video-transport"><button type="button" className="music-button" aria-label="Play selection" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play</button>
+          <label><input aria-label="Loop selection" type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop</label>
+          <select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
+            {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
+          </select></div>
+        <div className="song-video-context"><span data-testid="video-selected-span">Selection: {selectionLabel}</span><span>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : draft.timing_source === 'songsterr' ? 'Songsterr timing' : draft.passages.some(item => item.anchors.length > 0) ? 'Timing calibrated' : 'Timing not set'}</span></div>
         <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!timingEnabled ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
           const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1);
           return position ? `Video: M${position.measureIndex + 1}, beat ${position.beatIndex + 1} · ${draft.passages.find(p => p.id === position.passageId)?.label}` : 'Unaligned video section';
@@ -346,16 +447,10 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         {draft.passages.length > 1 && <label>Occurrence<select aria-label="Video occurrence" value={occurrence} onChange={event => { clearPlayback(); setOccurrence(event.target.value); setAnchorIndex(''); }}>
           <option value="">Choose occurrence</option>{draft.passages.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select></label>}
-        <div className="song-video-actions"><span data-testid="video-selected-span">Selection: {selectionLabel}</span>
-          {selection.type === 'beat' && <button type="button" className="music-button" onClick={() => onSelectRange(selectedStart, selectedStart)}>Whole measure</button>}
-        </div>
-        <div className="song-video-actions song-video-transport"><button type="button" className="music-button" disabled={playReason !== null} aria-describedby={playReason ? "song-video-play-reason" : undefined} onClick={playSelection}>Play selection</button>
-          <label><input type="checkbox" checked={loop} disabled={!range || range.end === null} onChange={event => { setLoop(event.target.checked); if (playingRange.current) playingRange.current.loop = event.target.checked && playingRange.current.end !== null; }} /> Loop selection</label>
-          <label>Speed<select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
-            {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
-          </select></label></div>
-        <details className="song-video-range"><summary>Choose measures</summary>
+        <details className="song-video-range"><summary>Selection options</summary>
           <p>Select a beat while playing to jump. Loop repeats the selection.</p>
+          {selection.type === 'beat' && <button type="button" className="music-button" onClick={() => onSelectRange(selectedStart, selectedStart)}>Whole measure</button>}
+          <p><strong>Choose measures</strong></p>
           <form key={selectionLabel} className="song-video-actions" onSubmit={event => {
             event.preventDefault();
             const values = new FormData(event.currentTarget);
@@ -372,9 +467,10 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         {playReason && <div><p id="song-video-play-reason">{playReason}</p>{ready && (!draft.recording_confirmed || !range && ranges.length <= 1) && <button type="button" className="music-button" onClick={openCalibration}>Align selected start</button>}</div>}
         {range && range.end === null && <p>Play from this aligned start now; save later to keep it. Score following and looping need more anchors.</p>}
       </>}
+    </div>}
     </div>
-    </div>
-    <div className="song-video-setup">
+    {view === 'sync' && <div className="song-video-setup">
+      <div className="song-video-task-heading"><p>PLAYBACK PAUSED</p><h3>Sync with score</h3><span>Use the visible video controls to seek, then mark the selected score boundary.</span></div>
       {draft && <>
         {Number.isFinite(firstTime) && <details><summary>Adjust recording start</summary>
           {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
@@ -387,14 +483,15 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         </details>}
 
       </>}
-      <details ref={calibration} className="song-video-calibration-details" open={!draft || undefined} onToggle={event => { if (event.currentTarget.open) player.current?.pause(); }}>
-        <summary>{draft ? 'Calibrate recording' : 'Attach a YouTube recording'}{dirty ? ' · unsaved' : ''}</summary>
-        <fieldset disabled={busy} className="song-video-calibration">
+      <fieldset disabled={busy} className="song-video-calibration">
+          {dirty && <p>Unsaved timing changes</p>}
           {!Number.isFinite(firstTime) && durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
-          {!draft && recordingChoices}
           {draft && <>
             <label><input type="checkbox" checked={draft.recording_confirmed} onChange={event => change({ ...draft, recording_confirmed: event.target.checked })} /> I checked that this recording matches the score arrangement.</label>
             <p>Pause at the selected score boundary, then mark it. Between-anchor timing is estimated; gaps stay unaligned. Add anchors for tempo drift and named occurrences for repeats.</p>
+            {draft.passages.length > 1 && <label>Occurrence<select aria-label="Video occurrence" value={occurrence} onChange={event => { clearPlayback(); setOccurrence(event.target.value); setAnchorIndex(''); }}>
+              <option value="">Choose occurrence</option>{draft.passages.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select></label>}
             <div className="song-video-actions"><button type="button" className="music-button" disabled={draft.passages.length >= 100} onClick={() => {
               const id = crypto.randomUUID(); change({ ...draft, passages: [...draft.passages, { id, label: `Occurrence ${draft.passages.length + 1}`, anchors: [] }] }); setOccurrence(id); setAnchorIndex('');
             }}>Add occurrence</button></div>
@@ -413,20 +510,24 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
               <button type="button" className="music-button" onClick={() => { change({ ...draft, passages: draft.passages.filter(p => p.id !== passage.id) }); setOccurrence(''); setAnchorIndex(''); }}>Remove occurrence</button>
             </>}
           </>}
-          <div className="song-video-actions">
-            <button type="button" className="music-button" disabled={!history.length} onClick={() => { clearPlayback(); setDraft(history.at(-1) ?? null); setHistory(previous => previous.slice(0, -1)); setError(null); setAnchorIndex(''); }}>Undo edit</button>
-            <button type="button" className="music-button" disabled={!dirty} onClick={save}>{busy ? 'Saving…' : 'Save video setup'}</button>
-            <button type="button" className="music-button" onClick={discard}>Discard and reload</button>
-          </div>
-          {draft && <details onToggle={event => setChangingRecording(event.currentTarget.open)}><summary>Change or remove recording</summary>{recordingChoices}
-            <button type="button" className="music-button" onClick={() => change(null)}>Remove recording</button>
-          </details>}
-        </fieldset>
-      </details>
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
+          {editActions}
+      </fieldset>
+    </div>}
+    {view === 'change' && <div className="song-video-setup">
+      <div className="song-video-task-heading"><p>PLAYBACK PAUSED</p><h3>{draft ? 'Change recording' : 'Attach a recording'}</h3><span>Preview a linked recording or paste a YouTube link. Changing it resets alignment; Undo restores it.</span></div>
+      <fieldset disabled={busy} className="song-video-calibration">
+        {recordingChoices}
+        {draft && <button type="button" className="music-button" onClick={() => change(null)}>Remove recording</button>}
+        {editActions}
+      </fieldset>
+    </div>}
+    {error && <p className="song-video-message" role="alert">{error}</p>}
+    {notice && <p className="song-video-message" role="status">{notice}</p>}
     </div>
-    </div>
+    <button type="button" className="song-video-resize" aria-label="Resize recording"
+      title="Drag to resize · arrow keys to adjust · Home or double-click to reset" {...handleEvents(true)}>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 13 3M8 13l5-5" /></svg>
+    </button>
   </section>
   </>;
 }

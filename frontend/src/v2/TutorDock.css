@@ -12,23 +12,66 @@
 }
 
 .tutor-dock[hidden] { display: none; }
-.tutor-dock__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border-primary); }
-.tutor-dock__header h2 { margin: 0; font-size: 16px; }
-.tutor-dock__context { display: flex; gap: 6px; margin: 0; padding: 8px 12px; background: var(--learning-wash); font-size: 12px; overflow-wrap: anywhere; }
-.tutor-dock__context span { color: var(--text-secondary); }
+.tutor-dock :is(button, textarea, select, input):focus-visible { outline: 2px solid var(--accent-500); outline-offset: 2px; }
+.tutor-dock__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-primary); }
+.tutor-dock__header h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.2px; }
+.tutor-dock__header-actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.tutor-dock__quiet, .tutor-quiet { min-height: 36px; padding: 6px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.tutor-dock__quiet:hover:not(:disabled), .tutor-quiet:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 .tutor-dock__body { display: flex; flex: 1; min-height: 0; }
 .tutor-dock__body > :is(.learning-error, .tutor-dock__status) { align-self: flex-start; margin: 16px; }
-.tutor-dock .tutor-panel { position: static; display: flex; flex: 1; flex-direction: column; min-height: 0; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; }
-.tutor-dock .tutor-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+.tutor-dock__popover, .tutor-popover { width: min(290px, calc(100vw - 28px)); margin: 0; padding: 14px; border: 1px solid var(--control-border); border-radius: 11px; background: var(--card-bg); color: var(--text-primary); box-shadow: var(--surface-shadow); }
+.tutor-dock__popover::backdrop, .tutor-popover::backdrop { background: transparent; }
+.tutor-dock__settings-trigger { anchor-name: --tutor-settings; }
+.tutor-dock__settings { position-anchor: --tutor-settings; position-try-fallbacks: flip-block; inset: auto; top: anchor(bottom); right: anchor(right); display: none; gap: 11px; margin-top: 7px; }
+.tutor-dock__settings:popover-open { display: grid; }
+.tutor-dock__popover-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.tutor-dock__popover-heading small { color: var(--text-secondary); font-size: 10px; }
+.tutor-dock__settings label { display: grid; gap: 5px; color: var(--text-secondary); font-size: 11px; }
+.tutor-dock__settings select { min-height: 38px; padding: 6px 8px; border: 1px solid var(--control-border); border-radius: 7px; background: var(--card-bg); color: var(--text-primary); }
+
+.tutor-dock .tutor-panel { position: static; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; }
+.tutor-dock .tutor-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
+.tutor-dock .tutor-conversation { padding: 20px 16px 24px; }
 .tutor-dock .tutor-conversation, .tutor-dock .tutor-candidates { max-height: none; overflow: visible; }
-.tutor-dock .tutor-scroll > :is(.learning-error, .learning-notice) { margin: 12px; }
-.tutor-dock .tutor-suggestions { padding: 0 20px 16px; }
-.tutor-dock .tutor-suggestions summary { min-height: 36px; cursor: pointer; color: var(--text-secondary); font-size: 12px; }
-.tutor-dock .tutor-suggestions .tutor-prompts { padding-top: 6px; }
-.tutor-dock .tutor-compose { flex: 0 0 auto; padding: 12px; }
-.tutor-dock .tutor-online-search { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; }
-.tutor-dock .tutor-compose > label:not(.tutor-online-search) { margin: 6px 0 4px; }
-.tutor-dock .tutor-compose textarea { min-height: 64px; }
+.tutor-dock .tutor-scroll > :is(.learning-error, .learning-notice) { margin: 12px 16px; }
+.tutor-welcome { display: grid; gap: 14px; align-content: start; max-width: 34ch; }
+.tutor-welcome > p { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.55; }
+.tutor-starters { display: flex; flex-wrap: wrap; gap: 8px; }
+.tutor-starters button { min-height: 38px; padding: 8px 12px; border: 1px solid var(--control-border); border-radius: 999px; background: var(--card-bg); color: var(--learning-ink); text-align: left; cursor: pointer; }
+.tutor-starters button:hover:not(:disabled) { border-color: var(--learning-ink); background: var(--learning-wash); }
+.tutor-message { max-width: 92%; margin-bottom: 20px; font-size: 14px; line-height: 1.58; overflow-wrap: anywhere; }
+.tutor-message:last-child { margin-bottom: 0; }
+.tutor-message--user { margin-left: auto; padding: 10px 12px; background: var(--learning-wash); border-radius: 12px 12px 3px 12px; }
+.tutor-speaker { display: block; margin-bottom: 5px; color: var(--text-secondary); font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.tutor-thinking { color: var(--text-secondary); font-size: 13px; }
+.tutor-dock .tutor-candidates { border-top: 1px solid var(--border-primary); padding: 20px 16px; }
+.tutor-candidates > p { font-size: 12px; color: var(--text-secondary); }
+.tutor-candidates > div { border: 1px solid var(--border-primary); border-radius: 8px; padding: 12px; margin-top: 12px; }
+.tutor-candidates p { font-size: 13px; }
+.tutor-undo { padding: 12px 16px; border-top: 1px solid var(--border-primary); }
+.tutor-undo p { font-size: 12px; color: var(--text-secondary); }
+
+.tutor-dock .tutor-compose { position: relative; flex: 0 0 auto; display: grid; gap: 10px; padding: 12px 14px 14px; border-top: 1px solid var(--border-primary); background: var(--bg-secondary); }
+.tutor-compose__context { display: flex; align-items: baseline; gap: 6px; min-width: 0; margin: 0; color: var(--text-secondary); font-size: 11px; }
+.tutor-compose__context strong { min-width: 0; overflow: hidden; color: var(--text-primary); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.tutor-compose__field { display: grid; gap: 5px; }
+.tutor-compose__field > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.tutor-dock .tutor-compose textarea { display: block; width: 100%; min-height: 76px; max-height: 160px; resize: vertical; padding: 10px 11px; border: 1px solid var(--control-border); border-radius: 9px; background: var(--card-bg); color: var(--text-primary); line-height: 1.5; }
+.tutor-send, .tutor-compose__tools { display: flex; align-items: center; gap: 6px; }
+.tutor-send { justify-content: space-between; }
+.tutor-compose__tools { min-width: 0; }
+.tutor-online-search { display: flex; align-items: center; gap: 5px; min-height: 36px; margin: 0; color: var(--text-secondary); font-size: 11px; font-weight: 400; cursor: pointer; white-space: nowrap; }
+.tutor-send__button { display: grid; flex: 0 0 auto; place-items: center; width: 40px; min-height: 40px; padding: 0; border: 0; border-radius: 9px; background: var(--learning-green); color: white; cursor: pointer; }
+.tutor-send__button:disabled { cursor: not-allowed; opacity: .42; }
+.tutor-send__button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tutor-suggestions-trigger { anchor-name: --tutor-suggestions; }
+.tutor-suggestions { position-anchor: --tutor-suggestions; inset: auto; bottom: anchor(top); left: anchor(left); display: none; gap: 6px; margin-bottom: 7px; }
+.tutor-suggestions:popover-open { display: grid; }
+.tutor-suggestions > strong { margin-bottom: 3px; font-size: 12px; }
+.tutor-suggestions > button { width: 100%; min-height: 38px; padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer; }
+.tutor-suggestions > button:hover:not(:disabled) { background: var(--bg-hover); }
 
 .tutor-dock__resizer { position: absolute; z-index: 2; touch-action: none; user-select: none; }
 .tutor-dock__resizer--width { inset: 0 auto 0 0; width: 10px; cursor: ew-resize; }
@@ -37,10 +80,27 @@
 .tutor-dock__resizer:hover::after, .tutor-dock__resizer:focus-visible::after { background: var(--learning-green); }
 .tutor-dock__resizer--height { display: none; }
 
+@media (min-width: 1201px) {
+  .tutor-dock { height: var(--tutor-available-height, calc(100dvh - 32px)); min-height: min(354px, var(--tutor-available-height, calc(100dvh - 32px))); max-height: var(--tutor-available-height, calc(100dvh - 32px)); }
+}
+
 @media (max-width: 1200px) {
   .tutor-dock { position: fixed; z-index: 40; inset: auto 0 0; width: auto; height: var(--tutor-sheet-height, 70dvh); max-height: 95dvh; padding-top: 16px; padding-bottom: env(safe-area-inset-bottom); border-radius: 16px 16px 0 0; box-shadow: var(--surface-shadow); }
   .tutor-dock__resizer--width { display: none; }
   .tutor-dock__resizer--height { display: block; inset: 0 0 auto; height: 20px; cursor: ns-resize; }
   .tutor-dock__resizer--height::after { content: ''; position: absolute; top: 7px; left: calc(50% - 20px); width: 40px; height: 4px; border-radius: 4px; background: var(--text-muted); }
   .tutor-dock .tutor-compose textarea { font-size: 16px; }
+}
+
+@media (max-width: 640px) {
+  .tutor-dock__header { padding: 10px 12px; }
+  .tutor-dock .tutor-conversation { padding: 16px 14px 20px; }
+  .tutor-dock .tutor-compose { padding: 11px 12px max(12px, env(safe-area-inset-bottom)); }
+  .tutor-dock .tutor-compose textarea { min-height: 72px; }
+  .tutor-online-search { font-size: 10px; }
+  .tutor-dock__settings { left: 14px; right: auto; width: calc(100vw - 28px); max-width: 360px; }
+}
+
+@media (max-height: 480px) {
+  .tutor-dock__settings { position: fixed; inset: 14px 14px auto auto; width: min(290px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); overflow-y: auto; }
 }
