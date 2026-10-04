@@ -25,4 +25,14 @@
 .play-along-key dl > div { display: flex; align-items: baseline; gap: 6px; }
 .play-along-key dt { min-width: 24px; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-primary); }
 .play-along-key dd { margin: 0; }
+.play-along-chord-label { fill: var(--text-secondary); font-size: 11px; }
+.progression-play-along-interval { stroke: var(--accent-600); stroke-width: 3; }
+.progression-play-along .play-along-context { min-height: 28px; padding-bottom: 4px; }
+.progression-workspace[data-view='play-along'] .learning-progression-practice { padding: 8px 12px; }
+.practice-controls-compact { border: 0; padding: 0; background: transparent; box-shadow: none; }
+.practice-controls-compact .practice-transport { gap: 8px; }
+.practice-settings { align-self: end; font-size: 12px; color: var(--text-secondary); }
+.practice-settings summary { min-height: 44px; align-content: center; padding: 0 8px; cursor: pointer; }
+.practice-settings[open] { flex-basis: 100%; }
+.practice-settings .practice-transport { padding: 8px; }
 @media (max-width: 640px) { .play-along-key summary { min-height: 44px; } }
