@@ -1,0 +1,18 @@
+.play-along { min-width: 0; max-width: 100%; color: var(--text-primary); }
+.play-along-context { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; min-height: 28px; font-size: 12px; font-weight: 600; }
+.play-along-state { color: var(--text-secondary); font-weight: 400; }
+.play-along-lanes { display: block; overflow: hidden; border-radius: 6px; background: var(--bg-secondary); }
+.play-along-heading { fill: var(--text-primary); font-size: 11px; font-weight: 600; }
+.play-along-muted { fill: var(--text-secondary); font-weight: 400; }
+.play-along-string { fill: var(--text-secondary); font: 500 12px 'JetBrains Mono', monospace; }
+.play-along-string-line { stroke: var(--border-secondary); }
+.play-along-measure-line { stroke: var(--border-primary); stroke-dasharray: 3 5; }
+.play-along-measure { fill: var(--text-secondary); font-size: 10px; }
+.play-along-cursor-wash { fill: var(--accent-500); opacity: .12; }
+.play-along-cursor { stroke: var(--accent-600); stroke-width: 2; }
+.play-along-note rect { fill: var(--card-bg); stroke: var(--text-secondary); }
+.play-along-note text { fill: var(--text-primary); font: 600 13px 'JetBrains Mono', monospace; }
+.play-along-note[data-current='true'] rect { fill: var(--accent-700); stroke: var(--accent-700); stroke-width: 2; }
+.play-along-note[data-current='true'] text { fill: var(--bg-primary); }
+.play-along-note[data-past='true'] { opacity: .25; }
+.play-along-caption { margin: 8px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }

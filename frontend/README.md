@@ -26,8 +26,8 @@ keep their own musical context and use the same `TutorPanel` inside that frame.
 Desktop reserves a bounded companion column; at 1200px and below Tutor is a
 sheet. Conversation children remain mounted when closed.
 
-SongStudy opens recording playback from a compact launcher beside the playback
-selector. The non-modal popup has compact and expanded sizes; Expand reveals
+SongStudy opens recording playback from a launcher beside the playback
+selector. The non-modal popup can be moved and resized; its options open
 recording setup in one scroll area with a persistent header. Tutor keeps the full
 companion column. Closing the recording pauses it and returns focus, preserving
 its player, position and alignment draft. Mobile Tutor temporarily hides it.
@@ -37,6 +37,15 @@ shows four measures per page and supports selecting the endpoints of a range.
 Exercise nor completion data. Named ranges remain available, and intentional
 Exercise creation is under Song actions. Score/Fretboard and Tutor changes keep
 the same recording player mounted; opening the compact Tutor pauses it.
+
+The score offers **Tab** and **Play-along** representations. Play-along shows
+fret numbers on six string lanes approaching a fixed play line, using the same
+selected passage and playback controls. The physical fretboard remains a
+separate relationship view, including the existing mobile Fretboard option.
+Switching representations does not restart playback or change saved song data.
+Play-along reads the existing practice clock or calibrated recording position;
+it does not own audio or infer repeat occurrences. Unknown timing remains
+unavailable, and reduced motion uses stepped positions.
 
 See the [approved layout decision](../docs/study-desk/design.md) and its
 [interactive prototype](../docs/study-desk/approved-layout.html).

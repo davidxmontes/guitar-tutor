@@ -7,6 +7,7 @@ import { YouTubePlayer } from './YouTubePlayer';
 import type { YouTubeControls, YouTubeState } from './YouTubePlayer';
 import { buildScoreTimeline, parseYouTubeId, selectionBoundaries, selectionVideoRanges, validatePassages, videoPosition } from './songVideoTiming';
 import type { VideoPosition, VideoRange } from './songVideoTiming';
+import type { VideoClockSample } from './playAlongTiming';
 import './SongVideo.css';
 
 const timeLabel = (seconds: number) => {
@@ -36,7 +37,7 @@ function fitPlayer(bounds: PlayerBounds): PlayerBounds {
   };
 }
 
-export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectRange, onChange, onPosition }: {
+export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectRange, onChange, onPosition, onClock }: {
   song: SongStudyArtifact;
   active: boolean;
   pauseWhenCovered: boolean;
@@ -44,6 +45,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   onSelectRange(start: number, end: number): void;
   onChange(song: SongStudyArtifact): void;
   onPosition(position: VideoPosition | null, resumeFollowing?: boolean): void;
+  onClock(sample: VideoClockSample, refresh?: boolean): void;
 }) {
   const initial = song.payload.video_alignment ?? null;
   const [draft, setDraft] = useState<SongVideoAlignment | null>(initial);
@@ -96,6 +98,8 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   const live = useRef(true);
   const reportedTime = useRef<number | null>(null);
   const playingState = useRef<YouTubeState>('loading');
+  const clockRate = useRef(1);
+  const clockEngaged = useRef(false);
   const playingRange = useRef<(VideoRange & { loop: boolean; seeking: boolean }) | null>(null);
   const lastPosition = useRef('');
   const previousSample = useRef<{ time: number; at: number } | null>(null);
@@ -220,6 +224,12 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     playingRange.current = null;
     lastPosition.current = '';
     onPosition(null);
+    clockEngaged.current = false;
+    publishClock(null, true);
+  }
+  function publishClock(time: number | null, refresh = false) {
+    onClock({ seconds: time, at: performance.now(), rate: clockRate.current, state: playingState.current,
+      engaged: clockEngaged.current, passages: timingEnabled ? draft?.passages ?? [] : [] }, refresh);
   }
   function change(next: SongVideoAlignment | null) {
     autoSelect.current = false;
@@ -275,6 +285,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     const delta = sample ? time - sample.time : 0;
     const nativeSeek = sample && (delta < -0.25 || delta > Math.max(1, (now - sample.at) / 250 + 0.25)
       || playingState.current === 'paused' && Math.abs(delta) > 0.05);
+    if (nativeSeek) clockEngaged.current = true;
     let currentRange = playingRange.current;
     // Actual seeks resume score following; our own seeks must not release a loop.
     if (currentRange && !currentRange.seeking && nativeSeek) {
@@ -287,8 +298,10 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       currentRange.seeking = true;
       player.current?.seek(currentRange.start);
       player.current?.play();
+      publishClock(currentRange.start, true);
       return;
     }
+    publishClock(time, Boolean(nativeSeek));
     const position = timingEnabled && draft ? videoPosition(timeline, draft.passages, time) : null;
     const key = position ? `${position.passageId}:${position.measureIndex}:${position.beatIndex}` : '';
     if (key !== lastPosition.current || nativeSeek) { lastPosition.current = key; onPosition(position, true); }
@@ -297,8 +310,10 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     if (!ready || !range || !timingEnabled) return;
     panel.current?.querySelector('.song-video-body')?.scrollTo(0, 0);
     playingRange.current = { ...range, loop: loop && range.end !== null, seeking: true };
+    clockEngaged.current = true;
     player.current?.seek(range.start);
     player.current?.play();
+    publishClock(range.start, true);
   }
   async function save() {
     if (draft && !timingEnabled) { setError('Confirm that this recording matches the score arrangement before saving.'); return; }
@@ -422,9 +437,17 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       setReady(value);
       if (!value) { setDuration(null); setPlaybackRate({ rate: 1, available: [1] }); }
       if (!value) { playingRange.current = null; previousSample.current = null; lastPosition.current = ''; onPosition(null); }
+      if (!value) { clockEngaged.current = false; publishClock(null, true); }
     }}
-      onTime={handleTime} onRateChange={(rate, available) => setPlaybackRate({ rate, available })} onStateChange={value => {
+      onTime={handleTime} onRateChange={(rate, available) => {
+        const changed = clockRate.current !== rate;
+        clockRate.current = rate;
+        setPlaybackRate({ rate, available });
+        if (changed) publishClock(player.current?.getCurrentTime() ?? reportedTime.current, true);
+      }} onStateChange={value => {
         playingState.current = value; setState(value);
+        if (value === 'playing' || value === 'buffering') clockEngaged.current = true;
+        publishClock(player.current?.getCurrentTime() ?? reportedTime.current, true);
         if (value === 'playing') {
           const time = player.current?.getCurrentTime();
           onPosition(timingEnabled && draft && time != null ? videoPosition(timeline, draft.passages, time) : null, true);

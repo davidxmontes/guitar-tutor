@@ -2,6 +2,10 @@ import type { CSSProperties } from 'react';
 import { SongStudyTutor } from './SongStudyTutor';
 import { SongVideo } from './SongVideo';
 import type { VideoPosition } from './songVideoTiming';
+import { buildScoreTimeline } from './songVideoTiming';
+import { PlayAlong } from './PlayAlong';
+import type { VideoClockSample } from './playAlongTiming';
+import { practicePlayAlongPosition, recordingPlayAlongPosition, selectedPlayAlongPosition } from './playAlongTiming';
 import { SaveToLibrary } from './MyStuff';
 import { ExerciseComposer } from './ExerciseComposer';
 import { songPracticeMaterial } from './exerciseMaterial';
@@ -569,9 +573,18 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   // Keep the fallback stable so playback highlights cannot trigger a seek.
   const videoSelection = useMemo<SongSelection>(() => selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }, [selection, focus.measureIndex]);
   const [showFullTab, setShowFullTab] = useState(false);
+  const [scoreView, setScoreView] = useState<'tab' | 'play-along'>('tab');
   const [playbackSource, setPlaybackSource] = useState<'practice' | 'video'>('video');
   const [followVideo, setFollowVideo] = useState(true);
   const [videoPlayhead, setVideoPlayhead] = useState<VideoPosition | null>(null);
+  const videoClock = useRef<VideoClockSample | null>(null);
+  const [videoRunning, setVideoRunning] = useState(false);
+  const [videoClockRevision, setVideoClockRevision] = useState(0);
+  const receiveVideoClock = useCallback((sample: VideoClockSample, refresh = false) => {
+    videoClock.current = sample;
+    setVideoRunning(sample.state === 'playing');
+    if (refresh) setVideoClockRevision(value => value + 1);
+  }, []);
   const receiveVideoPosition = useCallback((position: VideoPosition | null, resumeFollowing = false) => {
     if (position || resumeFollowing) setFollowVideo(true);
     setVideoPlayhead(previous => previous?.passageId === position?.passageId && previous?.measureIndex === position?.measureIndex && previous?.beatIndex === position?.beatIndex ? previous : position);
@@ -583,6 +596,16 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
     () => songPracticeMaterial(payload, selection, focus), [payload, selection, focus],
   );
   const practice = usePractice(practiceDurations, 80, guideSteps);
+  const scoreTimeline = useMemo(() => buildScoreTimeline(measures), [measures]);
+  const selectedPosition = useMemo(() => selectedPlayAlongPosition(scoreTimeline, videoSelection), [scoreTimeline, videoSelection]);
+  const readPlayAlongPosition = useCallback(() => {
+    if (practice.active) return practicePlayAlongPosition(selectedPosition, practice.getElapsedBeats(), practice.countIn, practice.loop, practice.running);
+    const sample = videoClock.current;
+    if (playbackSource === 'video' && followVideo && sample?.engaged) return recordingPlayAlongPosition(scoreTimeline, sample, performance.now());
+    return selectedPosition;
+    // Clock samples live in a ref; only transport state/seek changes refresh a paused view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practice, playbackSource, followVideo, scoreTimeline, selectedPosition, videoClockRevision]);
 
   // Selection is local; saved ranges live on the artifact. The parent keys by artifact ID.
 
@@ -850,8 +873,8 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
         </div>
         <div className="song-study-header-actions" hidden={practice.focused}>
           <button type="button" data-testid="song-study-toggle-full-tab" disabled={practice.active}
-            onClick={() => { setShowFullTab(value => !value); setMobileView('score'); }} className="music-button">
-            {showFullTab ? 'Focused passage' : 'Full Tab'}
+            onClick={() => { setShowFullTab(value => scoreView === 'play-along' || !value); setScoreView('tab'); setMobileView('score'); }} className="music-button">
+            {showFullTab && scoreView === 'tab' ? 'Focused passage' : 'Full Tab'}
           </button>
           <details className="song-study-actions">
             <summary className="music-button">Song actions</summary>
@@ -877,7 +900,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
             {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
             <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
               selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
-              onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+              onChange={onSongStudyChange} onPosition={receiveVideoPosition} onClock={receiveVideoClock} />
           </div>
           <div className="song-study-mobile-view" role="group" aria-label="Song view">
             <button type="button" className="music-button" aria-pressed={mobileView === 'score'} onClick={() => setMobileView('score')}>Score</button>
@@ -893,12 +916,16 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
             rangeMode={rangeMode} rangeAnchor={rangeAnchor} onToggleRange={() => { setRangeMode(value => !value); setRangeAnchor(null); }}
             onSelect={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} />}
           <div className="song-study-score">
+      <div className="song-study-representation" role="group" aria-label="Tab view">
+        <button type="button" className="music-button" aria-pressed={scoreView === 'tab'} onClick={() => setScoreView('tab')}>Tab</button>
+        <button type="button" className="music-button" aria-pressed={scoreView === 'play-along'} onClick={() => setScoreView('play-along')}>Play-along</button>
+      </div>
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
-      {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
-      {!showFullTab || practice.active ? (() => {
+      {practice.active && scoreView === 'tab' && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
+      {scoreView === 'play-along' || !showFullTab || practice.active ? (() => {
         const focusedPassageBlock = (
           <div className="song-study-score-view flex flex-col gap-3">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
+            {scoreView === 'tab' && <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <p
                   className="text-[10px] font-bold uppercase tracking-wide"
@@ -938,9 +965,10 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
                   Next →
                 </button>
               </div>
-            </div>
+            </div>}
 
-            <MeasureGroup
+            {scoreView === 'play-along' ? <PlayAlong measures={measures} tuningNotes={tuningNotes}
+              readPosition={readPlayAlongPosition} running={practice.active ? practice.running : playbackSource === 'video' && videoRunning} /> : <MeasureGroup
               measures={detailMeasures}
               startMeasureIndex={displayMeasureIndex}
               selectedBeatId={selectedBeatId}
@@ -950,7 +978,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
               selectedMeasureIndices={selectedMeasureIndices}
               onBeatClick={onTabBeatClick}
               tuningNotes={tuningNotes ?? undefined}
-            />
+            />}
           </div>
         );
 

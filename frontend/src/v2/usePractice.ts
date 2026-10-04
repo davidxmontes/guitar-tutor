@@ -80,6 +80,8 @@ export function usePractice(durations: readonly number[], initialTempo = 80, gui
 
   return {
     active, focused, tempo, loop, countIn, metronome, running, position, audioError,
+    // Read the existing transport clock without publishing animation frames to React.
+    getElapsedBeats: nowBeats,
     enter: () => { reset(); setActive(true); },
     exit: () => { reset(); setActive(false); setFocused(false); },
     setFocused, setLoop, setMetronome,
