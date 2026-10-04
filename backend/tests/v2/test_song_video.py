@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from app.config import Settings, get_settings
 from app.dependencies.auth import get_current_user
 from app.v2.router import get_enrichment_model_factory, router
+from app.v2.song_video import SongVideoAlignment
 from app.v2.store import InMemoryV2Store, get_v2_store
 from tests.v2.tutor_fakes import ScriptedTutorModel
 
@@ -84,6 +85,65 @@ def test_confirmed_recording_save_reopens_in_library_and_history_recovers_remova
     })
     assert restored.status_code == 200
     assert restored.json()["payload"]["video_alignment"] == alignment()
+
+
+@pytest.mark.parametrize("binding", [alignment(), {**alignment(), "offset_seconds": 0}])
+def test_zero_offset_keeps_existing_alignment_payload_shape(song_client, binding):
+    client, _, song = song_client
+    parsed = SongVideoAlignment.model_validate(binding)
+    assert parsed.offset_seconds == 0
+    assert parsed.model_dump() == alignment()
+    response = save(client, song, binding)
+    assert response.status_code == 200, response.text
+    assert response.json()["payload"]["video_alignment"] == alignment()
+    assert client.get(f"/api/v2/song-studies/{song.id}").json()["payload"]["video_alignment"] == alignment()
+
+
+@pytest.mark.parametrize("offset", [-86400, -15.25, 15.25, 86400])
+def test_signed_offset_persists_without_moving_or_clamping_raw_anchors(song_client, offset):
+    client, _, song = song_client
+    binding = {**alignment(), "offset_seconds": offset}
+    response = save(client, song, binding)
+    assert response.status_code == 200, response.text
+    assert response.json()["payload"]["video_alignment"] == binding
+    assert client.get(f"/api/v2/song-studies/{song.id}").json()["payload"]["video_alignment"] == binding
+
+
+def test_offset_edits_preserve_revision_conflicts_and_can_be_restored_or_reset(song_client):
+    client, store, song = song_client
+    positive = {**alignment(), "offset_seconds": 0.25}
+    assert save(client, song, positive).status_code == 200
+    first = store.get_artifact(song.id, "owner")
+    negative = {**alignment(), "offset_seconds": -0.5}
+    assert save(client, first, negative).status_code == 200
+    second = store.get_artifact(song.id, "owner")
+    assert second.updated_at != first.updated_at
+    assert save(client, first, positive).status_code == 409
+    assert store.get_artifact(song.id, "owner").payload["video_alignment"] == negative
+    restored = client.post(f"/api/v2/library/{song.id}/restore", json={
+        "expected_updated_at": second.updated_at, "revision": first.updated_at,
+    })
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["payload"]["video_alignment"] == positive
+    current = store.get_artifact(song.id, "owner")
+    reset = save(client, current, {**alignment(), "offset_seconds": 0})
+    assert reset.status_code == 200, reset.text
+    assert reset.json()["payload"]["video_alignment"] == alignment()
+
+
+@pytest.mark.parametrize("offset", [float("nan"), float("inf"), -float("inf"), -86400.01, 86400.01,
+                                    True, False, "0.25", None])
+def test_alignment_model_rejects_invalid_offsets(offset):
+    with pytest.raises(ValidationError):
+        SongVideoAlignment.model_validate({**alignment(), "offset_seconds": offset})
+
+
+@pytest.mark.parametrize("offset", [-86400.01, 86400.01, True, "0.25", None])
+def test_invalid_offset_cannot_modify_or_promote_song(song_client, offset):
+    client, store, song = song_client
+    assert save(client, song, {**alignment(), "offset_seconds": offset}).status_code == 422
+    assert store.get_artifact(song.id, "owner") == song
+    assert client.get("/api/v2/library").json() == []
 
 
 @pytest.mark.parametrize("passages", [[], [{"id": "later", "label": "Align later", "anchors": []}],

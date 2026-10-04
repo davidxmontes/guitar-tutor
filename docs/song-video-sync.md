@@ -96,6 +96,29 @@ Additional sources checked:
   saved revisions. No permanent timestamp table. On save conflict, retain the
   draft and explain how to reload/discard rather than overwriting another edit.
 
+## Fine recording alignment
+
+The recording playback controls expose Earlier/Later nudges in 0.1-second steps,
+Reset adjustment and Save timing. Nudging shifts the notes while playback stays
+at its current time and state. It applies globally to the recording, including
+explicit occurrences and armed selection loops. Advanced anchor editing remains
+available for drift that a uniform shift cannot correct.
+
+`SongVideoAlignment.offset_seconds` is optional, finite and signed, with zero
+as the default (omitted on serialization). Positive values make notes arrive
+later; negative values make them arrive earlier, including for alignments whose
+first raw anchor is zero. Position lookup subtracts the offset from video time;
+playable selection ranges add it. A range partly before the recording starts
+is clipped at zero; a range entirely before zero is unavailable. Raw anchor
+times and timing slopes are preserved.
+
+Manual marks still identify exact physical video times. They inverse-transform
+the offset, rebasing the anchor reference and offset together when necessary
+to keep raw anchors nonnegative. Save uses the existing ownership/revision
+checks and preserves a failed draft. The JSON payload gains an optional field,
+with no database migration: deploy the compatible backend before the frontend
+save path. Keep that backend compatibility when rolling back the frontend.
+
 ## Player boundary
 
 Load the supported IFrame API once and create one visible player per mounted

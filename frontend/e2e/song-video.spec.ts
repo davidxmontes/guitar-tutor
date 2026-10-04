@@ -82,8 +82,7 @@ test('floating recording moves and resizes without replacing the native player',
   for (let index = 0; index < 10; index += 1) await move.press('Shift+ArrowLeft');
   for (let index = 0; index < 4; index += 1) await move.press('Shift+ArrowUp');
   for (let index = 0; index < 9; index += 1) await resize.press('Shift+ArrowRight');
-  await resize.press('ArrowUp');
-  await resize.press('ArrowUp');
+  for (let index = 0; index < 10; index += 1) await resize.press('ArrowUp');
   const wide = await panel.boundingBox();
   expect(wide!.width).toBeGreaterThan(750);
   expect(wide!.height).toBeCloseTo(350, 0);
@@ -445,9 +444,9 @@ for (const source of ['estimated', 'songsterr'] as const) {
     await expect(page.getByTestId('song-video-position')).toContainText('M2');
     await recordingTask(page, 'Sync with score');
     await page.getByText('Adjust recording start', { exact: true }).click();
-    await page.getByLabel('First aligned beat at (seconds)').fill('86400');
+    await page.getByLabel('First aligned beat at (seconds)').fill('86401');
     await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('valid video time');
+    expect(await page.getByLabel('First aligned beat at (seconds)').evaluate((input: HTMLInputElement) => input.validity.rangeOverflow)).toBe(true);
     await page.getByLabel('First aligned beat at (seconds)').fill('10');
     await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
     await playerView(page);

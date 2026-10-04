@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TabMeasure } from '../types';
 import type { SongVideoAnchor, SongVideoPassage } from '../types/songVideo';
-import { buildScoreTimeline, parseYouTubeId, selectionVideoRanges, validatePassages, videoPosition } from './songVideoTiming';
+import { buildScoreTimeline, parseYouTubeId, selectionVideoRanges, validatePassages, videoPosition, videoScorePosition } from './songVideoTiming';
 
 const anchor = (measure_index: number, beat_index: number, edge: 'start' | 'end', video_seconds: number): SongVideoAnchor => ({ measure_index, beat_index, edge, video_seconds });
 const passage = (anchors: SongVideoAnchor[], id = 'verse'): SongVideoPassage => ({ id, label: id, anchors });
@@ -22,6 +22,26 @@ describe('YouTube input', () => {
 });
 
 describe('score and video alignment', () => {
+  it('moves zero-start notes in either direction without changing interval slopes or anchor times', () => {
+    const passages = [passage([anchor(0, 0, 'start', 0), anchor(1, 2, 'end', 7)])];
+    const before = JSON.stringify(passages);
+    for (const offset of [-0.1, 0.1, -0.034, 1.234]) {
+      const seconds = 1 + offset;
+      expect(videoScorePosition(timeline, passages, seconds, offset)?.offset).toBeCloseTo(0.5);
+      expect(videoPosition(timeline, passages, seconds, offset)).toMatchObject({ measureIndex: 1, beatIndex: 0 });
+    }
+    expect(videoPosition(timeline, passages, 0, 0.1)).toBeNull();
+    expect(videoScorePosition(timeline, passages, 0, -0.1)?.offset).toBeCloseTo(0.05);
+    expect(JSON.stringify(passages)).toBe(before);
+  });
+  it('clips playable loops at video zero without clamping their anchors, and omits fully elapsed or unbounded negative ranges', () => {
+    const passages = [passage([anchor(0, 0, 'start', 0), anchor(1, 2, 'end', 7)])];
+    const selection = { type: 'range' as const, startMeasureIndex: 0, endMeasureIndex: 1 };
+    expect(selectionVideoRanges(timeline, passages, selection, -1)).toEqual([{ id: 'verse', label: 'verse', start: 0, end: 6 }]);
+    expect(selectionVideoRanges(timeline, passages, selection, 1)).toEqual([{ id: 'verse', label: 'verse', start: 1, end: 8 }]);
+    expect(selectionVideoRanges(timeline, passages, selection, -7)).toEqual([]);
+    expect(selectionVideoRanges(timeline, [passage([anchor(0, 0, 'start', 0)])], selection, -0.1)).toEqual([]);
+  });
   it('uses selected-voice durations including pickups, rests, meter changes and fractions', () => {
     expect(timeline.map(beat => beat.start)).toEqual([0, 0.5, 1.5, 2, 3.5, 3.5 + 1 / 3]);
     expect(timeline.at(-1)?.end).toBeCloseTo(4.5);
