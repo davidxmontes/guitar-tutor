@@ -46,6 +46,12 @@ Switching representations does not restart playback or change saved song data.
 Play-along reads the existing practice clock or calibrated recording position;
 it does not own audio or infer repeat occurrences. Unknown timing remains
 unavailable, and reduced motion uses stepped positions.
+Technique cues travel beside the associated fret numbers inside the board;
+palm mute, let ring and picking direction align with their beat. The technique
+key explains the marks without requiring hover. Cues reflect the existing tab
+metadata: bends and slides have no invented amount or destination, and `hp`
+remains the combined hammer-on / pull-off indication. They describe how to play
+the notes; the practice audio does not synthesize those techniques.
 
 See the [approved layout decision](../docs/study-desk/design.md) and its
 [interactive prototype](../docs/study-desk/approved-layout.html).

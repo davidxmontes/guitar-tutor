@@ -9,6 +9,7 @@ import { practicePlayAlongPosition, recordingPlayAlongPosition, selectedPlayAlon
 import { SaveToLibrary } from './MyStuff';
 import { ExerciseComposer } from './ExerciseComposer';
 import { songPracticeMaterial } from './exerciseMaterial';
+import { noteTechniqueCues } from './songTechniques';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { midiToNoteName } from '../utils/tuning';
@@ -23,7 +24,7 @@ import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
 import { useTutorDock } from './useTutorDock';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
-import type { SongSearchResult, TabBeat, TabNote, TrackSummary } from '../types';
+import type { SongSearchResult, TabBeat, TrackSummary } from '../types';
 import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, V2Branch } from '../types/v2';
 import './SongStudy.css';
 
@@ -62,18 +63,12 @@ function toFretNotes(beat?: TabBeat): FretNote[] {
   return notes;
 }
 
-const NOTE_TECHNIQUES: Array<[keyof TabNote, string]> = [
-  ['slide', 'slide'], ['bend', 'bend'], ['hp', 'hammer-on / pull-off'],
-  ['vibrato', 'vibrato'], ['harmonic', 'harmonic'], ['ghost', 'ghost note'],
-  ['staccato', 'staccato'], ['accentuated', 'accent'],
-];
-
 function beatTechniques(beat?: TabBeat): string[] {
   if (!beat || beat.rest) return [];
   const notes = (beat.notes ?? []).filter(note => !note.rest && Number.isInteger(note.string) && note.string >= 0 && (note.dead || Number.isFinite(note.fret)));
   if (!notes.length) return [];
   const labels = notes.flatMap(note => {
-    const techniques = note.dead ? ['muted note'] : NOTE_TECHNIQUES.filter(([key]) => note[key]).map(([, label]) => label);
+    const techniques = note.dead ? ['muted note'] : noteTechniqueCues(note).map(({ label }) => label);
     return techniques.length ? [`String ${note.string + 1}${note.dead ? '' : `, fret ${note.fret}`}: ${techniques.join(', ')}`] : [];
   });
   if (beat.palmMute) labels.push('Palm mute');
