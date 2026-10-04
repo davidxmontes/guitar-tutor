@@ -13,11 +13,15 @@ import { getBeatsFromMeasure } from '../utils/tab';
 import { SongEnrichmentPanel } from './SongEnrichment';
 import { SongShapeStrip } from './SongShapeStrip';
 import { SongLearningMap } from './SongLearningMap';
+import { buildSongSections, selectMeasureRange } from './songStudyNavigation';
+import type { SongSection } from './songStudyNavigation';
 import { usePractice } from './usePractice';
 import { PracticeControls } from './PracticeControls';
+import { useTutorDock } from './useTutorDock';
 import { PhysicalChordDiagram } from './PhysicalChordDiagram';
-import type { SongSearchResult, TabBeat, TabMeasure, TabNote, TrackSummary } from '../types';
+import type { SongSearchResult, TabBeat, TabNote, TrackSummary } from '../types';
 import type { SongDerivedRange, SongFocus, SongSelection, SongShapeSource, SongStudyArtifact, V2Branch } from '../types/v2';
+import './SongStudy.css';
 
 const DEFAULT_WINDOW_SIZE = 4;
 const MemoMeasureGroup = memo(MeasureGroup);
@@ -89,39 +93,6 @@ function parseBeatId(beatId: string): { measureIndex: number; beatIndex: number 
 // signal (chords repeat within a section) for no benefit once marker.text is
 // covered — add that heuristic later only if real tabs without markers turn
 // out to look bad chunked.
-const OVERVIEW_CHUNK_SIZE = 8;
-
-interface OverviewSection {
-  label: string;
-  startIndex: number;
-  endIndex: number; // inclusive
-}
-
-function buildOverviewSections(measures: TabMeasure[]): OverviewSection[] {
-  const markers = measures
-    .map((measure, index) => ({ index, label: measure.marker?.text }))
-    .filter((m): m is { index: number; label: string } => Boolean(m.label));
-
-  if (markers.length === 0) {
-    const sections: OverviewSection[] = [];
-    for (let start = 0; start < measures.length; start += OVERVIEW_CHUNK_SIZE) {
-      const endIndex = Math.min(start + OVERVIEW_CHUNK_SIZE, measures.length) - 1;
-      sections.push({ label: `Measures ${start + 1}–${endIndex + 1}`, startIndex: start, endIndex });
-    }
-    return sections;
-  }
-
-  const sections: OverviewSection[] = [];
-  if (markers[0].index > 0) {
-    sections.push({ label: `Measures 1–${markers[0].index}`, startIndex: 0, endIndex: markers[0].index - 1 });
-  }
-  markers.forEach((marker, i) => {
-    const endIndex = (markers[i + 1]?.index ?? measures.length) - 1;
-    sections.push({ label: marker.label, startIndex: marker.index, endIndex });
-  });
-  return sections;
-}
-
 const FULL_TAB_ROW_SIZE = DEFAULT_WINDOW_SIZE;
 
 interface FullTabRow {
@@ -130,7 +101,7 @@ interface FullTabRow {
   endIndex: number; // inclusive
 }
 
-function buildFullTabRows(sections: OverviewSection[]): FullTabRow[] {
+function buildFullTabRows(sections: SongSection[]): FullTabRow[] {
   const rows: FullTabRow[] = [];
   for (const section of sections) {
     for (let start = section.startIndex; start <= section.endIndex; start += FULL_TAB_ROW_SIZE) {
@@ -165,9 +136,6 @@ function SongStudyFretboard({
   upcomingNotes,
   activeTechniques,
   upcomingTechniques,
-  // Fills the middle panel's width by default instead of a small fixed cap —
-  // pass a smaller value (e.g. the rail layout's 760) only to compare sizes.
-  maxWidth = '100%',
 }: {
   tuningMidi: number[];
   tuningNotes: string[];
@@ -175,9 +143,6 @@ function SongStudyFretboard({
   upcomingNotes: FretNote[];
   activeTechniques: string[];
   upcomingTechniques: string[];
-  // Layout-comparison toggle (rail variant) passes a smaller pixel value to
-  // see whether less width is worth it (kept as a size comparison knob).
-  maxWidth?: number | string;
 }) {
 
   // FRESH_FRETBOARD_FRET_COUNT is the highest fret shown by default (fret 0
@@ -202,7 +167,7 @@ function SongStudyFretboard({
         overflowX: 'auto',
         padding: 6,
         width: '100%',
-        maxWidth,
+        maxWidth: '100%',
       }}
     >
       <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${frets.length},minmax(22px,1fr))` }}>
@@ -307,138 +272,113 @@ function SongStudyFretboard({
   );
 }
 
-// --- Overview: section-grouped, compressed measure map. Sticky vertical
-// rail (see SongStudyWorkspace) — click a section header to select its
-// full range, click a measure tile to jump there, shift-click to pick a
-// range. Only the section containing the focused measure expands its
-// measure grid; everything else collapses to just its header so the whole
-// song's sections fit in the sidebar without dominating it. ---
+// Compact section and measure map above the score. Selection and playback
+// remain separate signals; a bookmark marker only means "kept for later."
 
 function MeasureOverviewStrip({
   sections,
   focusMeasureIndex,
+  playheadMeasureIndex,
   selection,
   onJump,
   onRangeSelect,
   enrichedRanges,
+  savedRanges,
+  disabled,
+  rangeMode,
+  rangeAnchor,
+  onRangeModeChange,
+  onRangeAnchorChange,
 }: {
-  sections: OverviewSection[];
+  sections: SongSection[];
   focusMeasureIndex: number;
+  playheadMeasureIndex?: number;
   selection: SongSelection | null;
   onJump: (measureIndex: number) => void;
   onRangeSelect: (start: number, end: number) => void;
   enrichedRanges: SongDerivedRange[];
+  savedRanges: SongStudyArtifact['payload']['saved_ranges'];
+  disabled: boolean;
+  rangeMode: boolean;
+  rangeAnchor: number | null;
+  onRangeModeChange: (value: boolean) => void;
+  onRangeAnchorChange: (value: number | null) => void;
 }) {
-  const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
+  const [phone, setPhone] = useState(() => window.matchMedia('(max-width: 640px)').matches);
+  const currentSection = sections.find(section => focusMeasureIndex >= section.startIndex && focusMeasureIndex <= section.endIndex) ?? sections[0];
+  const selectionKey = selection?.type === 'range'
+    ? `range:${selection.startMeasureIndex}:${selection.endMeasureIndex}`
+    : selection?.type === 'beat'
+      ? `beat:${selection.measureIndex}:${selection.beatIndex}`
+      : `focus:${focusMeasureIndex}`;
+  const rangeKey = (start: number, end: number) => `range:${start}:${end}`;
+  const [page, setPage] = useState({ sectionStart: -1, start: 0, selectionKey: '' });
 
-  const handleClick = (idx: number, shiftKey: boolean) => {
-    if (shiftKey && rangeAnchor !== null) {
-      onRangeSelect(Math.min(rangeAnchor, idx), Math.max(rangeAnchor, idx));
-      return;
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 640px)');
+    const update = () => setPhone(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  if (!currentSection) return null;
+
+  const focusPageStart = Math.floor((focusMeasureIndex - currentSection.startIndex) / 4) * 4 + currentSection.startIndex;
+  const pageStart = page.sectionStart === currentSection.startIndex && page.selectionKey === selectionKey ? page.start : focusPageStart;
+  const pageEnd = Math.min(pageStart + 3, currentSection.endIndex);
+  const visibleStart = phone ? pageStart : currentSection.startIndex;
+  const visibleEnd = phone ? pageEnd : currentSection.endIndex;
+  const selectedStart = selection?.type === 'range' ? selection.startMeasureIndex : selection?.type === 'beat' ? selection.measureIndex : focusMeasureIndex;
+  const selectedEnd = selection?.type === 'range' ? selection.endMeasureIndex : selectedStart;
+
+  const handleClick = (measureIndex: number, shiftKey: boolean) => {
+    const extend = shiftKey || rangeMode && rangeAnchor !== null;
+    const next = selectMeasureRange(rangeAnchor, measureIndex, extend);
+    setPage({ sectionStart: currentSection.startIndex, start: Math.floor((measureIndex - currentSection.startIndex) / 4) * 4 + currentSection.startIndex, selectionKey: rangeKey(next.start, next.end) });
+    onRangeAnchorChange(next.anchor);
+    if (extend) {
+      onRangeModeChange(false);
+      onRangeSelect(next.start, next.end);
+    } else {
+      onJump(measureIndex);
     }
-    setRangeAnchor(idx);
-    onJump(idx);
   };
 
   return (
-    <div
-      data-testid="song-study-overview"
-      aria-label="Song overview"
-      style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 'calc(100vh - 140px)' }}
-    >
-      {sections.map((section) => {
-        const isCurrentSection = focusMeasureIndex >= section.startIndex && focusMeasureIndex <= section.endIndex;
-        const collapsed = !isCurrentSection;
-        return (
-        <div
-          key={section.startIndex}
-          data-testid="song-study-overview-section"
-          style={{
-            flex: '0 0 auto',
-            border: '1px solid var(--border-primary)',
-            borderColor: isCurrentSection ? 'var(--accent-500)' : 'var(--border-primary)',
-            borderRadius: 8,
-            backgroundColor: 'var(--card-bg)',
-            overflow: 'hidden',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => { setRangeAnchor(section.startIndex); onRangeSelect(section.startIndex, section.endIndex); }}
-            title={`Select ${section.label}: measures ${section.startIndex + 1}–${section.endIndex + 1}`}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              fontSize: 9,
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              padding: '4px 6px',
-              border: 0,
-              backgroundColor: isCurrentSection ? 'rgba(16,185,129,0.12)' : 'var(--bg-secondary)',
-              borderBottom: collapsed ? 0 : '1px solid var(--border-primary)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            {section.label}
-          </button>
-          {!collapsed && (
-          <div
-            role="group"
-            aria-label={section.label}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 20px)', gap: 2, padding: 4 }}
-          >
-            {Array.from({ length: section.endIndex - section.startIndex + 1 }, (_, i) => section.startIndex + i).map(
-              (idx) => {
-                const inFocus = idx === focusMeasureIndex;
-                const inRange =
-                  selection?.type === 'range' && idx >= selection.startMeasureIndex && idx <= selection.endMeasureIndex;
-                const enrichment = enrichedRanges?.find(
-                  (range) => idx + 1 >= range.start_measure && idx + 1 <= range.end_measure,
-                );
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    aria-label={`Select measure ${idx + 1}`}
-                    data-testid="song-study-overview-measure"
-                    data-measure-index={idx}
-                    onClick={(e) => handleClick(idx, e.shiftKey)}
-                    title={`Jump to measure ${idx + 1} — shift-click to select a range${enrichment ? ` — ${enrichment.section ?? 'AI learning annotation'}` : ''}`}
-                    style={{
-                      width: 20,
-                      height: 16,
-                      padding: 0,
-                      fontSize: 7,
-                      fontWeight: 800,
-                      border: '1px solid var(--border-secondary)',
-                      borderRadius: 3,
-                      backgroundColor: inRange ? 'var(--accent-500)' : inFocus ? 'var(--accent-600)' : 'var(--bg-secondary)',
-                      color: inRange || inFocus ? 'white' : 'var(--text-muted)',
-                      cursor: 'pointer',
-                      position: 'relative',
-                    }}
-                  >
-                    {idx + 1}
-                    {enrichment && (
-                      <span
-                        data-testid="song-study-enrichment-marker"
-                        aria-hidden="true"
-                        style={{ position: 'absolute', right: 1, bottom: 1, width: 3, height: 3, borderRadius: '50%', background: '#6d5bd0' }}
-                      />
-                    )}
-                  </button>
-                );
-              },
-            )}
-          </div>
-          )}
+    <nav data-testid="song-study-overview" className="song-measure-map" aria-label="Song sections and measures">
+      <div className="song-section-jumps">
+        {sections.map(section => {
+          const current = section === currentSection;
+          return <button key={section.startIndex} type="button" data-testid="song-study-overview-section"
+            aria-label={section.label} aria-pressed={current} disabled={disabled}
+            onClick={() => { setPage({ sectionStart: section.startIndex, start: section.startIndex, selectionKey: rangeKey(section.startIndex, section.endIndex) }); onRangeAnchorChange(section.startIndex); onRangeModeChange(false); onRangeSelect(section.startIndex, section.endIndex); }}>
+            {section.label}<small>M{section.startIndex + 1}–{section.endIndex + 1}</small>
+          </button>;
+        })}
+      </div>
+      <div className="song-measure-navigation">
+        <button type="button" className="song-measure-page" data-testid="song-measure-page-previous" aria-label="Previous measures"
+          disabled={disabled || pageStart <= currentSection.startIndex} onClick={() => setPage({ sectionStart: currentSection.startIndex, start: Math.max(currentSection.startIndex, pageStart - 4), selectionKey })}>‹</button>
+        <div className="song-measure-grid" role="group" aria-label={`${currentSection.label} measures`}>
+          {Array.from({ length: visibleEnd - visibleStart + 1 }, (_, index) => visibleStart + index).map(measureIndex => {
+            const kept = (savedRanges ?? []).some(range => measureIndex + 1 >= range.start_measure && measureIndex + 1 <= range.end_measure);
+            const enriched = enrichedRanges.some(range => measureIndex + 1 >= range.start_measure && measureIndex + 1 <= range.end_measure);
+            const selected = measureIndex >= selectedStart && measureIndex <= selectedEnd;
+            return <button key={measureIndex} type="button" data-testid="song-study-overview-measure" data-measure-index={measureIndex}
+              aria-label={`Select measure ${measureIndex + 1}${kept ? ', kept passage' : ''}`}
+              aria-pressed={selected} aria-current={measureIndex === playheadMeasureIndex ? 'location' : undefined}
+              disabled={disabled} onClick={event => handleClick(measureIndex, event.shiftKey)}
+              title={`Measure ${measureIndex + 1} · shift-click to extend selection`}>
+              {measureIndex + 1}
+              {kept && <span className="song-measure-kept" aria-hidden="true" />}
+              {enriched && <span className="song-measure-enriched" data-testid="song-study-enrichment-marker" aria-hidden="true" />}
+            </button>;
+          })}
         </div>
-        );
-      })}
-    </div>
+        <button type="button" className="song-measure-page" data-testid="song-measure-page-next" aria-label="Next measures"
+          disabled={disabled || pageEnd >= currentSection.endIndex} onClick={() => setPage({ sectionStart: currentSection.startIndex, start: Math.min(currentSection.endIndex, pageStart + 4), selectionKey })}>›</button>
+      </div>
+    </nav>
   );
 }
 
@@ -613,7 +553,18 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
     { measureIndex: 0, windowSize: DEFAULT_WINDOW_SIZE },
   );
   const [selection, setSelection] = useState<SongSelection | null>(null);
-  const [tutorWidth, setTutorWidth] = useState(360);
+  const [rangeMode, setRangeMode] = useState(false);
+  const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
+  const {
+    open: tutorOpen,
+    setOpen: setTutorOpen,
+    width: tutorWidth,
+    setWidth: setTutorWidth,
+    compact: tutorCompact,
+    triggerRef: tutorTriggerRef,
+  } = useTutorDock();
+  const tutorDock = { open: tutorOpen, setOpen: setTutorOpen, width: tutorWidth, setWidth: setTutorWidth, compact: tutorCompact, triggerRef: tutorTriggerRef };
+  const [mobileView, setMobileView] = useState<'score' | 'fretboard'>('score');
   // New selection objects represent learner gestures, including reselecting a beat.
   // Keep the fallback stable so playback highlights cannot trigger a seek.
   const videoSelection = useMemo<SongSelection>(() => selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }, [selection, focus.measureIndex]);
@@ -703,7 +654,8 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   const nextBeatIndex = practice.active ? practice.position.next === null ? -1 : practiceBeats[practice.position.next]?.sequenceIndex ?? -1 : activeBeatIndex < 0 ? -1 : activeBeatIndex + 1;
   const displayMeasureIndex = (practice.active || playbackSource === 'video' && followVideo) && activeBeatIndex >= 0 ? beatSequence[activeBeatIndex].measureIndex : focus.measureIndex;
 
-  const overviewSections = useMemo(() => buildOverviewSections(measures), [measures]);
+  const overviewSections = useMemo(() => buildSongSections(measures), [measures]);
+  const currentSection = overviewSections.find(section => focus.measureIndex >= section.startIndex && focus.measureIndex <= section.endIndex) ?? overviewSections[0];
 
   // Keeps the focused measure window scrolled to wherever keyboard nav lands.
   const ensureMeasureVisible = useCallback(
@@ -889,53 +841,63 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   };
 
   return (
-    <div data-testid="song-study-workspace" className={practice.focused ? "flex flex-col gap-4" : "flex flex-col xl:flex-row gap-4 items-start"} style={{ background: 'var(--bg-primary)', '--song-tutor-width': `${tutorWidth}px` } as CSSProperties}>
-    <div className="song-study-content flex w-full flex-col gap-4 flex-1 min-w-0">
-      <div className="pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h2 data-testid="song-study-title" className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-              {payload.title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span> {payload.artist}
-            </h2>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-              {payload.track.name} ({payload.track.instrument}) • {measureCount} measures
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap" style={{ display: practice.focused ? 'none' : undefined }}>
-
-            <button
-              type="button"
-              data-testid="song-study-toggle-full-tab"
-              disabled={practice.active}
-              onClick={() => setShowFullTab((v) => !v)}
-              className={headerButtonClass}
-              style={headerButtonStyle}
-            >
-              {showFullTab ? 'Show overview + focus' : 'Show full tab'}
-            </button>
-          </div>
+    <div data-testid="song-study-workspace" className="song-study-workspace" data-practice-focused={practice.focused}
+      style={{ '--tutor-width': `${tutorWidth}px` } as CSSProperties}>
+      <header className="song-study-header">
+        <div className="song-study-heading">
+          <h1 data-testid="song-study-title">{payload.title} <span>— {payload.artist}</span></h1>
+          <p>{payload.track.name} · {payload.track.instrument} · {measureCount} measures</p>
         </div>
-      </div>
+        <div className="song-study-header-actions" hidden={practice.focused}>
+          <button type="button" data-testid="song-study-toggle-full-tab" disabled={practice.active}
+            onClick={() => { setShowFullTab(value => !value); setMobileView('score'); }} className="music-button">
+            {showFullTab ? 'Focused passage' : 'Full Tab'}
+          </button>
+          <details className="song-study-actions">
+            <summary className="music-button">Song actions</summary>
+            <div>
+              <SaveToLibrary artifact={songStudy} onSaved={async () => { onSongStudyChange(await apiClient.getSongStudy(songStudy.id)); }} />
+              {!practice.active && <details><summary>Create a separate practice drill</summary>
+                <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at}
+                  selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={guideSteps} />
+              </details>}
+            </div>
+          </details>
+          <button ref={tutorTriggerRef} type="button" className="music-button" aria-controls="workspace-tutor" aria-expanded={tutorOpen}
+            onClick={() => setTutorOpen(value => !value)}>Tutor</button>
+        </div>
+      </header>
 
-      <label className="text-sm flex flex-wrap items-center gap-2">Playback source<select aria-label="Playback source" className="music-button" value={playbackSource} onChange={event => {
-        practice.exit(); setVideoPlayhead(null); setPlaybackSource(event.target.value as 'practice' | 'video');
-      }}><option value="practice">Synthesized practice</option><option value="video">YouTube recording</option></select></label>
-      <div className="flex flex-wrap items-start gap-2">
-      <SaveToLibrary artifact={songStudy} onSaved={async () => { onSongStudyChange(await apiClient.getSongStudy(songStudy.id)); }} />
-      {!practice.active && <ExerciseComposer sourceId={songStudy.id} revision={songStudy.updated_at} selection={selection ?? { type: 'range', startMeasureIndex: focus.measureIndex, endMeasureIndex: focus.measureIndex }} steps={guideSteps} />}
-      {playbackSource === 'practice' && <><span data-testid="practice-selected-span">Selection: {videoSelection.type === 'beat' ? `M${videoSelection.measureIndex + 1} (whole measure)` : videoSelection.startMeasureIndex === videoSelection.endMeasureIndex ? `M${videoSelection.startMeasureIndex + 1} (whole measure)` : `M${videoSelection.startMeasureIndex + 1}–${videoSelection.endMeasureIndex + 1}`}</span><PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" /></>}
-      </div>
-      <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} width={tutorWidth} onWidthChange={setTutorWidth} />
-      <div className={playbackSource === 'video' ? 'song-video-layout' : undefined}>
-    <SongVideo song={songStudy} active={playbackSource === 'video'} selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
-      <div className="song-study-score flex w-full flex-col gap-4 min-w-0">
+      <div className="song-study-desk" data-companion={!practice.focused && tutorOpen}>
+        <section className="song-study-stage" data-mobile-view={mobileView} aria-label="Song music">
+          <div className="song-study-practice-bar">
+            <label>Playback <select aria-label="Playback source" className="music-button" value={playbackSource} onChange={event => {
+              practice.exit(); setVideoPlayhead(null); setPlaybackSource(event.target.value as 'practice' | 'video');
+            }}><option value="practice">Guitar guide</option><option value="video">Recording</option></select></label>
+            {playbackSource === 'practice' && <PracticeControls practice={practice} available={practiceDurations.length > 0} label="selection" />}
+            <SongVideo song={songStudy} active={playbackSource === 'video'} pauseWhenCovered={tutorOpen && tutorCompact}
+              selection={videoSelection} onSelectRange={(start, end) => selectRange(start, end, true)}
+              onChange={onSongStudyChange} onPosition={receiveVideoPosition} />
+          </div>
+          <div className="song-study-mobile-view" role="group" aria-label="Song view">
+            <button type="button" className="music-button" aria-pressed={mobileView === 'score'} onClick={() => setMobileView('score')}>Score</button>
+            <button type="button" className="music-button" aria-pressed={mobileView === 'fretboard'} onClick={() => { setShowFullTab(false); setMobileView('fretboard'); }}>Fretboard</button>
+          </div>
+          {!practice.focused && <MeasureOverviewStrip sections={overviewSections} focusMeasureIndex={focus.measureIndex}
+            playheadMeasureIndex={videoPlayhead?.measureIndex} selection={selection}
+            onJump={index => selectRange(index, index, true)} onRangeSelect={(start, end) => selectRange(start, end, true)}
+            enrichedRanges={payload.enrichment?.ranges ?? []} savedRanges={payload.saved_ranges} disabled={practice.active}
+            rangeMode={rangeMode} rangeAnchor={rangeAnchor} onRangeModeChange={setRangeMode} onRangeAnchorChange={setRangeAnchor} />}
+          {!practice.focused && <SongLearningMap key={songStudy.id} song={songStudy} selection={selection} measureIndex={focus.measureIndex}
+            sectionLabel={currentSection?.label ?? 'Passage'} disabled={practice.active}
+            rangeMode={rangeMode} rangeAnchor={rangeAnchor} onToggleRange={() => { setRangeMode(value => !value); setRangeAnchor(null); }}
+            onSelect={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} />}
+          <div className="song-study-score">
       {!practiceDurations.length && <p className="text-xs">Rhythm data is unavailable for this selection; choose a timed passage to practice.</p>}
       {practice.active && <p data-testid="practice-song-position" className="text-sm text-[var(--text-secondary)]">{practice.position.count ? 'Get ready' : `Current: measure ${(activeBeat?.measureIndex ?? 0) + 1}, event ${(activeBeat?.beatIndex ?? 0) + 1}`}{nextBeatIndex >= 0 ? ` · Next: measure ${beatSequence[nextBeatIndex].measureIndex + 1}, event ${beatSequence[nextBeatIndex].beatIndex + 1}` : ''}</p>}
       {!showFullTab || practice.active ? (() => {
-        // Local consts so the same focused-passage/shapes/fretboard JSX
-        // renders inside the sticky rail layout below.
         const focusedPassageBlock = (
-          <div className="flex flex-col gap-3">
+          <div className="song-study-score-view flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <p
@@ -1005,7 +967,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
         );
 
         const fretboardBlock = () => (
-          <div className="flex flex-col sm:flex-row gap-3 items-start">
+          <div className="song-study-fretboard-row flex flex-col gap-3 items-start">
             <div className="w-full sm:flex-1 min-w-0">
               <p
                 className="text-[10px] font-bold uppercase tracking-wide mb-1"
@@ -1026,44 +988,25 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
                 <p role="status">No tuning data for this track — showing tab only.</p>
               )}
             </div>
-
-            {diagramsMinimized && activeShapeEvent && (
-              <div
-                data-testid="active-shape-diagram"
-                className="rounded-lg border p-2 flex flex-col items-center gap-1"
-                style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}
-              >
-                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
-                  {activeShapeEvent.label ?? 'Active shape'}
-                </span>
-                <PhysicalChordDiagram
-                  positions={activeShapeEvent.positions}
-                  tuning={activeShapeEvent.tuning}
-                  label={activeShapeEvent.label ?? undefined}
-                />
-              </div>
-            )}
           </div>
         );
 
         return (
-          <div data-testid="song-study-overview-focus" className="flex flex-col md:flex-row gap-4 items-start">
-            {!practice.focused && (
-              <div style={{ width: 200, flexShrink: 0, position: 'sticky', top: 12 }}>
-                <MeasureOverviewStrip
-                  sections={overviewSections}
-                  focusMeasureIndex={displayMeasureIndex}
-                  selection={selection}
-                  onJump={(index) => selectRange(index, index, true)}
-                  onRangeSelect={(start, end) => selectRange(start, end, true)}
-                  enrichedRanges={payload.enrichment?.ranges ?? []}
-                />
-              </div>
-            )}
-            <div className="flex w-full flex-col gap-3 flex-1 min-w-0">
-              {focusedPassageBlock}
-              {shapeStripBlock}
+          <div data-testid="song-study-overview-focus" className="song-study-music-rows">
+            {focusedPassageBlock}
+            <div className="song-study-fretboard-view">
               {fretboardBlock()}
+              <details className="song-shapes-details">
+                <summary>Shapes in this passage · {shapeEvents.length}</summary>
+                {shapeStripBlock}
+                {diagramsMinimized && activeShapeEvent && <div data-testid="active-shape-diagram"
+                  className="rounded-lg border p-2 flex flex-col items-center gap-1"
+                  style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-primary)' }}>
+                  <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{activeShapeEvent.label ?? 'Active shape'}</span>
+                  <PhysicalChordDiagram positions={activeShapeEvent.positions} tuning={activeShapeEvent.tuning}
+                    label={activeShapeEvent.label ?? undefined} />
+                </div>}
+              </details>
             </div>
           </div>
         );
@@ -1072,7 +1015,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
         // fretboard here (mock #full: "remove the permanent fretboard...
         // give the tab the width"). A selection surfaces a dock with a
         // bridge back into Overview + Focus on exactly that range.
-        <div className="flex flex-col gap-3">
+        <div className="song-study-score-view flex flex-col gap-3">
           <div data-testid="song-study-full-tab" className="flex flex-col gap-2">
             {fullTabRows.map((row) => (
               <div
@@ -1130,13 +1073,12 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
         visibleStartMeasure={focus.measureIndex + 1}
         visibleEndMeasure={detailEndIndex + 1}
       /></div>
-
-      <div hidden={practice.focused}><SongLearningMap key={songStudy.id} song={songStudy} selection={selection} measureIndex={focus.measureIndex}
-        disabled={practice.active} onSelect={(start, end) => selectRange(start, end, true)} onChange={onSongStudyChange} /></div>
+          </div>
+        </section>
+        <aside className="song-study-companion" hidden={practice.focused || !tutorOpen}>
+          <SongStudyTutor song={songStudy} selection={videoSelection} ensureBranch={ensureTutor} dock={tutorDock} />
+        </aside>
       </div>
-      </div>
-
-    </div>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export function PracticeControls({ practice: p, available, label, allowFocus = t
   return <section aria-label="Practice controls" className="practice-controls">
     <div className="practice-heading">
       <strong>Practice · {label}</strong>
-      <span data-testid="practice-status" role="status" className="practice-status">{p.running ? p.position.count ? `Count in ${p.position.count}` : 'Playing' : p.position.finished ? 'Finished' : 'Paused'}</span>
+      <span data-testid="practice-status" role="status" className="practice-status">{p.running ? p.position.count ? `Count in ${p.position.count}` : 'Playing' : p.position.finished ? 'Playback ended' : 'Paused'}</span>
       <span>{p.guideAvailable ? guideLabel : 'Metronome only · no guide audio'}</span>
     </div>
     <div className="practice-transport">

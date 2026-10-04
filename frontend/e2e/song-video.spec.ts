@@ -2,6 +2,33 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { installYouTubeFake } from './youtube-fake';
 
+async function playerView(page: Page) {
+  const back = page.getByRole('button', { name: '← Back', exact: true });
+  if (await back.isVisible()) await back.click();
+  await expect(page.getByRole('button', { name: 'Move recording', exact: true })).toBeVisible();
+}
+
+async function recordingTask(page: Page, task: 'Sync with score' | 'Change recording') {
+  await playerView(page);
+  await page.getByLabel('Recording options', { exact: true }).click();
+  await page.getByRole('button', { name: task, exact: true }).click();
+  await expect(page.getByRole('button', { name: '← Back', exact: true })).toBeVisible();
+}
+
+async function openRecording(page: Page, initiallyCollapsed = true) {
+  const launcher = page.getByRole('button', { name: 'Open recording', exact: true });
+  const panel = page.getByRole('dialog', { name: 'Recording', exact: true });
+  if (initiallyCollapsed) {
+    await expect(launcher).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel).toBeHidden();
+    await launcher.click();
+  } else if (!(await panel.isVisible())) {
+    await launcher.click();
+  }
+  await expect(panel).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close recording', exact: true })).toBeVisible();
+}
+
 async function openSong(page: Page, attachManually = true) {
   await installYouTubeFake(page);
   if (attachManually) await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
@@ -13,12 +40,12 @@ async function openSong(page: Page, attachManually = true) {
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
   await expect(page.getByLabel('Playback source')).toHaveValue('video');
+  await openRecording(page);
   if (!attachManually) return;
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('https://youtu.be/M7lc1UVf-VE');
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
   await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
-  await page.getByText('Calibrate recording', { exact: false }).click();
   await page.getByLabel('I checked that this recording matches the score arrangement.').check();
 }
 async function nativeTime(page: Page, seconds: number, state = 2) {
@@ -31,13 +58,57 @@ async function alignFirstMeasure(page: Page) {
   await page.getByRole('button', { name: 'Mark selection end', exact: true }).click();
 }
 
+test('floating recording moves and resizes without replacing the native player', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await openSong(page);
+  await playerView(page);
+  const panel = page.getByRole('dialog', { name: 'Recording', exact: true });
+  const move = page.getByRole('button', { name: 'Move recording', exact: true });
+  const resize = page.getByRole('button', { name: 'Resize recording', exact: true });
+  const before = await panel.boundingBox();
+  const handle = await move.boundingBox();
+  await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle!.x + handle!.width / 2 - 64, handle!.y + handle!.height / 2 - 48, { steps: 4 });
+  await page.mouse.up();
+  const moved = await panel.boundingBox();
+  expect(moved!.x).toBeLessThan(before!.x - 40);
+  expect(moved!.y).toBeLessThan(before!.y - 30);
+  expect(moved!.width).toBeCloseTo(before!.width, 0);
+  expect(moved!.height).toBeCloseTo(before!.height, 0);
+
+  await page.evaluate(() => { window.youtubeFake.active.time = 12; window.youtubeFake.active.emitState(2); });
+  await move.press('Home');
+  for (let index = 0; index < 10; index += 1) await move.press('Shift+ArrowLeft');
+  for (let index = 0; index < 4; index += 1) await move.press('Shift+ArrowUp');
+  for (let index = 0; index < 9; index += 1) await resize.press('Shift+ArrowRight');
+  await resize.press('ArrowUp');
+  await resize.press('ArrowUp');
+  const wide = await panel.boundingBox();
+  expect(wide!.width).toBeGreaterThan(750);
+  expect(wide!.height).toBeCloseTo(350, 0);
+  expect((await page.locator('iframe[title="YouTube video player"]').boundingBox())!.height).toBeGreaterThanOrEqual(200);
+  await page.getByRole('button', { name: 'Play selection', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeInViewport();
+  expect(await page.evaluate(() => ({ count: window.youtubeFake.players.length, time: window.youtubeFake.active.time, destroyed: window.youtubeFake.active.destroyed })))
+    .toEqual({ count: 1, time: 12, destroyed: false });
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.getByRole('button', { name: 'Close Tutor', exact: true }).click();
+  await expect(panel).toBeVisible();
+  await expect.poll(async () => {
+    const box = (await panel.boundingBox())!;
+    return box.x >= 12 && box.y >= 12 && box.x + box.width <= 308 && box.y + box.height <= 832;
+  }).toBe(true);
+  await expect(page.getByRole('button', { name: 'Close recording', exact: true })).toBeInViewport();
+});
+
 test('calibration saves, follows actual time without changing selection, and reopens', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page);
   await alignFirstMeasure(page);
   await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Video setup saved to My Stuff.');
-  await page.getByText('Calibrate recording', { exact: true }).click();
+  await playerView(page);
   await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(10);
@@ -51,6 +122,7 @@ test('calibration saves, follows actual time without changing selection, and reo
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(15);
   await page.reload();
+  await openRecording(page);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
 });
@@ -58,7 +130,7 @@ test('calibration saves, follows actual time without changing selection, and reo
 test('native scrubbing releases an armed selection loop', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page); await alignFirstMeasure(page);
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  await playerView(page);
   await page.getByLabel('Loop selection', { exact: true }).check();
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await nativeTime(page, 40, 1);
@@ -71,6 +143,7 @@ test('paused video does not trap score navigation during calibration', async ({ 
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page); await alignFirstMeasure(page);
   await nativeTime(page, 11);
+  await playerView(page);
   await page.getByRole('button', { name: 'Next →', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Measures 5–8', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(11);
@@ -105,7 +178,7 @@ test('corrections, local undo, replacement confirmation and conflict reload pres
   await expect(page.getByLabel('Occurrence name')).toHaveValue('My local draft');
   await page.getByRole('button', { name: 'Discard and reload', exact: true }).click();
   await expect(page.getByLabel('Occurrence name')).toHaveValue('Changed elsewhere');
-  await page.getByText('Change or remove recording', { exact: true }).click();
+  await recordingTask(page, 'Change recording');
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('dQw4w9WgXcQ');
   await page.getByRole('button', { name: 'Replace recording and reset alignment', exact: true }).click();
@@ -114,6 +187,8 @@ test('corrections, local undo, replacement confirmation and conflict reload pres
   await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Confirm that this recording');
   await expect(page.getByRole('button', { name: 'Mark selection start', exact: true })).toBeEnabled();
+  await recordingTask(page, 'Change recording');
+  await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('dQw4w9WgXcQ');
   await page.getByRole('button', { name: 'Replace recording and reset alignment', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mark selection start', exact: true })).toBeEnabled();
@@ -130,10 +205,12 @@ test('repeated score occurrences require a choice and bounded loops honor native
   await nativeTime(page, 35);
   await page.getByRole('button', { name: 'Mark selection end', exact: true }).click();
   await page.getByLabel('Video occurrence').selectOption('');
+  await playerView(page);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeDisabled();
   await expect(page.getByText('Choose which occurrence to play.', { exact: true })).toBeVisible();
+  await recordingTask(page, 'Sync with score');
   await page.getByLabel('Video occurrence').selectOption({ label: 'Second verse' });
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  await playerView(page);
   await page.getByLabel('Loop selection', { exact: true }).check();
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(30);
@@ -156,7 +233,7 @@ test('repeated score occurrences require a choice and bounded loops honor native
 test('source switching and navigation stop video before synthesized practice starts', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page); await alignFirstMeasure(page);
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  await playerView(page);
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await page.getByLabel('Playback source').selectOption('practice');
   await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
@@ -168,6 +245,7 @@ test('source switching and navigation stop video before synthesized practice sta
   await expect(page.getByTestId('practice-status')).toHaveText('Playing');
   await page.getByLabel('Playback source').selectOption('video');
   await expect(page.getByTestId('practice-status')).toHaveCount(0);
+  await openRecording(page, false);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   await page.getByRole('navigation', { name: 'Song navigation' }).getByRole('button', { name: 'Explore', exact: true }).click();
@@ -177,12 +255,14 @@ test('source switching and navigation stop video before synthesized practice sta
 test('unsupported links and player errors recover without losing calibrated work', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page); await alignFirstMeasure(page);
-  await page.getByText('Change or remove recording', { exact: true }).click();
+  await recordingTask(page, 'Change recording');
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await page.getByLabel('YouTube link or video ID').fill('https://youtube.com.evil.test/watch?v=M7lc1UVf-VE');
   await page.getByRole('button', { name: 'Replace recording and reset alignment', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('not supported');
+  await recordingTask(page, 'Sync with score');
   await expect(page.getByLabel('Correct an anchor').locator('option')).toHaveCount(3);
+  await playerView(page);
   await page.evaluate(() => window.youtubeFake.active.fail(101));
   await expect(page.getByText('The owner of this video does not allow embedding.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeDisabled();
@@ -195,9 +275,11 @@ test('unsupported links and player errors recover without losing calibrated work
 test('mobile dark calibration keeps a visible native player and usable score', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await openSong(page); await alignFirstMeasure(page);
-  expect((await page.locator('.song-video').boundingBox())!.height).toBeLessThan(630);
+  await expect(page.locator('.song-video-calibration')).toHaveCSS('overflow-y', 'visible');
+  await page.getByRole('button', { name: 'Save video setup', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: 'Save video setup', exact: true })).toBeInViewport();
   await page.screenshot({ path: '/tmp/song-video-mobile-expanded.png', fullPage: false });
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  await playerView(page);
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: /Switch to dark/ }).click();
   await page.getByRole('button', { name: 'Collapse navigation', exact: true }).click();
@@ -235,20 +317,20 @@ test('recording discovery retries, previews without URL and preserves saved alig
   await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
   expect(await page.evaluate(() => window.youtubeFake.active.state)).not.toBe(1);
   await expect(page.getByTestId('video-duration-comparison')).toContainText('20.0 seconds longer');
-  await page.getByText('Calibrate recording', { exact: false }).click();
   await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
   await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Preview recording 1: Study Fixture recording', exact: true }).click();
-  await page.getByText('Calibrate recording', { exact: false }).click();
   await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
   await page.getByLabel('I checked that this recording matches the score arrangement.').check();
   await alignFirstMeasure(page);
   await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Video setup saved');
-  await page.getByText('Change or remove recording', { exact: true }).click();
+  await recordingTask(page, 'Change recording');
   await expect(page.getByRole('button', { name: 'Preview recording 1: Study Fixture recording', exact: true })).toBeDisabled();
-  await expect(page.getByLabel('Correct an anchor').locator('option')).toHaveCount(3);
   await expect(page.getByText('Choosing another recording resets alignment. Undo restores it.', { exact: true })).toBeVisible();
+  await recordingTask(page, 'Sync with score');
+  await expect(page.getByLabel('Correct an anchor').locator('option')).toHaveCount(3);
+  await recordingTask(page, 'Change recording');
   await page.getByRole('button', { name: 'Preview recording 2: Study Fixture backing', exact: true }).click();
   await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
   await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
@@ -257,8 +339,11 @@ test('recording discovery retries, previews without URL and preserves saved alig
   await page.getByLabel('Playback source').selectOption('practice');
   await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
   await page.getByLabel('Playback source').selectOption('video');
+  await openRecording(page, false);
+  await playerView(page);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await page.reload();
+  await openRecording(page);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
 });
 
@@ -268,6 +353,12 @@ test('no linked recording leaves a usable collapsed URL fallback', async ({ page
   await expect(page.getByText('No linked recordings found.', { exact: false })).toBeVisible();
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
   await expect(page.getByLabel('YouTube link or video ID')).toBeVisible();
+  await page.getByLabel('YouTube link or video ID').fill('M7lc1UVf-VE');
+  await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
+  await page.getByRole('button', { name: 'Discard and reload', exact: true }).click();
+  await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
+  await expect(page.getByText('Paste a YouTube link instead', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '← Back', exact: true })).toHaveCount(0);
 });
 
 
@@ -284,6 +375,7 @@ test('pending discovery respects a typed URL and explicit playback source choice
   await page.getByLabel('Playback source').selectOption('practice');
   release();
   await page.getByLabel('Playback source').selectOption('video');
+  await openRecording(page, false);
   await expect(page.getByRole('button', { name: 'Preview recording 1: Late recording' })).toBeVisible();
   await expect(page.locator('iframe[title="YouTube video player"]')).toHaveCount(0);
   await page.getByText('Paste a YouTube link instead', { exact: true }).click();
@@ -295,15 +387,19 @@ test('pending discovery respects a typed URL and explicit playback source choice
 test('selection playback continues, jumps only while playing and pauses at an unknown selection', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page);
+  await playerView(page);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeDisabled();
   await expect(page.locator('#song-video-play-reason')).toContainText('mark selection start');
   await nativeTime(page, 10);
+  await recordingTask(page, 'Sync with score');
   await page.getByRole('button', { name: 'Mark selection start', exact: true }).click();
+  await playerView(page);
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await expect(page.getByLabel('Loop selection', { exact: true })).toBeDisabled();
   await nativeTime(page, 15);
+  await recordingTask(page, 'Sync with score');
   await page.getByRole('button', { name: 'Mark selection end', exact: true }).click();
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  await playerView(page);
   await page.getByRole('button', { name: 'Play selection', exact: true }).click();
   for (let time = 10.5; time <= 16; time += 0.5) await nativeTime(page, time, 1);
   expect(await page.evaluate(() => window.youtubeFake.active.state)).toBe(1);
@@ -347,27 +443,31 @@ for (const source of ['estimated', 'songsterr'] as const) {
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
     await nativeTime(page, 5, 1);
     await expect(page.getByTestId('song-video-position')).toContainText('M2');
+    await recordingTask(page, 'Sync with score');
     await page.getByText('Adjust recording start', { exact: true }).click();
     await page.getByLabel('First aligned beat at (seconds)').fill('86400');
     await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('valid video time');
     await page.getByLabel('First aligned beat at (seconds)').fill('10');
     await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
+    await playerView(page);
     await page.getByRole('button', { name: 'Play selection', exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(14);
-    await page.getByText('Calibrate recording', { exact: false }).click();
+    await recordingTask(page, 'Sync with score');
     await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
     await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
     await expect(page.getByLabel('First aligned beat at (seconds)')).toHaveValue('0');
+    await page.getByText('Adjust recording start', { exact: true }).click();
     await page.getByLabel('First aligned beat at (seconds)').fill('10');
     await page.getByRole('button', { name: 'Apply start time', exact: true }).click();
     await page.getByRole('button', { name: 'Save video setup', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Video setup saved');
     await page.reload();
+    await openRecording(page);
     await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Play selection', exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(10);
-    await page.getByText('Calibrate recording', { exact: false }).click();
+    await recordingTask(page, 'Sync with score');
     await expect(page.getByLabel('I checked that this recording matches the score arrangement.')).not.toBeChecked();
   });
 }
@@ -388,6 +488,7 @@ test('a pasted video can use the available score-tempo estimate when discovery h
   await page.getByRole('button', { name: 'Attach recording', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Play selection', exact: true })).toBeEnabled();
   await expect(page.getByText('Estimated from score tempo', { exact: true })).toBeVisible();
+  await recordingTask(page, 'Sync with score');
   await page.getByText('Adjust recording start', { exact: true }).click();
   await expect(page.getByText('Initially estimated from score tempo at 0:00.', { exact: false })).toBeVisible();
 });
@@ -396,7 +497,7 @@ test('a pasted video can use the available score-tempo estimate when discovery h
 test('video speed follows supported player rates without autoplay or changing score timing', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page); await alignFirstMeasure(page);
-  await page.getByText('Calibrate recording', { exact: false }).click();
+  await playerView(page);
   const speed = page.getByLabel('Video speed', { exact: true });
   await expect(speed.locator('option')).toHaveText(['0.25×', '0.5×', '0.75×', '1×', '1.5×', '2×']);
   await speed.selectOption('0.5');
@@ -432,6 +533,7 @@ test('paused lead-note selection drives the fretboard while video following stil
   });
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page);
+  await playerView(page);
   const neck = page.getByTestId('song-study-fretboard');
   await expect(page.getByTestId('song-video-position')).toContainText('Unaligned');
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
@@ -441,7 +543,9 @@ test('paused lead-note selection drives the fretboard while video following stil
   await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
+  await recordingTask(page, 'Sync with score');
   await alignFirstMeasure(page);
+  await playerView(page);
   await nativeTime(page, 14, 1);
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await nativeTime(page, 14, 2);
@@ -453,6 +557,8 @@ test('paused lead-note selection drives the fretboard while video following stil
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
   await expect(neck).toHaveAttribute('aria-label', /Active: string 5 fret 3\./);
+  // Starting native playback requires reaching the visible recording above the score.
+  await page.locator('iframe[title="YouTube video player"]').scrollIntoViewIfNeeded();
   await nativeTime(page, 14.25, 1);
   await expect(neck).toHaveAttribute('aria-label', /Active: rest\./);
   await page.getByRole('button', { name: 'Select measure 3', exact: true }).click();
@@ -474,6 +580,7 @@ test('video and paused selection preview the next written beat without skipping 
   });
   await page.setViewportSize({ width: 1280, height: 1000 });
   await openSong(page);
+  await playerView(page);
   const upcoming = page.getByTestId('fretboard-upcoming-note');
   await expect(upcoming).toHaveCount(0);
   await page.getByRole('button', { name: 'Select beat 1 of measure 1', exact: true }).click();
@@ -483,7 +590,9 @@ test('video and paused selection preview the next written beat without skipping 
   await expect(upcoming).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(page.locator('[data-testid="fretboard-active-note"][data-string="6"][data-fret="0"]')).toHaveCount(1);
   await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
+  await recordingTask(page, 'Sync with score');
   await alignFirstMeasure(page);
+  await playerView(page);
   await nativeTime(page, 11, 1);
   await expect(upcoming).toHaveAttribute('data-fret', '3');
   await nativeTime(page, 14, 1);
@@ -511,19 +620,21 @@ for (const width of [1280, 320]) {
       } }], score_duration_seconds: 32, duration_note: 'Written score estimate.',
     } }));
     await openSong(page, false);
+    await page.getByRole('button', { name: 'Close recording', exact: true }).click();
     await page.getByRole('button', { name: 'Select beat 2 of measure 1', exact: true }).click();
+    await openRecording(page, false);
     await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M1 · beat 2');
     await page.getByLabel('Loop selection', { exact: true }).check();
     await page.getByRole('button', { name: 'Play selection', exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(8 / 3, 5);
     for (let time = 3; time <= 4; time += 0.25) await nativeTime(page, time, 1);
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBeCloseTo(8 / 3, 5);
+    await page.getByText('Selection options', { exact: true }).click();
     await page.getByRole('button', { name: 'Whole measure', exact: true }).click();
     await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M1 (whole measure)');
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
     for (let time = 0.5; time <= 4; time += 0.5) await nativeTime(page, time, 1);
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
-    await page.getByText('Choose measures', { exact: true }).click();
     await page.getByLabel('From measure', { exact: true }).fill('2');
     await page.getByLabel('Through measure', { exact: true }).fill('3');
     expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(0);
@@ -534,7 +645,7 @@ for (const width of [1280, 320]) {
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
     for (let time = 4.5; time <= 12; time += 0.5) await nativeTime(page, time, 1);
     await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(4);
-    await page.getByText('Choose measures', { exact: true }).click();
+    await page.getByText('Selection options', { exact: true }).click();
     await page.getByLabel('From measure', { exact: true }).fill('4');
     await page.getByLabel('Through measure', { exact: true }).fill('2');
     await page.getByRole('button', { name: 'Apply range', exact: true }).click();
@@ -561,6 +672,8 @@ for (const width of [1280, 320]) {
       await route.fulfill({ response, json: song });
     });
     await openSong(page);
+    await playerView(page);
+    if (width === 320) await page.getByRole('button', { name: 'Close recording', exact: true }).click();
     const active = page.getByTestId('fretboard-active-techniques');
     const upcoming = page.getByTestId('fretboard-upcoming-techniques');
     const neck = page.getByTestId('song-study-fretboard');
@@ -574,17 +687,23 @@ for (const width of [1280, 320]) {
     await expect(neck).toHaveAttribute('aria-label', /Active techniques: String 5, fret 3: slide, bend, hammer-on \/ pull-off/);
     await expect(page.locator('[data-fret="99"]')).toHaveCount(0);
     if (width === 320) {
+      await page.getByRole('button', { name: 'Fretboard', exact: true }).click();
       await neck.scrollIntoViewIfNeeded();
       await page.screenshot({ path: '/tmp/song-video-techniques-mobile.png' });
       const bounds = await active.boundingBox();
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+      await page.getByRole('button', { name: 'Score', exact: true }).click();
     }
     await page.getByRole('button', { name: 'Select measure 1', exact: true }).click();
+    await openRecording(page, false);
+    await recordingTask(page, 'Sync with score');
     await alignFirstMeasure(page);
+    await playerView(page);
     await nativeTime(page, 14, 1);
     await expect(active).toContainText('vibrato, harmonic');
     await expect(active).not.toContainText('slide');
     await nativeTime(page, 14, 2);
+    if (width === 320) await page.getByRole('button', { name: 'Close recording', exact: true }).click();
     await page.getByRole('button', { name: 'Select measure 2', exact: true }).click();
     await page.getByRole('button', { name: 'Select beat 2 of measure 2', exact: true }).click();
     await expect(active).toHaveCount(0);

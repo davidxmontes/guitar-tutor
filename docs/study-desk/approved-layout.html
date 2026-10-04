@@ -1,0 +1,333 @@
+<style>
+#guitar-layout-lab{--g-bg:light-dark(#f5f7f3,#141c18);--g-paper:light-dark(#fff,#1b2420);--g-ink:light-dark(#22352c,#e5ece7);--g-muted:light-dark(#596e60,#aec0b2);--g-line:light-dark(#d5dfd4,#394c3e);--g-soft:light-dark(#eaf0e7,#293b2f);--g-green:light-dark(#27644e,#98c9aa);--g-on:light-dark(#fff,#10211b);--g-neck:light-dark(#f2f5ee,#19271d);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--g-ink);width:100%;}
+#guitar-layout-lab *{box-sizing:border-box}
+#guitar-layout-lab button,#guitar-layout-lab select,#guitar-layout-lab input,#guitar-layout-lab textarea{font:inherit;color:inherit}
+#guitar-layout-lab button{cursor:pointer}
+#guitar-layout-lab button:focus-visible,#guitar-layout-lab select:focus-visible,#guitar-layout-lab textarea:focus-visible{outline:2px solid var(--g-green);outline-offset:3px}
+#guitar-layout-lab [hidden]{display:none!important}
+#guitar-layout-lab .g-window{background:var(--g-bg);border:1px solid var(--g-line);border-radius:12px;overflow:clip;position:relative;width:100%;margin:auto}
+#guitar-layout-lab[data-screen=desktop] .g-window{width:1024px;zoom:var(--g-preview-scale,1)}
+#guitar-layout-lab[data-screen=phone] .g-window{max-width:390px}
+#guitar-layout-lab .g-shell{display:grid;grid-template-columns:54px minmax(0,1fr);min-height:690px}
+#guitar-layout-lab .g-rail{background:var(--g-paper);border-right:1px solid var(--g-line);display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 4px}
+#guitar-layout-lab .g-mark{font:500 28px Georgia,serif;color:var(--g-green);margin:0 0 15px}
+#guitar-layout-lab .g-rail button{width:42px;min-height:44px;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:var(--g-muted)}
+#guitar-layout-lab .g-rail button[aria-pressed=true]{background:var(--g-soft);color:var(--g-green)}
+#guitar-layout-lab .g-rail .g-rail-bottom{margin-top:auto}
+#guitar-layout-lab .g-app{min-width:0;display:flex;flex-direction:column}
+#guitar-layout-lab .g-header{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--g-paper);border-bottom:1px solid var(--g-line);flex-wrap:wrap}
+#guitar-layout-lab .g-heading{flex:1;min-width:120px}
+#guitar-layout-lab h2,#guitar-layout-lab h3,#guitar-layout-lab p{margin:0}
+#guitar-layout-lab h2{font-size:17px;font-weight:500;letter-spacing:-.3px}
+#guitar-layout-lab h3{font-size:14px;font-weight:500}
+#guitar-layout-lab small{font-size:12px;color:var(--g-muted)}
+#guitar-layout-lab .g-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--g-line);border-radius:6px;padding:7px 10px;min-height:34px;background:var(--g-paper);white-space:nowrap}
+#guitar-layout-lab .g-button[data-active=true],#guitar-layout-lab .g-primary{background:var(--g-green);color:var(--g-on);border-color:var(--g-green)}
+#guitar-layout-lab .g-quiet{border:0;background:transparent;color:var(--g-muted);padding:6px 8px;min-height:34px;border-radius:5px}
+#guitar-layout-lab .g-quiet:hover{background:var(--g-soft)}
+#guitar-layout-lab .g-icon{display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center}
+#guitar-layout-lab .g-context{padding:10px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--g-line)}
+#guitar-layout-lab .g-select{border:1px solid var(--g-line);background:var(--g-paper);border-radius:6px;padding:6px 8px;min-width:0}
+#guitar-layout-lab .g-context label{display:flex;align-items:center;gap:6px;color:var(--g-muted);font-size:12px}
+#guitar-layout-lab .g-spacer{flex:1}
+#guitar-layout-lab .g-body{display:grid;grid-template-columns:minmax(0,1fr) var(--g-dock,292px);gap:16px;padding:16px;align-items:start;flex:1;min-width:0;position:relative}
+#guitar-layout-lab .g-stage{min-width:0;display:grid;gap:14px;align-content:start}
+#guitar-layout-lab .g-sections{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+#guitar-layout-lab .g-section{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--g-muted);padding:7px 10px;min-height:34px}
+#guitar-layout-lab .g-section[aria-pressed=true]{border-color:var(--g-green);color:var(--g-green);font-weight:500}
+#guitar-layout-lab .g-song-navigation{display:grid;gap:8px;min-width:0}
+#guitar-layout-lab .g-measure-navigation{display:flex;gap:6px;align-items:center;min-width:0}
+#guitar-layout-lab .g-measure-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;flex:1;min-width:0}
+#guitar-layout-lab .g-nav-measure{position:relative;min-width:0;min-height:36px;border:1px solid var(--g-line);border-radius:4px;background:var(--g-paper);font-size:12px}
+#guitar-layout-lab .g-nav-measure[aria-pressed=true]{background:var(--g-soft);color:var(--g-green);border-color:var(--g-green)}
+#guitar-layout-lab .g-nav-measure[aria-current=location]{box-shadow:inset 0 -3px var(--g-green)}
+#guitar-layout-lab .g-nav-measure[data-kept=true]:after{content:'';position:absolute;top:3px;right:4px;width:4px;height:7px;background:var(--g-green);clip-path:polygon(0 0,100% 0,100% 100%,50% 70%,0 100%)}
+#guitar-layout-lab .g-map-caption{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--g-muted)}
+#guitar-layout-lab .g-map-caption label{display:flex;align-items:center;gap:5px;cursor:pointer}
+#guitar-layout-lab .g-map-page{display:none}
+#guitar-layout-lab[data-screen=phone] .g-measure-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+#guitar-layout-lab[data-screen=phone] .g-nav-measure{min-height:44px}
+#guitar-layout-lab[data-screen=phone] .g-map-page{display:block;min-width:36px;min-height:44px;padding:0}
+#guitar-layout-lab[data-screen=phone] .g-map-caption label{min-height:44px}
+#guitar-layout-lab[data-screen=phone] .g-song-navigation .g-section small{display:none}
+#guitar-layout-lab .g-surface{min-width:0;background:var(--g-paper);border:1px solid var(--g-line);border-radius:8px;padding:14px}
+#guitar-layout-lab .g-surface-head{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
+#guitar-layout-lab .g-score{width:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--g-line);border-radius:5px;overflow:hidden}
+#guitar-layout-lab .g-measure{background:transparent;border:0;border-right:1px solid var(--g-line);padding:8px 0 12px;min-width:0;text-align:left}
+#guitar-layout-lab .g-measure:last-child{border:0}
+#guitar-layout-lab .g-measure[aria-pressed=true]{background:var(--g-soft);box-shadow:inset 0 3px var(--g-green)}
+#guitar-layout-lab .g-measure-label{display:block;margin:0 8px 10px;font-size:12px;color:var(--g-muted)}
+#guitar-layout-lab .g-tab-line{height:15px;display:flex;align-items:center;justify-content:space-around;position:relative}
+#guitar-layout-lab .g-tab-line:before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:var(--g-line)}
+#guitar-layout-lab .g-tab-note{position:relative;padding:0 3px;background:var(--g-paper);font-size:12px;z-index:1;min-width:13px;text-align:center}
+#guitar-layout-lab .g-measure[aria-pressed=true] .g-tab-note{background:var(--g-soft)}
+#guitar-layout-lab .g-tab-string{width:12px;font-size:11px;color:var(--g-muted);position:relative;background:var(--g-paper)}
+#guitar-layout-lab .g-score-footer{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-top:10px;color:var(--g-muted);font-size:12px;flex-wrap:wrap}
+#guitar-layout-lab .g-transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--g-line);padding-top:10px;margin-top:12px}
+#guitar-layout-lab .g-transport label{display:flex;gap:5px;align-items:center;font-size:12px;white-space:nowrap}
+#guitar-layout-lab .g-board svg{display:block;width:100%;height:158px;background:var(--g-neck);border-radius:6px}
+#guitar-layout-lab .g-board-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#guitar-layout-lab .g-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--g-muted);padding-top:8px}
+#guitar-layout-lab .g-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--g-green);margin-right:5px}
+#guitar-layout-lab .g-dot.g-ring{background:transparent;border:1px solid var(--g-green)}
+#guitar-layout-lab .g-reference{display:flex;gap:8px;align-items:center;padding:10px 0;flex-wrap:wrap;border-top:1px solid var(--g-line)}
+#guitar-layout-lab .g-reference strong{font-weight:500;font-size:12px;margin-right:auto}
+#guitar-layout-lab .g-companion{display:grid;gap:12px;align-content:start;min-width:0}
+#guitar-layout-lab .g-recording{background:var(--g-paper);border:1px solid var(--g-line);border-radius:8px;padding:10px;min-width:0}
+#guitar-layout-lab .g-recording-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px}
+#guitar-layout-lab .g-video{height:200px;background:light-dark(#22352c,#0e1611);color:#e7efe8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border-radius:5px;position:relative;min-width:200px}
+#guitar-layout-lab .g-video .g-play{width:48px;height:42px;border:1px solid #b8c9bd;background:transparent;color:inherit;border-radius:6px;display:grid;place-items:center}
+#guitar-layout-lab .g-video small{color:#c0d1c5}
+#guitar-layout-lab .g-video-label{font:500 19px Georgia,serif}
+#guitar-layout-lab .g-video-time{position:absolute;left:12px;bottom:10px;font-size:12px}
+#guitar-layout-lab .g-tutor{border:1px solid var(--g-line);border-radius:8px;background:var(--g-paper);display:flex;flex-direction:column;min-width:0;min-height:354px;overflow:hidden}
+#guitar-layout-lab .g-tutor-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--g-line)}
+#guitar-layout-lab .g-tutor-context{padding:8px 12px;background:var(--g-soft);font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+#guitar-layout-lab .g-conversation{padding:14px 12px;display:grid;gap:14px;align-content:start;flex:1}
+#guitar-layout-lab .g-message{font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+#guitar-layout-lab .g-message small{display:block;margin-bottom:4px;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+#guitar-layout-lab .g-message.g-learner{background:var(--g-bg);padding:8px 10px;border-radius:7px;margin-left:24px}
+#guitar-layout-lab .g-composer{margin-top:auto;border-top:1px solid var(--g-line);padding:10px 12px;background:var(--g-paper)}
+#guitar-layout-lab .g-composer textarea{display:block;width:100%;resize:none;border:1px solid var(--g-line);background:var(--g-bg);border-radius:6px;padding:9px;min-height:60px}
+#guitar-layout-lab .g-compose-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+#guitar-layout-lab .g-disclosure{border-top:1px solid var(--g-line);padding-top:10px;color:var(--g-muted);font-size:12px}
+#guitar-layout-lab .g-disclosure summary{cursor:pointer;min-height:30px;align-content:center}
+#guitar-layout-lab .g-disclosure-content{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0}
+#guitar-layout-lab .g-kept-list{list-style:none;margin:0;padding:8px 0;display:flex;gap:8px;flex-wrap:wrap}
+#guitar-layout-lab .g-kept-list li{display:flex;gap:2px;align-items:center}
+#guitar-layout-lab .g-pitches,#guitar-layout-lab .g-chords{display:flex;gap:6px;flex-wrap:wrap}
+#guitar-layout-lab .g-pitches button,#guitar-layout-lab .g-chords button{flex:1;min-width:44px;border:1px solid var(--g-line);border-radius:5px;background:var(--g-paper);padding:8px 5px;min-height:44px;display:grid;gap:2px}
+#guitar-layout-lab .g-pitches button[aria-pressed=true],#guitar-layout-lab .g-chords button[aria-pressed=true]{border-color:var(--g-green);background:var(--g-soft)}
+#guitar-layout-lab .g-harmony-context{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:14px;align-items:center}
+#guitar-layout-lab .g-circle svg{display:block;width:100%;height:166px}
+#guitar-layout-lab .g-harmony-context .g-controls-stack{display:grid;gap:12px;min-width:0}
+#guitar-layout-lab .g-focus-note{color:var(--g-muted);font-size:12px;margin-top:8px}
+#guitar-layout-lab .g-focus-heading{display:none}
+#guitar-layout-lab .g-mobile-switch{display:none}
+#guitar-layout-lab .g-mobile-primary,#guitar-layout-lab .g-mobile-transport{display:none}
+#guitar-layout-lab .g-bottom-label{display:none}
+#guitar-layout-lab .g-settings{padding:10px 16px;border-bottom:1px solid var(--g-line);display:flex;gap:12px;flex-wrap:wrap;font-size:12px;background:var(--g-paper)}
+#guitar-layout-lab[data-workspace=harmony] .g-song-only,#guitar-layout-lab[data-workspace=song] .g-harmony-only{display:none!important}
+#guitar-layout-lab[data-tutor=false] .g-tutor{display:none}
+#guitar-layout-lab[data-workspace=harmony][data-tutor=false] .g-body{grid-template-columns:minmax(0,1fr)}
+#guitar-layout-lab[data-workspace=harmony][data-tutor=false] .g-companion{display:none}
+#guitar-layout-lab[data-source=synth][data-tutor=false] .g-body{grid-template-columns:minmax(0,1fr)}
+#guitar-layout-lab[data-source=synth][data-tutor=false] .g-companion{display:none}
+#guitar-layout-lab[data-layout=wide] .g-body{grid-template-columns:minmax(0,1fr)}
+#guitar-layout-lab[data-layout=wide] .g-companion{display:grid;grid-template-columns:260px minmax(0,1fr);border-top:1px solid var(--g-line);padding-top:12px}
+#guitar-layout-lab[data-layout=wide][data-workspace=harmony] .g-companion{grid-template-columns:minmax(0,1fr)}
+#guitar-layout-lab[data-layout=wide] .g-tutor{min-height:232px}
+#guitar-layout-lab[data-layout=wide] .g-tutor-body{display:grid;grid-template-columns:1fr 1fr;flex:1}
+#guitar-layout-lab[data-layout=wide] .g-composer{border-top:0;border-left:1px solid var(--g-line);align-self:stretch;margin:0;display:flex;flex-direction:column;justify-content:center}
+#guitar-layout-lab[data-layout=wide] .g-bottom-label{display:inline}
+#guitar-layout-lab[data-layout=focus] .g-rail{display:none}
+#guitar-layout-lab[data-layout=focus] .g-shell{grid-template-columns:minmax(0,1fr)}
+#guitar-layout-lab[data-layout=focus] .g-body{grid-template-columns:minmax(0,1fr) 240px}
+#guitar-layout-lab[data-layout=focus] .g-tutor{position:absolute;right:16px;top:16px;width:320px;z-index:4;box-shadow:0 16px 44px #0002}
+#guitar-layout-lab[data-layout=focus] .g-secondary{display:none}
+#guitar-layout-lab[data-layout=focus] .g-focus-heading{display:block}
+#guitar-layout-lab[data-layout=focus] .g-score{grid-template-columns:repeat(2,minmax(0,1fr))}
+#guitar-layout-lab[data-layout=focus] .g-measure:nth-child(n+3){display:none}
+#guitar-layout-lab[data-layout=focus] .g-tab-line{height:21px}
+#guitar-layout-lab[data-layout=focus] .g-board svg{height:200px}
+#guitar-layout-lab .g-tutor-body{display:flex;flex-direction:column;flex:1;min-width:0}
+#guitar-layout-lab .g-sheet-handle{display:none}
+
+ #guitar-layout-lab[data-screen=phone] .g-shell{grid-template-columns:minmax(0,1fr);min-height:0}
+ #guitar-layout-lab[data-screen=phone] .g-rail{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-header{padding:10px 12px;gap:8px}
+ #guitar-layout-lab[data-screen=phone] .g-heading h2{font-size:16px}
+ #guitar-layout-lab[data-screen=phone] .g-header small{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-header .g-save{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-mobile-switch{display:block;max-width:130px}
+ #guitar-layout-lab[data-screen=phone] .g-header .g-heading{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-context{padding:8px 12px;gap:6px}
+ #guitar-layout-lab[data-screen=phone] .g-context .g-spacer{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-body,#guitar-layout-lab[data-screen=phone][data-layout=focus] .g-body{display:flex;flex-direction:column;padding:12px;gap:12px}
+ #guitar-layout-lab[data-screen=phone] .g-stage{width:100%;gap:12px;order:1}
+ #guitar-layout-lab[data-screen=phone] .g-mobile-primary,#guitar-layout-lab[data-screen=phone] .g-mobile-transport{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+ #guitar-layout-lab[data-screen=phone] .g-mobile-primary .g-button{flex:1}
+ #guitar-layout-lab[data-screen=phone][data-workspace=song][data-primary=score] .g-board{display:none}
+ #guitar-layout-lab[data-screen=phone][data-workspace=song][data-primary=neck] [aria-label="Focused tab measures"]{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-mobile-transport{border-top:1px solid var(--g-line);margin-top:10px;padding-top:10px}
+ #guitar-layout-lab[data-screen=phone] .g-companion,#guitar-layout-lab[data-screen=phone][data-layout=wide] .g-companion{display:contents}
+ #guitar-layout-lab[data-screen=phone] .g-recording{order:0;align-self:center;width:100%;max-width:360px;padding:8px}
+ #guitar-layout-lab[data-screen=phone] .g-video{height:200px}
+ #guitar-layout-lab[data-screen=phone] .g-recording-heading small{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-surface{padding:10px}
+ #guitar-layout-lab[data-screen=phone] .g-score,#guitar-layout-lab[data-screen=phone][data-layout=focus] .g-score{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #guitar-layout-lab[data-screen=phone] .g-measure:nth-child(n+3){display:none}
+ #guitar-layout-lab[data-screen=phone] .g-sections{gap:0}
+ #guitar-layout-lab[data-screen=phone] .g-section{padding:6px 9px}
+ #guitar-layout-lab[data-screen=phone] .g-surface-head .g-quiet{font-size:12px}
+ #guitar-layout-lab[data-screen=phone] .g-button,#guitar-layout-lab[data-screen=phone] .g-quiet,#guitar-layout-lab[data-screen=phone] .g-section,#guitar-layout-lab[data-screen=phone] select{min-height:44px}
+ #guitar-layout-lab[data-screen=phone] .g-harmony-context{grid-template-columns:minmax(0,1fr)}
+ #guitar-layout-lab[data-screen=phone] .g-circle{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-pitches,#guitar-layout-lab[data-screen=phone] .g-chords{gap:4px}
+ #guitar-layout-lab[data-screen=phone] .g-pitches button,#guitar-layout-lab[data-screen=phone] .g-chords button{min-width:36px;font-size:12px}
+ #guitar-layout-lab[data-screen=phone] .g-tutor,#guitar-layout-lab[data-screen=phone][data-layout=focus] .g-tutor{position:absolute;left:0;right:0;top:205px;width:auto;min-height:510px;z-index:5;border-radius:16px 16px 0 0;box-shadow:0 -10px 38px #0003;border-bottom:0}
+ #guitar-layout-lab[data-screen=phone][data-workspace=harmony] .g-tutor{top:100px}
+ #guitar-layout-lab[data-screen=phone] .g-sheet-handle{display:block;width:38px;height:4px;border-radius:3px;background:var(--g-line);margin:9px auto 0}
+ #guitar-layout-lab[data-screen=phone][data-layout=wide] .g-tutor-body{display:flex;flex-direction:column}
+ #guitar-layout-lab[data-screen=phone][data-layout=wide] .g-composer{border-left:0;border-top:1px solid var(--g-line);margin-top:auto}
+ #guitar-layout-lab[data-screen=phone] .g-composer textarea{font-size:16px}
+ #guitar-layout-lab[data-screen=phone] .g-board-tools .g-labels{display:none}
+ #guitar-layout-lab[data-screen=phone][data-layout=wide] .g-bottom-label{display:none}
+ #guitar-layout-lab[data-screen=phone] .g-reference{gap:5px}
+ #guitar-layout-lab[data-screen=phone] .g-reference .g-button{padding:6px 8px;font-size:12px}
+ #guitar-layout-lab[data-screen=phone][data-tutor=true] .g-body{min-height:740px}
+ #guitar-layout-lab[data-screen=phone][data-workspace=harmony][data-tutor=true] .g-body{min-height:640px}
+</style>
+<div id="guitar-layout-lab" data-layout="desk" data-screen="desktop" data-workspace="song" data-tutor="true" aria-label="Guitar Tutor layout comparison">
+ <div class="g-window"><div class="g-shell">
+  <nav class="g-rail" aria-label="Learning destinations">
+   <span class="g-mark">g.</span>
+   <button type="button" data-workspace="song" aria-label="Song study" aria-pressed="true"><i data-lucide="music-2" aria-hidden="true"></i></button>
+   <button type="button" data-workspace="harmony" aria-label="Harmony" aria-pressed="false"><i data-lucide="guitar" aria-hidden="true"></i></button>
+   <button type="button" class="g-rail-bottom" data-settings aria-label="Workspace settings"><i data-lucide="settings-2" aria-hidden="true"></i></button>
+  </nav>
+  <main class="g-app">
+   <header class="g-header">
+    <div class="g-heading"><h2 class="g-song-only">Dorian study</h2><h2 class="g-harmony-only">A Dorian</h2><small class="g-song-only">SongStudy · Lead guitar</small><small class="g-harmony-only">Harmony · Explore how notes connect</small></div>
+    <select class="g-select g-mobile-switch" aria-label="Learning workspace"><option value="song">Song study</option><option value="harmony">Harmony</option></select>
+    <span class="g-spacer"></span><button class="g-quiet g-save g-song-only" type="button" data-save><i data-lucide="bookmark" aria-hidden="true"></i> Save song</button>
+    <button class="g-button" type="button" data-settings aria-label="Open view settings"><i data-lucide="sliders-horizontal" aria-hidden="true"></i> View</button>
+    <button class="g-button" type="button" data-tutor-toggle aria-expanded="true"><i data-lucide="message-circle" aria-hidden="true"></i> Tutor</button>
+   </header>
+   <div class="g-settings" hidden><label><input type="checkbox" checked data-labels> Note names</label><span>Standard tuning · E A D G B E</span><span class="g-spacer"></span><button class="g-quiet" data-settings type="button">Done</button></div>
+   <div class="g-context g-song-only"><strong data-song-context>Verse · measures 9–12</strong><span class="g-spacer"></span><label>Listen with <select class="g-select" data-source><option value="video">Recording</option><option value="synth">Guitar guide</option></select></label></div>
+   <div class="g-context g-harmony-only"><strong>A Dorian</strong><span class="g-spacer"></span><button class="g-quiet" type="button" data-compare>Compare</button><button class="g-button" data-scratch type="button">Scratch · 2</button></div>
+   <div class="g-body">
+    <div class="g-stage">
+     <nav class="g-song-navigation g-song-only" aria-label="Song measures"><div class="g-sections" aria-label="Song sections"><button class="g-section" type="button" data-section="Intro" aria-pressed="false">Intro <small>1–8</small></button><button class="g-section" type="button" data-section="Verse" aria-pressed="true">Verse <small>9–16</small></button><button class="g-section" type="button" data-section="Chorus" aria-pressed="false">Chorus <small>17–24</small></button><span class="g-spacer"></span><button class="g-quiet" type="button" data-full-score>Full score</button></div><div class="g-measure-navigation"><button class="g-quiet g-map-page" type="button" data-map-page="-1" aria-label="Previous measures">←</button><div class="g-measure-grid" aria-label="Measures in current section"></div><button class="g-quiet g-map-page" type="button" data-map-page="1" aria-label="Next measures">→</button></div><div class="g-map-caption"><span data-selected-label aria-live="polite">Selected: M9</span><label><input type="checkbox" data-select-range> Select range</label></div></nav>
+     <nav class="g-sections g-harmony-only g-secondary" aria-label="Harmony views"><button class="g-section" type="button" aria-pressed="true" data-hview="connected">Tutor’s view</button><button class="g-section" type="button" aria-pressed="false" data-hview="neck">Fretboard</button><button class="g-section" type="button" aria-pressed="false" data-hview="shapes">Shapes</button></nav>
+     <nav class="g-mobile-primary g-song-only" aria-label="Practice view"><button class="g-button" type="button" data-primary="score" aria-pressed="true" data-active="true">Score</button><button class="g-button" type="button" data-primary="neck" aria-pressed="false">Fretboard</button></nav>
+     <section class="g-surface g-song-only" aria-label="Focused tab measures">
+      <div class="g-surface-head"><h3 data-score-heading>Verse · M9–12</h3><button class="g-quiet" type="button" data-range>Choose measures</button></div>
+      <div class="g-score" aria-label="Select a measure"></div>
+      <div class="g-score-footer"><button class="g-quiet" type="button" data-keep-passage>Keep passage</button><button class="g-quiet" type="button" data-next>Next passage →</button></div>
+      <div class="g-transport"><button class="g-button g-primary" type="button" data-play><i data-lucide="play" aria-hidden="true"></i><span>Play selection</span></button><button class="g-button" type="button" data-loop aria-pressed="true" data-active="true">Loop</button><label>Speed <select class="g-select" aria-label="Playback speed"><option>0.75×</option><option>1×</option><option>0.5×</option></select></label></div>
+     </section>
+     <section class="g-surface g-harmony-only g-secondary" data-harmony-context aria-label="Relationships in A Dorian"><div class="g-harmony-context"><div class="g-controls-stack"><div><div class="g-surface-head"><h3>Notes & degrees</h3><small>Raised sixth · F♯</small></div><div class="g-pitches"></div></div><div><div class="g-surface-head"><h3>Chords in A Dorian</h3></div><div class="g-chords"></div></div></div><div class="g-circle" role="img" aria-label="Circle of fifths with A Dorian and G major related"><svg></svg></div></div></section>
+     <section class="g-surface g-board" aria-label="Fretboard learning surface">
+      <div class="g-surface-head"><h3 class="g-song-only">On the fretboard <small>· linked to selection</small></h3><h3 class="g-harmony-only">A Dorian on the neck</h3><div class="g-board-tools"><button type="button" class="g-quiet" data-region>Frets 5–9</button><button type="button" class="g-quiet g-labels" data-settings>Display</button></div></div>
+      <svg class="g-fretboard" role="img" aria-label="A Dorian notes across the guitar neck"></svg>
+      <div class="g-mobile-transport g-song-only"><button class="g-button g-primary" type="button" data-play><i data-lucide="play" aria-hidden="true"></i><span>Play selection</span></button><button class="g-button" type="button" data-loop aria-pressed="true" data-active="true">Loop</button><label>Speed <select class="g-select" aria-label="Fretboard playback speed"><option>0.75×</option><option>1×</option><option>0.5×</option></select></label></div>
+      <div class="g-legend"><span><span class="g-dot"></span><span class="g-song-only">Selected notes</span><span class="g-harmony-only">A · root</span></span><span><span class="g-dot g-ring"></span><span class="g-song-only">Next beat</span><span class="g-harmony-only">Other scale notes</span></span></div>
+      <p class="g-focus-note g-song-only">Use one finger per fret. Keep the hand relaxed through the return.</p>
+      <div class="g-transport g-harmony-only"><button type="button" class="g-button g-primary" data-play><i data-lucide="play" aria-hidden="true"></i><span>Hear scale</span></button><button class="g-button" type="button" data-roots>Find the roots</button><button class="g-quiet" data-tutor-open type="button">Ask about this</button></div>
+     </section>
+     <div class="g-reference g-song-only g-secondary"><strong>Shapes in this passage</strong><button class="g-button" type="button" data-shape="Am">Am</button><button class="g-button" type="button" data-shape="D">D</button><button class="g-quiet" type="button" data-details>Fingering & techniques</button></div>
+     <div class="g-reference g-harmony-only g-secondary"><strong>Keep nearby</strong><button class="g-button" type="button" data-shape="Am">Pinned Am</button><button class="g-button" type="button" data-shape="D">Pinned D</button><button class="g-quiet" type="button" data-scratch>Scratch sequence · 2</button></div>
+     <details class="g-disclosure g-song-only" data-kept-passages hidden open><summary data-kept-heading>Kept passages</summary><ul class="g-kept-list" aria-label="Kept passages in this song"></ul></details>
+     <details class="g-disclosure" data-learning-details><summary><span class="g-song-only">Passage details</span><span class="g-harmony-only">More views & practice tools</span></summary><div class="g-disclosure-content g-song-only"><span>Techniques · picked single notes</span></div><div class="g-disclosure-content g-harmony-only"><button class="g-button" type="button" data-hview="shapes">Triads & CAGED</button><span>Tuning and fret limits stay in View.</span></div><p data-detail-status aria-live="polite"></p></details>
+    </div>
+    <aside class="g-companion" aria-label="Recording and Tutor">
+     <section class="g-recording g-song-only" aria-label="Song recording"><div class="g-recording-heading"><h3>Recording</h3><button class="g-quiet" type="button" data-video-setup>Setup</button></div><div class="g-video"><span class="g-video-label">Dorian study</span><button class="g-play" type="button" data-play aria-label="Play recording"><i data-lucide="play" aria-hidden="true"></i></button><small data-recording-status>Illustrative recording player</small><span class="g-video-time">0:42 / 3:18</span></div><div class="g-disclosure-content" data-video-details hidden><span>Alignment · selected passage</span><button class="g-button" type="button" data-align>Adjust start</button><span data-alignment-status aria-live="polite"></span></div></section>
+     <section class="g-tutor" aria-label="Tutor conversation"><span class="g-sheet-handle" aria-hidden="true"></span><header class="g-tutor-header"><h3>Tutor <small class="g-bottom-label">· conversation tray</small></h3><button class="g-quiet" type="button" data-tutor-close aria-label="Close Tutor">Close</button></header><div class="g-tutor-context"><span data-tutor-context>About Verse · M9</span><button class="g-quiet" data-preferences type="button" aria-label="Teaching preferences"><i data-lucide="settings-2" aria-hidden="true"></i></button></div><div data-preference-content class="g-settings" hidden>Beginner · Show and explain · 5 minutes</div><div class="g-tutor-body"><div class="g-conversation"><div class="g-message g-learner"><small>You</small><span data-question>How should I practise this passage?</span></div><div class="g-message"><small>Tutor</small><span data-answer>Loop these measures at 0.75×. Keep the return to A even before adding speed. The highlighted notes show the same phrase on the neck.</span></div></div><form class="g-composer"><textarea aria-label="Ask the Tutor" placeholder="Ask about your selection…" rows="2"></textarea><div class="g-compose-actions"><small>Selection stays attached</small><button type="button" data-ask class="g-button g-primary">Ask</button></div></form></div></section>
+    </aside>
+   </div>
+  </main>
+ </div></div>
+</div>
+<script>
+(function(){
+ const root=document.getElementById('guitar-layout-lab');
+ const state={layout:'desk',screen:'desktop',workspace:'song',tutor:true,dock:292,selection:9,selectionEnd:9,rangeMode:false,rangeAnchor:null,mapStart:null,section:'Verse',source:'video',primary:'score',kept:[],playing:false,roots:false,labels:true,hview:'connected'};
+ const q=s=>root.querySelector(s),qa=s=>[...root.querySelectorAll(s)];
+ const sections=[{name:'Intro',start:1,end:8},{name:'Verse',start:9,end:16},{name:'Chorus',start:17,end:24}];
+ const selectedEnd=()=>Math.max(state.selection,state.selectionEnd);
+ const passageLabel=(start,end)=>'M'+start+(end>start?'–'+end:'');
+ const scoreStart=()=>Math.floor((state.selection-1)/(state.screen==='phone'?2:4))*(state.screen==='phone'?2:4)+1;
+ function chooseMeasure(measure,extend=false){
+  state.mapStart=null;
+  if(extend||(state.rangeMode&&state.rangeAnchor!==null)){
+   const anchor=state.rangeAnchor??state.selection;
+   state.selection=Math.min(anchor,measure);state.selectionEnd=Math.max(anchor,measure);state.rangeMode=false;state.rangeAnchor=null;
+  }else{state.selection=state.selectionEnd=measure;if(state.rangeMode)state.rangeAnchor=measure;}
+  state.section=sections.find(section=>state.selection>=section.start&&state.selection<=section.end).name;
+  state.playing=false;render();
+ }
+ function renderNavigation(){
+  const section=sections.find(section=>section.name===state.section),grid=q('.g-measure-grid');
+  const start=state.screen==='phone'?(state.mapStart??(Math.floor((state.selection-section.start)/4)*4+section.start)):section.start;
+  const end=state.screen==='phone'?Math.min(start+3,section.end):section.end;
+  grid.replaceChildren();
+  for(let measure=start;measure<=end;measure++){
+   const b=document.createElement('button');b.type='button';b.className='g-nav-measure';b.dataset.navMeasure=measure;b.textContent=measure;
+   const kept=state.kept.some(p=>measure>=p.measure&&measure<=(p.end??p.measure));
+   b.setAttribute('aria-label','Go to measure '+measure+(kept?' · kept passage':''));
+   b.setAttribute('aria-pressed',String(measure>=state.selection&&measure<=selectedEnd()));
+   if(measure===state.selection)b.setAttribute('aria-current','location');
+   b.dataset.kept=String(kept);grid.append(b);
+  }
+  q('[data-map-page="-1"]').disabled=start===section.start;q('[data-map-page="1"]').disabled=end===section.end;
+  q('[data-select-range]').checked=state.rangeMode;
+  q('[data-selected-label]').textContent=state.rangeMode?(state.rangeAnchor===null?'Choose the first measure':'Choose the last measure'):'Selected: '+passageLabel(state.selection,selectedEnd());
+ }
+ const ns='http://www.w3.org/2000/svg';
+ function svgEl(tag,attrs,text){const n=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(text!==undefined)n.textContent=text;return n;}
+ function board(){const svg=q('.g-fretboard');const w=svg.clientWidth;if(!w)return;svg.setAttribute('viewBox','0 0 '+w+' 158');svg.replaceChildren();const left=25,right=w-12,cols=w<460?5:9,start=w<460?5:1,dx=(right-left)/cols;for(let c=0;c<=cols;c++){const x=left+c*dx;svg.append(svgEl('line',{x1:x,y1:25,x2:x,y2:137,stroke:'var(--g-line)'}));if(c<cols)svg.append(svgEl('text',{x:x+dx/2,y:15,'text-anchor':'middle',fill:'var(--g-muted)','font-size':11},start+c));}const strings=['E','B','G','D','A','E'],opens=[4,11,7,2,9,4],scale=[9,11,0,2,4,6,7],names={9:'A',11:'B',0:'C',2:'D',4:'E',6:'F♯',7:'G'};strings.forEach((s,i)=>{const y=32+i*20;svg.append(svgEl('text',{x:5,y:y+4,fill:'var(--g-muted)','font-size':11},s));svg.append(svgEl('line',{x1:left,y1:y,x2:right,y2:y,stroke:'var(--g-line)','stroke-width':i>3?1.5:1}));for(let c=0;c<cols;c++){const fret=start+c,pc=(opens[i]+fret)%12;if(!scale.includes(pc))continue;if(state.workspace==='song'&&!((i===0&&fret>=5&&fret<=8)||(i===1&&(fret===5||fret===7))))continue;if(state.roots&&pc!==9)continue;const x=left+(c+.5)*dx,isRoot=pc===9;svg.append(svgEl('circle',{cx:x,cy:y,r:9,fill:isRoot?'var(--g-green)':'var(--g-soft)',stroke:'var(--g-green)','stroke-width':1}));if(state.labels)svg.append(svgEl('text',{x,y:y+3.5,'text-anchor':'middle',fill:isRoot?'var(--g-on)':'var(--g-green)','font-size':11},names[pc]));}});q('[data-region]').textContent='Frets '+start+'–'+(start+cols-1);}
+ function circle(){const svg=q('.g-circle svg');svg.setAttribute('viewBox','0 0 166 166');svg.replaceChildren();svg.append(svgEl('circle',{cx:83,cy:83,r:62,fill:'none',stroke:'var(--g-soft)','stroke-width':22}));['C','G','D','A','E','B','F♯','D♭','A♭','E♭','B♭','F'].forEach((key,i)=>{const a=(i*30-90)*Math.PI/180,x=83+62*Math.cos(a),y=83+62*Math.sin(a);if(key==='A')svg.append(svgEl('circle',{cx:x,cy:y,r:13,fill:'var(--g-green)'}));svg.append(svgEl('text',{x,y:y+4,'text-anchor':'middle',fill:key==='A'?'var(--g-on)':'var(--g-muted)','font-size':12},key));});svg.append(svgEl('text',{x:83,y:81,'text-anchor':'middle',fill:'var(--g-green)','font-size':19},'A'));svg.append(svgEl('text',{x:83,y:98,'text-anchor':'middle',fill:'var(--g-muted)','font-size':11},'Dorian'));}
+ function score(){const area=q('.g-score');area.replaceChildren();const start=scoreStart();for(let m=0;m<4&&start+m<=24;m++){const b=document.createElement('button');b.type='button';b.className='g-measure';b.dataset.measure=start+m;b.setAttribute('aria-label','Select measure '+(start+m));b.setAttribute('aria-pressed',String(start+m>=state.selection&&start+m<=selectedEnd()));const label=document.createElement('span');label.className='g-measure-label';label.textContent='M'+(start+m);b.append(label);for(let s=0;s<6;s++){const line=document.createElement('div');line.className='g-tab-line';if(m===0){const n=document.createElement('span');n.className='g-tab-string';n.textContent=['e','B','G','D','A','E'][s];line.append(n);}const notes=s===0?(m%2===0?['5','7','8','7']:['5','','','']):s===1&&m%2===1?['','8','7','5']:['','','',''];notes.forEach(value=>{const n=document.createElement('span');n.className='g-tab-note';n.textContent=value;line.append(n);});b.append(line);}area.append(b);}}
+ const pitchNames=['A','B','C','D','E','F♯','G'],degrees=['1','2','♭3','4','5','6','♭7'];
+ pitchNames.forEach((note,i)=>{const b=document.createElement('button');b.type='button';b.dataset.pitch=note;b.setAttribute('aria-pressed',String(i===0));const name=document.createElement('span'),degree=document.createElement('small');name.textContent=note;degree.textContent=degrees[i];b.append(name,degree);q('.g-pitches').append(b);});
+ ['Am','Bm','C','D','Em','F♯°','G'].forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.dataset.chord=name;b.textContent=name;b.setAttribute('aria-pressed',String(i===0));q('.g-chords').append(b);});
+ function renderKept(){
+  const key=state.selection+':'+selectedEnd(),kept=state.kept.some(p=>p.key===key);
+  q('[data-keep-passage]').textContent=kept?'Passage kept':'Keep passage';
+  q('[data-keep-passage]').disabled=kept;
+  q('[data-kept-passages]').hidden=!state.kept.length;
+  q('[data-kept-heading]').textContent='Kept passages · '+state.kept.length;
+  const list=q('.g-kept-list');list.replaceChildren();
+  state.kept.forEach(p=>{
+   const item=document.createElement('li'),open=document.createElement('button'),remove=document.createElement('button');
+   open.type=remove.type='button';open.className='g-button';remove.className='g-quiet';
+   open.dataset.keptKey=p.key;open.textContent=p.section+' · '+passageLabel(p.measure,p.end??p.measure);
+   remove.dataset.removeKept=p.key;remove.textContent='Remove';remove.setAttribute('aria-label','Remove kept passage '+open.textContent);
+   item.append(open,remove);list.append(item);
+  });
+ }
+ function render(){renderKept();renderNavigation();const covered=state.tutor&&(state.layout==='focus'||state.screen==='phone');if(covered&&state.source==='video')state.playing=false;q('[data-recording-status]').textContent=covered?'Paused while Tutor is open':'Illustrative recording player';root.dataset.primary=state.primary;qa('[data-primary]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.primary===state.primary));b.dataset.active=String(b.dataset.primary===state.primary);});root.dataset.source=state.source;root.dataset.layout=state.layout;root.dataset.screen=state.screen;root.dataset.workspace=state.workspace;root.dataset.tutor=String(state.tutor);root.style.setProperty('--g-dock',state.dock+'px');qa('[data-workspace]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workspace===state.workspace)));q('.g-mobile-switch').value=state.workspace;qa('[data-tutor-toggle]').forEach(b=>{b.setAttribute('aria-expanded',String(state.tutor));b.dataset.active=String(state.tutor);});q('.g-recording').hidden=state.source!=='video';q('[data-tutor-context]').textContent=state.workspace==='song'?'About '+state.section+' · '+passageLabel(state.selection,selectedEnd()):'About A Dorian · current focus';q('[data-question]').textContent=state.workspace==='song'?'How should I practise this passage?':'What makes A Dorian sound different?';q('[data-answer]').textContent=state.workspace==='song'?'Loop these measures at 0.75×. Keep the return to A even before adding speed. The highlighted notes show the same phrase on the neck.':'Listen to the F♯ against A minor. That raised sixth gives Dorian its brighter minor colour. Compare it with F natural, then find F♯ on the neck.';const range=scoreStart()+'–'+Math.min(24,scoreStart()+(state.screen==='phone'?1:3));q('[data-score-heading]').textContent=state.section+' · M'+range;q('[data-song-context]').textContent=state.section+' · measures '+range;qa('[data-section]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.section===state.section)));qa('[data-play] span').forEach(el=>el.textContent=state.playing?'Pause':el.closest('.g-harmony-only')?'Hear scale':'Play selection');qa('[data-hview]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.hview===state.hview)));q('[data-harmony-context]').hidden=state.hview==='neck';score();requestAnimationFrame(board);if(globalThis.lucide)lucide.createIcons({attrs:{width:16,height:16}});}
+ function openTutor(){state.tutor=true;render();}
+ root.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.hasAttribute('data-keep-passage')){const key=state.selection+':'+selectedEnd();if(!state.kept.some(p=>p.key===key))state.kept.push({key,section:state.section,measure:state.selection,end:selectedEnd()});q('[data-kept-passages]').open=true;renderKept();renderNavigation();}
+ if(b.dataset.keptKey){const passage=state.kept.find(p=>p.key===b.dataset.keptKey);if(passage){state.section=passage.section;state.mapStart=null;state.selection=passage.measure;state.selectionEnd=passage.end??passage.measure;state.rangeMode=false;state.rangeAnchor=null;state.playing=false;render();}}
+ if(b.dataset.removeKept){state.kept=state.kept.filter(p=>p.key!==b.dataset.removeKept);renderKept();renderNavigation();}
+ if(b.dataset.primary){state.primary=b.dataset.primary;render();}
+ if(b.dataset.workspace){state.workspace=b.dataset.workspace;state.playing=false;render();}
+ if(b.hasAttribute('data-tutor-toggle')){state.tutor=!state.tutor;render();}
+ if(b.hasAttribute('data-tutor-open'))openTutor();
+ if(b.hasAttribute('data-tutor-close')){state.tutor=false;render();q('[data-tutor-toggle]').focus();}
+ if(b.hasAttribute('data-settings'))q('.g-settings').hidden=!q('.g-settings').hidden;
+ if(b.dataset.section){state.rangeAnchor=null;chooseMeasure(sections.find(section=>section.name===b.dataset.section).start);}
+ if(b.dataset.measure||b.dataset.navMeasure)chooseMeasure(Number(b.dataset.measure||b.dataset.navMeasure),e.shiftKey);
+ if(b.dataset.mapPage){const next=Number(q('[data-nav-measure]').dataset.navMeasure)+Number(b.dataset.mapPage)*4;if(state.rangeMode){state.mapStart=next;renderNavigation();}else chooseMeasure(next);}
+ if(b.hasAttribute('data-next')){state.rangeMode=false;state.rangeAnchor=null;chooseMeasure((scoreStart()-1+(state.screen==='phone'?2:4))%24+1);}
+ if(b.hasAttribute('data-play')){state.playing=!state.playing;render();}
+ if(b.hasAttribute('data-loop')){const active=b.getAttribute('aria-pressed')!=='true';qa('[data-loop]').forEach(v=>{v.setAttribute('aria-pressed',String(active));v.dataset.active=String(active);});}
+ if(b.hasAttribute('data-preferences'))q('[data-preference-content]').hidden=!q('[data-preference-content]').hidden;
+ if(b.hasAttribute('data-video-setup'))q('[data-video-details]').hidden=!q('[data-video-details]').hidden;
+ if(b.hasAttribute('data-align'))q('[data-alignment-status]').textContent='Start selected · 0:42';
+ if(b.hasAttribute('data-save')){b.textContent='Saved';b.disabled=true;}
+ if(b.hasAttribute('data-details')||b.hasAttribute('data-scratch')||b.hasAttribute('data-compare')){q('[data-learning-details]').open=true;q('[data-detail-status]').textContent=b.hasAttribute('data-scratch')?'Scratch: Am → D · audition or develop into a progression':b.hasAttribute('data-compare')?'Compare keeps both musical views together in the main area.':'Keep the first finger at fret 5; move only the fingers the phrase needs.';}
+ if(b.hasAttribute('data-range')){state.rangeMode=!state.rangeMode;state.rangeAnchor=null;renderNavigation();q('[data-select-range]').focus();}
+ if(b.hasAttribute('data-full-score')){b.textContent=b.textContent==='Full score'?'Focused passage':'Full score';q('[data-score-heading]').textContent=b.textContent==='Focused passage'?'Full score · selected section':state.section+' · focused passage';}
+ if(b.dataset.hview){state.hview=b.dataset.hview;render();if(state.hview==='shapes'){q('[data-learning-details]').open=true;q('[data-detail-status]').textContent='Shape browser · Am · D · triads · CAGED';}}
+ if(b.hasAttribute('data-roots')){state.roots=!state.roots;b.textContent=state.roots?'Show all notes':'Find the roots';board();}
+ if(b.dataset.pitch||b.dataset.chord||b.dataset.shape){const family=b.dataset.pitch?'[data-pitch]':b.dataset.chord?'[data-chord]':'[data-shape]';qa(family).forEach(v=>v.setAttribute('aria-pressed',String(v===b)));q('[data-tutor-context]').textContent='About '+(b.dataset.pitch||b.dataset.chord||b.dataset.shape)+' · A Dorian';}
+ });
+ q('[data-select-range]').addEventListener('change',e=>{state.rangeMode=e.target.checked;state.rangeAnchor=null;state.mapStart=null;renderNavigation();});
+ q('.g-mobile-switch').addEventListener('change',e=>{state.workspace=e.target.value;render();});q('[data-source]').addEventListener('change',e=>{state.source=e.target.value;state.playing=false;render();});q('[data-labels]').addEventListener('change',e=>{state.labels=e.target.checked;board();});
+ q('[data-ask]').addEventListener('click',()=>{const input=q('textarea');if(!input.value.trim())return;q('[data-question]').textContent=input.value;q('[data-answer]').textContent='Preview: your question stays attached to the current musical selection. The conversation scrolls while this input stays in place.';input.value='';});
+ root.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.tutor){state.tutor=false;render();q('[data-tutor-toggle]').focus();}});
+ // Preview device is explicit; fitting a desktop canvas must not select the phone layout.
+ function fitDesktop(){root.style.setProperty('--g-preview-scale',Math.min(1,root.clientWidth/1024));}
+ fitDesktop();
+ new ResizeObserver(fitDesktop).observe(root);
+ new ResizeObserver(board).observe(q('.g-board'));
+ render();circle();
+ if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:render});tweak.addSelect(state,'layout',{label:'Layout option',options:[{label:'A · Study desk (recommended)',value:'desk'},{label:'B · Wide music + conversation tray',value:'wide'},{label:'C · Focused practice',value:'focus'}]});tweak.addSelect(state,'screen',{label:'Preview screen',options:[{label:'Desktop',value:'desktop'},{label:'Phone',value:'phone'}]});tweak.addSlider(state,'dock',{label:'Companion width',min:260,max:340,step:20,unit:'px'});}
+ root.previewState=state;root.renderPreview=render;
+})();
+</script>

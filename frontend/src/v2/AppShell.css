@@ -1,7 +1,7 @@
 .app-shell { display:grid; grid-template-columns:208px minmax(0,1fr); min-height:100dvh; }
-.app-shell[data-collapsed='true'] { grid-template-columns:68px minmax(0,1fr); }
-.app-sidebar { position:sticky; top:0; height:100dvh; display:flex; flex-direction:column; padding:20px 12px; background:var(--card-bg); border-right:1px solid var(--border-primary); }
-.sidebar-heading { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-bottom:28px; }
+.app-shell[data-collapsed='true'] { grid-template-columns:60px minmax(0,1fr); }
+.app-sidebar { position:sticky; top:0; height:100dvh; display:flex; flex-direction:column; padding:12px 8px; background:var(--card-bg); border-right:1px solid var(--border-primary); }
+.sidebar-heading { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-bottom:16px; }
 .sidebar-brand { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:650; white-space:nowrap; }
 .brand-mark { color:var(--learning-ink); font:600 28px Georgia,serif; letter-spacing:-2px; }
 .sidebar-toggle { display:grid; place-items:center; width:36px; height:36px; flex-shrink:0; color:var(--text-secondary); border-radius:8px; cursor:pointer; }
@@ -18,8 +18,8 @@
 .app-shell[data-collapsed='true'] .sidebar-toggle svg { transform:rotate(180deg); }
 .shell-skip { position:fixed; top:8px; left:8px; transform:translateY(-160%); z-index:100; background:var(--card-bg); padding:12px; border:1px solid var(--learning-ink); border-radius:8px; }
 .shell-skip:focus { transform:translateY(0); }
-.app-shell .learning-app { padding:24px; }
-.app-shell .learning-app-header { padding-bottom:16px; }
+.app-shell .learning-app { padding:16px 20px 32px; }
+.app-shell .learning-app-header { padding-bottom:10px; margin-bottom:10px; }
 .app-shell .learning-brand { font-size:22px; letter-spacing:-.6px; }
 .app-shell .learning-intro { padding:20px 0 24px; }
 .app-shell .learning-intro h2 { font-size:clamp(30px,3vw,44px); }
@@ -29,8 +29,9 @@
 .app-shell .learning-activities strong { font-size:20px; }
 .app-shell .learning-activity-number { background:transparent; padding:0; }
 .app-shell .learning-search { border-radius:12px; padding:20px; }
-.app-shell .learning-workspace-layout { grid-template-columns:minmax(0,1fr) 300px; gap:16px; }
-.app-shell .learning-workspace-header,.app-shell .composition-slot,.app-shell .tutor-panel,.app-shell .learning-shape { box-shadow:none; border-radius:12px; }
+.app-shell .learning-workspace-layout { grid-template-columns:minmax(0,1fr) min(var(--tutor-width,340px),max(320px,calc(100% - 616px))); gap:16px; }
+.app-shell .learning-workspace[data-tutor-open='false'] .learning-workspace-layout { grid-template-columns:minmax(0,1fr); }
+.app-shell .learning-workspace-header,.app-shell .composition-slot,.app-shell .learning-shape { box-shadow:none; border-radius:12px; }
 .app-shell .learning-workspace-header { background:var(--card-bg); }
 .app-shell .learning-recent-list { grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); }
 .app-shell .learning-session-row { border:1px solid var(--border-primary); border-radius:10px; background:var(--card-bg); padding-right:8px; }
@@ -38,6 +39,11 @@
 .app-shell .learning-session-row:hover { border-color:var(--control-border); }
 .app-shell .learning-session-row .session-delete { padding:4px; }
 .shell-empty { padding:40px 0; max-width:440px; }
+.study-page { width:100%; }
+.study-context-row { display:flex; align-items:center; gap:8px 16px; min-height:44px; margin-bottom:8px; padding:4px 0 8px; border-bottom:1px solid var(--border-primary); }
+.v2-app .study-context-row .song-breadcrumbs { flex:1; margin:0; }
+.study-context-actions { display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+.study-context-row :is(.music-button,.learning-text-button) { min-height:36px; padding-block:6px; }
 .shell-empty p { color:var(--text-secondary); margin:8px 0 20px; }
 .sign-in-page { min-height:100dvh; display:grid; place-items:center; padding:32px; background:var(--learning-wash); }
 .sign-in-card { display:grid; grid-template-columns:1.1fr 1fr; max-width:1000px; width:100%; min-height:560px; overflow:hidden; border:1px solid var(--control-border); border-radius:20px; background:var(--card-bg); }
@@ -58,7 +64,6 @@
 @media (max-width:1200px) {
  .app-shell .learning-activities { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .app-shell .learning-workspace-layout { grid-template-columns:minmax(0,1fr); }
- .app-shell .tutor-panel { position:static; }
 }
 @media (max-width:700px) {
  .app-shell,.app-shell[data-collapsed='true'] { display:block; }
@@ -72,6 +77,10 @@
  .app-shell .learning-app { padding:20px 16px; }
  .app-shell .learning-activities { grid-template-columns:minmax(0,1fr); }
  .app-shell .learning-intro p br { display:none; }
+ .study-context-row { flex-wrap:wrap; gap:0 12px; min-height:0; margin-bottom:6px; padding:0 0 6px; }
+ .v2-app .study-context-row .song-breadcrumbs { flex-basis:100%; margin:0; }
+ .study-context-actions { width:100%; justify-content:flex-end; }
+ .study-context-row :is(.music-button,.learning-text-button) { min-height:32px; padding-block:4px; }
  .sign-in-page { padding:16px; }
  .sign-in-card { grid-template-columns:minmax(0,1fr); min-height:0; border-radius:14px; }
  .sign-in-story { padding:28px; gap:28px; }

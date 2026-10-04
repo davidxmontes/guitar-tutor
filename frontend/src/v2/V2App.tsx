@@ -288,16 +288,22 @@ function SignedInV2App() {
     if (destination === 'explore' || destination === 'sessions') void loadSessions();
   }}>{content}</AppShell>;
 
-  if (artifactView || songTarget) return shell(<main className="v2-app mx-auto max-w-7xl p-4 sm:p-6">
-    <div className="music-controls mb-4"><h1 className="learning-brand">Study & practice</h1>{sessionStarter}
+  const songSearchActive = artifactView === 'search' || songTarget === 'search';
+  const loadedSong = Boolean((songTarget && songTarget !== 'search') || (artifactView && artifactView !== 'search' && artifactView.kind === 'song_study'));
+  const songNavigation = (songTarget || artifactView === 'search' || artifactView?.kind === 'song_study') && <nav aria-label="Song navigation" className="song-breadcrumbs">
+    <button className="learning-text-button" onClick={() => leaveSong('explore')}>Explore</button><span aria-hidden="true">›</span>
+    {songSearchActive ? <span aria-current="page">Song search</span> : <button className="learning-text-button" onClick={studySong}>Song search</button>}
+    {artifactView && artifactView !== 'search' && artifactView.kind === 'song_study' && <><span aria-hidden="true">›</span><span className="song-breadcrumb-current" aria-current="page" title={artifactView.payload.title}>{artifactView.payload.title}</span></>}
+  </nav>;
+
+  if (artifactView || songTarget) return shell(<main className="v2-app study-page p-4 sm:p-6">
+    {loadedSong ? <div className="study-context-row">{songNavigation}<div className="study-context-actions">
+      {activeSession && <button className="learning-text-button" onClick={() => leaveSong('workspace')}>Back to workspace</button>}
+      {sessionStarter}
+    </div></div> : <><div className="music-controls mb-4"><h1 className="learning-brand">{artifactView && artifactView !== 'search' && artifactView.kind === 'exercise' ? 'Exercise' : 'Study a song'}</h1>{sessionStarter}
       {activeSession && <button className="music-button" onClick={() => leaveSong('workspace')}>Back to workspace</button>}
       {!activeSession && artifactView && artifactView !== 'search' && artifactView.kind === 'exercise' && <button className="music-button" onClick={() => leaveSong('explore')}>Explore</button>}
-    </div>
-    {(songTarget || artifactView === 'search' || artifactView?.kind === 'song_study') && <nav aria-label="Song navigation" className="song-breadcrumbs">
-      <button className="learning-text-button" onClick={() => leaveSong('explore')}>Explore</button><span aria-hidden="true">›</span>
-      {artifactView === 'search' ? <span aria-current="page">Song search</span> : <button className="learning-text-button" onClick={studySong}>Song search</button>}
-      {artifactView && artifactView !== 'search' && artifactView.kind === 'song_study' && <><span aria-hidden="true">›</span><span className="song-breadcrumb-current" aria-current="page" title={artifactView.payload.title}>{artifactView.payload.title}</span></>}
-    </nav>}
+    </div>{songNavigation}</>}
     {error && <p role="alert">{error}</p>}
     {loadingSong && <p role="status">Opening your song…</p>}
     {artifactView === 'search' ? <SongStudySearch state={songSearch} onStateChange={setSongSearch} ensureSession={ensureSongSession} onSearch={query => writeSongLocation('search', page, query, true)} onCreated={showSong} />

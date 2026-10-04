@@ -23,14 +23,19 @@ test('song tab, learning map, enrichment, copied exercise and library survive re
   await page.getByLabel('Playback source').selectOption('practice')
   await expect(page.getByRole('heading', { name: 'Measures 1–4', exact: true })).toBeVisible()
   await expect(page.getByTestId('fretboard-active-note').filter({ hasText: 'D' }).first()).toBeVisible()
+  await page.getByText('Song actions', { exact: true }).click()
   await page.getByRole('button', { name: 'Save to My Stuff', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Saved to My Stuff', exact: true })).toBeVisible()
-  await page.getByText('Learning map · selection M1–1', { exact: true }).click()
-  await page.getByLabel('Range name').fill('Opening drill')
-  await page.getByRole('button', { name: 'Save selected range', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Saved range: Opening drill · M1–1', exact: true })).toBeVisible()
+  await page.getByText('Song actions', { exact: true }).click()
+  await page.getByText('Song map and practice tools', { exact: true }).click()
+  await page.getByLabel('Custom passage name').fill('Opening drill')
+  await page.getByRole('button', { name: 'Keep with name', exact: true }).click()
+  await page.getByTestId('song-kept-passages').locator('summary').click()
+  await expect(page.getByRole('button', { name: 'Revisit Opening drill · M1', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Enhance for learning', exact: true }).click()
   await expect(page.getByTestId('song-study-enrichment-range')).toContainText('Opening phrase')
+  await page.getByText('Song actions', { exact: true }).click()
+  await page.getByText('Create a separate practice drill', { exact: true }).click()
   await page.getByRole('button', { name: 'Create exercise', exact: true }).click()
   await page.getByLabel('Exercise title').fill('Song rhythm drill')
   await page.getByLabel('Practice goal').fill('Keep the rest in time')
@@ -38,9 +43,10 @@ test('song tab, learning map, enrichment, copied exercise and library survive re
   await page.getByRole('button', { name: 'Save exercise', exact: true }).click()
   await expect(page.getByText('Exercise saved.', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
-  await page.getByRole('button', { name: 'Show full tab', exact: true }).click()
+  await page.getByText('Song actions', { exact: true }).click()
+  await page.getByRole('button', { name: 'Full Tab', exact: true }).click()
   await expect(page.getByTestId('song-study-full-tab')).toBeVisible()
-  await page.getByRole('button', { name: 'Show overview + focus', exact: true }).click()
+  await page.getByRole('button', { name: 'Focused passage', exact: true }).click()
   await page.getByLabel('Playback source').selectOption('practice')
   await page.getByRole('button', { name: 'Practice selection', exact: true }).click()
   await page.getByLabel('Count in').selectOption('0')
@@ -57,8 +63,8 @@ test('song tab, learning map, enrichment, copied exercise and library survive re
   await page.reload()
   await expect(page.getByTestId('song-study-title')).toContainText('Study Fixture')
   await page.getByLabel('Playback source').selectOption('practice')
-  await page.getByText('Learning map · selection M1–1', { exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Saved range: Opening drill · M1–1', exact: true })).toBeVisible()
+  await page.getByTestId('song-kept-passages').locator('summary').click()
+  await expect(page.getByRole('button', { name: 'Revisit Opening drill · M1', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Remove enhancement', exact: true }).click()
   await expect(page.getByTestId('song-study-enrichment-range')).toHaveCount(0)
   await page.getByRole('navigation', { name: 'Song navigation' }).getByRole('button', { name: 'Explore', exact: true }).click()
@@ -105,7 +111,7 @@ test('practice accepts typed slow tempos and plays a whole selected section', as
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
   await page.getByLabel('Playback source').selectOption('practice');
   await page.getByRole('button', { name: 'Intro', exact: true }).click();
-  await expect(page.getByTestId('practice-selected-span')).toHaveText('Selection: M1–4');
+  await expect(page.getByTestId('practice-selected-span')).toHaveText('M1–4');
   await page.getByRole('button', { name: 'Practice selection', exact: true }).click();
   const tempo = page.getByLabel('Practice tempo');
   await tempo.fill('');
@@ -144,7 +150,7 @@ test('practice accepts typed slow tempos and plays a whole selected section', as
   await expect(page.getByTestId('song-study-fretboard')).toHaveAttribute('aria-label', /Active: string 6 fret 1/);
   await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
   await page.getByRole('button', { name: 'Verse', exact: true }).click();
-  await expect(page.getByTestId('practice-selected-span')).toHaveText('Selection: M5–8');
+  await expect(page.getByTestId('practice-selected-span')).toHaveText('M5–8');
   await expect(page.getByRole('heading', { name: 'Measures 5–8', exact: true })).toBeVisible();
 });
 
