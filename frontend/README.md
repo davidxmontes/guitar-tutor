@@ -172,6 +172,11 @@ explained unavailable estimate.
 The Speed control uses the embedded player's supported rates and actual rate-change
 feedback; video time remains the clock. Explicit paused tab selection previews its
 notes on the fretboard, while playback and native seeking resume video follow.
+Earlier/Later controls adjust recording sync in 0.1-second steps while playback
+continues. The adjustment applies to Tab, Play-along, the fretboard and loops;
+Reset returns it to zero, and Save timing retains it with the song. The optional
+`offset_seconds` alignment value defaults to zero. Deploy its compatible backend
+model before using the new save path; existing strict backends reject that field.
 Guitar search choices stay visible; other instruments are collapsed by default.
 Song URLs reopen the owned artifact on refresh, and breadcrumbs preserve the
 search query and cached results for Back/Forward navigation.

@@ -12,6 +12,7 @@ export interface VideoClockSample {
   state: YouTubeState;
   engaged: boolean;
   passages: readonly SongVideoPassage[];
+  offsetSeconds?: number;
 }
 
 export const unavailablePosition: PlayAlongPosition = { segment: -1, offset: 0, start: 0, end: 0, state: 'unavailable' };
@@ -42,7 +43,7 @@ export function recordingPlayAlongPosition(timeline: readonly ScoreBeat[], sampl
   // YouTube polls at 200ms. A lost/stale delivery may advance at most two samples,
   // and mapping still refuses extrapolation past a calibrated occurrence.
   const elapsed = sample.state === 'playing' ? Math.min(400, Math.max(0, now - sample.at)) / 1000 * sample.rate : 0;
-  const position = videoScorePosition(timeline, sample.passages, sample.seconds + elapsed);
+  const position = videoScorePosition(timeline, sample.passages, sample.seconds + elapsed, sample.offsetSeconds);
   if (!position) return unavailablePosition;
   return { ...position, state: sample.state === 'playing' ? 'playing' : sample.state === 'ended' ? 'ended' : 'paused' };
 }

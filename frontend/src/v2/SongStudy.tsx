@@ -586,7 +586,7 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
     if (refresh) setVideoClockRevision(value => value + 1);
   }, []);
   const receiveVideoPosition = useCallback((position: VideoPosition | null, resumeFollowing = false) => {
-    if (position || resumeFollowing) setFollowVideo(true);
+    if (resumeFollowing) setFollowVideo(true);
     setVideoPlayhead(previous => previous?.passageId === position?.passageId && previous?.measureIndex === position?.measureIndex && previous?.beatIndex === position?.beatIndex ? previous : position);
   }, []);
   // Shape strip's per-card diagrams default off — the active shape's

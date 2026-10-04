@@ -11,10 +11,10 @@ import type { VideoClockSample } from './playAlongTiming';
 import './SongVideo.css';
 
 const timeLabel = (seconds: number) => {
-  const tenths = Math.round(seconds * 10);
-  return `${Math.floor(tenths / 600)}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
+  const tenths = Math.round(Math.abs(seconds) * 10);
+  return `${seconds < 0 ? '−' : ''}${Math.floor(tenths / 600)}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
 };
-const anchorLabel = (anchor: SongVideoAnchor) => `M${anchor.measure_index + 1}, beat ${anchor.beat_index + 1} ${anchor.edge} · ${timeLabel(anchor.video_seconds)}`;
+const anchorLabel = (anchor: SongVideoAnchor, offset: number) => `M${anchor.measure_index + 1}, beat ${anchor.beat_index + 1} ${anchor.edge} · ${timeLabel(anchor.video_seconds + offset)}`;
 
 type PlayerBounds = { left: number; top: number; width: number; height: number };
 type RecordingView = 'player' | 'sync' | 'change';
@@ -92,7 +92,8 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   const [startTime, setStartTime] = useState('');
   const timingEnabled = Boolean(draft && (draft.recording_confirmed || draft.timing_source));
   const firstAnchor = useMemo(() => draft?.passages.flatMap(p => p.anchors).reduce<SongVideoAnchor | null>((first, anchor) => !first || anchor.video_seconds < first.video_seconds ? anchor : first, null) ?? null, [draft]);
-  const firstTime = firstAnchor?.video_seconds ?? Infinity;
+  const offset = draft?.offset_seconds ?? 0;
+  const firstTime = firstAnchor ? firstAnchor.video_seconds + offset : Infinity;
   const player = useRef<YouTubeControls>(null);
   const panel = useRef<HTMLElement>(null);
   const live = useRef(true);
@@ -107,7 +108,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
   const timeline = useMemo(() => buildScoreTimeline(song.payload.tab_data.measures ?? []), [song.payload.tab_data.measures]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline.current);
   const passage = draft?.passages.find(p => p.id === occurrence) ?? (draft?.passages.length === 1 ? draft.passages[0] : null);
-  const ranges = useMemo(() => selectionVideoRanges(timeline, draft?.passages ?? [], selection), [timeline, draft, selection]);
+  const ranges = useMemo(() => selectionVideoRanges(timeline, draft?.passages ?? [], selection, draft?.offset_seconds), [timeline, draft, selection]);
   const range = occurrence ? ranges.find(r => r.id === occurrence) : ranges.length === 1 ? ranges[0] : null;
   const points = selectionBoundaries(timeline, selection);
   const selectedStart = selection.type === 'beat' ? selection.measureIndex : selection.startMeasureIndex;
@@ -227,18 +228,48 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     clockEngaged.current = false;
     publishClock(null, true);
   }
-  function publishClock(time: number | null, refresh = false) {
+  function publishClock(time: number | null, refresh = false, alignment = draft) {
     onClock({ seconds: time, at: performance.now(), rate: clockRate.current, state: playingState.current,
-      engaged: clockEngaged.current, passages: timingEnabled ? draft?.passages ?? [] : [] }, refresh);
+      engaged: clockEngaged.current, passages: alignment && (alignment.recording_confirmed || alignment.timing_source) ? alignment.passages : [],
+      offsetSeconds: alignment?.offset_seconds ?? 0 }, refresh);
+  }
+  function refreshAlignment(alignment: SongVideoAlignment | null, engage = false) {
+    const time = player.current?.getCurrentTime() ?? reportedTime.current;
+    if (engage && time !== null) clockEngaged.current = true;
+    const position = alignment && (alignment.recording_confirmed || alignment.timing_source) && time !== null
+      ? videoPosition(timeline, alignment.passages, time, alignment.offset_seconds) : null;
+    lastPosition.current = position ? `${position.passageId}:${position.measureIndex}:${position.beatIndex}` : '';
+    onPosition(position, engage);
+    publishClock(time, true, alignment);
   }
   function change(next: SongVideoAlignment | null) {
+    if (busy) return;
     autoSelect.current = false;
+    const engaged = clockEngaged.current;
     clearPlayback();
     if (!dirty) revision.current = song.updated_at;
     setHistory(previous => [...previous.slice(-49), draft]);
     setDraft(next);
     setError(null);
     setNotice('');
+    if (next?.video_id === draft?.video_id) { clockEngaged.current = engaged; refreshAlignment(next); }
+    else publishClock(null, true, next);
+  }
+  function adjustOffset(value: number) {
+    if (busy || !draft || !Number.isFinite(value) || Math.abs(value) > 86400) return;
+    const next: SongVideoAlignment = { ...draft, offset_seconds: value };
+    if (value === 0) delete next.offset_seconds;
+    if (!dirty) revision.current = song.updated_at;
+    setHistory(previous => [...previous.slice(-49), draft]);
+    setDraft(next); setError(null); setNotice('');
+    const currentRange = playingRange.current;
+    if (currentRange) {
+      const adjusted = selectionVideoRanges(timeline, next.passages, selection, value).find(item => item.id === currentRange.id);
+      playingRange.current = adjusted ? { ...currentRange, ...adjusted, loop: currentRange.loop && adjusted.end !== null } : null;
+    }
+    // This edit changes score timing only. The native player keeps its time,
+    // playback state and identity; an armed loop uses the adjusted next boundary.
+    refreshAlignment(next, true);
   }
   function attach() {
     const id = parseYouTubeId(url);
@@ -257,6 +288,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     setView(validTiming ? 'player' : 'sync');
   }
   function editAnchor(edge: 'start' | 'end', replace = false) {
+    if (busy) return;
     if (!draft || !passage || !points) { setError('Select a score beat or range and choose an occurrence first.'); return; }
     const now = player.current?.getCurrentTime();
     const duration = player.current?.getDuration();
@@ -264,14 +296,18 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     if (playingState.current === 'playing' || playingState.current === 'buffering') { setError('Pause the video before marking a boundary.'); return; }
     const selectedAnchor = replace ? passage.anchors[Number(anchorIndex)] : null;
     const point = selectedAnchor ?? points[edge === 'start' ? 0 : 1];
-    const anchor: SongVideoAnchor = { ...point, video_seconds: now };
-    const anchors = passage.anchors.filter(a => !(a.measure_index === anchor.measure_index && a.beat_index === anchor.beat_index && a.edge === anchor.edge));
+    // Marking earlier than a positive offset needs a new raw origin. Rebase all
+    // anchors together so every existing effective recording time stays intact.
+    const nextOffset = Math.min(offset, now);
+    const rebased = draft.passages.map(p => ({ ...p, anchors: p.anchors.map(a => ({ ...a, video_seconds: a.video_seconds + offset - nextOffset })) }));
+    const anchor: SongVideoAnchor = { ...point, video_seconds: now - nextOffset };
+    const anchors = rebased.find(p => p.id === passage.id)!.anchors.filter(a => !(a.measure_index === anchor.measure_index && a.beat_index === anchor.beat_index && a.edge === anchor.edge));
     anchors.push(anchor);
     anchors.sort((a, b) => a.measure_index - b.measure_index || a.beat_index - b.beat_index || Number(a.edge === 'end') - Number(b.edge === 'end'));
-    const passages = draft.passages.map(p => p.id === passage.id ? { ...p, anchors } : p);
+    const passages = rebased.map(p => p.id === passage.id ? { ...p, anchors } : p);
     const issue = validatePassages(timeline, passages);
     if (issue) { setError(issue); return; }
-    change({ ...draft, passages });
+    change({ ...draft, offset_seconds: nextOffset, passages });
     setAnchorIndex('');
   }
   function handleTime(time: number) {
@@ -302,7 +338,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       return;
     }
     publishClock(time, Boolean(nativeSeek));
-    const position = timingEnabled && draft ? videoPosition(timeline, draft.passages, time) : null;
+    const position = timingEnabled && draft ? videoPosition(timeline, draft.passages, time, offset) : null;
     const key = position ? `${position.passageId}:${position.measureIndex}:${position.beatIndex}` : '';
     if (key !== lastPosition.current || nativeSeek) { lastPosition.current = key; onPosition(position, true); }
   }
@@ -316,6 +352,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
     publishClock(range.start, true);
   }
   async function save() {
+    if (busy) return;
     if (draft && !timingEnabled) { setError('Confirm that this recording matches the score arrangement before saving.'); return; }
     const issue = draft && (draft.passages.some(p => !p.label.trim()) ? 'Give each occurrence a name.' : validatePassages(timeline, draft.passages));
     if (issue) { setError(issue); return; }
@@ -326,13 +363,16 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       baseline.current = saved.payload.video_alignment ?? null;
       revision.current = saved.updated_at;
       setDraft(baseline.current); setHistory([]); setNotice('Video setup saved to My Stuff.');
+      refreshAlignment(baseline.current);
       onChange(saved);
     } catch (cause) {
       if (live.current) setError(`Could not save: ${cause instanceof Error ? cause.message : 'try again'}. Your draft is kept. Discard and reload to use the latest saved version.`);
     } finally { if (live.current) setBusy(false); }
   }
   async function discard() {
+    if (busy) return;
     autoSelect.current = false;
+    const engaged = clockEngaged.current;
     clearPlayback(); setBusy(true); setError(null);
     try {
       const saved = await apiClient.getSongStudy(song.id);
@@ -341,24 +381,30 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       revision.current = saved.updated_at;
       setDraft(baseline.current); setHistory([]); setOccurrence(''); setAnchorIndex(''); setNotice('Loaded the saved setup.');
       if (!baseline.current) setView('change');
+      clockEngaged.current = engaged;
+      refreshAlignment(baseline.current);
       onChange(saved);
     } catch { if (live.current) setError('Could not reload. Your draft is kept; try again.'); }
     finally { if (live.current) setBusy(false); }
   }
   function undo() {
+    if (busy) return;
     const previous = history.at(-1) ?? null;
+    const engaged = clockEngaged.current;
     clearPlayback();
     setDraft(previous);
     setHistory(entries => entries.slice(0, -1));
     setError(null);
     setAnchorIndex('');
     if (!previous) setView('change');
+    clockEngaged.current = engaged;
+    refreshAlignment(previous);
   }
 
   const editActions = <div className="song-video-actions">
-    <button type="button" className="music-button" disabled={!history.length} onClick={undo}>Undo edit</button>
-    <button type="button" className="music-button" disabled={!dirty} onClick={save}>{busy ? 'Saving…' : 'Save video setup'}</button>
-    <button type="button" className="music-button" onClick={discard}>Discard and reload</button>
+    <button type="button" className="music-button" disabled={busy || !history.length} onClick={undo}>Undo edit</button>
+    <button type="button" className="music-button" disabled={busy || !dirty} onClick={save}>{busy ? 'Saving…' : 'Save video setup'}</button>
+    <button type="button" className="music-button" disabled={busy} onClick={discard}>Discard and reload</button>
   </div>;
 
   const recordingInput = <details><summary>Paste a YouTube link instead</summary><form onSubmit={event => { event.preventDefault(); attach(); }}>
@@ -389,13 +435,10 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
       : 'The selected start is unaligned. Pause the video where this measure or beat begins, then mark selection start.'
     : null;
   function shiftStart() {
-    if (!draft || !Number.isFinite(firstTime)) return;
+    if (busy || !draft || !firstAnchor) return;
     const desired = Number(startTime);
-    if (!startTime.trim() || !Number.isFinite(desired) || desired < 0) { setError('Enter a valid nonnegative start time.'); return; }
-    const passages = draft.passages.map(p => ({ ...p, anchors: p.anchors.map(a => ({ ...a, video_seconds: a.video_seconds + desired - firstTime })) }));
-    const issue = validatePassages(timeline, passages);
-    if (issue) { setError(issue); return; }
-    change({ ...draft, passages }); setStartTime('');
+    if (!startTime.trim() || !Number.isFinite(desired) || desired < 0 || desired > 86400) { setError('Enter a start time from 0 to 86400 seconds.'); return; }
+    change({ ...draft, offset_seconds: desired - firstAnchor.video_seconds }); setStartTime('');
   }
   function openCalibration() {
     player.current?.pause();
@@ -450,7 +493,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
         publishClock(player.current?.getCurrentTime() ?? reportedTime.current, true);
         if (value === 'playing') {
           const time = player.current?.getCurrentTime();
-          onPosition(timingEnabled && draft && time != null ? videoPosition(timeline, draft.passages, time) : null, true);
+          onPosition(timingEnabled && draft && time != null ? videoPosition(timeline, draft.passages, time, offset) : null, true);
         }
       }} />}
     {view === 'player' && <div className="song-video-tools">
@@ -462,9 +505,23 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
           <select aria-label="Video speed" title="Only playback speeds supported by this YouTube video are available." value={playbackRate.rate} disabled={!ready || playbackRate.available.length < 2} onChange={event => player.current?.setPlaybackRate(Number(event.target.value))}>
             {playbackRate.available.map(rate => <option key={rate} value={rate}>{rate}×</option>)}
           </select></div>
+        {timingEnabled && Number.isFinite(firstTime) && <fieldset className="song-video-nudge" disabled={busy}>
+          <legend>Align notes with the recording</legend>
+          <div className="song-video-nudge-controls">
+            <button type="button" className="music-button" aria-label="Move notes earlier by 0.1 seconds" disabled={offset - 0.1 < -86400}
+              onClick={() => adjustOffset(Number((offset - 0.1).toPrecision(15)))}>← Earlier</button>
+            <output data-testid="video-timing-adjustment">{offset === 0 ? 'Original timing' : `${offset < 0 ? '−' : '+'}${Math.abs(offset) < 0.001 ? '<0.001' : Number(Math.abs(offset).toFixed(3))}s · ${offset < 0 ? 'Earlier' : 'Later'}`}</output>
+            <button type="button" className="music-button" aria-label="Move notes later by 0.1 seconds" disabled={offset + 0.1 > 86400}
+              onClick={() => adjustOffset(Number((offset + 0.1).toPrecision(15)))}>Later →</button>
+          </div>
+          {(offset !== 0 || dirty) && <div className="song-video-nudge-actions">
+            {offset !== 0 && <button type="button" className="learning-text-button" onClick={() => adjustOffset(0)}>Reset adjustment</button>}
+            {dirty && <button type="button" className="music-button" onClick={save}>{busy ? 'Saving…' : 'Save timing'}</button>}
+          </div>}
+        </fieldset>}
         <div className="song-video-context"><span data-testid="video-selected-span">Selection: {selectionLabel}</span><span>{draft.timing_source === 'estimated' ? 'Estimated from score tempo' : draft.timing_source === 'songsterr' ? 'Songsterr timing' : draft.passages.some(item => item.anchors.length > 0) ? 'Timing calibrated' : 'Timing not set'}</span></div>
         <p className="song-video-status" data-testid="song-video-position">{state === 'buffering' ? 'Buffering · ' : ''}{!timingEnabled ? 'Confirm the arrangement to follow the score.' : lastPosition.current ? (() => {
-          const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1);
+          const position = videoPosition(timeline, draft.passages, reportedTime.current ?? -1, offset);
           return position ? `Video: M${position.measureIndex + 1}, beat ${position.beatIndex + 1} · ${draft.passages.find(p => p.id === position.passageId)?.label}` : 'Unaligned video section';
         })() : 'Unaligned video section'}</p>
         {draft.passages.length > 1 && <label>Occurrence<select aria-label="Video occurrence" value={occurrence} onChange={event => { clearPlayback(); setOccurrence(event.target.value); setAnchorIndex(''); }}>
@@ -499,7 +556,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
           {draft.timing_source && <p>{suggestions?.candidates.find(candidate => candidate.video_id === draft.video_id)?.timing?.note ?? (draft.timing_source === 'estimated' ? suggestions?.estimated_timing?.note : null) ?? (draft.timing_source === 'estimated' ? 'Estimated timing from score tempo. Check the recording start; introductions, drift and arrangements may differ.' : 'Timing based on Songsterr. Check that this recording matches the score arrangement.')} Only sections between timing points are covered.</p>}
           {durationComparison && <p data-testid="video-duration-comparison">{durationComparison} Similar duration does not establish the same arrangement or synchronization.</p>}
           <form className="song-video-actions" onSubmit={event => { event.preventDefault(); shiftStart(); }}>
-            <label>First aligned beat{firstAnchor ? ` (M${firstAnchor.measure_index + 1}, beat ${firstAnchor.beat_index + 1})` : ''} at (seconds)<input aria-label="First aligned beat at (seconds)" type="number" min="0" max="86400" step="0.1" value={startTime || String(firstTime)} onChange={event => setStartTime(event.target.value)} /></label>
+            <label>First aligned beat{firstAnchor ? ` (M${firstAnchor.measure_index + 1}, beat ${firstAnchor.beat_index + 1})` : ''} at (seconds)<input aria-label="First aligned beat at (seconds)" type="number" min="0" max="86400" step="any" value={startTime || String(firstTime)} onChange={event => setStartTime(event.target.value)} /></label>
             <button type="submit" className="music-button" disabled={!startTime || busy}>Apply start time</button>
           </form>
           <p>Moves all timing points together. Undo edit restores the previous timing.</p>
@@ -525,7 +582,7 @@ export function SongVideo({ song, active, pauseWhenCovered, selection, onSelectR
                 <button type="button" className="music-button" disabled={!ready || !points || passage.anchors.length >= 256} onClick={() => editAnchor('end')}>Mark selection end</button></div>
               {passage.anchors.length > 0 && <>
                 <label>Correct an anchor<select aria-label="Correct an anchor" value={anchorIndex} onChange={event => setAnchorIndex(event.target.value)}>
-                  <option value="">Choose anchor ({passage.anchors.length})</option>{passage.anchors.map((a, i) => <option key={i} value={i}>{anchorLabel(a)}</option>)}
+                  <option value="">Choose anchor ({passage.anchors.length})</option>{passage.anchors.map((a, i) => <option key={i} value={i}>{anchorLabel(a, offset)}</option>)}
                 </select></label>
                 <div className="song-video-actions"><button type="button" className="music-button" disabled={anchorIndex === '' || !ready} onClick={() => editAnchor('start', true)}>Use current video time</button>
                   <button type="button" className="music-button" disabled={anchorIndex === ''} onClick={() => { change({ ...draft, passages: draft.passages.map(p => p.id === passage.id ? { ...p, anchors: p.anchors.filter((_, i) => i !== Number(anchorIndex)) } : p) }); setAnchorIndex(''); }}>Remove anchor</button></div>

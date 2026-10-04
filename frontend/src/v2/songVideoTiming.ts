@@ -107,18 +107,24 @@ function scoreTime(timeline: readonly ScoreBeat[], passage: SongVideoPassage, po
   return null;
 }
 
-export function selectionVideoRanges(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], selection: SongSelection): VideoRange[] {
+export function selectionVideoRanges(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], selection: SongSelection, offsetSeconds = 0): VideoRange[] {
+  if (!Number.isFinite(offsetSeconds)) return [];
   const points = selectionBoundaries(timeline, selection);
   if (!points) return [];
   const continuous = boundary(timeline, points[0])!.segment === boundary(timeline, points[1])!.segment;
   return passages.flatMap(passage => {
-    const start = scoreTime(timeline, passage, points[0]);
-    const end = continuous ? scoreTime(timeline, passage, points[1]) : null;
-    return start === null ? [] : [{ id: passage.id, label: passage.label, start, end: end !== null && end > start ? end : null }];
+    const rawStart = scoreTime(timeline, passage, points[0]);
+    const rawEnd = continuous ? scoreTime(timeline, passage, points[1]) : null;
+    if (rawStart === null) return [];
+    const start = rawStart + offsetSeconds;
+    const end = rawEnd === null ? null : rawEnd + offsetSeconds;
+    if (end !== null && end <= 0 || start < 0 && end === null) return [];
+    return [{ id: passage.id, label: passage.label, start: Math.max(0, start), end: end !== null && end > start ? end : null }];
   });
 }
 
-export function videoPosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number): VideoPosition | null {
+export function videoPosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number, offsetSeconds = 0): VideoPosition | null {
+  seconds -= offsetSeconds;
   if (!Number.isFinite(seconds)) return null;
   // A new occurrence wins at a shared endpoint; no repeated-score inference.
   const ordered = [...passages].sort((a, b) => (b.anchors[0]?.video_seconds ?? 0) - (a.anchors[0]?.video_seconds ?? 0));
@@ -140,7 +146,8 @@ export function videoPosition(timeline: readonly ScoreBeat[], passages: readonly
 }
 
 /** Continuous position only inside a calibrated interval of an explicit occurrence. */
-export function videoScorePosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number): VideoScorePosition | null {
+export function videoScorePosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number, offsetSeconds = 0): VideoScorePosition | null {
+  seconds -= offsetSeconds;
   if (!Number.isFinite(seconds)) return null;
   const ordered = [...passages].sort((a, b) => (b.anchors[0]?.video_seconds ?? 0) - (a.anchors[0]?.video_seconds ?? 0));
   for (const passage of ordered) {

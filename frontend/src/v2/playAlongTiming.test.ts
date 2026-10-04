@@ -60,6 +60,8 @@ describe('Play-along recording position', () => {
     expect(recordingPlayAlongPosition(timeline, sample({ seconds: 11, state: 'buffering' }), 9000).offset).toBe(0.5);
     expect(recordingPlayAlongPosition(timeline, sample(), 9000).offset).toBeCloseTo(0.2);
     expect(recordingPlayAlongPosition(timeline, sample({ seconds: 12.9 }), 1400).state).toBe('unavailable');
+    expect(recordingPlayAlongPosition(timeline, sample({ seconds: 10, offsetSeconds: -0.1, state: 'paused' }), 9000).offset).toBeCloseTo(0.05);
+    expect(recordingPlayAlongPosition(timeline, sample({ seconds: 10, offsetSeconds: 0.1, state: 'paused' }), 9000).state).toBe('unavailable');
   });
 
   it('does not interpolate or look ahead through a rhythm gap', () => {

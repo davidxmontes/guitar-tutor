@@ -15,6 +15,8 @@ export interface SongVideoAlignment {
   video_id: string;
   recording_confirmed: boolean;
   timing_source?: 'songsterr' | 'estimated' | null;
+  /** Positive values place score events later in the recording. */
+  offset_seconds?: number;
   passages: SongVideoPassage[];
 }
 
