@@ -100,11 +100,14 @@ test('alternate tuning, mobile containment, both themes, keyboard and reduced-mo
   await expect(page.getByTestId('riff-play-along').locator('.play-along-string')).toHaveText(['D', 'A', 'F', 'C', 'G', 'D']);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole('button', { name: /^Edit event 3:/ }).press('Enter');
+  await expect(page.locator('.riff-timeline-event[aria-pressed=true] text')).toHaveCSS('fill', 'rgb(250, 251, 249)');
   await expect.poll(() => page.locator('.riff-timeline-board').evaluate(element => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(900);
   await page.screenshot({ path: '/tmp/riff-creator-desktop-light.png', fullPage: true });
   await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Switch to dark mode', exact: true }).click();
   await page.getByRole('button', { name: 'Collapse navigation', exact: true }).click();
+  await expect(page.locator('.riff-timeline-event[aria-pressed=true] text')).toHaveCSS('fill', 'rgb(20, 28, 24)');
   await page.screenshot({ path: '/tmp/riff-creator-desktop-dark.png', fullPage: true });
   await page.setViewportSize({ width: 320, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);

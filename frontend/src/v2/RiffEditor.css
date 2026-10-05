@@ -33,7 +33,7 @@
 .riff-fret-badge { fill: var(--card-bg); stroke: var(--accent-700); stroke-width: 1.5; }
 .riff-event-hit { fill: transparent; }
 .riff-timeline-event[aria-pressed=true] .riff-fret-badge { fill: var(--accent-700); }
-.riff-timeline-event[aria-pressed=true] text { fill: white; }
+.riff-timeline-event[aria-pressed=true] text { fill: var(--bg-primary); }
 .riff-timeline-event:focus-visible { outline: none; }
 .riff-timeline-event:focus-visible .riff-fret-badge { stroke: var(--text-primary); stroke-width: 4; }
 .riff-preview-event rect { stroke-dasharray: 3 3; opacity: .65; }
