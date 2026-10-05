@@ -52,7 +52,7 @@ CREATE INDEX ON v2_branches (session_id);
 CREATE TABLE v2_artifacts (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   clerk_user_id text NOT NULL,
-  kind         text NOT NULL CHECK (kind IN ('song_study', 'progression', 'exercise')),
+  kind         text NOT NULL CONSTRAINT v2_artifacts_kind_check CHECK (kind IN ('song_study', 'progression', 'exercise', 'riff')),
   title        text NOT NULL,
   payload      jsonb NOT NULL,
   created_at   timestamptz NOT NULL DEFAULT now(),

@@ -1,11 +1,11 @@
 """V2 routes — Session/Branch state, SongStudy raw data and enrichment,
-Progression / Exercise artifacts, the library, and stateless tutor turns.
+Progression / Exercise / Riff artifacts, the library, and stateless tutor turns.
 
 Ticket #101 hard cutover: the ConceptWorkspace catalog / create / update /
 resolve / save / turn endpoints and the Progression fork (`/progressions/
-explore`) are removed. A Branch no longer links an Artifact — opening a
-library artifact just creates a fresh Session (DATA-03 reopen-to-fresh-draft
-is ticket P1). The full Tutor per-turn contract is ticket T3.
+explore`) are removed. A Branch no longer links an Artifact. Progressions
+reopen in a fresh Session; independent Riffs reopen through their typed read
+route directly into the local editor, without a Session or Branch.
 
 Everything here requires an authenticated user (or the AUTH_DEV_BYPASS dev user).
 """
@@ -15,7 +15,7 @@ from uuid import uuid4
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings, get_settings
@@ -27,6 +27,8 @@ from app.v2.models import (
     ExerciseDraft,
     ExercisePayload,
     ExerciseArtifact,
+    RiffArtifact,
+    RiffPayload,
     Session,
     SongStudyPayload,
     SongSavedRange,
@@ -48,6 +50,7 @@ from app.v2.tutor.runner import ModelFactory, run_tutor_turn
 from app.v2.tutor.saved_work import saved_work_provenance, saved_work_tools
 from app.v2.tutor.branch_comparison import branch_tools
 from app.v2.tutor.workspace_tools import workspace_tools
+from app.v2.workspace import StrictModel
 
 router = APIRouter()
 
@@ -535,6 +538,53 @@ def get_progression(
     return artifact
 
 
+# --- Riff artifacts ------------------------------------------------------
+
+
+class UpdateRiffRequest(StrictModel):
+    expected_updated_at: str = Field(min_length=1, strict=True)
+    payload: RiffPayload
+
+
+def _validate_saved_riff(payload: dict) -> RiffPayload:
+    try:
+        return RiffPayload.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(422, 'Saved riff content is invalid or unsupported') from exc
+
+
+def _owned_riff(store: V2Store, artifact_id: str, user_id: str) -> Artifact:
+    try:
+        artifact = store.get_artifact(artifact_id, user_id)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if artifact.kind != 'riff':
+        raise HTTPException(404, 'Riff not found')
+    _validate_saved_riff(artifact.payload)
+    return artifact
+
+
+@router.post('/riffs', response_model=RiffArtifact, status_code=201)
+def create_riff(data: RiffPayload, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    return store.create_artifact(user_id, 'riff', data.title, data.model_dump())
+
+
+@router.get('/riffs/{artifact_id}', response_model=RiffArtifact)
+def get_riff(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    return _owned_riff(store, artifact_id, user_id)
+
+
+@router.put('/riffs/{artifact_id}', response_model=RiffArtifact)
+def update_riff(artifact_id: str, data: UpdateRiffRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
+    _owned_riff(store, artifact_id, user_id)
+    try:
+        return store.update_artifact(artifact_id, user_id, data.payload.model_dump(), data.expected_updated_at, save=True)
+    except NotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RevisionConflictError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 # --- Exercise artifacts --------------------------------------------------
 
 
@@ -609,6 +659,8 @@ def list_library(user_id: str = Depends(get_current_user), store: V2Store = Depe
 def save_artifact(artifact_id: str, data: SaveArtifactRequest, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     try:
         artifact = store.get_artifact(artifact_id, user_id)
+        if artifact.kind == 'riff':
+            _validate_saved_riff(artifact.payload)
         return store.update_artifact(artifact_id, user_id, artifact.payload, data.expected_updated_at, save=True)
     except NotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -638,6 +690,8 @@ def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_id: st
     revision = next((r for r in artifact.revisions if r.revision == data.revision), None)
     if revision is None:
         raise HTTPException(404, "Revision not found")
+    if artifact.kind == 'riff':
+        _validate_saved_riff(revision.payload)
     try:
         return store.update_artifact(artifact_id, user_id, revision.payload, data.expected_updated_at)
     except RevisionConflictError as exc:
@@ -648,6 +702,8 @@ def restore_artifact(artifact_id: str, data: RestoreArtifactRequest, user_id: st
 def open_library_artifact(artifact_id: str, user_id: str = Depends(get_current_user), store: V2Store = Depends(get_v2_store)):
     _saved_artifact(store, artifact_id, user_id)
     artifact = store.get_artifact(artifact_id, user_id)
+    if artifact.kind == 'riff':
+        raise HTTPException(422, 'Open this Riff in the riff editor')
     session = store.create_session(user_id)
     if artifact.kind == 'progression':
         reopen_progression(store, session.branches[0], artifact, user_id)
