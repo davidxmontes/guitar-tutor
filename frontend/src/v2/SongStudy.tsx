@@ -12,7 +12,7 @@ import { songPracticeMaterial } from './exerciseMaterial';
 import { noteTechniqueCues } from './songTechniques';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
-import { midiToNoteName } from '../utils/tuning';
+import { formatTuning, midiToNoteName } from '../utils/tuning';
 import { MeasureGroup } from '../components/TabViewer/MeasureGroup';
 import { getBeatsFromMeasure } from '../utils/tab';
 import { SongEnrichmentPanel } from './SongEnrichment';
@@ -493,21 +493,28 @@ export function SongStudySearch({ state, onStateChange, ensureSession, onSearch,
           }
           const renderTrack = (track: TrackSummary) => {
             const key = `${song.song_id}:${track.index}`;
+            const tuning = formatTuning(track.tuning);
+            const labelId = `song-track-${song.song_id}-${track.index}`;
             return (
                 <button
                   key={track.index}
                   type="button"
                   data-testid="song-study-track-option"
+                  aria-labelledby={labelId}
+                  aria-describedby={`${labelId}-tuning`}
                   disabled={creatingKey !== null}
                   onClick={() => handleSelectTrack(song.song_id, track.index)}
-                  className="px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
+                  className="song-study-track-option px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 hover:bg-[var(--bg-hover)]"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
                     borderColor: 'var(--border-primary)',
                     color: 'var(--text-primary)',
                   }}
                 >
-                  {creatingKey === key ? 'Loading...' : track.name || track.instrument}
+                  <span id={labelId}>{creatingKey === key ? 'Loading...' : track.name || track.instrument}</span>
+                  <span id={`${labelId}-tuning`} className="song-study-track-tuning">
+                    {tuning ? `Tuning (low to high): ${tuning}` : 'Tuning unavailable'}
+                  </span>
                 </button>
               );
             };
@@ -784,7 +791,8 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
   const upcomingNotes = activeBeatIndex >= 0 ? toFretNotes(beatSequence[nextBeatIndex]?.beat) : [];
   const activeBeat = activeBeatIndex >= 0 ? beatSequence[activeBeatIndex] : null;
 
-  const trackTuningMidi = payload.track.tuning ?? payload.tab_data.tuning ?? null;
+  const trackTuningMidi = payload.track.tuning?.length ? payload.track.tuning : payload.tab_data.tuning?.length ? payload.tab_data.tuning : null;
+  const tuningLabel = formatTuning(trackTuningMidi);
   const tuningNotes = useMemo(() => trackTuningMidi ? trackTuningMidi.map((midi) => midiToNoteName(midi)) : null, [trackTuningMidi]);
   const onTabBeatClick = useCallback((_beat: TabBeat, beatId: string) => selectBeat(beatId), [selectBeat]);
 
@@ -864,7 +872,12 @@ export function SongStudyWorkspace({ songStudy, onSongStudyChange, ensureTutor }
       <header className="song-study-header">
         <div className="song-study-heading">
           <h1 data-testid="song-study-title">{payload.title} <span>— {payload.artist}</span></h1>
-          <p>{payload.track.name} · {payload.track.instrument} · {measureCount} measures</p>
+          <div className="song-study-metadata">
+            <p>{payload.track.name} · {payload.track.instrument} · {measureCount} measures</p>
+            <p className="song-study-tuning" data-testid="song-study-tuning">
+              {tuningLabel ? `Tuning (low to high): ${tuningLabel}` : 'Tuning unavailable'}
+            </p>
+          </div>
         </div>
         <div className="song-study-header-actions" hidden={practice.focused}>
           <button type="button" data-testid="song-study-toggle-full-tab" disabled={practice.active}

@@ -40,9 +40,11 @@ test('Play-along shares count-in, fractional rests, pause, tempo, looping and ta
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await page.clock.runFor(500);
   await expect(lanes).toHaveAttribute('data-state', 'count-in');
+  await expect(page.getByTestId('song-study-tuning')).toBeVisible();
   expect(await position(page)).toBeCloseTo(-3.5, 1);
   await page.getByRole('button', { name: 'Tab', exact: true }).click();
   await expect(page.getByTestId('practice-status')).toContainText('Count in');
+  await expect(page.getByTestId('song-study-tuning')).toBeVisible();
   await page.getByRole('button', { name: 'Play-along', exact: true }).click();
   await page.clock.runFor(4650);
   expect(await position(page)).toBeGreaterThan(1);
@@ -98,6 +100,8 @@ test('recording samples reconcile pause, buffering, rate, native seek, gaps, exp
   await page.getByRole('button', { name: 'Open recording', exact: true }).click();
   await expect(page.locator('iframe[title="YouTube video player"]')).toBeVisible();
   await nativeTime(page, 11);
+  await expect(page.getByTestId('song-study-tuning')).toBeVisible();
+  await expect(page.getByTestId('song-study-tuning')).toHaveText('Tuning (low to high): D A D G B E');
   await expect(lanes).toHaveAttribute('data-state', 'paused');
   expect(await position(page)).toBeCloseTo(0.5);
   await expect(lanes.locator('[data-measure="1"]')).toHaveCount(0); // Lookahead ends at the occurrence.

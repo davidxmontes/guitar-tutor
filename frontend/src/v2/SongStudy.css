@@ -1,3 +1,6 @@
+.song-study-track-option { max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.song-study-track-tuning { display: block; margin-top: 2px; color: var(--text-secondary); font-weight: 400; }
+.song-study-metadata { display: flex; flex-wrap: wrap; column-gap: 12px; }
 .song-study-workspace { min-width: 0; background: var(--bg-primary); color: var(--text-primary); }
 .song-study-header { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0 12px; border-bottom: 1px solid var(--border-primary); background: var(--bg-primary); }
 .song-study-heading { flex: 1; min-width: 180px; }
@@ -66,7 +69,7 @@
 @media (max-width: 640px) {
   .song-study-header { align-items: flex-start; padding: 8px 0; }
   .song-study-heading h1 { font-size: 16px; }
-  .song-study-heading p { max-width: 32ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-study-heading p:not(.song-study-tuning) { max-width: 32ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .song-study-header-actions { flex-basis: 100%; justify-content: flex-end; }
   .song-study-desk { gap: 10px; padding-top: 10px; }
   .song-study-mobile-view { display: flex; gap: 6px; }
