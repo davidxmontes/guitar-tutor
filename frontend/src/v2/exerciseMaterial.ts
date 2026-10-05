@@ -10,7 +10,7 @@ export function songPracticeMaterial(payload: SongStudyPayload, selection: SongS
     .filter(entry => entry.measureIndex >= start && entry.measureIndex <= end);
   const timing = selectedBeats.map(({ beat }) => beatDuration(beat));
   const durations = timing.every((duration): duration is number => duration !== null) ? timing : [];
-  const tuning = payload.track.tuning ?? payload.tab_data.tuning;
+  const tuning = payload.track.tuning?.length ? payload.track.tuning : payload.tab_data.tuning;
   // Invalid physical notes prevent guide audio and exercises, not metronome practice.
   const playable = tuning && tuning.length === 6 && tuning.every(pitch => Number.isInteger(pitch) && pitch >= 0 && pitch <= 127)
     && durations.length === selectedBeats.length && !selectedBeats.some(({ beat }) => !beat.rest && (beat.notes ?? []).some(note =>

@@ -22,6 +22,7 @@ const payload: SongStudyPayload = {
 const focus = { measureIndex: 1, windowSize: 4 };
 
 it('shares whole-measure selection, chosen voice, and score indices across practice and exercises', () => {
+  const before = structuredClone(payload);
   const material = songPracticeMaterial(payload, { type: 'beat', measureIndex: 1, beatIndex: 2 }, focus);
   expect(material).toEqual(songPracticeMaterial(payload, null, focus));
   expect(material.sequence.map(entry => [entry.measureIndex, entry.beatIndex])).toEqual([[0, 0], [1, 0], [1, 1], [1, 2], [2, 0]]);
@@ -32,6 +33,7 @@ it('shares whole-measure selection, chosen voice, and score indices across pract
     { label: 'M2 · beat 2', beats: 0.5, tuning, positions: [] },
     { label: 'M2 · beat 3', beats: 0.5, tuning, positions: [] },
   ]);
+  expect(payload).toEqual(before);
   const range = songPracticeMaterial(payload, { type: 'range', startMeasureIndex: 1, endMeasureIndex: 2 }, focus);
   expect(range.selectedBeats.map(entry => entry.sequenceIndex)).toEqual([1, 2, 3, 4]);
   expect(range.durations).toEqual([1, 0.5, 0.5, 1.5]);
@@ -39,8 +41,13 @@ it('shares whole-measure selection, chosen voice, and score indices across pract
 });
 
 it('keeps metronome timing when tuning or sounding notes prevent a guide or exercise', () => {
-  const fallback = songPracticeMaterial({ ...payload, track: { ...payload.track, tuning: null } }, null, focus);
-  expect(fallback.steps[0].tuning).toEqual(payload.tab_data.tuning);
+  for (const missing of [null, []]) {
+    const source = { ...payload, track: { ...payload.track, tuning: missing } };
+    const before = structuredClone(source);
+    const fallback = songPracticeMaterial(source, null, focus);
+    expect(fallback.steps[0].tuning).toEqual(payload.tab_data.tuning);
+    expect(source).toEqual(before);
+  }
   for (const invalid of [null, [], [64, 59, 55, 50], [64, 59, 55, 50, 45, 128], [64, 59, 55, 50, 45, 38.5]]) {
     const material = songPracticeMaterial({ ...payload, track: { ...payload.track, tuning: invalid }, tab_data: { measures: payload.tab_data.measures } }, null, focus);
     expect(material.durations).toEqual([1, 0.5, 0.5]);
