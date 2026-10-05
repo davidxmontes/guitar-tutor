@@ -307,7 +307,7 @@ function SignedInV2App() {
     if (destination === 'explore' || destination === 'sessions') void loadSessions();
   }}>{content}</AppShell>;
 
-  if (riff) return shell(<main className="v2-app learning-app"><nav className="song-breadcrumbs" aria-label="Riff navigation"><button className="learning-text-button" onClick={() => leaveSong(riff.returnPage)}>{riff.returnPage === 'library' ? 'My Stuff' : 'Explore'}</button><span aria-hidden="true">›</span><span aria-current="page">Riff</span></nav><RiffEditor key={riff.key} artifact={riff.artifact} onDirtyChange={onRiffDirty} onSaved={artifact => setRiff(current => current && current.key === riff.key ? { ...current, artifact } : current)} /></main>);
+  if (riff) return shell(<main className="v2-app learning-app riff-page"><nav className="song-breadcrumbs" aria-label="Riff navigation"><button className="learning-text-button" onClick={() => leaveSong(riff.returnPage)}>{riff.returnPage === 'library' ? 'My Stuff' : 'Explore'}</button><span aria-hidden="true">›</span><span aria-current="page">Riff</span></nav><RiffEditor key={riff.key} artifact={riff.artifact} onDirtyChange={onRiffDirty} onSaved={artifact => setRiff(current => current && current.key === riff.key ? { ...current, artifact } : current)} /></main>);
 
   const songSearchActive = artifactView === 'search' || songTarget === 'search';
   const loadedSong = Boolean((songTarget && songTarget !== 'search') || (artifactView && artifactView !== 'search' && artifactView.kind === 'song_study'));

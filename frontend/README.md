@@ -235,7 +235,7 @@ pending callbacks. The hosted constraint migration described in
 `riff.ts` owns event identity, musical Undo, deterministic continuations and
 playback projection. Actual saved tuning always owns pitch; absent/unsupported
 scale contexts show no inferred scale hints. `FretboardDiagram` supplies physical
-entry with disjoint hint/other-note layers, a five-fret window, and 44px targets.
+entry with disjoint hint/other-note layers, a five-fret window, and 44px mobile targets.
 Its optional minimum width/string spacing let small authoring windows fit mobile
 without changing existing workspace diagrams. `e2e/riff-creator.spec.ts` exercises
 the real local API, failure/conflict/race preservation, exact reopen, keyboard,

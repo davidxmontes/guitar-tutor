@@ -100,6 +100,7 @@ test('alternate tuning, mobile containment, both themes, keyboard and reduced-mo
   await expect(page.getByTestId('riff-play-along').locator('.play-along-string')).toHaveText(['D', 'A', 'F', 'C', 'G', 'D']);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.poll(() => page.locator('.riff-timeline-board').evaluate(element => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(900);
   await page.screenshot({ path: '/tmp/riff-creator-desktop-light.png', fullPage: true });
   await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Switch to dark mode', exact: true }).click();

@@ -16,6 +16,12 @@ export function RiffEditor({ artifact, onSaved, onDirtyChange }: {
   const [saved, setSaved] = useState(artifact ?? null);
   const [baseline, setBaseline] = useState(() => JSON.stringify(draft.payload));
   const [length, setLength] = useState<RiffEvent['beats']>(.5);
+  const [touchSpacing, setTouchSpacing] = useState(() => window.matchMedia('(max-width: 850px), (pointer: coarse)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 850px), (pointer: coarse)');
+    const change = () => setTouchSpacing(media.matches);
+    media.addEventListener('change', change); return () => media.removeEventListener('change', change);
+  }, []);
   const [region, setRegion] = useState(0), [hints, setHints] = useState(true), [loop, setLoop] = useState(true);
   const [preview, setPreview] = useState<RiffSuggestion | null>(null);
   const [playback, setPlayback] = useState<{ transport: TimedPlayback; payload: typeof draft.payload; previewAt?: number } | null>(null);
@@ -99,7 +105,7 @@ export function RiffEditor({ artifact, onSaved, onDirtyChange }: {
     <div className="riff-workspace"><section className="riff-entry" aria-label="Write on the fretboard">
       <div className="riff-section-heading"><h2>Choose your notes</h2><label>Neck region <select aria-label="Neck region" value={region} onChange={event => { stop(); setRegion(Number(event.target.value)); }}><option value={0}>Frets 0–4</option><option value={5}>Frets 5–9</option><option value={10}>Frets 10–14</option><option value={15}>Frets 15–19</option><option value={20}>Frets 20–24</option></select></label></div>
       <div className="riff-entry-state" role="status">{selected ? `Editing event ${selectedIndex + 1} · ${describeRiffEvent(selected, draft.payload.tuning)}` : 'Adding at the end'}{selected && <button className="learning-text-button" onClick={() => { stop(); setDraft(current => ({ ...current, selectedId: null })); }}>Done editing</button>}</div>
-      <FretboardDiagram label="Riff fretboard" layers={layers} tuning={draft.payload.tuning} fretWindow={[region, region + 4]} minimumWidth={260} stringSpacing={44} playing={selected?.position ? { ...selected.position, note: midiToNoteName(draft.payload.tuning[selected.position.string - 1] + selected.position.fret) } : null} onSelect={note => enter({ string: note.string, fret: note.fret })} />
+      <FretboardDiagram label="Riff fretboard" layers={layers} tuning={draft.payload.tuning} fretWindow={[region, region + 4]} minimumWidth={260} stringSpacing={touchSpacing ? 44 : 34} playing={selected?.position ? { ...selected.position, note: midiToNoteName(draft.payload.tuning[selected.position.string - 1] + selected.position.fret) } : null} onSelect={note => enter({ string: note.string, fret: note.fret })} />
       <div className="music-controls riff-entry-tools"><label>Length <select aria-label="Note length" value={selected?.beats ?? length} onChange={event => { const beats = Number(event.target.value) as RiffEvent['beats']; setLength(beats); change({ type: 'length', beats }); }}><option value={.5}>½ beat</option><option value={1}>1 beat</option><option value={2}>2 beats</option></select></label>
         <button className="music-button" disabled={!selected && draft.payload.events.length >= 256} onClick={() => enter(null)}>{selected ? 'Make rest' : 'Add rest'}</button><label><input type="checkbox" checked={hints} onChange={event => setHints(event.target.checked)} />Scale hints</label>
       </div>

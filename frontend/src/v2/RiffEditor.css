@@ -52,3 +52,14 @@
   .riff-timeline, .riff-editor > .play-along { order: 2; margin-bottom: 1rem; }
   .riff-workspace { order: 3; }
 }
+
+@media (min-width: 851px) {
+  .v2-app.riff-page { padding-top: 1rem; }
+  .v2-app.riff-page .song-breadcrumbs { margin-bottom: .5rem; }
+  .riff-header { margin-bottom: .5rem; }
+  .riff-entry-state { min-height: 32px; }
+  .riff-entry-state:has(button) { min-height: 44px; }
+  .riff-entry-tools { margin-top: .5rem; }
+  .v2-app .riff-editor .riff-entry-tools label { flex-direction: row; flex-wrap: nowrap; align-items: center; }
+  .riff-edit-tools { margin: .25rem 0; }
+}
