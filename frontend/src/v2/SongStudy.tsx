@@ -304,14 +304,17 @@ function MeasureOverviewStrip({
   onRangeAnchorChange: (value: number | null) => void;
 }) {
   const [phone, setPhone] = useState(() => window.matchMedia('(max-width: 640px)').matches);
-  const currentSection = sections.find(section => focusMeasureIndex >= section.startIndex && focusMeasureIndex <= section.endIndex) ?? sections[0];
+  const focusSection = sections.find(section => focusMeasureIndex >= section.startIndex && focusMeasureIndex <= section.endIndex) ?? sections[0];
   const selectionKey = selection?.type === 'range'
     ? `range:${selection.startMeasureIndex}:${selection.endMeasureIndex}`
     : selection?.type === 'beat'
       ? `beat:${selection.measureIndex}:${selection.beatIndex}`
       : `focus:${focusMeasureIndex}`;
   const rangeKey = (start: number, end: number) => `range:${start}:${end}`;
-  const [page, setPage] = useState({ sectionStart: -1, start: 0, selectionKey: '' });
+  const [page, setPage] = useState({ sectionStart: -1, start: 0, selectionKey: '', rangeMode: false });
+  // Browsing during range selection must not move musical focus or seek playback.
+  const browsing = page.selectionKey === selectionKey && page.rangeMode === rangeMode;
+  const currentSection = browsing ? sections.find(section => section.startIndex === page.sectionStart) ?? focusSection : focusSection;
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 640px)');
@@ -323,7 +326,7 @@ function MeasureOverviewStrip({
   if (!currentSection) return null;
 
   const focusPageStart = Math.floor((focusMeasureIndex - currentSection.startIndex) / 4) * 4 + currentSection.startIndex;
-  const pageStart = page.sectionStart === currentSection.startIndex && page.selectionKey === selectionKey ? page.start : focusPageStart;
+  const pageStart = browsing ? page.start : focusPageStart;
   const pageEnd = Math.min(pageStart + 3, currentSection.endIndex);
   const visibleStart = phone ? pageStart : currentSection.startIndex;
   const visibleEnd = phone ? pageEnd : currentSection.endIndex;
@@ -333,7 +336,7 @@ function MeasureOverviewStrip({
   const handleClick = (measureIndex: number, shiftKey: boolean) => {
     const extend = shiftKey || rangeMode && rangeAnchor !== null;
     const next = selectMeasureRange(rangeAnchor, measureIndex, extend);
-    setPage({ sectionStart: currentSection.startIndex, start: Math.floor((measureIndex - currentSection.startIndex) / 4) * 4 + currentSection.startIndex, selectionKey: rangeKey(next.start, next.end) });
+    setPage({ sectionStart: currentSection.startIndex, start: Math.floor((measureIndex - currentSection.startIndex) / 4) * 4 + currentSection.startIndex, selectionKey: rangeKey(next.start, next.end), rangeMode: extend ? false : rangeMode });
     onRangeAnchorChange(next.anchor);
     if (extend) {
       onRangeModeChange(false);
@@ -343,6 +346,14 @@ function MeasureOverviewStrip({
     }
   };
 
+  const browsePage = (direction: -1 | 1) => {
+    const target = direction === 1 ? pageEnd + 1 : pageStart - 1;
+    const section = sections.find(item => target >= item.startIndex && target <= item.endIndex);
+    if (!section) return;
+    const start = direction === 1 ? target : Math.floor((target - section.startIndex) / 4) * 4 + section.startIndex;
+    setPage({ sectionStart: section.startIndex, start, selectionKey, rangeMode });
+  };
+
   return (
     <nav data-testid="song-study-overview" className="song-measure-map" aria-label="Song sections and measures">
       <div className="song-section-jumps">
@@ -350,14 +361,17 @@ function MeasureOverviewStrip({
           const current = section === currentSection;
           return <button key={section.startIndex} type="button" data-testid="song-study-overview-section"
             aria-label={section.label} aria-pressed={current} disabled={disabled}
-            onClick={() => { setPage({ sectionStart: section.startIndex, start: section.startIndex, selectionKey: rangeKey(section.startIndex, section.endIndex) }); onRangeAnchorChange(section.startIndex); onRangeModeChange(false); onRangeSelect(section.startIndex, section.endIndex); }}>
+            onClick={() => {
+              setPage({ sectionStart: section.startIndex, start: section.startIndex, selectionKey: rangeMode ? selectionKey : rangeKey(section.startIndex, section.endIndex), rangeMode });
+              if (!rangeMode) { onRangeAnchorChange(section.startIndex); onRangeSelect(section.startIndex, section.endIndex); }
+            }}>
             {section.label}<small>M{section.startIndex + 1}–{section.endIndex + 1}</small>
           </button>;
         })}
       </div>
       <div className="song-measure-navigation">
         <button type="button" className="song-measure-page" data-testid="song-measure-page-previous" aria-label="Previous measures"
-          disabled={disabled || pageStart <= currentSection.startIndex} onClick={() => setPage({ sectionStart: currentSection.startIndex, start: Math.max(currentSection.startIndex, pageStart - 4), selectionKey })}>‹</button>
+          disabled={disabled || pageStart <= (rangeMode ? sections[0].startIndex : currentSection.startIndex)} onClick={() => browsePage(-1)}>‹</button>
         <div className="song-measure-grid" role="group" aria-label={`${currentSection.label} measures`}>
           {Array.from({ length: visibleEnd - visibleStart + 1 }, (_, index) => visibleStart + index).map(measureIndex => {
             const kept = (savedRanges ?? []).some(range => measureIndex + 1 >= range.start_measure && measureIndex + 1 <= range.end_measure);
@@ -375,7 +389,7 @@ function MeasureOverviewStrip({
           })}
         </div>
         <button type="button" className="song-measure-page" data-testid="song-measure-page-next" aria-label="Next measures"
-          disabled={disabled || pageEnd >= currentSection.endIndex} onClick={() => setPage({ sectionStart: currentSection.startIndex, start: Math.min(currentSection.endIndex, pageStart + 4), selectionKey })}>›</button>
+          disabled={disabled || pageEnd >= (rangeMode ? sections[sections.length - 1].endIndex : currentSection.endIndex)} onClick={() => browsePage(1)}>›</button>
       </div>
     </nav>
   );

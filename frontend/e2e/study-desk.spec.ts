@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { installYouTubeFake } from './youtube-fake';
 
-async function openSong(page: Page) {
+async function openSong(page: Page, query = 'fixture') {
   await page.goto('/v2');
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Study a song', exact: true }).click();
-  await page.getByLabel('Search songs').fill('fixture');
+  await page.getByLabel('Search songs').fill(query);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
   await expect(page.getByTestId('song-study-title')).toContainText('Study Fixture');
@@ -181,4 +181,94 @@ test('touch range selection spans pages of an unmarked section', async ({ page }
   await expect(page.getByRole('button', { name: 'Select measure 2, kept passage', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Select measure 1', exact: true })).toHaveAttribute('aria-pressed', 'false');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+
+async function revealMeasure(page: Page, measure: number) {
+  const button = page.getByRole('button', { name: `Select measure ${measure}`, exact: true });
+  for (let count = 0; count < 3 && !(await button.isVisible()); count += 1) {
+    await page.getByRole('button', { name: 'Next measures', exact: true }).click();
+  }
+  await expect(button).toBeVisible();
+  return button;
+}
+
+for (const width of [1280, 320]) {
+  for (const reverse of [false, true]) {
+    test(`cross-section range keeps M9–10 at ${width}px with ${reverse ? 'reverse' : 'forward'} endpoints`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openSong(page, 'boundary fixture');
+      await page.getByLabel('Playback source').selectOption('practice');
+      await page.getByRole('button', { name: 'Select range', exact: true }).press('Enter');
+      if (reverse) await page.getByRole('button', { name: 'Ending', exact: true }).press('Enter');
+      await (await revealMeasure(page, reverse ? 10 : 9)).press('Enter');
+      await page.getByRole('button', { name: reverse ? 'Opening' : 'Ending', exact: true }).press('Enter');
+      await expect(page.getByText('Choose the last measure', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Cancel range', exact: true })).toBeVisible();
+      if (!reverse) await page.screenshot({ path: `/tmp/cross-section-loops-${width}-pending.png`, fullPage: true });
+      await (await revealMeasure(page, reverse ? 9 : 10)).press('Enter');
+      await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
+      await expect(page.getByRole('button', { name: `Select measure ${reverse ? 9 : 10}`, exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('heading', { name: 'Measures 9–12', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+      await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
+      if (!reverse) await page.screenshot({ path: `/tmp/cross-section-loops-${width}-complete.png`, fullPage: true });
+      await page.getByRole('button', { name: 'Tab', exact: true }).click();
+      await page.getByRole('button', { name: 'Keep passage', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Passage kept', exact: true })).toBeVisible();
+      await page.reload();
+      await page.getByLabel('Playback source').selectOption('practice');
+      await page.getByTestId('song-kept-passages').locator('summary').click();
+      await page.getByRole('button', { name: 'Revisit Opening · M9–10', exact: true }).click();
+      await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
+      await page.getByRole('button', { name: 'Practice selection', exact: true }).click();
+      await page.getByLabel('Count in', { exact: true }).selectOption('0');
+      await page.getByLabel('Practice tempo', { exact: true }).fill('240');
+      await page.getByLabel('Practice tempo', { exact: true }).press('Enter');
+      await page.getByLabel('Loop', { exact: true }).check();
+      await page.getByRole('button', { name: 'Start', exact: true }).click();
+      await expect(page.getByTestId('practice-song-position')).toContainText('measure 10');
+      await expect(page.getByTestId('practice-song-position')).toContainText('measure 9');
+      await expect(page.getByTestId('practice-status')).toHaveText('Playing');
+      await page.getByRole('button', { name: 'Pause', exact: true }).click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    });
+  }
+
+  test(`cross-section range cancellation restores focus and ordinary section selection at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openSong(page, 'boundary fixture');
+    await page.getByLabel('Playback source').selectOption('practice');
+    await page.getByRole('button', { name: 'Select range', exact: true }).click();
+    await (await revealMeasure(page, 9)).click();
+    await page.getByRole('button', { name: 'Ending', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel range', exact: true }).press('Enter');
+    await expect(page.getByTestId('practice-selected-span')).toHaveText('M9');
+    await expect(page.getByRole('button', { name: 'Select measure 9', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Ending', exact: true }).click();
+    await expect(page.getByTestId('practice-selected-span')).toHaveText('M10–12');
+    await page.getByRole('button', { name: 'Select measure 11', exact: true }).click();
+    await expect(page.getByTestId('practice-selected-span')).toHaveText('M11');
+    await page.getByRole('button', { name: 'Select measure 12', exact: true }).click({ modifiers: ['Shift'] });
+    await expect(page.getByTestId('practice-selected-span')).toHaveText('M11–12');
+  });
+}
+
+test('mobile measure pages cross sections forward and backward while retaining the range anchor', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await openSong(page, 'boundary fixture');
+  await page.getByLabel('Playback source').selectOption('practice');
+  await page.getByRole('button', { name: 'Select range', exact: true }).click();
+  await (await revealMeasure(page, 9)).click();
+  await page.getByRole('button', { name: 'Next measures', exact: true }).press('Enter');
+  await expect(page.getByText('Choose the last measure', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Select measure 10', exact: true }).click();
+  await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
+  await page.getByRole('button', { name: 'Select range', exact: true }).click();
+  await page.getByRole('button', { name: 'Ending', exact: true }).click();
+  await page.getByRole('button', { name: 'Select measure 10', exact: true }).click();
+  await page.getByRole('button', { name: 'Previous measures', exact: true }).press('Enter');
+  await expect(page.getByText('Choose the last measure', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Select measure 9', exact: true }).click();
+  await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
 });

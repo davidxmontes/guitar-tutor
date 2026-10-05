@@ -29,14 +29,14 @@ async function openRecording(page: Page, initiallyCollapsed = true) {
   await expect(page.getByRole('button', { name: 'Close recording', exact: true })).toBeVisible();
 }
 
-async function openSong(page: Page, attachManually = true) {
+async function openSong(page: Page, attachManually = true, query = 'fixture') {
   await installYouTubeFake(page);
   if (attachManually) await page.route('**/video-suggestions', route => route.fulfill({ json: { candidates: [], score_duration_seconds: null, duration_note: 'Score duration unavailable.' } }));
   await page.goto('/v2', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Study a song', exact: true }).click();
-  await page.getByLabel('Search songs').fill('fixture');
+  await page.getByLabel('Search songs').fill(query);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: 'Drop D guitar', exact: true }).click();
   await expect(page.getByLabel('Playback source')).toHaveValue('video');
@@ -710,5 +710,49 @@ for (const width of [1280, 320]) {
     await nativeTime(page, 40, 2);
     await expect(active).toHaveCount(0);
     await expect(upcoming).toHaveCount(0);
+  });
+}
+
+
+for (const width of [1280, 320]) {
+  test(`cross-section M9–10 selection drives the aligned recording loop at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/video-suggestions', route => route.fulfill({ json: {
+      candidates: [{ video_id: 'M7lc1UVf-VE', title: 'Boundary recording', channel: null, kind: 'musicvideo', match_note: 'Linked', timing: {
+        source: 'estimated', note: 'Estimated score timing.', passages: [{ id: 'score', label: 'Written score', anchors: [
+          { measure_index: 0, beat_index: 0, edge: 'start', video_seconds: 0 },
+          { measure_index: 11, beat_index: 1, edge: 'end', video_seconds: 48 },
+        ] }],
+      } }], score_duration_seconds: 48, duration_note: 'Written score estimate.',
+    } }));
+    await openSong(page, false, 'boundary fixture');
+    await page.getByRole('button', { name: 'Close recording', exact: true }).click();
+    await page.getByRole('button', { name: 'Select range', exact: true }).click();
+    if (width === 320) {
+      await page.getByRole('button', { name: 'Next measures', exact: true }).click();
+      await page.getByRole('button', { name: 'Next measures', exact: true }).click();
+    }
+    await page.getByRole('button', { name: 'Select measure 9', exact: true }).click();
+    await nativeTime(page, 35, 2);
+    await page.getByRole('button', { name: 'Ending', exact: true }).click();
+    expect(await page.evaluate(() => window.youtubeFake.active.time)).toBe(35);
+    await expect(page.getByText('Choose the last measure', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Select measure 10', exact: true }).click();
+    await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
+    await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+    await openRecording(page, false);
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M9–10');
+    await page.getByLabel('Loop selection', { exact: true }).check();
+    await page.getByRole('button', { name: 'Play selection', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(32);
+    for (let time = 32.5; time <= 39.5; time += 0.5) await nativeTime(page, time, 1);
+    await expect(page.getByTestId('song-video-position')).toContainText('M10');
+    await nativeTime(page, 40, 1);
+    await expect.poll(() => page.evaluate(() => window.youtubeFake.active.time)).toBe(32);
+    await expect(page.getByTestId('video-selected-span')).toHaveText('Selection: M9–10');
+    await page.getByRole('button', { name: 'Close recording', exact: true }).click();
+    await page.getByRole('button', { name: 'Tab', exact: true }).click();
+    await expect(page.getByTestId('practice-selected-span')).toHaveText('M9–10');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   });
 }
