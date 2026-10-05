@@ -3,7 +3,7 @@ import { apiClient } from '../api/client';
 import type { Artifact, ArtifactRevision, LibraryItem } from '../types/v2';
 
 const button = 'music-button';
-const names = { song_study: 'Song', progression: 'Progression', exercise: 'Exercise' };
+const names = { song_study: 'Song', progression: 'Progression', exercise: 'Exercise', riff: 'Riff' };
 
 export function SaveToLibrary({ artifact, onSaved }: { artifact: Pick<Artifact, 'id' | 'updated_at' | 'saved_at'>; onSaved: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
@@ -26,11 +26,11 @@ export function MyStuff({ onOpen }: { onOpen: (item: LibraryItem) => Promise<voi
   useEffect(() => { let live = true; apiClient.listLibrary().then(value => { if (live) setItems(value); }).catch(() => { if (live) setError('Could not load My Stuff. Try again from Home.'); }); return () => { live = false; }; }, []);
   const act = async (fn: () => Promise<void>) => { setBusy(true); setError(null); try { await fn(); } catch { setError('Could not complete that action. Reopen My Stuff to refresh it and try again.'); } finally { setBusy(false); } };
   return <section className="learning-library my-5 space-y-3" aria-labelledby="my-stuff-heading">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="my-stuff-heading" className="text-lg font-bold">My Stuff</h2><p className="text-sm text-[var(--text-secondary)]">Saved songs, progressions and practice drills.</p></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="my-stuff-heading" className="text-lg font-bold">My Stuff</h2><p className="text-sm text-[var(--text-secondary)]">Saved songs, riffs, progressions and practice drills.</p></div>
     <label className="learning-library-filter">Show <select aria-label="Filter saved work" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All work</option>{Object.entries(names).map(([kind, name]) => <option key={kind} value={kind}>{name}</option>)}</select></label></div>
     {error && <p role="alert">{error}</p>}
     {items === null && !error && <p role="status">Loading saved work…</p>}
-    {items?.length === 0 && <p className="text-sm text-[var(--text-secondary)]">Save a song, progression or exercise to find it here.</p>}
+    {items?.length === 0 && <p className="text-sm text-[var(--text-secondary)]">Save a song, riff, progression or exercise to find it here.</p>}
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{items?.filter(item => filter === 'all' || item.kind === filter).map(item => {
       const provenance = item.provenance;
       const source = provenance?.title ?? provenance?.artifact_title ?? provenance?.study;
