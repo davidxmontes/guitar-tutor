@@ -14,6 +14,7 @@ export interface ScoreBeat {
   endSegment: number;
 }
 export interface VideoPosition { passageId: string; measureIndex: number; beatIndex: number }
+export interface VideoScorePosition extends VideoPosition { segment: number; offset: number; start: number; end: number }
 export interface VideoRange { id: string; label: string; start: number; end: number | null }
 const EPSILON = 1e-9;
 
@@ -106,18 +107,24 @@ function scoreTime(timeline: readonly ScoreBeat[], passage: SongVideoPassage, po
   return null;
 }
 
-export function selectionVideoRanges(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], selection: SongSelection): VideoRange[] {
+export function selectionVideoRanges(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], selection: SongSelection, offsetSeconds = 0): VideoRange[] {
+  if (!Number.isFinite(offsetSeconds)) return [];
   const points = selectionBoundaries(timeline, selection);
   if (!points) return [];
   const continuous = boundary(timeline, points[0])!.segment === boundary(timeline, points[1])!.segment;
   return passages.flatMap(passage => {
-    const start = scoreTime(timeline, passage, points[0]);
-    const end = continuous ? scoreTime(timeline, passage, points[1]) : null;
-    return start === null ? [] : [{ id: passage.id, label: passage.label, start, end: end !== null && end > start ? end : null }];
+    const rawStart = scoreTime(timeline, passage, points[0]);
+    const rawEnd = continuous ? scoreTime(timeline, passage, points[1]) : null;
+    if (rawStart === null) return [];
+    const start = rawStart + offsetSeconds;
+    const end = rawEnd === null ? null : rawEnd + offsetSeconds;
+    if (end !== null && end <= 0 || start < 0 && end === null) return [];
+    return [{ id: passage.id, label: passage.label, start: Math.max(0, start), end: end !== null && end > start ? end : null }];
   });
 }
 
-export function videoPosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number): VideoPosition | null {
+export function videoPosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number, offsetSeconds = 0): VideoPosition | null {
+  seconds -= offsetSeconds;
   if (!Number.isFinite(seconds)) return null;
   // A new occurrence wins at a shared endpoint; no repeated-score inference.
   const ordered = [...passages].sort((a, b) => (b.anchors[0]?.video_seconds ?? 0) - (a.anchors[0]?.video_seconds ?? 0));
@@ -133,6 +140,36 @@ export function videoPosition(timeline: readonly ScoreBeat[], passages: readonly
       const offset = start.offset + (end.offset - start.offset) * (seconds - anchor.video_seconds) / (next.video_seconds - anchor.video_seconds);
       const beat = timeline.find(b => b.segment === start.segment && b.endSegment === start.segment && offset >= b.start - EPSILON && offset < b.end - EPSILON);
       if (beat) return { passageId: passage.id, measureIndex: beat.measureIndex, beatIndex: beat.beatIndex };
+    }
+  }
+  return null;
+}
+
+/** Continuous position only inside a calibrated interval of an explicit occurrence. */
+export function videoScorePosition(timeline: readonly ScoreBeat[], passages: readonly SongVideoPassage[], seconds: number, offsetSeconds = 0): VideoScorePosition | null {
+  seconds -= offsetSeconds;
+  if (!Number.isFinite(seconds)) return null;
+  const ordered = [...passages].sort((a, b) => (b.anchors[0]?.video_seconds ?? 0) - (a.anchors[0]?.video_seconds ?? 0));
+  for (const passage of ordered) {
+    for (let i = 0; i < passage.anchors.length - 1; i++) {
+      const anchor = passage.anchors[i];
+      const next = passage.anchors[i + 1];
+      if (seconds < anchor.video_seconds || seconds > next.video_seconds) continue;
+      const from = boundary(timeline, anchor);
+      const to = boundary(timeline, next);
+      if (!from || !to || from.segment !== to.segment || to.offset <= from.offset || next.video_seconds <= anchor.video_seconds) continue;
+      const offset = from.offset + (to.offset - from.offset) * (seconds - anchor.video_seconds) / (next.video_seconds - anchor.video_seconds);
+      const beat = timeline.find(b => b.segment === from.segment && b.endSegment === from.segment && offset >= b.start - EPSILON && offset < b.end - EPSILON)
+        ?? timeline.find(b => b.measureIndex === next.measure_index && b.beatIndex === next.beat_index);
+      if (!beat) continue;
+      // Limit lookahead to the contiguous timed part of this occurrence, including
+      // when reading an older draft containing a gap that validation now rejects.
+      let first = i;
+      let last = i + 1;
+      while (first > 0 && boundary(timeline, passage.anchors[first - 1])?.segment === from.segment) first--;
+      while (last + 1 < passage.anchors.length && boundary(timeline, passage.anchors[last + 1])?.segment === from.segment) last++;
+      return { passageId: passage.id, measureIndex: beat.measureIndex, beatIndex: beat.beatIndex,
+        segment: from.segment, offset, start: boundary(timeline, passage.anchors[first])!.offset, end: boundary(timeline, passage.anchors[last])!.offset };
     }
   }
   return null;

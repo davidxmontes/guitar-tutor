@@ -6,7 +6,7 @@
   right: 16px;
   bottom: 16px;
   width: min(384px, calc(100vw - 24px));
-  height: min(370px, calc(100dvh - 24px));
+  height: min(500px, calc(100dvh - 24px));
   min-width: min(296px, calc(100vw - 24px));
   min-height: min(350px, calc(100dvh - 24px));
   display: flex;
@@ -56,6 +56,13 @@
 .song-video-transport { flex-wrap: nowrap; padding-block: 2px; }
 .song-video-transport > * { flex: 0 0 auto; white-space: nowrap; }
 .song-video-transport > select { width: auto; min-width: 60px; margin-left: auto; }
+.song-video-nudge { min-width: 0; margin: 0; padding: 6px 0 0; border: 0; }
+.song-video-nudge legend { padding: 0; color: var(--text-secondary); font-size: 11px; }
+.song-video-nudge-controls { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; }
+.song-video-nudge-controls .music-button { min-height: 40px; padding-inline: 8px; white-space: nowrap; }
+.song-video-nudge-controls output { min-width: 0; text-align: center; color: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.song-video-nudge-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 36px; margin-top: 4px; }
+.song-video-nudge-actions button { min-height: 36px; font-size: 11px; }
 .song-video-context { display: flex; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: 11px; }
 .song-video-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .song-video-status { min-height: 18px; }
@@ -81,8 +88,9 @@
 .song-video-move:focus-visible, .song-video-resize:focus-visible { outline: 2px solid var(--learning-green); outline-offset: -3px; }
 
 @media (max-width: 700px) {
-  .song-video { right: 12px; left: 12px; bottom: 12px; width: auto; height: min(370px, calc(100dvh - 24px)); }
+  .song-video { right: 12px; left: 12px; bottom: 12px; width: auto; height: min(500px, calc(100dvh - 24px)); }
   .song-video input:not([type=checkbox]), .song-video select { font-size: 16px; }
   .song-video-tools { padding-inline: 10px; }
+  .song-video-nudge-controls .music-button, .song-video-nudge-actions button { min-height: 44px; }
   .song-video-setup { padding-inline: 10px; }
 }

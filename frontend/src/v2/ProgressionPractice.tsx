@@ -4,7 +4,7 @@ import { PracticeControls } from './PracticeControls';
 import type { ProgressionResolved } from './progression';
 import type { ProgressionIdea } from '../types/v2';
 
-export function ProgressionPractice({ idea, data, selectedId, busy, onSelect, edit, practice }: { idea: ProgressionIdea; data: ProgressionResolved; selectedId?: string; busy: boolean; onSelect: (id: string) => void; edit: (value: Record<string, unknown>) => Promise<void>; practice: PracticeState }) {
+export function ProgressionPractice({ idea, data, selectedId, busy, onSelect, edit, practice, compact = false }: { idea: ProgressionIdea; data: ProgressionResolved; selectedId?: string; busy: boolean; onSelect: (id: string) => void; edit: (value: Record<string, unknown>) => Promise<void>; practice: PracticeState; compact?: boolean }) {
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   function move(id: string, target: string) {
@@ -30,9 +30,9 @@ export function ProgressionPractice({ idea, data, selectedId, busy, onSelect, ed
     if (delta) list.scrollBy({ left: delta });
   }, [visibleId]);
   return <><section className="learning-progression-practice" aria-label="Play this progression">
-    <div className="learning-practice-heading"><div><h3>{idea.label}</h3></div>{!practice.active && <PracticeControls practice={{ ...practice, enter: () => { practice.setAudioMode('both'); practice.enter(); } }} available={data.steps.length > 0} label="progression" allowFocus={false} />}</div>
-    {practice.active && step && <p className="progression-playback-context" data-testid="playing-chord">{practice.position.count ? 'Get ready for' : 'Current chord'}: <strong>{step.root} {step.quality}</strong> · {next ? `Next: ${next.root} ${next.quality}` : 'Last chord'}. Select any chord to stop and inspect it.</p>}
-    {practice.active && <PracticeControls practice={practice} available={data.steps.length > 0} label="progression" allowFocus={false} guideLabel="Synthesized chord guide · follows your voicings and beat lengths" />}
+    {(!compact || !practice.active) && <div className="learning-practice-heading"><div><h3>{idea.label}</h3></div>{!practice.active && <PracticeControls practice={{ ...practice, enter: () => { practice.setAudioMode('both'); practice.enter(); } }} available={data.steps.length > 0} label="progression" allowFocus={false} />}</div>}
+    {practice.active && !compact && step && <p className="progression-playback-context" data-testid="playing-chord">{practice.position.count ? 'Get ready for' : 'Current chord'}: <strong>{step.root} {step.quality}</strong> · {next ? `Next: ${next.root} ${next.quality}` : 'Last chord'}. Select any chord to stop and inspect it.</p>}
+    {practice.active && <PracticeControls compact={compact} practice={practice} available={data.steps.length > 0} label="progression" allowFocus={false} guideLabel="Synthesized chord guide · follows your voicings and beat lengths" />}
   </section>
     <nav className="progression-chord-navigation" aria-label="Chords in this progression"><ol ref={sequence} className="learning-chord-strip">{data.steps.map((chord, index) => <li key={chord.id} data-drop-target={dropTarget === chord.id} onDragOver={event => { if (dragged && !busy) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(chord.id); } }} onDrop={event => { event.preventDefault(); if (dragged) move(dragged, chord.id); setDragged(null); setDropTarget(null); }} aria-current={practice.active && current === index ? 'step' : undefined}><button type="button" draggable={!busy} title="Drag to reorder · Alt + arrow keys to move" onDragStart={event => { setDragged(chord.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', chord.id); }} onDragEnd={() => { setDragged(null); setDropTarget(null); }} aria-label={`Chord ${index + 1}: ${chord.root} ${chord.quality}`} aria-pressed={practice.active ? index === current : chord.id === selectedId} aria-disabled={busy} onClick={() => { if (!busy) { practice.exit(); onSelect(chord.id); } }} onKeyDown={event => {
       const target = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? data.steps.length - 1 : null;

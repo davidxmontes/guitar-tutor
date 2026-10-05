@@ -1,0 +1,227 @@
+import { expect, test, type Page } from '@playwright/test';
+import type { ProgressionSurface } from '../src/v2/progression';
+
+async function openProgression(page: Page) {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/v2');
+  await page.getByRole('button', { name: 'Build a four-chord progression' }).click();
+  await expect(page.getByTestId('progression-workspace')).toBeVisible();
+}
+async function resolved(page: Page) {
+  const sid = (await page.getByTestId('v2-active-session').textContent())!.replace('Session ', '');
+  const bid = (await page.getByTestId('v2-active-branch').textContent())!.replace('Branch ', '');
+  const base = `/api/v2/sessions/${sid}/branches/${bid}/progression`;
+  const surface: ProgressionSurface = await page.request.get(base).then(r => r.json());
+  const idea = surface.branch.progression_workspace!.ideas.find(idea => idea.id === surface.branch.progression_workspace!.active_idea_id)!;
+  return { base, surface, idea, steps: surface.resolved[idea.id].steps };
+}
+const board = (page: Page) => page.getByTestId('progression-play-along');
+const offset = async (page: Page) => Number(await board(page).getAttribute('data-offset'));
+async function openSettings(page: Page) {
+  if (!await page.getByLabel('Count in', { exact: true }).isVisible()) await page.getByText('Practice settings', { exact: true }).click();
+}
+const currentNotes = (page: Page) => board(page).locator('.play-along-note[data-current="true"]');
+async function assertShape(page: Page, positions: { string: number; fret: number }[]) {
+  const actual = await currentNotes(page).evaluateAll(notes => notes.map(note => ({ string: Number(note.getAttribute('data-string')) + 1, fret: Number(note.getAttribute('data-fret')) })));
+  expect(actual).toEqual(positions.map(({ string, fret }) => ({ string, fret })));
+}
+
+test('Progression Play-along presents the exact default and assigned guide voicings, durations, order and tuning', async ({ page }) => {
+  await openProgression(page);
+  const initial = await resolved(page);
+  await page.getByRole('button', { name: 'Play-along', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(board(page)).toHaveAttribute('data-state', 'ready');
+  await assertShape(page, initial.steps[0].positions);
+  await expect(board(page).locator('.play-along-string')).toHaveText(['E', 'B', 'G', 'D', 'A', 'E']);
+  await expect(board(page)).toContainText('C major · 4 beats');
+  await page.getByRole('button', { name: 'Chord 3: A minor', exact: true }).click();
+  await expect(board(page)).toContainText('A minor · 4 beats');
+  expect(await offset(page)).toBe(8);
+  await assertShape(page, initial.steps[2].positions);
+  await page.getByRole('button', { name: 'Explore chords', exact: true }).click();
+  const editor = page.getByLabel('Progression editor', { exact: true });
+  await editor.getByText('Edit chord', { exact: true }).click();
+  await editor.getByLabel('Assigned voicing').selectOption({ index: 2 });
+  await editor.getByLabel('Beats', { exact: true }).fill('12');
+  await expect(editor.getByLabel('Beats', { exact: true })).toHaveValue('12');
+  const assigned = await resolved(page);
+  expect(assigned.steps[2].voicing).not.toBeNull();
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await assertShape(page, assigned.steps[2].positions);
+  await page.getByRole('combobox', { name: 'Tuning', exact: true }).selectOption('drop-d');
+  await expect(page.getByTestId('progression-workspace')).toHaveAttribute('aria-busy', 'false');
+  await page.getByRole('button', { name: 'Chord 3: A minor', exact: true }).press('Alt+ArrowLeft');
+  await expect(page.getByRole('button', { name: 'Chord 2: A minor', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const updated = await resolved(page);
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await assertShape(page, updated.steps[1].positions);
+  expect(await offset(page)).toBe(4);
+  await expect(board(page)).toContainText('A minor · 12 beats');
+  await expect(board(page).locator('.play-along-string')).toHaveText(['E', 'B', 'G', 'D', 'A', 'D']);
+});
+
+test('the same transport drives continuous count-in, long chord intervals, view switches, pause, tempo, restart, ending and loop', async ({ page }) => {
+  await openProgression(page);
+  const editor = page.getByLabel('Progression editor', { exact: true });
+  await editor.getByText('Edit chord', { exact: true }).click();
+  await editor.getByLabel('Beats', { exact: true }).fill('12');
+  await expect(editor.getByLabel('Beats', { exact: true })).toHaveValue('12');
+  await page.getByRole('button', { name: 'Chord 3: A minor', exact: true }).click();
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await page.getByRole('button', { name: 'Practice progression', exact: true }).click();
+  await page.getByLabel('Practice tempo').fill('60');
+  await page.getByLabel('Practice tempo').press('Enter');
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(500);
+  await expect(board(page)).toHaveAttribute('data-state', 'count-in');
+  expect(await offset(page)).toBeCloseTo(-3.5, 1);
+  await expect(currentNotes(page)).toHaveCount(0);
+  for (const view of ['Explore chords', 'Tutor’s view', 'Harmonic function', 'Voice leading']) {
+    await page.getByRole('navigation', { name: 'Progression views' }).getByRole('button', { name: view, exact: true }).click();
+    await expect(page.getByTestId('practice-status')).toContainText('Count in');
+  }
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await page.clock.runFor(4000);
+  expect(await offset(page)).toBeCloseTo(0.5, 1);
+  await page.clock.runFor(11000);
+  expect(await offset(page)).toBeCloseTo(11.5, 1);
+  await expect(board(page).locator('.play-along-context strong')).toHaveText('C major · 12 beats');
+  await expect(currentNotes(page).first()).toHaveAttribute('transform', /translate\(72,/);
+  const gaps = await board(page).locator('.play-along-note').evaluateAll(notes => {
+    const boxes = notes.map(note => ({ string: note.getAttribute('data-string'), box: note.getBoundingClientRect() }));
+    return boxes.flatMap((a, i) => boxes.slice(i + 1).filter(b => a.string === b.string).map(b => Math.max(a.box.left, b.box.left) - Math.min(a.box.right, b.box.right)));
+  });
+  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(7);
+  await page.clock.runFor(350);
+  await expect(board(page).locator('.play-along-note[data-current="false"][data-chord="1"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const paused = await offset(page);
+  await page.clock.runFor(2000);
+  expect(await offset(page)).toBe(paused);
+  await page.getByLabel('Practice tempo').fill('120');
+  await page.getByLabel('Practice tempo').press('Enter');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(300);
+  expect(await offset(page)).toBeCloseTo(paused + 0.6, 1);
+  await expect(board(page).locator('.play-along-context strong')).toHaveText('G major · 4 beats');
+  await page.getByRole('button', { name: 'Restart', exact: true }).click();
+  await openSettings(page);
+  await page.getByLabel('Count in', { exact: true }).selectOption('0');
+  await page.getByLabel('Loop', { exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(12100);
+  await expect(board(page)).toHaveAttribute('data-state', 'ended');
+  expect(await offset(page)).toBe(24);
+  await expect(board(page).locator('.play-along-context strong')).toHaveText('F major · 4 beats');
+  await page.getByRole('button', { name: 'Restart', exact: true }).click();
+  await expect(board(page)).toHaveAttribute('data-state', 'paused');
+  expect(await offset(page)).toBe(0);
+  await page.getByLabel('Loop', { exact: true }).check();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(10200);
+  await expect(board(page).locator('.play-along-context')).toContainText('Next: C major · 12 beats');
+  await page.clock.runFor(2050);
+  expect(await offset(page)).toBeCloseTo(0.5, 1);
+  await expect(board(page).locator('.play-along-context strong')).toHaveText('C major · 12 beats');
+  await page.getByRole('button', { name: 'Exit Practice', exact: true }).click();
+  expect(await offset(page)).toBe(16);
+  await expect(page.getByRole('button', { name: 'Chord 3: A minor', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('selection, editing, idea replacement and an empty progression reset playback without stale chord shapes', async ({ page }) => {
+  await openProgression(page);
+  const original = await resolved(page);
+  const saved = await page.request.post(original.base + '/save', { data: { expected_updated_at: original.surface.branch.updated_at } }).then(r => r.json());
+  const opened = await page.request.post(original.base + `/open/${saved.artifact.id}`).then(r => r.json());
+  const secondId = opened.progression_workspace.active_idea_id;
+  await page.request.patch(original.base, { data: { label: 'Second idea', remove: original.steps[3].id } });
+  await page.request.patch(original.base, { data: { active_idea_id: original.idea.id } });
+  await page.reload();
+  await page.locator(`[data-session-id="${original.surface.branch.session_id}"]`).click();
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await page.getByRole('button', { name: 'Practice progression', exact: true }).click();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByLabel('Active idea').selectOption(secondId);
+  await expect(page.getByLabel('Practice controls')).toHaveCount(0);
+  await expect(board(page)).toHaveAttribute('data-state', 'ready');
+  expect(await offset(page)).toBe(0);
+  await expect(page.getByRole('button', { name: /^Chord / })).toHaveCount(3);
+  await page.getByRole('button', { name: 'Chord 2: G major', exact: true }).click();
+  expect(await offset(page)).toBe(4);
+  await page.getByRole('button', { name: 'Practice progression', exact: true }).click();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove chord 2: G major', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Chord / })).toHaveCount(2);
+  await expect(page.getByLabel('Practice controls')).toHaveCount(0);
+  await expect(board(page)).toHaveAttribute('data-state', 'ready');
+  expect(await offset(page)).toBe(0);
+  await page.getByRole('button', { name: 'Remove chord 2: A minor', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Chord / })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Remove chord 1: C major', exact: true }).click();
+  await expect(board(page)).toHaveAttribute('data-state', 'empty');
+  await expect(board(page)).toContainText('Add a chord in Explore chords');
+  await expect(page.getByRole('button', { name: 'Practice progression', exact: true })).toBeDisabled();
+  await expect(board(page).locator('.play-along-note')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Explore chords', exact: true }).click();
+  await page.getByRole('button', { name: 'Add chord', exact: true }).click();
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await expect(board(page)).toHaveAttribute('data-state', 'ready');
+  await assertShape(page, (await resolved(page)).steps[0].positions);
+});
+
+test('desktop and 320px layouts keep labels and frets readable in both themes, with a stepped alternative', async ({ page }) => {
+  await openProgression(page);
+  await page.getByRole('button', { name: 'Play-along', exact: true }).click();
+  await page.getByRole('button', { name: 'Practice progression', exact: true }).click();
+  await openSettings(page);
+  await page.getByLabel('Count in', { exact: true }).selectOption('0');
+  await page.getByLabel('Practice tempo').fill('60');
+  await page.getByLabel('Practice tempo').press('Enter');
+  await page.getByText('Practice settings', { exact: true }).click();
+  expect(await board(page).locator('svg').evaluate(el => el.getBoundingClientRect().bottom)).toBeLessThanOrEqual(900);
+  await page.screenshot({ animations: 'disabled', path: '/tmp/progression-play-along-desktop.png' });
+  if (await page.getByRole('button', { name: 'Expand navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
+  await page.getByRole('button', { name: 'Switch to dark mode', exact: true }).click();
+  if (await page.getByRole('button', { name: 'Collapse navigation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Collapse navigation', exact: true }).click();
+  await page.screenshot({ animations: 'disabled', path: '/tmp/progression-play-along-desktop-dark.png' });
+  await page.getByRole('button', { name: 'Close Tutor', exact: true }).click();
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(2500);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(board(page).locator('.play-along-note[data-current="false"][data-chord="1"]').first()).toBeVisible();
+  await board(page).scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await expect(currentNotes(page).first().locator('text')).toHaveCSS('font-size', '13px');
+  await page.screenshot({ animations: 'disabled', path: '/tmp/progression-play-along-mobile-dark.png' });
+  await page.getByRole('button', { name: 'Expand navigation', exact: true }).click();
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.getByRole('button', { name: 'Collapse navigation', exact: true }).click();
+  await board(page).scrollIntoViewIfNeeded();
+  await page.screenshot({ animations: 'disabled', path: '/tmp/progression-play-along-mobile.png' });
+  const contained = await board(page).locator('.play-along-note, .play-along-chord-label').evaluateAll(items => items.every(item => {
+    const box = item.getBoundingClientRect(), svg = item.closest('svg')!.getBoundingClientRect();
+    return box.left >= svg.left && box.right <= svg.right;
+  }));
+  expect(contained).toBe(true);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(board(page)).toHaveAttribute('data-motion', 'stepped');
+  await page.getByRole('button', { name: 'Restart', exact: true }).click();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.clock.runFor(2000);
+  expect(await offset(page)).toBe(0);
+  await expect(board(page).locator('.play-along-context')).not.toContainText('to next chord');
+  await page.clock.runFor(2100);
+  expect(await offset(page)).toBe(4);
+  await expect(board(page).locator('.play-along-context strong')).toHaveText('G major · 4 beats');
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.clock.runFor(1000);
+  expect(await offset(page)).toBe(4);
+  await page.getByRole('button', { name: 'Explore chords', exact: true }).click();
+  await expect(page.getByLabel('progression fretboard', { exact: true })).toBeVisible();
+});
