@@ -212,3 +212,31 @@ mobile containment and light/dark screenshots. Real Harmony/Progression tests
 cover triads, CAGED, pinning, composed Tutor layouts, failed-write recovery,
 voicing assignment, progression editing and playback. SongStudy tests cover the
 read-only shape strip and alternate tuning. Run them with `npm run test:e2e`.
+
+## Riff creation
+
+Explore → Create riff opens an independent editor. Tapping the fretboard adds a
+physical note; selecting a timeline event changes the target until Done editing.
+Length is explicit and reused for later notes/rests. Hear previews the ending
+plus a deterministic continuation; Keep appends that exact snapshot as one Undo.
+Editing uses stationary, paged six-string lanes; Play riff uses the shared
+scrolling Play-along lanes and an audio-clock transport. Stop, editing, hidden
+pages and leaving the editor cancel both pending and scheduled audio.
+
+`RiffEditor` owns its local draft and explicit Save boundary. The typed Riff API
+creates the first saved artifact and updates that same artifact thereafter using
+its revision token. Save responses never replace edits made while a request is
+pending. My Stuff opens Riffs directly, without creating a Session or Branch.
+Native discard/before-unload guards protect changed drafts; preview/selection
+and playback do not dirty them. Account changes unmount the editor and cancel
+pending callbacks. The hosted constraint migration described in
+[`docs/agents/project.md`](../docs/agents/project.md) must precede deployment.
+
+`riff.ts` owns event identity, musical Undo, deterministic continuations and
+playback projection. Actual saved tuning always owns pitch; absent/unsupported
+scale contexts show no inferred scale hints. `FretboardDiagram` supplies physical
+entry with disjoint hint/other-note layers, a five-fret window, and 44px targets.
+Its optional minimum width/string spacing let small authoring windows fit mobile
+without changing existing workspace diagrams. `e2e/riff-creator.spec.ts` exercises
+the real local API, failure/conflict/race preservation, exact reopen, keyboard,
+320px containment, both themes and reduced motion.

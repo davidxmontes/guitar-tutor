@@ -9,8 +9,9 @@ import { HarmonyWorkspace } from './HarmonyWorkspace';
 import { ProgressionWorkspace } from './ProgressionWorkspace';
 import { SongStudySearch, SongStudyWorkspace, type SongSearchState } from './SongStudy';
 import { MyStuff } from './MyStuff';
+import { RiffEditor } from './RiffEditor';
 import { ExerciseWorkspace } from './ExerciseWorkspace';
-import type { ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
+import type { RiffArtifact, ExerciseArtifact, LibraryItem, SongStudyArtifact, V2Branch, V2Session } from '../types/v2';
 import './Controls.css';
 import { AppShell } from './AppShell';
 import { ThemeToggle } from './ThemeToggle';
@@ -45,6 +46,10 @@ function SignedInV2App() {
   const [activeSession, setActiveSession] = useState<V2Session | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [artifactView, setArtifactView] = useState<SongStudyArtifact | ExerciseArtifact | 'search' | null>(null);
+  const [riff, setRiff] = useState<{ key: string; artifact: RiffArtifact | null; returnPage: 'explore' | 'library' } | null>(null);
+  const riffDirty = useRef(false);
+  const onRiffDirty = useCallback((dirty: boolean) => { riffDirty.current = dirty; }, []);
+  const allowRiffExit = useCallback(() => !riffDirty.current || window.confirm('Discard unsaved riff changes?'), []);
   const [songTarget, setSongTarget] = useState(() => new URL(window.location.href).searchParams.get('song'));
   const [songSearch, setSongSearch] = useState<SongSearchState>(() => ({ query: new URL(window.location.href).searchParams.get('songQuery') ?? '', results: [], searched: false }));
   const [loadingSong, setLoadingSong] = useState(false);
@@ -91,10 +96,13 @@ function SignedInV2App() {
       }
     };
     restoreSongLocation(true);
-    const onPopState = () => restoreSongLocation();
+    const onPopState = () => {
+      if (!allowRiffExit()) { window.history.pushState(window.history.state, '', window.location.href); return; }
+      riffDirty.current = false; setRiff(null); restoreSongLocation();
+    };
     window.addEventListener('popstate', onPopState);
     return () => { requests.current++; window.removeEventListener('popstate', onPopState); };
-  }, []);
+  }, [allowRiffExit]);
 
   const sessionsRequest = useRef(0);
   const loadSessions = useCallback(async () => {
@@ -123,6 +131,8 @@ function SignedInV2App() {
   }, [writeSongLocation]);
 
   const studySong = () => {
+    if (!allowRiffExit()) return;
+    riffDirty.current = false; setRiff(null);
     writeSongLocation('search', page, songSearch.query);
     setArtifactView('search'); setError(null);
   };
@@ -161,12 +171,21 @@ function SignedInV2App() {
   };
 
   const leaveSong = (destination: typeof page) => {
+    if (!allowRiffExit()) return;
+    riffDirty.current = false; setRiff(null);
     writeSongLocation(null, destination);
     setArtifactView(null); setPage(destination); setError(null);
   };
 
   const openSaved = async (item: LibraryItem) => {
-    if (item.kind === 'song_study') {
+    if (!allowRiffExit()) return;
+    if (item.kind === 'riff') {
+      writeSongLocation(null, 'library');
+      const request = songRequest.current;
+      const artifact = await apiClient.getRiff(item.id);
+      if (request === songRequest.current) { riffDirty.current = false; setArtifactView(null); setRiff({ key: crypto.randomUUID(), artifact, returnPage: 'library' }); setError(null); }
+    }
+    else if (item.kind === 'song_study') {
       writeSongLocation(item.id, page, songSearch.query);
       const request = songRequest.current;
       setArtifactView(null); setLoadingSong(true); setError(null);
@@ -282,11 +301,13 @@ function SignedInV2App() {
     }
   };
 
-  const shell = (content: ReactNode) => <AppShell active={artifactView || songTarget ? 'song' : page} hasWorkspace={Boolean(activeSession)} onNavigate={destination => {
+  const shell = (content: ReactNode) => <AppShell active={riff ? riff.returnPage : artifactView || songTarget ? 'song' : page} hasWorkspace={Boolean(activeSession)} onNavigate={destination => {
     if (destination === 'song') { void studySong(); return; }
     leaveSong(destination);
     if (destination === 'explore' || destination === 'sessions') void loadSessions();
   }}>{content}</AppShell>;
+
+  if (riff) return shell(<main className="v2-app learning-app"><nav className="song-breadcrumbs" aria-label="Riff navigation"><button className="learning-text-button" onClick={() => leaveSong(riff.returnPage)}>{riff.returnPage === 'library' ? 'My Stuff' : 'Explore'}</button><span aria-hidden="true">›</span><span aria-current="page">Riff</span></nav><RiffEditor key={riff.key} artifact={riff.artifact} onDirtyChange={onRiffDirty} onSaved={artifact => setRiff(current => current && current.key === riff.key ? { ...current, artifact } : current)} /></main>);
 
   const songSearchActive = artifactView === 'search' || songTarget === 'search';
   const loadedSong = Boolean((songTarget && songTarget !== 'search') || (artifactView && artifactView !== 'search' && artifactView.kind === 'song_study'));
@@ -354,7 +375,7 @@ function SignedInV2App() {
         <button disabled={opening} onClick={() => void startActivity('shapes')}><span className="learning-activity-number">03 / CHORD SHAPES</span><strong>Find your next shape</strong><p>See playable voicings, compare their sound, and connect CAGED shapes.</p><span className="learning-activity-action">Explore shapes →</span></button>
         <button disabled={opening} aria-label="Build a four-chord progression" onClick={() => void handleStart('progression')}><span className="learning-activity-number">04 / PROGRESSIONS</span><strong>Make the chords connect</strong><p>Hear an idea, change a chord, and practise the transitions.</p><span className="learning-activity-action">Build a progression →</span></button>
       </section>
-      <div className="learning-home-tools"><button className="music-button" disabled={opening} onClick={() => void startActivity('circle')}>Explore the circle of fifths</button><button className="music-button" disabled={opening} onClick={() => void startActivity('caged')}>Connect the CAGED shapes</button><button className="learning-text-button" type="button" data-testid="v2-start-session" disabled={opening} onClick={() => void handleStart('harmony')}>Start a blank Harmony session</button></div>
+      <div className="learning-home-tools"><button className="music-button" disabled={opening} onClick={() => { writeSongLocation(null, 'explore'); setArtifactView(null); riffDirty.current = false; setRiff({ key: crypto.randomUUID(), artifact: null, returnPage: 'explore' }); setError(null); }}>Create riff</button><button className="music-button" disabled={opening} onClick={() => void startActivity('circle')}>Explore the circle of fifths</button><button className="music-button" disabled={opening} onClick={() => void startActivity('caged')}>Connect the CAGED shapes</button><button className="learning-text-button" type="button" data-testid="v2-start-session" disabled={opening} onClick={() => void handleStart('harmony')}>Start a blank Harmony session</button></div>
       {opening && <p role="status">Opening your music…</p>}
       <form onSubmit={event => { event.preventDefault(); void handleConcept(search); }} className="learning-search">
         <div><label htmlFor="explore-scale">Explore a scale, key or chord</label><p>Have something in mind? Try C major, A minor pentatonic, or Dm7.</p></div>

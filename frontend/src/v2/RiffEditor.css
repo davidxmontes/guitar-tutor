@@ -1,0 +1,54 @@
+.riff-editor { min-width: 0; }
+.riff-header, .riff-section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.riff-header { margin-bottom: 1rem; }
+.riff-name { min-width: 0; flex: 1 1 16rem; }
+.riff-name label { display: block; font-size: .75rem; color: var(--text-secondary); }
+.v2-app .riff-editor .riff-name input { width: 100%; max-width: 28rem; min-height: 44px; font-size: 1.5rem; font-weight: 650; border: 0; border-bottom: 1px solid var(--border-primary); background: transparent; color: var(--text-primary); }
+.riff-name p, .riff-suggestions p { font-size: .8rem; color: var(--text-secondary); margin: .25rem 0; }
+.riff-editor h2 { font-size: 1rem; font-weight: 650; margin: 0; }
+.riff-editor h3 { font-size: .875rem; font-weight: 600; margin: 0; }
+.riff-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 1rem; }
+.riff-entry, .riff-suggestions { min-width: 0; }
+.riff-section-heading label { font-size: .8rem; }
+.riff-editor select { min-height: 44px; max-width: 100%; border: 1px solid var(--border-primary); border-radius: .375rem; padding: .375rem; background: var(--card-bg); color: var(--text-primary); }
+.riff-entry-state { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; font-size: .8rem; min-height: 44px; color: var(--text-secondary); }
+.riff-entry-state:has(button) { color: var(--accent-700); font-weight: 600; }
+.riff-entry-tools { margin-top: .75rem; }
+.riff-editor input[type=checkbox] { width: 1rem; height: 1rem; }
+.riff-suggestions article { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .75rem 0; border-bottom: 1px solid var(--border-primary); }
+.riff-suggestions article[data-preview=true] { border-color: var(--accent-700); }
+.riff-preview-state { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .8rem; min-height: 44px; }
+.riff-edit-tools > span { margin-right: auto; color: var(--text-secondary); font-size: .8rem; }
+.riff-edit-tools { justify-content: flex-end; margin: .75rem 0; }
+.riff-timeline-board { position: relative; min-width: 0; border: 1px solid var(--border-primary); border-radius: .625rem; background: var(--card-bg); }
+.riff-timeline-board svg { display: block; overflow: hidden; }
+.riff-timeline .riff-section-heading { margin-bottom: .5rem; font-size: .8rem; color: var(--text-secondary); }
+.riff-empty { position: absolute; inset: 40% 0 auto; text-align: center; pointer-events: none; font-size: .875rem; color: var(--text-secondary); }
+.riff-string-line { stroke: var(--text-secondary); stroke-width: 1; opacity: .5; }
+.riff-grid-line { stroke: var(--border-primary); stroke-width: 1; opacity: .5; }
+.riff-string-name, .riff-beat-label { fill: var(--text-secondary); font-size: 11px; }
+.riff-timeline-event { cursor: pointer; }
+.riff-timeline-event text { fill: var(--text-primary); font-size: 13px; font-weight: 650; }
+.riff-duration { fill: var(--accent-100); }
+.riff-fret-badge { fill: var(--card-bg); stroke: var(--accent-700); stroke-width: 1.5; }
+.riff-event-hit { fill: transparent; }
+.riff-timeline-event[aria-pressed=true] .riff-fret-badge { fill: var(--accent-700); }
+.riff-timeline-event[aria-pressed=true] text { fill: white; }
+.riff-timeline-event:focus-visible { outline: none; }
+.riff-timeline-event:focus-visible .riff-fret-badge { stroke: var(--text-primary); stroke-width: 4; }
+.riff-preview-event rect { stroke-dasharray: 3 3; opacity: .65; }
+.riff-editor button:focus-visible, .riff-editor select:focus-visible, .riff-editor input:focus-visible { outline: 2px solid var(--accent-700); outline-offset: 3px; }
+@media (max-width: 850px) { .riff-workspace { grid-template-columns: minmax(0, 1fr); } .riff-suggestions article { gap: .5rem; } }
+@media (max-width: 420px) { .riff-header { align-items: flex-start; } .v2-app .riff-editor .riff-name input { font-size: 1.25rem; } .riff-transport { gap: .5rem; } .riff-entry-tools { gap: .5rem; } .riff-editor .music-button { padding: .375rem .5rem; } .riff-suggestions article { padding: .5rem 0; } .riff-edit-tools { justify-content: flex-start; } .riff-section-heading .music-controls { gap: .5rem; } }
+
+.riff-name h1 { margin: 0; line-height: 1.2; }
+.v2-app .riff-editor .riff-transport label { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: .375rem; margin: 0; }
+.v2-app .riff-editor .riff-transport input[type=number] { width: 4rem; }
+.riff-transport [data-testid=riff-save-state] { font-size: .75rem; color: var(--text-secondary); }
+@media (max-width: 850px) {
+  .riff-editor { display: flex; flex-direction: column; }
+  .riff-header { order: 0; }
+  .riff-edit-tools { order: 1; }
+  .riff-timeline, .riff-editor > .play-along { order: 2; margin-bottom: 1rem; }
+  .riff-workspace { order: 3; }
+}

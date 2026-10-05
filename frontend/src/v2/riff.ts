@@ -32,6 +32,7 @@ export function editRiff(draft: RiffDraft, edit: RiffEdit): RiffDraft {
     next = events.filter(event => event.id !== selected.id);
   } else next = [...events, ...edit.events.map(event => ({ ...event, id: crypto.randomUUID() }))];
   if (next.length > 256) return draft;
+  // ponytail: retain 40 musical edits locally; extend this cap if deeper Undo becomes useful.
   return { payload: { ...draft.payload, events: next }, selectedId: edit.type === 'delete' || edit.type === 'keep' ? null : selected?.id ?? null,
     undo: [...draft.undo.slice(-39), draft.payload.events] };
 }
