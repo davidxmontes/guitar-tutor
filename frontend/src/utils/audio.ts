@@ -74,12 +74,12 @@ export function getNoteFrequency(note: string, octave: number = 4): number {
 // Audio context singleton
 let audioContext: AudioContext | null = null
 
-function getAudioContext(): AudioContext {
+function getAudioContext(resume = true): AudioContext {
   if (!audioContext) {
     audioContext = new AudioContext()
   }
-  if (audioContext.state === 'suspended') {
-    audioContext.resume()
+  if (resume && audioContext.state === 'suspended') {
+    void audioContext.resume().catch(() => {})
   }
   return audioContext
 }
@@ -326,4 +326,50 @@ export function playTimedChords(steps: { positions: NoteToPlay[]; tuning: readon
     return step.positions.map(p => createKarplusString(ctx, getFrequency(p.string, p.fret, step.tuning), start, duration, .4));
   });
   return () => sources.forEach(source => source.stop());
+}
+
+export interface TimedPlayback { stop: () => void; elapsedBeats: () => number; finished: () => boolean }
+
+// Schedule against the audio clock, ahead of the foreground timer. Rests consume time, not voices.
+export async function startTimedPlayback(
+  steps: { positions: NoteToPlay[]; tuning: readonly number[]; beats: number }[], tempo: number,
+  { loop, signal }: { loop: boolean; signal: AbortSignal },
+): Promise<TimedPlayback | null> {
+  const ctx = getAudioContext(false);
+  if (ctx.state === 'suspended') await ctx.resume();
+  if (signal.aborted || !steps.length) return null;
+  const seconds = 60 / tempo, started = ctx.currentTime + .03;
+  const total = steps.reduce((sum, step) => sum + step.beats, 0);
+  let index = 0, beat = 0;
+  const sources = new Set<AudioBufferSourceNode>();
+  const stop = () => {
+    clearInterval(timer);
+    for (const source of sources) { source.stop(); }
+    sources.clear();
+    signal.removeEventListener('abort', stop);
+  };
+  const schedule = () => {
+    const elapsed = Math.max(0, (ctx.currentTime - started) / seconds);
+    if (loop && elapsed - beat >= total) {
+      const cycles = Math.floor((elapsed - beat) / total);
+      index += cycles * steps.length; beat += cycles * total;
+    }
+    while (!signal.aborted && (loop || index < steps.length) && started + beat * seconds < ctx.currentTime + .2) {
+      const step = steps[index % steps.length];
+      const at = started + beat * seconds;
+      const remaining = at + step.beats * seconds - ctx.currentTime;
+      for (const position of remaining > 0 ? step.positions : []) {
+        const source = createKarplusString(ctx, getFrequency(position.string, position.fret, step.tuning), Math.max(ctx.currentTime, at), Math.min(step.beats * seconds, remaining), .4);
+        sources.add(source);
+        source.onended = () => { sources.delete(source); source.disconnect(); };
+      }
+      beat += step.beats; index++;
+    }
+    if (!loop && ctx.currentTime >= started + total * seconds) clearInterval(timer);
+  };
+  const timer = setInterval(schedule, 25);
+  signal.addEventListener('abort', stop, { once: true });
+  schedule();
+  return { stop, elapsedBeats: () => Math.max(0, (ctx.currentTime - started) / seconds),
+    finished: () => !loop && ctx.currentTime >= started + total * seconds };
 }

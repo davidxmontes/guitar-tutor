@@ -249,3 +249,18 @@ selection is local; saved ranges are artifact data. Returning to the workspace
 preserves its music. Exercise composition accepts song passages or Progression
 ideas, and saved exercises reopen in the shared practice player. Existing tests
 cover rests, alternate tuning, enrichment failure/recovery and 320px layouts.
+
+Riff is also an independent Artifact, edited locally and saved intentionally via
+the owned typed `/api/v2/riffs` create/read/update API. Reopening uses the Riff
+editor rather than the library-to-Session operation. Its physical notes, rests,
+durations, actual tuning, tonal centre and tempo round-trip unchanged; changed
+Saves and Restore use existing Artifact Revisions and optimistic concurrency.
+
+Existing hosted stores require the separate additive [v2-riffs.sql](v2-riffs.sql)
+constraint migration before the supporting backend deploy, followed by frontend
+exposure. It expects `public.v2_artifacts.v2_artifacts_kind_check`; verify that
+constraint name first and adapt the migration if it was renamed. It neither
+resets storage nor changes rows, ownership rules or RPCs. Preparing this feature
+does not authorize hosted SQL execution. From `backend`, run
+`.venv/bin/python tests/v2/check_riff_migration.py` with PostgreSQL tools on PATH
+to verify installation and the additive upgrade in a disposable local cluster.

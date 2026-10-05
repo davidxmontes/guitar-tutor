@@ -3,18 +3,19 @@
 Session = an ongoing exploration containing multiple branches.
 Branch = one conversational direction: a shared Tutor thread plus a Harmony
 Exploration and/or a Progression Workspace (Spec #100 §5.1).
-Artifact = a durable musical thing (SongStudy, Progression, Exercise)
+Artifact = a durable musical thing (SongStudy, Progression, Exercise, Riff)
 saved/reopened independently of the branch that created it — common columns
 plus a JSON payload, strictly typed per concrete artifact route.
 """
 
 from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
-from app.v2.harmony_state import HarmonyExploration
+from pydantic import BaseModel, Field, field_validator, model_validator
+from app.v2.harmony_state import HarmonyExploration, TonalCenter, Tuning
+from app.v2.workspace import Identifier, PhysicalRef, StrictModel
 from app.v2.song_video import SongVideoAlignment
 
-ArtifactKind = Literal["song_study", "progression", "exercise"]
+ArtifactKind = Literal["song_study", "progression", "exercise", "riff"]
 
 WorkspaceKind = Literal["harmony", "progression"]
 
@@ -237,3 +238,54 @@ class ExercisePayload(ExerciseDraft):
 class ExerciseArtifact(Artifact):
     kind: Literal["exercise"]
     payload: ExercisePayload
+
+
+class RiffEvent(StrictModel):
+    id: Identifier
+    beats: float = Field(strict=True, allow_inf_nan=False)
+    position: PhysicalRef | None
+
+    @field_validator('id')
+    @classmethod
+    def meaningful_id(cls, value):
+        if not value.strip():
+            raise ValueError('Give each event a nonempty ID')
+        return value
+
+    @field_validator('beats')
+    @classmethod
+    def supported_length(cls, value):
+        if value not in (0.5, 1, 2):
+            raise ValueError('Event length must be half, one, or two beats')
+        return value
+
+
+class RiffPayload(StrictModel):
+    """Intentionally saved original monophonic music; rests have no position."""
+    title: str = Field(min_length=1, max_length=120, strict=True)
+    tempo: int = Field(ge=45, le=180, strict=True)
+    tuning: Tuning
+    tonal_center: TonalCenter | None
+    events: list[RiffEvent] = Field(min_length=1, max_length=256)
+
+    @field_validator('title', mode='before')
+    @classmethod
+    def trim_title(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode='after')
+    def playable_music(self):
+        if len({event.id for event in self.events}) != len(self.events):
+            raise ValueError('Event IDs must be unique')
+        if not any(event.position is not None for event in self.events):
+            raise ValueError('Add at least one sounding note before saving')
+        for event in self.events:
+            position = event.position
+            if position is not None and self.tuning[position.string - 1] + position.fret > 127:
+                raise ValueError('The note is above the MIDI pitch range for this tuning')
+        return self
+
+
+class RiffArtifact(Artifact):
+    kind: Literal['riff']
+    payload: RiffPayload

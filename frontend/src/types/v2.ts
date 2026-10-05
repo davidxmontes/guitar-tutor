@@ -17,7 +17,7 @@ export type Composition = {
   per_block_config?: Record<string, Record<string, unknown>>;
 };
 
-export type ArtifactKind = 'song_study' | 'progression' | 'exercise';
+export type ArtifactKind = 'song_study' | 'progression' | 'exercise' | 'riff';
 export type WorkspaceKind = 'harmony' | 'progression';
 
 // Persisted state mirrors backend/app/v2/{harmony,progression}_state.py.
@@ -305,3 +305,10 @@ export interface TutorJob {
   result: TutorResponse | null;
   error: string | null;
 }
+
+// Riff drafts stay local until an intentional Save. Physical coordinates own pitch.
+export type RiffEvent = { id: string; beats: 0.5 | 1 | 2; position: PhysicalPosition | null };
+export interface RiffPayload {
+  title: string; tempo: number; tuning: number[]; tonal_center: TonalCenter | null; events: RiffEvent[];
+}
+export type RiffArtifact = Omit<Artifact, 'kind' | 'payload'> & { kind: 'riff'; payload: RiffPayload };

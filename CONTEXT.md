@@ -18,7 +18,7 @@ A focused editing surface for one kind of musical work within a Branch. Its kind
 _Avoid_: Dashboard, canvas, page
 
 **Artifact**:
-A named piece of intentionally saved musical work: SongStudy, Progression, or Exercise.
+A named piece of intentionally saved musical work: SongStudy, Progression, Exercise, or Riff.
 _Avoid_: File, document
 
 **Artifact Revision**:
@@ -50,6 +50,13 @@ _Avoid_: Chord list, sequence
 **Exercise**:
 An Artifact containing a deliberate practice drill or generated practice material.
 _Avoid_: Lesson
+
+**Riff**:
+An independent Artifact containing intentionally saved original, ordered guitar
+notes and rests with explicit rhythm, tuning, tonal centre and tempo. Its editor
+holds a local editable copy until Save; it is not a Branch Workspace or an
+autosaved branch-local Working Draft.
+_Avoid_: Harmony scratch, Exercise, Phrase Workspace
 
 **Harmony Exploration**:
 The branch-local autosaved state of a Harmony Workspace — an optional tonal centre, a Scratch Sequence, and retained voicings and note groups. It has no save, no Artifact, and no revisions.

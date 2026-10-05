@@ -22,7 +22,9 @@ export function Hear({ voicing, label = 'Hear' }: { voicing: VoicingValue; label
 }
 
 /** The neck alone: controlled musical data, optional note interaction, no toolbar or playback state. */
-export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], labels = 'notes', playing, onSelect }: {
+export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], labels = 'notes', playing, onSelect, minimumWidth = 360, stringSpacing = 34 }: {
+  minimumWidth?: number;
+  stringSpacing?: number;
   label: string;
   layers: NoteLayer[];
   tuning?: number[];
@@ -43,19 +45,20 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
     return () => observer.disconnect();
   }, []);
   const count = last - first + 1;
-  const width = Math.max(360, count * 44 + 40, availableWidth);
+  const width = Math.max(minimumWidth, count * 44 + 40, availableWidth);
   const x = (fret: number) => 40 + (fret - first + .5) * ((width - 48) / count);
-  const y = (string: number) => 36 + (string - 1) * 34;
+  const y = (string: number) => 36 + (string - 1) * stringSpacing;
+  const height = 40 + 6 * stringSpacing;
   return (
     <div ref={neck} className="music-neck-scroll" tabIndex={0} aria-label="Scrollable fretboard">
-      <svg width={width} height="244" viewBox={`0 0 ${width} 244`} role={onSelect ? 'group' : 'img'} aria-label={onSelect ? label : `${label}. ${visibleLayers.flatMap(layer => layer.positions.map(note => describeNote(note, layer))).join('; ')}`}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role={onSelect ? 'group' : 'img'} aria-label={onSelect ? label : `${label}. ${visibleLayers.flatMap(layer => layer.positions.map(note => describeNote(note, layer))).join('; ')}`}>
         {Array.from({ length: 6 }, (_, index) => <g key={index} aria-hidden="true">
           <text x="8" y={y(index + 1) + 4}>{tuning ? midiToNoteName(tuning[index]) : index + 1}</text>
           <line x1="32" x2={width - 8} y1={y(index + 1)} y2={y(index + 1)} stroke="currentColor" strokeWidth={.7 + index * .2} />
         </g>)}
         {Array.from({ length: count }, (_, index) => <g key={index} aria-hidden="true">
-          <line x1={x(first + index) + (width - 48) / count / 2} x2={x(first + index) + (width - 48) / count / 2} y1="24" y2="218" stroke="currentColor" opacity=".2" />
-          <text x={x(first + index)} y="238" textAnchor="middle">{first + index}</text>
+          <line x1={x(first + index) + (width - 48) / count / 2} x2={x(first + index) + (width - 48) / count / 2} y1="24" y2={height - 26} stroke="currentColor" opacity=".2" />
+          <text x={x(first + index)} y={height - 6} textAnchor="middle">{first + index}</text>
         </g>)}
         {[...visibleLayers].sort((a, b) => Number(!!a.focal) - Number(!!b.focal)).map(layer => <g key={layer.id}>
           {layer.positions.map(note => (
@@ -64,6 +67,7 @@ export function FretboardDiagram({ label, layers, tuning, fretWindow = [0, 12], 
               aria-label={describeNote(note, layer)}
               onClick={onSelect ? () => onSelect(note, layer) : undefined}
               onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(note, layer); } } : undefined}>
+              {onSelect && <rect x={x(note.fret) - 22} y={y(note.string) - stringSpacing / 2} width={44} height={stringSpacing} fill="transparent" />}
               <circle cx={x(note.fret)} cy={y(note.string)} r={layer.focal ? 15 : 12} strokeWidth={layer.focal ? 1.5 : 1} strokeDasharray={layer.focal ? undefined : '2 2'} />
               <text x={x(note.fret)} y={y(note.string) + 4} textAnchor="middle" aria-hidden="true">{labels === 'degrees' ? note.degree ?? '—' : note.note}</text>
             </g>
