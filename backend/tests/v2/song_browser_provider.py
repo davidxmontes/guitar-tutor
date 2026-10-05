@@ -9,20 +9,23 @@ SONG = {"songId": 113, "artistId": 1, "artist": "Practice Band", "title": "Study
 async def search_songs(query):
     if query == 'provider error':
         raise ValueError('Song provider unavailable')
-    return [SongsterrRecord.model_validate(SONG)] if 'fixture' in query.lower() else []
+    song = {**SONG, "songId": 139} if query == "boundary fixture" else SONG
+    return [SongsterrRecord.model_validate(song)] if 'fixture' in query.lower() else []
 
 
 async def get_song_revision(song_id):
-    return SongsterrRevisionResponse.model_validate({**SONG, 'revisionId': 1, 'image': 'fixture'})
+    return SongsterrRevisionResponse.model_validate({**SONG, "songId": song_id, 'revisionId': 1, 'image': 'fixture'})
 
 
 async def get_tab_data(*args):
+    boundary = args[0] == 139
+    markers = {0: "Opening", 9: "Ending"} if boundary else {0: "Intro", 4: "Verse"}
     return {'tuning': [64, 59, 55, 50, 45, 38], 'measures': [
-        {'marker': {'text': 'Intro' if i == 0 else 'Verse'} if i in (0, 4) else None,
+        {'marker': {'text': markers[i]} if i in markers else None,
          'voices': [{'beats': [
              {'duration': [1, 4], 'notes': [{'string': 5, 'fret': i}, {'string': 4, 'fret': i + 2}]},
              {'duration': [1, 8], 'rest': True, 'notes': []}]}]}
-        for i in range(8)]}
+        for i in range(12 if boundary else 8)]}
 
 
 async def get_chordpro(song_id):
